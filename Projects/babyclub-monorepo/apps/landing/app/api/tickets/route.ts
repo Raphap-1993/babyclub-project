@@ -1,0 +1,131 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+export async function POST(req: NextRequest) {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  let body: any = null;
+  try {
+    body = await req.json();
+  } catch (_err) {
+    return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
+  const dni = typeof body?.dni === "string" ? body.dni.trim() : "";
+  const first_name = typeof body?.nombre === "string" ? body.nombre.trim() : "";
+  const last_name_p = typeof body?.apellido_paterno === "string" ? body.apellido_paterno.trim() : "";
+  const last_name_m = typeof body?.apellido_materno === "string" ? body.apellido_materno.trim() : "";
+  const last_name = [last_name_p, last_name_m].filter(Boolean).join(" ").trim();
+  const email = typeof body?.email === "string" ? body.email.trim() : "";
+  const phone = typeof body?.telefono === "string" ? body.telefono.trim() : "";
+  const promoter_id = typeof body?.promoter_id === "string" && body.promoter_id ? body.promoter_id : null;
+  const birthdateStr = typeof body?.birthdate === "string" ? body.birthdate : "";
+  const birthdate = birthdateStr ? new Date(birthdateStr) : null;
+
+  if (!codeValue) return NextResponse.json({ success: false, error: "code is required" }, { status: 400 });
+  if (!dni || dni.length !== 8) return NextResponse.json({ success: false, error: "dni must be 8 digits" }, { status: 400 });
+  if (!first_name || !last_name)
+    return NextResponse.json({ success: false, error: "nombre y apellido son requeridos" }, { status: 400 });
+  if (!birthdate || Number.isNaN(birthdate.getTime())) {
+    return NextResponse.json({ success: false, error: "birthdate is required" }, { status: 400 });
+  }
+  if (!isAdult(birthdate)) {
+    return NextResponse.json({ success: false, error: "Solo mayores de 18" }, { status: 403 });
+  }
+
+  // Validar código
+  const { data: codeRow, error: codeError } = await supabase
+    .from("codes")
+    .select("id,event_id,promoter_id,is_active,max_uses,uses,expires_at")
+    .eq("code", codeValue)
+    .maybeSingle();
+
+  if (codeError || !codeRow) {
+    return NextResponse.json({ success: false, error: "Código inválido" }, { status: 404 });
+  }
+
+  if (codeRow.is_active === false) {
+    return NextResponse.json({ success: false, error: "Código inactivo" }, { status: 400 });
+  }
+
+  const now = Date.now();
+  if (codeRow.expires_at && new Date(codeRow.expires_at).getTime() < now) {
+    return NextResponse.json({ success: false, error: "Código expirado" }, { status: 400 });
+  }
+
+  if (typeof codeRow.uses === "number" && typeof codeRow.max_uses === "number" && codeRow.uses >= codeRow.max_uses) {
+    return NextResponse.json({ success: false, error: "Código sin cupos" }, { status: 400 });
+  }
+
+  // Persona
+  const { data: personData, error: personError } = await supabase
+    .from("persons")
+    .upsert(
+      {
+        dni,
+        first_name,
+        last_name,
+        email: email || null,
+        phone: phone || null,
+        birthdate: birthdate.toISOString().slice(0, 10),
+      },
+      { onConflict: "dni" }
+    )
+    .select("id")
+    .single();
+
+  if (personError) {
+    return NextResponse.json({ success: false, error: personError.message }, { status: 500 });
+  }
+
+  const person_id = personData?.id;
+  const finalPromoterId = promoter_id || codeRow.promoter_id || null;
+  const full_name = `${first_name} ${last_name}`.trim();
+  const qr_token = crypto.randomUUID();
+
+  const { data: ticketData, error: ticketError } = await supabase
+    .from("tickets")
+    .insert({
+      event_id: codeRow.event_id,
+      code_id: codeRow.id,
+      person_id,
+      promoter_id: finalPromoterId,
+      qr_token,
+      dni,
+      full_name,
+      email: email || null,
+      phone: phone || null,
+    })
+    .select("id")
+    .single();
+
+  if (ticketError) {
+    return NextResponse.json({ success: false, error: ticketError.message }, { status: 500 });
+  }
+
+  // incrementar uses del código
+  await supabase
+    .from("codes")
+    .update({ uses: (codeRow.uses || 0) + 1 })
+    .eq("id", codeRow.id);
+
+  return NextResponse.json({ success: true, ticketId: ticketData?.id, qr: qr_token });
+}
+
+function isAdult(birthdate: Date) {
+  const now = new Date();
+  let age = now.getFullYear() - birthdate.getFullYear();
+  const m = now.getMonth() - birthdate.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birthdate.getDate())) age--;
+  return age >= 18;
+}
