@@ -6,22 +6,22 @@ import PromoterForm from "../../components/PromoterForm";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-type Promoter = {
-  id: string;
+type PromoterRecord = {
+  id?: string;
   person_id?: string;
   first_name: string;
   last_name: string;
   dni: string;
-  email: string | null;
-  phone: string | null;
-  code: string | null;
+  email: string;
+  phone: string;
+  code: string;
   instagram?: string | null;
   tiktok?: string | null;
   notes?: string | null;
   is_active?: boolean | null;
 };
 
-async function getPromoter(id: string): Promise<Promoter | null> {
+async function getPromoter(id: string): Promise<PromoterRecord | null> {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -35,7 +35,7 @@ async function getPromoter(id: string): Promise<Promoter | null> {
   const person = (data as any)?.persons || {};
   return {
     id: data.id,
-    person_id: data.person_id,
+    person_id: data.person_id || undefined,
     first_name: person.first_name || "",
     last_name: person.last_name || "",
     dni: person.dni || "",
