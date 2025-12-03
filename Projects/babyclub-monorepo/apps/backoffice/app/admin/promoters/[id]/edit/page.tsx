@@ -8,7 +8,17 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 type Promoter = {
   id: string;
-  name: string;
+  person_id?: string;
+  first_name: string;
+  last_name: string;
+  dni: string;
+  email: string | null;
+  phone: string | null;
+  code: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
+  notes?: string | null;
+  is_active?: boolean | null;
 };
 
 async function getPromoter(id: string): Promise<Promoter | null> {
@@ -16,9 +26,27 @@ async function getPromoter(id: string): Promise<Promoter | null> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await supabase.from("promoters").select("id,name").eq("id", id).maybeSingle();
+  const { data, error } = await supabase
+    .from("promoters")
+    .select("id,person_id,code,instagram,tiktok,notes,is_active, persons(first_name,last_name,dni,email,phone)")
+    .eq("id", id)
+    .maybeSingle();
   if (error || !data) return null;
-  return data as Promoter;
+  const person = (data as any)?.persons || {};
+  return {
+    id: data.id,
+    person_id: data.person_id,
+    first_name: person.first_name || "",
+    last_name: person.last_name || "",
+    dni: person.dni || "",
+    email: person.email || "",
+    phone: person.phone || "",
+    code: data.code || "",
+    instagram: data.instagram || "",
+    tiktok: data.tiktok || "",
+    notes: data.notes || "",
+    is_active: data.is_active,
+  };
 }
 
 export const dynamic = "force-dynamic";
