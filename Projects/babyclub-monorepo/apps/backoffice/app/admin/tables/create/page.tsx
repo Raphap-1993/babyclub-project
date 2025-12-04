@@ -20,8 +20,8 @@ export default async function CreateTablePage() {
   const events = await getEvents();
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-10">
-      <div className="mb-6 flex items-center justify-between">
+    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Mesas</p>
           <h1 className="text-3xl font-semibold">Crear mesa</h1>

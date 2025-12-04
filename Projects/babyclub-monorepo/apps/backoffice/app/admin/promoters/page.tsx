@@ -30,7 +30,25 @@ async function getPromoters(): Promise<{ promoters: Promoter[]; error?: string }
     .select("id,code,is_active,person:persons(id,dni,first_name,last_name,email,phone)")
     .order("created_at", { ascending: true });
   if (error || !data) return { promoters: [], error: error?.message || "No se pudieron cargar promotores" };
-  return { promoters: data as Promoter[] };
+
+  const normalized: Promoter[] = (data as any[]).map((p) => {
+    const personRel = Array.isArray(p.person) ? p.person[0] : p.person;
+    return {
+      id: p.id,
+      code: p.code ?? null,
+      is_active: p.is_active ?? null,
+      person: {
+        id: personRel?.id ?? "",
+        dni: personRel?.dni ?? null,
+        first_name: personRel?.first_name ?? "",
+        last_name: personRel?.last_name ?? "",
+        email: personRel?.email ?? null,
+        phone: personRel?.phone ?? null,
+      },
+    };
+  });
+
+  return { promoters: normalized };
 }
 
 export const dynamic = "force-dynamic";
@@ -39,7 +57,7 @@ export default async function PromotersPage() {
   const { promoters, error } = await getPromoters();
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-10">
+    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Promotores</p>
@@ -61,16 +79,16 @@ export default async function PromotersPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        <table className="min-w-full divide-y divide-white/10 text-sm">
+      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
+        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
           <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
             <tr>
-              <th className="px-4 py-3 text-left">Nombre</th>
-              <th className="px-4 py-3 text-left">DNI</th>
-              <th className="px-4 py-3 text-left">Email</th>
-              <th className="px-4 py-3 text-left">Código</th>
-              <th className="px-4 py-3 text-left">Estado</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
+              <th className="w-[24%] px-4 py-3 text-left">Nombre</th>
+              <th className="w-[13%] px-4 py-3 text-left">DNI</th>
+              <th className="w-[22%] px-4 py-3 text-left">Email</th>
+              <th className="w-[13%] px-4 py-3 text-left">Código</th>
+              <th className="w-[14%] px-4 py-3 text-left">Estado</th>
+              <th className="w-[14%] px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -87,7 +105,7 @@ export default async function PromotersPage() {
                   {promoter.person.first_name} {promoter.person.last_name}
                 </td>
                 <td className="px-4 py-3 text-white/80">{promoter.person.dni || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{promoter.person.email || "—"}</td>
+                <td className="px-4 py-3 text-white/80 break-words">{promoter.person.email || "—"}</td>
                 <td className="px-4 py-3 text-white/80">{promoter.code || "—"}</td>
                 <td className="px-4 py-3">
                   <span
@@ -108,6 +126,55 @@ export default async function PromotersPage() {
           </tbody>
         </table>
       </div>
+
+      <div className="space-y-3 lg:hidden">
+        {promoters.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
+            {error ? `Error: ${error}` : "No hay promotores aún."}
+          </div>
+        )}
+        {promoters.map((promoter) => (
+          <div
+            key={promoter.id}
+            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-base font-semibold text-white">
+                  {promoter.person.first_name} {promoter.person.last_name}
+                </p>
+                {promoter.person.email && <p className="text-sm text-white/70">{promoter.person.email}</p>}
+                {promoter.person.phone && <p className="text-xs text-white/60">{promoter.person.phone}</p>}
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
+                  promoter.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
+                }`}
+              >
+                {promoter.is_active ? "Activo" : "Inactivo"}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
+              <Info label="DNI" value={promoter.person.dni || "—"} />
+              <Info label="Código" value={promoter.code || "—"} />
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <PromoterActions id={promoter.id} />
+            </div>
+          </div>
+        ))}
+      </div>
     </main>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
+      <p className="font-semibold text-white">{value}</p>
+    </div>
   );
 }

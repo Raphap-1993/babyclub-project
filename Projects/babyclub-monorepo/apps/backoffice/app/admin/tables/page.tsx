@@ -28,7 +28,20 @@ async function getTables(): Promise<{ tables: TableRow[]; error?: string }> {
     .order("created_at", { ascending: true });
 
   if (error || !data) return { tables: [], error: error?.message || "No se pudieron cargar mesas" };
-  return { tables: data as TableRow[] };
+  const normalized: TableRow[] = (data as any[]).map((t) => {
+    const eventRel = t.event ? (Array.isArray(t.event) ? t.event[0] : t.event) : null;
+    return {
+      id: t.id,
+      name: t.name ?? "",
+      ticket_count: t.ticket_count ?? null,
+      min_consumption: t.min_consumption ?? null,
+      price: t.price ?? null,
+      is_active: t.is_active ?? null,
+      notes: t.notes ?? null,
+      event: { name: eventRel?.name ?? "—" },
+    };
+  });
+  return { tables: normalized };
 }
 
 export const dynamic = "force-dynamic";
@@ -38,7 +51,7 @@ export default async function TablesPage() {
   if (!tables && error) return notFound();
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-10">
+    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Mesas</p>
@@ -60,17 +73,17 @@ export default async function TablesPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        <table className="min-w-full divide-y divide-white/10 text-sm">
+      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
+        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
           <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
             <tr>
-              <th className="px-4 py-3 text-left">Nombre</th>
-              <th className="px-4 py-3 text-left">Evento</th>
-              <th className="px-4 py-3 text-left">Tickets</th>
-              <th className="px-4 py-3 text-left">Consumo mín</th>
-              <th className="px-4 py-3 text-left">Precio</th>
-              <th className="px-4 py-3 text-left">Estado</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
+              <th className="w-[24%] px-4 py-3 text-left">Nombre</th>
+              <th className="w-[18%] px-4 py-3 text-left">Evento</th>
+              <th className="w-[12%] px-4 py-3 text-left">Tickets</th>
+              <th className="w-[16%] px-4 py-3 text-left">Consumo mín</th>
+              <th className="w-[12%] px-4 py-3 text-left">Precio</th>
+              <th className="w-[10%] px-4 py-3 text-left">Estado</th>
+              <th className="w-[8%] px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -84,8 +97,8 @@ export default async function TablesPage() {
             {tables.map((table) => (
               <tr key={table.id} className="hover:bg-white/[0.02]">
                 <td className="px-4 py-3 font-semibold text-white">
-                  <div>{table.name}</div>
-                  {table.notes && <div className="text-xs text-white/60">{table.notes}</div>}
+                  <div className="break-words">{table.name}</div>
+                  {table.notes && <div className="break-words text-xs text-white/60">{table.notes}</div>}
                 </td>
                 <td className="px-4 py-3 text-white/80">{table.event?.name || "—"}</td>
                 <td className="px-4 py-3 text-white/80">{table.ticket_count ?? "—"}</td>
@@ -110,6 +123,54 @@ export default async function TablesPage() {
           </tbody>
         </table>
       </div>
+
+      <div className="space-y-3 lg:hidden">
+        {tables.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
+            {error ? `Error: ${error}` : "No hay mesas aún."}
+          </div>
+        )}
+        {tables.map((table) => (
+          <div
+            key={table.id}
+            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-base font-semibold text-white">{table.name}</p>
+                {table.notes && <p className="text-sm text-white/70">{table.notes}</p>}
+                <p className="text-xs uppercase tracking-[0.15em] text-white/50">{table.event?.name || "—"}</p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
+                  table.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
+                }`}
+              >
+                {table.is_active ? "Activa" : "Inactiva"}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
+              <Info label="Tickets" value={table.ticket_count?.toString() || "—"} />
+              <Info label="Consumo mín" value={table.min_consumption != null ? `S/ ${table.min_consumption}` : "—"} />
+              <Info label="Precio" value={table.price != null ? `S/ ${table.price}` : "—"} />
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <TableActions id={table.id} />
+            </div>
+          </div>
+        ))}
+      </div>
     </main>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
+      <p className="font-semibold text-white">{value}</p>
+    </div>
   );
 }

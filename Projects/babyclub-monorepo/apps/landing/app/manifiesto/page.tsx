@@ -1,10 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ManifiestoPage() {
+  return (
+    <Suspense fallback={<Placeholder />}>
+      <ManifiestoContent />
+    </Suspense>
+  );
+}
+
+function ManifiestoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code") || "";
@@ -83,6 +91,14 @@ export default function ManifiestoPage() {
           </button>
         </div>
       </div>
+    </main>
+  );
+}
+
+function Placeholder() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-white">
+      <div className="text-sm text-white/70">Cargando...</div>
     </main>
   );
 }

@@ -1,9 +1,17 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function RegistroPage() {
+  return (
+    <Suspense fallback={<Placeholder />}>
+      <RegistroContent />
+    </Suspense>
+  );
+}
+
+function RegistroContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const code = searchParams.get("code") || "";
@@ -239,7 +247,7 @@ export default function RegistroPage() {
             <div className="flex flex-col gap-3">
               <button
                 type="button"
-                onClick={createTicketAndRedirect}
+                onClick={() => createTicketAndRedirect()}
                 className="w-full rounded-xl bg-white px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-black transition hover:scale-[1.01]"
               >
                 Solo generar mi QR
@@ -550,5 +558,13 @@ function Field({
         required={required}
       />
     </label>
+  );
+}
+
+function Placeholder() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-white">
+      <div className="text-sm text-white/70">Cargando...</div>
+    </main>
   );
 }

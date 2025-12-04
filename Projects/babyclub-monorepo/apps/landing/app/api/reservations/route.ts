@@ -65,7 +65,10 @@ export async function POST(req: NextRequest) {
 
   const reservationId = reservation?.id;
 
-  const baseName = (table.event?.name || table_id).replace(/[^a-zA-Z]/g, "").toLowerCase() || "mesa";
+  const eventName = Array.isArray((table as any)?.event)
+    ? (table as any)?.event?.[0]?.name
+    : (table as any)?.event?.name;
+  const baseName = (eventName || table_id).replace(/[^a-zA-Z]/g, "").toLowerCase() || "mesa";
   const friendlyBase = (baseName + "mesa").slice(0, 4);
 
   const codesToInsert = Array.from({ length: codesToGenerate }, () => {

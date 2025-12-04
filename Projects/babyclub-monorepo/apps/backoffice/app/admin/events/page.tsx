@@ -48,7 +48,7 @@ export default async function EventsPage() {
   if (!events) return notFound();
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-10">
+    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Eventos</p>
@@ -70,17 +70,17 @@ export default async function EventsPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        <table className="min-w-full divide-y divide-white/10 text-sm">
+      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
+        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
           <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
             <tr>
-              <th className="px-4 py-3 text-left">Nombre</th>
-              <th className="px-4 py-3 text-left">Ubicación</th>
-              <th className="px-4 py-3 text-left">Fecha</th>
-              <th className="px-4 py-3 text-left">Capacidad</th>
-              <th className="px-4 py-3 text-left">Código</th>
-              <th className="px-4 py-3 text-left">Estado</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
+              <th className="w-[26%] px-4 py-3 text-left">Nombre</th>
+              <th className="w-[18%] px-4 py-3 text-left">Ubicación</th>
+              <th className="w-[18%] px-4 py-3 text-left">Fecha</th>
+              <th className="w-[10%] px-4 py-3 text-left">Capacidad</th>
+              <th className="w-[12%] px-4 py-3 text-left">Código</th>
+              <th className="w-[10%] px-4 py-3 text-left">Estado</th>
+              <th className="w-[6%] px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -96,21 +96,12 @@ export default async function EventsPage() {
                 <td className="px-4 py-3">
                   <div className="font-semibold text-white">{event.name}</div>
                   {event.header_image && (
-                    <div className="text-xs text-white/50 truncate max-w-[260px]">{event.header_image}</div>
+                    <div className="break-all text-xs text-white/50">{event.header_image}</div>
                   )}
                 </td>
                 <td className="px-4 py-3 text-white/80">{event.location || "—"}</td>
                 <td className="px-4 py-3 text-white/80">
-                  {event.starts_at
-                    ? new Date(event.starts_at).toLocaleString("es-PE", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })
-                    : "—"}
+                  {formatDate(event.starts_at)}
                 </td>
                 <td className="px-4 py-3 text-white/80">{event.capacity ?? "—"}</td>
                 <td className="px-4 py-3 text-white/80">{event.code ?? "—"}</td>
@@ -133,6 +124,69 @@ export default async function EventsPage() {
           </tbody>
         </table>
       </div>
+
+      <div className="space-y-3 lg:hidden">
+        {events.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
+            No hay eventos aún. Crea el primero.
+          </div>
+        )}
+        {events.map((event) => (
+          <div
+            key={event.id}
+            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-white">{event.name}</p>
+                {event.header_image && <p className="break-all text-xs text-white/50">{event.header_image}</p>}
+                <p className="text-xs uppercase tracking-[0.15em] text-white/50">{event.code || "Sin código"}</p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
+                  event.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
+                }`}
+              >
+                {event.is_active ? "Activo" : "Inactivo"}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
+              <Info label="Ubicación" value={event.location || "—"} />
+              <Info label="Fecha" value={formatDate(event.starts_at)} />
+              <Info label="Capacidad" value={event.capacity?.toString() || "—"} />
+              <Info label="Código" value={event.code || "—"} />
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <EventActions id={event.id} />
+            </div>
+          </div>
+        ))}
+      </div>
     </main>
+  );
+}
+
+function formatDate(dateString: string | null) {
+  if (!dateString) return "—";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
+      <p className="font-semibold text-white">{value}</p>
+    </div>
   );
 }

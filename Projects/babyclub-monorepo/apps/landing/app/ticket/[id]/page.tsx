@@ -33,7 +33,41 @@ async function getTicket(id: string): Promise<TicketView | null> {
     .maybeSingle();
 
   if (error || !data) return null;
-  return data as TicketView;
+
+  const codeRel = Array.isArray((data as any).code) ? (data as any).code?.[0] : (data as any).code;
+  const eventRel = Array.isArray((data as any).event) ? (data as any).event?.[0] : (data as any).event;
+  const promoterRel = Array.isArray((data as any).promoter) ? (data as any).promoter?.[0] : (data as any).promoter;
+  const promoterPerson = promoterRel?.person
+    ? Array.isArray(promoterRel.person)
+      ? promoterRel.person[0]
+      : promoterRel.person
+    : null;
+
+  const normalized: TicketView = {
+    id: data.id as string,
+    qr_token: data.qr_token as string,
+    full_name: (data as any).full_name ?? null,
+    dni: (data as any).dni ?? null,
+    email: (data as any).email ?? null,
+    phone: (data as any).phone ?? null,
+    code: { code: codeRel?.code ?? "" },
+    event: {
+      name: eventRel?.name ?? "",
+      location: eventRel?.location ?? null,
+      starts_at: eventRel?.starts_at ?? "",
+    },
+    promoter: promoterRel
+      ? {
+          code: promoterRel?.code ?? null,
+          person: promoterPerson
+            ? { first_name: promoterPerson.first_name ?? "", last_name: promoterPerson.last_name ?? "" }
+            : null,
+        }
+      : null,
+    reservation_codes: (data as any).reservation_codes ?? null,
+  };
+
+  return normalized;
 }
 
 async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {

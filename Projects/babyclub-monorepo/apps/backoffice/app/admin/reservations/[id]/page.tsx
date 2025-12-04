@@ -30,7 +30,38 @@ async function getReservation(id: string): Promise<Reservation | null> {
     .eq("id", id)
     .maybeSingle();
   if (error || !data) return null;
-  return data as Reservation;
+
+  const tableRel = Array.isArray((data as any).table) ? (data as any).table?.[0] : (data as any).table;
+  const eventRel = tableRel?.event
+    ? Array.isArray(tableRel.event)
+      ? tableRel.event[0]
+      : tableRel.event
+    : null;
+
+  const normalized: Reservation = {
+    id: data.id as string,
+    full_name: (data as any).full_name ?? "",
+    email: (data as any).email ?? null,
+    phone: (data as any).phone ?? null,
+    voucher_url: (data as any).voucher_url ?? null,
+    status: (data as any).status ?? "",
+    codes: (data as any).codes ?? null,
+    created_at: (data as any).created_at ?? "",
+    table: tableRel
+      ? {
+          name: tableRel.name ?? "",
+          event: eventRel
+            ? {
+                name: eventRel.name ?? "",
+                starts_at: eventRel.starts_at ?? null,
+                location: eventRel.location ?? null,
+              }
+            : null,
+        }
+      : null,
+  };
+
+  return normalized;
 }
 
 export const dynamic = "force-dynamic";
@@ -41,8 +72,8 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
   if (!reservation) return notFound();
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-10">
-      <div className="mb-6 flex items-center justify-between">
+    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Reservas</p>
           <h1 className="text-3xl font-semibold">Detalle de reserva</h1>

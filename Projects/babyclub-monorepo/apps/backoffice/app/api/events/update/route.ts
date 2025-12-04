@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const eventId = data?.id ?? id;
 
   // Replace code for this event
-  const codeToUse = generateCode(code, name, eventId);
+  const codeToUse = generateCode(code || "", name || "", eventId);
   await supabase.from("codes").delete().eq("event_id", eventId);
   await insertCodeWithFallback(supabase, codeToUse, eventId, capacity);
   if (cover_image) {
@@ -108,7 +108,7 @@ function generateCode(requested: string, name: string, eventId: string) {
 }
 
 async function insertCodeWithFallback(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   code: string,
   eventId: string,
   capacity?: number
@@ -131,7 +131,7 @@ async function insertCodeWithFallback(
   return code;
 }
 
-async function upsertCover(supabase: ReturnType<typeof createClient>, eventId: string, coverUrl: string) {
+async function upsertCover(supabase: any, eventId: string, coverUrl: string) {
   await supabase
     .from("event_messages")
     .upsert({ event_id: eventId, key: "cover_image", value_text: coverUrl }, { onConflict: "event_id,key" });
