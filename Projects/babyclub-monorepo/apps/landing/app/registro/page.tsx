@@ -505,7 +505,7 @@ function RegistroContent() {
                       <div className="mt-2 flex flex-wrap gap-2">
                         {tables.map((t) => {
                           const isActive = t.id === selectedTable;
-                          const reserved = t.is_reserved;
+                          const reserved = !!t.is_reserved;
                           return (
                             <button
                               key={t.id}
