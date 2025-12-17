@@ -537,31 +537,34 @@ export default function CompraPage() {
             <div className="grid gap-4 lg:grid-cols-[1.3fr,1fr]">
               <div className="space-y-3">
                   <div className="flex flex-wrap gap-2">
-                    {tables.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => {
-                          if (t.is_reserved) return;
-                          setSelected(t.id);
-                          const firstProd = t.products?.find((p) => p.is_active !== false);
-                          setSelectedProduct(firstProd?.id || "");
-                          const eventRel = Array.isArray((t as any)?.event) ? (t as any)?.event?.[0] : (t as any)?.event;
-                          const evId = t.event_id || eventRel?.id || "";
-                          if (evId) setSelectedEventId(evId);
-                        }}
-                        disabled={t.is_reserved}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          t.is_reserved
-                            ? "border border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
-                            : selected === t.id
-                              ? "bg-[#e91e63] text-white"
-                              : "border border-white/20 text-white/80"
-                        }`}
-                      >
-                        {t.name}
-                      </button>
-                    ))}
+                    {tables.map((t) => {
+                      const eventRel = Array.isArray((t as any)?.event) ? (t as any)?.event?.[0] : (t as any)?.event;
+                      const evId = t.event_id || eventRel?.id || "";
+                      const isReserved = !!t.is_reserved;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            if (isReserved) return;
+                            setSelected(t.id);
+                            const firstProd = t.products?.find((p) => p.is_active !== false);
+                            setSelectedProduct(firstProd?.id || "");
+                            if (evId) setSelectedEventId(evId);
+                          }}
+                          disabled={isReserved}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            isReserved
+                              ? "border border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
+                              : selected === t.id
+                                ? "bg-[#e91e63] text-white"
+                                : "border border-white/20 text-white/80"
+                          }`}
+                        >
+                          {t.name}
+                        </button>
+                      );
+                    })}
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-3 text-xs text-white/70">
