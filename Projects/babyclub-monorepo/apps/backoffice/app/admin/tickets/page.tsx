@@ -23,7 +23,7 @@ async function getTickets(params: {
   page: number;
   pageSize: number;
 }): Promise<{ tickets: TicketRow[]; total: number; error?: string }> {
-  if (!supabaseUrl || !supabaseServiceKey) return { tickets: [], error: "Falta configuración de Supabase" };
+  if (!supabaseUrl || !supabaseServiceKey) return { tickets: [], total: 0, error: "Falta configuración de Supabase" };
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },

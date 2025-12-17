@@ -49,8 +49,10 @@ export default function EditUserModal({
   if (!open || !user) return null;
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+    const target = e.target as HTMLInputElement | HTMLSelectElement;
+    const { name, value, type } = target;
+    const isChecked = (target as HTMLInputElement).checked;
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? isChecked : value }));
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
