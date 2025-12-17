@@ -69,17 +69,16 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
       setScanning(true);
-      const controls = await reader.decodeFromVideoDevice(
-        null,
+      const controls = await reader.decodeFromConstraints(
+        {
+          video: { facingMode: { ideal: "environment" } },
+        } as any,
         videoRef.current,
         (result: any) => {
           if (result?.getText()) {
             handleScan(result.getText());
           }
-        },
-        {
-          video: { facingMode: { ideal: "environment" } },
-        } as any
+        }
       );
       controlsRef.current = controls;
       setReady(true);
