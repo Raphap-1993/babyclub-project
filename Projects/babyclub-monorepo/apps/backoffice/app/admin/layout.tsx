@@ -444,6 +444,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         onClose={() => setProfileModal(false)}
         user={userStaff}
         roles={roles}
+        onSaved={() => {
+          // refrescar para traer datos actualizados
+          window.location.reload();
+        }}
       />
     </ClientAuthGate>
   );
