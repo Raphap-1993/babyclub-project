@@ -59,12 +59,18 @@ export default function EditUserModal({
     e.preventDefault();
     setError(null);
     setSaving(true);
+    const staffId = user?.id;
+    if (!staffId) {
+      setError("Usuario no disponible");
+      setSaving(false);
+      return;
+    }
     try {
       const res = await fetch("/api/admin/users/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          staff_id: user.id,
+          staff_id: staffId,
           ...form,
         }),
       });
