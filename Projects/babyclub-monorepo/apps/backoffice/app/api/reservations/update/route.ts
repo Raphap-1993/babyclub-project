@@ -165,17 +165,20 @@ async function sendApprovalEmail({
 
   const codesHtml =
     codes.length > 0
-      ? codes
-          .map(
-            (code) => `
+      ? (
+          await Promise.all(
+            codes.map(async (code) => {
+              const img = await qrImg(code);
+              return `
         <div style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#0f0f0f;margin-bottom:12px;">
           <div style="font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-size:14px;color:#f5f5f5;font-weight:700;">${escape(code)}</div>
           <div style="font-size:12px;color:#cfcfcf;margin:6px 0 8px;">Comparte este código con tu grupo.</div>
-          <img src="${await qrImg(code)}" alt="QR ${code}" width="180" height="180" style="border-radius:12px;border:6px solid #0b0b0b;background:#fff;" />
+          <img src="${img}" alt="QR ${code}" width="180" height="180" style="border-radius:12px;border:6px solid #0b0b0b;background:#fff;" />
         </div>
-      `
+      `;
+            })
           )
-          .join("")
+        ).join("")
       : `<p style="color:#f5f5f5;font-size:14px;">No se generaron códigos para esta reserva.</p>`;
 
   const html = `
