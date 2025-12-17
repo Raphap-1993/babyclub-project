@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BrowserMultiFormatReader, Result } from "@zxing/browser";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 
 type Option = { id: string; name: string };
 
@@ -72,7 +72,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       const controls = await reader.decodeFromVideoDevice(
         null,
         videoRef.current,
-        (result: Result | undefined) => {
+        (result: any) => {
           if (result?.getText()) {
             handleScan(result.getText());
           }
