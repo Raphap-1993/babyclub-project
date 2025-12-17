@@ -1,11 +1,14 @@
--- Tablas para mesas y reservas (aplicar en Supabase manualmente)
 create table if not exists public.tables (
   id uuid primary key default gen_random_uuid(),
-  event_id uuid not null references public.events(id),
   name text not null,
+  area text,
   ticket_count integer not null default 4,
   min_consumption numeric,
   price numeric,
+  pos_x numeric,
+  pos_y numeric,
+  pos_w numeric,
+  pos_h numeric,
   is_active boolean default true,
   notes text,
   created_at timestamptz default now(),

@@ -38,7 +38,7 @@ export default function MiniTableMap({
         {tables.map((t) => {
           const match = t.name.match(/(\d+)/);
           const label = match ? `M${match[1]}` : t.name;
-          const isReserved = Boolean(t.is_reserved);
+          const isReserved: boolean = !!t.is_reserved;
           return (
             <button
               key={t.id}
