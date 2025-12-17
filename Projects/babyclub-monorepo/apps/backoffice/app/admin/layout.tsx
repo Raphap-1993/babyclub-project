@@ -82,10 +82,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         (data.session?.user.app_metadata?.role as string | undefined) ||
         (data.session?.user.app_metadata?.user_role as string | undefined) ||
         null;
-      const sessionName =
-        (data.session?.user.user_metadata?.full_name as string | undefined) ||
-        (data.session?.user.user_metadata?.name as string | undefined) ||
-        null;
+          const sessionName =
+            (data.session?.user.user_metadata?.full_name as string | undefined) ||
+            (data.session?.user.user_metadata?.name as string | undefined) ||
+            null;
       setInitialRole(sessionMetaRole);
       if (!authUserId) return;
       try {
@@ -353,6 +353,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onClose={() => setProfileModal(false)}
             user={userStaff}
             roles={roles}
+            onSaved={() => {
+              // refrescar para traer datos actualizados
+              window.location.reload();
+            }}
           />
         </div>
       </ClientAuthGate>
