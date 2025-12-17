@@ -49,7 +49,7 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZES = [10, 20, 50, 100, 200];
 
-async function getAuthHeaders() {
+async function getAuthHeaders(): Promise<Record<string, string>> {
   if (!supabaseClient) return {};
   const { data } = await supabaseClient.auth.getSession();
   const token = data?.session?.access_token;
