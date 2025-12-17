@@ -117,7 +117,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           setUserRole(sessionMetaRole || null);
         }
         // Redirigir inmediatamente si es rol puerta
-        const roleText = (sessionMetaRole || staff?.role?.code || "").toLowerCase();
+        const staffRole = Array.isArray(staff?.role) ? staff?.role?.[0] : (staff as any)?.role;
+        const roleText = (sessionMetaRole || staffRole?.code || "").toLowerCase();
         if ((roleText.includes("door") || roleText.includes("entrance") || roleText.includes("control")) && pathname !== "/admin/door") {
           router.replace("/admin/door");
         }
