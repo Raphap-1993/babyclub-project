@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
   const voucher_url = typeof body?.voucher_url === "string" ? body.voucher_url.trim() : "";
+  const product_id = typeof body?.product_id === "string" ? body.product_id : null;
+  const event_id_body = typeof body?.event_id === "string" ? body.event_id : null;
+  const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
 
   if (!table_id || !full_name || !voucher_url) {
     return NextResponse.json({ success: false, error: "table_id, full_name y voucher_url son requeridos" }, { status: 400 });
@@ -32,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const { data: table, error: tableError } = await supabase
     .from("tables")
-    .select("id,event_id,ticket_count,is_active,event:events(name)")
+    .select("id,event_id,ticket_count,is_active,event:events(id,name)")
     .eq("id", table_id)
     .maybeSingle();
 
@@ -44,12 +47,32 @@ export async function POST(req: NextRequest) {
   }
 
   const ticketCount = table.ticket_count || 1;
-  const codesToGenerate = Math.max((table.ticket_count || 1) - 1, 0); // se descuenta 1 por el comprador
+  let effectiveEventId = table.event_id || event_id_body || null;
+
+  // Si no hay event_id en la mesa, intentar resolverlo desde el código del registro
+  if (!effectiveEventId && codeValue) {
+    const { data: codeRow } = await supabase.from("codes").select("event_id").eq("code", codeValue).maybeSingle();
+    if (codeRow?.event_id) effectiveEventId = codeRow.event_id;
+  }
+  // Fallback: tomar el evento activo más cercano si sigue vacío
+  if (!effectiveEventId) {
+    const { data: fallbackEvent } = await supabase
+      .from("events")
+      .select("id,starts_at,is_active")
+      .eq("is_active", true)
+      .order("starts_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (fallbackEvent?.id) effectiveEventId = fallbackEvent.id;
+  }
+
+  const codesToGenerate = effectiveEventId ? Math.max((table.ticket_count || 1) - 1, 0) : 0; // solo generamos códigos si hay evento
 
   const { data: reservation, error: resError } = await supabase
     .from("table_reservations")
     .insert({
       table_id,
+      product_id,
       full_name,
       email: email || null,
       phone: phone || null,
@@ -71,34 +94,36 @@ export async function POST(req: NextRequest) {
   const baseName = (eventName || table_id).replace(/[^a-zA-Z]/g, "").toLowerCase() || "mesa";
   const friendlyBase = (baseName + "mesa").slice(0, 4);
 
-  const codesToInsert = Array.from({ length: codesToGenerate }, () => {
-    const suffix = String(Math.floor(Math.random() * 90) + 10); // 2 dígitos
-    const codeValue = `${friendlyBase}-${suffix}`;
-    return {
-      code: codeValue,
-      event_id: table.event_id,
-      type: "courtesy",
-      promoter_id: null,
-      is_active: true,
-      max_uses: 1,
-      uses: 0,
-      expires_at: null,
-    };
-  });
+  let codesList: string[] = [];
+  if (codesToGenerate > 0 && effectiveEventId) {
+    const codesToInsert = Array.from({ length: codesToGenerate }, () => {
+      const suffix = String(Math.floor(Math.random() * 90) + 10); // 2 dígitos
+      const codeValue = `${friendlyBase}-${suffix}`;
+      return {
+        code: codeValue,
+        event_id: effectiveEventId,
+        type: "courtesy",
+        promoter_id: null,
+        is_active: true,
+        max_uses: 1,
+        uses: 0,
+        expires_at: null,
+      };
+    });
 
-  const { data: codes, error: codeError } = await supabase.from("codes").insert(codesToInsert).select("code");
-  if (codeError) {
-    return NextResponse.json({ success: false, error: codeError.message }, { status: 500 });
+    const { data: codes, error: codeError } = await supabase.from("codes").insert(codesToInsert).select("code");
+    if (codeError) {
+      return NextResponse.json({ success: false, error: codeError.message }, { status: 500 });
+    }
+    codesList = codes?.map((c: any) => c.code) || [];
+    await supabase.from("table_reservations").update({ codes: codesList }).eq("id", reservationId);
   }
-
-  const codesList = codes?.map((c: any) => c.code) || [];
-  await supabase.from("table_reservations").update({ codes: codesList }).eq("id", reservationId);
 
   return NextResponse.json({
     success: true,
     reservationId,
     codes: codesList,
-    eventId: table.event_id,
+    eventId: effectiveEventId,
     ticketCount: ticketCount,
   });
 }

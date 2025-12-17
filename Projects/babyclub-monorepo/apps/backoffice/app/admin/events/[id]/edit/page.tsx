@@ -43,12 +43,13 @@ async function getEvent(id: string): Promise<EventRow | null> {
 
   const { data: codes } = await supabase
     .from("codes")
-    .select("code")
+    .select("id,code")
     .eq("event_id", id)
-    .order("created_at", { ascending: false })
-    .limit(1);
+    .eq("type", "general")
+    .eq("is_active", true)
+    .maybeSingle();
 
-  const code = codes && codes.length > 0 ? codes[0].code : "";
+  const code = codes?.code || "";
   const cover_image = coverRow?.value_text || "";
 
   return { ...(data as EventRow), code, cover_image };

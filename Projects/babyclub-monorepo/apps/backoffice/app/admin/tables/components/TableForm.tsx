@@ -7,12 +7,10 @@ import { useRouter } from "next/navigation";
 type TableFormProps = {
   mode: "create" | "edit";
   initialData?: TableFormData | null;
-  events: Array<{ id: string; name: string }>;
 };
 
 type TableFormData = {
   id?: string;
-  event_id: string;
   name: string;
   ticket_count: number;
   min_consumption?: number | null;
@@ -21,11 +19,10 @@ type TableFormData = {
   is_active?: boolean | null;
 };
 
-export default function TableForm({ mode, initialData, events }: TableFormProps) {
+export default function TableForm({ mode, initialData }: TableFormProps) {
   const router = useRouter();
   const [form, setForm] = useState<TableFormData>(() => ({
     id: initialData?.id,
-    event_id: initialData?.event_id || events?.[0]?.id || "",
     name: initialData?.name || "",
     ticket_count: initialData?.ticket_count || 4,
     min_consumption: initialData?.min_consumption ?? null,
@@ -41,8 +38,8 @@ export default function TableForm({ mode, initialData, events }: TableFormProps)
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!form.name.trim() || !form.event_id) {
-      setError("Nombre y evento son requeridos");
+    if (!form.name.trim()) {
+      setError("Nombre es requerido");
       return;
     }
     setLoading(true);
@@ -79,20 +76,6 @@ export default function TableForm({ mode, initialData, events }: TableFormProps)
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Nombre" value={form.name} onChange={(v) => update("name", v)} required />
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-white">Evento</label>
-          <select
-            value={form.event_id}
-            onChange={(e) => update("event_id", e.target.value)}
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white outline-none transition focus:border-white"
-          >
-            {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </select>
-        </div>
         <Field
           label="Cantidad de tickets"
           type="number"

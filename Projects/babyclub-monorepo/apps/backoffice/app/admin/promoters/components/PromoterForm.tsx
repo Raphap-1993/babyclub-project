@@ -42,9 +42,38 @@ export default function PromoterForm({ mode, initialData }: Props) {
   }));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupInfo, setLookupInfo] = useState<string | null>(null);
 
   const updateField = (key: keyof PromoterFormData, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value as any }));
+  };
+
+  const handleLookup = async () => {
+    const dni = form.dni.trim();
+    if (dni.length !== 8) {
+      setLookupInfo("Ingresa 8 dígitos para buscar.");
+      return;
+    }
+    setLookupInfo(null);
+    setLookupLoading(true);
+    try {
+      const res = await fetch(`/api/persons?dni=${dni}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.person) {
+        throw new Error(data?.error || "No se encontró información");
+      }
+      const person = data.person;
+      updateField("first_name", person.first_name || "");
+      updateField("last_name", person.last_name || "");
+      if (!form.email && person.email) updateField("email", person.email);
+      if (!form.phone && person.phone) updateField("phone", person.phone);
+      setLookupInfo("Datos cargados automáticamente.");
+    } catch (err: any) {
+      setLookupInfo(err?.message || "Error al consultar DNI");
+    } finally {
+      setLookupLoading(false);
+    }
   };
 
   const onSubmit = async (ev: React.FormEvent) => {
@@ -96,6 +125,39 @@ export default function PromoterForm({ mode, initialData }: Props) {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="flex flex-col gap-2">
+        <label className="text-sm font-semibold text-white" htmlFor="dni">
+          DNI
+        </label>
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <input
+            id="dni"
+            value={form.dni}
+            onChange={(e) => {
+              let next = e.target.value.replace(/\D/g, "");
+              next = next.slice(0, 8);
+              updateField("dni", next);
+              setLookupInfo(null);
+            }}
+            placeholder="00000000"
+            inputMode="numeric"
+            maxLength={8}
+            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
+            required
+          />
+          <button
+            type="button"
+            onClick={handleLookup}
+            disabled={lookupLoading}
+            className="rounded-2xl border border-white/10 bg-[#111] px-4 text-sm font-semibold text-white transition hover:border-white/30 disabled:opacity-60"
+          >
+            {lookupLoading ? "Buscando..." : "Buscar"}
+          </button>
+        </div>
+        <p className="text-xs text-white/60">Consulta en BD y API Perú para rellenar automáticamente.</p>
+        {lookupInfo && <p className="text-xs font-semibold text-[#ff9a9a]">{lookupInfo}</p>}
+      </div>
+
+      <div className="flex flex-col gap-2">
         <label className="text-sm font-semibold text-white">Nombre</label>
         <div className="grid gap-2 md:grid-cols-2">
           <input
@@ -117,19 +179,6 @@ export default function PromoterForm({ mode, initialData }: Props) {
 
       <div className="grid gap-2 md:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-white" htmlFor="dni">
-            DNI
-          </label>
-          <input
-            id="dni"
-            value={form.dni}
-            onChange={(e) => updateField("dni", e.target.value)}
-            placeholder="00000000"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
-            required
-          />
-        </div>
-        <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-white" htmlFor="code">
             Código interno
           </label>
@@ -141,9 +190,6 @@ export default function PromoterForm({ mode, initialData }: Props) {
             className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-white" htmlFor="email">
             Email
@@ -157,6 +203,9 @@ export default function PromoterForm({ mode, initialData }: Props) {
             className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-white" htmlFor="phone">
             Teléfono
@@ -169,9 +218,6 @@ export default function PromoterForm({ mode, initialData }: Props) {
             className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-white" htmlFor="instagram">
             Instagram
@@ -184,6 +230,9 @@ export default function PromoterForm({ mode, initialData }: Props) {
             className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-white" htmlFor="tiktok">
             TikTok
@@ -196,20 +245,19 @@ export default function PromoterForm({ mode, initialData }: Props) {
             className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-semibold text-white" htmlFor="notes">
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          value={form.notes || ""}
-          onChange={(e) => updateField("notes", e.target.value)}
-          placeholder="Comentarios internos"
-          rows={3}
-          className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
-        />
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-white" htmlFor="notes">
+            Notas
+          </label>
+          <textarea
+            id="notes"
+            value={form.notes || ""}
+            onChange={(e) => updateField("notes", e.target.value)}
+            placeholder="Comentarios internos"
+            rows={3}
+            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
+          />
+        </div>
       </div>
 
       <label className="flex items-center gap-3 text-sm font-semibold text-white/90">

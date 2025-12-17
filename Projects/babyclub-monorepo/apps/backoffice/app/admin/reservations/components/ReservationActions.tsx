@@ -8,9 +8,11 @@ export default function ReservationActions({ id }: { id: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const updateStatus = (status: "approved" | "rejected" | "pending") => {
     setError(null);
+    setInfo(null);
     startTransition(async () => {
       const res = await fetch("/api/reservations/update", {
         method: "POST",
@@ -21,6 +23,13 @@ export default function ReservationActions({ id }: { id: string }) {
       if (!res.ok || !data?.success) {
         setError(data?.error || "No se pudo actualizar");
         return;
+      }
+      if (status === "approved") {
+        if (data?.emailError) {
+          setError(`Reserva aprobada, pero el correo no salió: ${data.emailError}`);
+        } else if (data?.emailSent) {
+          setInfo("Reserva aprobada y correo enviado al cliente.");
+        }
       }
       router.refresh();
     });
@@ -45,6 +54,7 @@ export default function ReservationActions({ id }: { id: string }) {
         Rechazar
       </button>
       {error && <span className="text-xs text-[#ff9a9a]">{error}</span>}
+      {info && <span className="text-xs text-emerald-200">{info}</span>}
     </div>
   );
 }

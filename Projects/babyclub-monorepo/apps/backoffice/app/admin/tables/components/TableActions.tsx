@@ -10,6 +10,25 @@ export default function TableActions({ id }: { id: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  const onRelease = () => {
+    const confirmed = window.confirm("¿Liberar reservas activas de esta mesa?");
+    if (!confirmed) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch("/api/tables/release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        setError(data?.error || "No se pudo liberar");
+        return;
+      }
+      router.refresh();
+    });
+  };
+
   const onDelete = () => {
     const confirmed = window.confirm("¿Eliminar mesa?");
     if (!confirmed) return;
@@ -37,6 +56,14 @@ export default function TableActions({ id }: { id: string }) {
       >
         Editar
       </Link>
+      <button
+        type="button"
+        onClick={onRelease}
+        disabled={pending}
+        className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e3b341] hover:text-[#e3b341] disabled:opacity-60"
+      >
+        Liberar
+      </button>
       <button
         type="button"
         onClick={onDelete}

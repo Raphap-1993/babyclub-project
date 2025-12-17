@@ -1,24 +1,12 @@
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import TableForm from "../components/TableForm";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function getEvents() {
-  if (!supabaseUrl || !supabaseServiceKey) return [];
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data } = await supabase.from("events").select("id,name").order("created_at", { ascending: false });
-  return data || [];
-}
-
 export const dynamic = "force-dynamic";
 
 export default async function CreateTablePage() {
-  const events = await getEvents();
-
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -35,7 +23,7 @@ export default async function CreateTablePage() {
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        <TableForm mode="create" events={events} />
+        <TableForm mode="create" />
       </div>
     </main>
   );

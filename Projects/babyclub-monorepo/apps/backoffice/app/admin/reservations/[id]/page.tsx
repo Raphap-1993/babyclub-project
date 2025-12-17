@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import ReservationActions from "../components/ReservationActions";
+import ReservationEditor from "../components/ReservationEditor";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -78,41 +80,61 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Reservas</p>
           <h1 className="text-3xl font-semibold">Detalle de reserva</h1>
         </div>
-        <Link
-          href="/admin/reservations"
-          className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-        >
-          ← Volver
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/reservations"
+            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+          >
+            ← Volver
+          </Link>
+          <ReservationActions id={reservation.id} />
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6">
-          <h2 className="mb-4 text-lg font-semibold">Datos</h2>
-          <Info label="Mesa" value={reservation.table?.name || "—"} />
-          <Info label="Evento" value={reservation.table?.event?.name || "—"} />
-          <Info label="Fecha evento" value={formatDate(reservation.table?.event?.starts_at)} />
-          <Info label="Ubicación" value={reservation.table?.event?.location || "—"} />
-          <Info label="Nombre" value={reservation.full_name} />
-          <Info label="Email" value={reservation.email || "—"} />
-          <Info label="Teléfono" value={reservation.phone || "—"} />
-          <Info label="Estado" value={reservation.status} />
-          <Info label="Creada" value={formatDate(reservation.created_at)} />
-          <div className="mt-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Voucher</p>
-            {reservation.voucher_url ? (
-              <a
-                href={reservation.voucher_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm font-semibold text-[#e91e63] underline-offset-4 hover:underline"
-              >
-                Ver voucher
-              </a>
-            ) : (
-              <p className="text-sm text-white/70">—</p>
-            )}
+      <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6">
+            <h2 className="mb-4 text-lg font-semibold">Datos</h2>
+            <Info label="Mesa" value={reservation.table?.name || "—"} />
+            <Info label="Evento" value={reservation.table?.event?.name || "—"} />
+            <Info label="Fecha evento" value={formatDate(reservation.table?.event?.starts_at)} />
+            <Info label="Ubicación" value={reservation.table?.event?.location || "—"} />
+            <Info label="Creada" value={formatDate(reservation.created_at)} />
+            <div className="mt-2 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Voucher</p>
+              {reservation.voucher_url ? (
+                <>
+                  <a
+                    href={reservation.voucher_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                  >
+                    Ver voucher
+                  </a>
+                  <div className="overflow-hidden rounded-xl border border-white/10 bg-black/60 p-2">
+                    <img
+                      src={reservation.voucher_url}
+                      alt="Voucher"
+                      className="max-h-64 w-full rounded-lg object-contain"
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-white/70">—</p>
+              )}
+            </div>
           </div>
+
+          <ReservationEditor
+            id={reservation.id}
+            initial={{
+              full_name: reservation.full_name,
+              email: reservation.email,
+              phone: reservation.phone,
+              status: reservation.status,
+            }}
+          />
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6">

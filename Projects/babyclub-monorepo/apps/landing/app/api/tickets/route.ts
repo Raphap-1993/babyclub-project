@@ -93,6 +93,28 @@ export async function POST(req: NextRequest) {
   const full_name = `${first_name} ${last_name}`.trim();
   const qr_token = crypto.randomUUID();
 
+  // Si ya tiene ticket para este evento, devolvemos el mismo QR/id
+  const { data: existingTicket, error: existingError } = await supabase
+    .from("tickets")
+    .select("id,qr_token")
+    .eq("event_id", codeRow.event_id)
+    .eq("person_id", person_id)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError && existingError.code !== "PGRST116") {
+    return NextResponse.json({ success: false, error: existingError.message }, { status: 500 });
+  }
+
+  if (existingTicket?.id && existingTicket.qr_token) {
+    return NextResponse.json({
+      success: true,
+      existing: true,
+      ticketId: existingTicket.id,
+      qr: existingTicket.qr_token,
+    });
+  }
+
   const { data: ticketData, error: ticketError } = await supabase
     .from("tickets")
     .insert({

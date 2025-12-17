@@ -2,16 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ClientAuthGate } from "@/components/ClientAuthGate";
 import { LogoutButton } from "@/components/LogoutButton";
+import { supabaseClient } from "@/lib/supabaseClient";
+import EditUserModal from "@/app/admin/users/EditUserModal";
+import type { Role, StaffUser } from "@/app/admin/users/types";
 
 const MENU = {
   OPERACIONES: [
     { label: "Eventos", href: "/admin/events" },
-    { label: "Mesas y Reservas", href: "/admin/mesas-reservas" },
+    { label: "Mesas", href: "/admin/tables" },
+    { label: "Reservas", href: "/admin/reservations" },
     { label: "Tickets / QR", href: "/admin/tickets" },
+    { label: "Escanear QR", href: "/admin/scan" },
     { label: "Promotores", href: "/admin/promoters" },
+    { label: "Productos de mesa", href: "/admin/table-products" },
+    { label: "Gestión de códigos", href: "/admin/codes" },
   ],
   REPORTES: [
     { label: "Asistencia", href: "/admin/asistencia" },
@@ -29,6 +36,7 @@ const MENU = {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [logo, setLogo] = useState<string | null>(process.env.NEXT_PUBLIC_LOGO_URL || null);
   const [navOpen, setNavOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -36,6 +44,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     REPORTES: false,
     "CONFIGURACIÓN": false,
   });
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileModal, setProfileModal] = useState(false);
+  const [userStaff, setUserStaff] = useState<StaffUser | null>(null);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [initialRole, setInitialRole] = useState<string | null>(null);
+  const [roleResolved, setRoleResolved] = useState(false);
 
   useEffect(() => {
     fetch("/api/branding")
@@ -53,6 +71,83 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const resolvedLogo = logo || process.env.NEXT_PUBLIC_LOGO_URL || null;
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!supabaseClient) return;
+      const { data } = await supabaseClient.auth.getSession();
+      const authUserId = data.session?.user.id;
+      const sessionEmail = data.session?.user.email || null;
+      const sessionMetaRole =
+        (data.session?.user.user_metadata?.role as string | undefined) ||
+        (data.session?.user.app_metadata?.role as string | undefined) ||
+        (data.session?.user.app_metadata?.user_role as string | undefined) ||
+        null;
+      const sessionName =
+        (data.session?.user.user_metadata?.full_name as string | undefined) ||
+        (data.session?.user.user_metadata?.name as string | undefined) ||
+        null;
+      setInitialRole(sessionMetaRole);
+      if (!authUserId) return;
+      try {
+        const { data: staff } = await supabaseClient
+          .from("staff")
+          .select(
+            "id,is_active,created_at,auth_user_id,person:persons(id,dni,first_name,last_name,email,phone),role:staff_roles(id,code,name)",
+          )
+          .eq("auth_user_id", authUserId)
+          .maybeSingle();
+
+        if (staff) {
+          const person = Array.isArray(staff.person) ? staff.person[0] : staff.person;
+          const role = Array.isArray(staff.role) ? staff.role[0] : staff.role;
+          setUserName(`${person?.first_name || ""} ${person?.last_name || ""}`.trim() || sessionName || sessionEmail || null);
+          setUserRole(role?.code || sessionMetaRole || null);
+          setUserEmail(person?.email || sessionEmail || null);
+          setUserStaff({
+            id: staff.id,
+            is_active: staff.is_active,
+            created_at: staff.created_at,
+            auth_user_id: staff.auth_user_id,
+            role,
+            person,
+          });
+        } else {
+          setUserEmail(sessionEmail);
+          setUserName(sessionName || sessionEmail);
+          setUserRole(sessionMetaRole || null);
+        }
+        // Redirigir inmediatamente si es rol puerta
+        const roleText = (sessionMetaRole || staff?.role?.code || "").toLowerCase();
+        if ((roleText.includes("door") || roleText.includes("entrance") || roleText.includes("control")) && pathname !== "/admin/door") {
+          router.replace("/admin/door");
+        }
+      } catch (_err) {
+        setUserEmail(sessionEmail);
+        setUserName(sessionName || sessionEmail);
+        setUserRole(sessionMetaRole || null);
+      } finally {
+        setRoleResolved(true);
+      }
+    };
+
+    fetchProfile().finally(() => setProfileLoading(false));
+    fetch("/api/admin/users/roles")
+      .then((res) => res.json())
+      .then((payload) => {
+        if (payload?.success) setRoles(payload.data || []);
+      })
+      .catch(() => null);
+
+  }, []);
+
+  useEffect(() => {
+    const roleText = (userRole || initialRole || "").toLowerCase();
+    const doorRole = roleText.includes("door") || roleText.includes("entrance") || roleText.includes("control");
+    if (roleResolved && doorRole && pathname !== "/admin/door") {
+      router.replace("/admin/door");
+    }
+  }, [userRole, initialRole, roleResolved, pathname, router]);
+
   const toggleGroup = (group: string) => {
     setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
   };
@@ -63,78 +158,205 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return pathname.startsWith(href) && href !== "/admin";
   };
 
-  const renderSidebar = (onNavigate?: () => void) => (
-    <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col gap-6 overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0b0b] p-6 pr-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex h-12 items-center">
-          {resolvedLogo ? (
-            <img src={resolvedLogo} alt="BABY" className="h-12 w-auto object-contain" />
-          ) : (
-            <span className="text-lg font-black tracking-[0.2em]">BABY Admin Suite</span>
-          )}
+  const roleText = (userRole || initialRole || "").toLowerCase();
+  const isDoorRole = roleText.includes("door") || roleText.includes("entrance") || roleText.includes("control");
+  const isDoor = isDoorRole || (pathname ? pathname.startsWith("/admin/door") : false);
+  const accountLabel = userName
+    ? `${userName}${userRole ? ` (${userRole})` : ""}`
+    : userEmail || "Cuenta";
+
+  if (profileLoading || !roleResolved) {
+    return (
+      <ClientAuthGate>
+        <div className="flex min-h-screen items-center justify-center bg-[#050505] text-white">
+          <p className="rounded-xl border border-white/10 bg-[#0b0b0b] px-4 py-3 text-sm text-white/70">Cargando sesión...</p>
         </div>
-        <button
-          className="lg:hidden rounded-full border border-white/15 px-3 py-2 text-xs text-white"
-          onClick={() => setNavOpen(false)}
-        >
-          Cerrar
-        </button>
-      </div>
+      </ClientAuthGate>
+    );
+  }
 
-      <nav className="space-y-4 text-sm font-semibold text-white/70">
-        <Link
-          href="/admin"
-          onClick={onNavigate}
-          className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-white transition ${
-            isActive("/admin")
-            ? "border-[#e91e63]/60 bg-[#e91e63]/15"
-            : "border-white/5 bg-white/[0.04] hover:border-[#e91e63]/60 hover:bg-[#e91e63]/10"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <span className="text-base font-semibold">⌂</span>
-            Inicio
-          </span>
-          <span className="text-xs text-white/50">→</span>
-        </Link>
-
-        {Object.entries(MENU).map(([group, items]) => (
-          <div key={group} className="space-y-2 rounded-2xl border border-white/5 bg-white/[0.015] p-2">
-            <button
-              type="button"
-              onClick={() => toggleGroup(group)}
-              className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.15em] text-white/60 hover:text-white"
+  const renderSidebar = (onNavigate?: () => void) => {
+    if (isDoor) {
+      return (
+        <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col gap-6 overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0b0b] p-6 pr-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex h-12 items-center">
+              {resolvedLogo ? (
+                <img src={resolvedLogo} alt="BABY" className="h-12 w-auto object-contain" />
+              ) : (
+                <span className="text-lg font-black tracking-[0.2em]">BABY Admin Suite</span>
+              )}
+            </div>
+          </div>
+          <nav className="space-y-4 text-sm font-semibold text-white/70">
+            <Link
+              href="/admin/door"
+              onClick={onNavigate}
+              className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-white transition ${
+                isActive("/admin/door")
+                  ? "border-[#e91e63]/60 bg-[#e91e63]/15"
+                  : "border-white/5 bg-white/[0.04] hover:border-[#e91e63]/60 hover:bg-[#e91e63]/10"
+              }`}
             >
-              <span>{group}</span>
-              <span className="text-base font-bold">{openGroups[group] ? "−" : "+"}</span>
-            </button>
-            {openGroups[group] && (
-              <div className="space-y-2">
-                {(items as { label: string; href: string }[]).map((item) => (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    onClick={onNavigate}
-                    className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-white transition ${
-                      isActive(item.href)
-                      ? "border-[#e91e63]/60 bg-[#e91e63]/15"
-                      : "border-white/5 bg-white/[0.02] hover:border-[#e91e63]/60 hover:bg-[#e91e63]/10"
-                    }`}
-                  >
-                    {item.label}
-                    <span className="text-xs text-white/50">→</span>
-                  </Link>
-                ))}
-              </div>
+              <span className="flex items-center gap-2">
+                <span className="text-base font-semibold">▶</span>
+                Escanear QR
+              </span>
+              <span className="text-xs text-white/50">→</span>
+            </Link>
+            <div className="pt-2">
+              <LogoutButton />
+            </div>
+          </nav>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col gap-6 overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0b0b] p-6 pr-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex h-12 items-center">
+            {resolvedLogo ? (
+              <img src={resolvedLogo} alt="BABY" className="h-12 w-auto object-contain" />
+            ) : (
+              <span className="text-lg font-black tracking-[0.2em]">BABY Admin Suite</span>
             )}
           </div>
-        ))}
-        <div className="pt-2">
-          <LogoutButton />
+          <button
+            className="rounded-full border border-white/15 px-3 py-2 text-xs text-white lg:hidden"
+            onClick={() => setNavOpen(false)}
+          >
+            Cerrar
+          </button>
         </div>
-      </nav>
-    </div>
-  );
+
+        <nav className="space-y-4 text-sm font-semibold text-white/70">
+          <Link
+            href="/admin"
+            onClick={onNavigate}
+            className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-white transition ${
+              isActive("/admin")
+                ? "border-[#e91e63]/60 bg-[#e91e63]/15"
+                : "border-white/5 bg-white/[0.04] hover:border-[#e91e63]/60 hover:bg-[#e91e63]/10"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-base font-semibold">⌂</span>
+              Inicio
+            </span>
+            <span className="text-xs text-white/50">→</span>
+          </Link>
+
+          {Object.entries(MENU).map(([group, items]) => (
+            <div key={group} className="space-y-2 rounded-2xl border border-white/5 bg-white/[0.015] p-2">
+              <button
+                type="button"
+                onClick={() => toggleGroup(group)}
+                className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.15em] text-white/60 hover:text-white"
+              >
+                <span>{group}</span>
+                <span className="text-base font-bold">{openGroups[group] ? "−" : "+"}</span>
+              </button>
+              {openGroups[group] && (
+                <div className="space-y-2">
+                  {(items as { label: string; href: string }[]).map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-white transition ${
+                        isActive(item.href)
+                          ? "border-[#e91e63]/60 bg-[#e91e63]/15"
+                          : "border-white/5 bg-white/[0.02] hover:border-[#e91e63]/60 hover:bg-[#e91e63]/10"
+                      }`}
+                    >
+                      {item.label}
+                      <span className="text-xs text-white/50">→</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div className="pt-2">
+            <LogoutButton />
+          </div>
+        </nav>
+      </div>
+    );
+  };
+
+  // Layout para usuarios de tipo DOOR: solo escáner, sin menú extra
+  if (isDoor && pathname !== "/admin/door") {
+    // Evita parpadeo del dashboard mientras redirecciona
+    return (
+      <ClientAuthGate>
+        <div className="flex min-h-screen items-center justify-center bg-[#050505] text-white">
+          <p className="rounded-xl border border-white/10 bg-[#0b0b0b] px-4 py-3 text-sm text-white/70">
+            Redirigiendo al escáner...
+          </p>
+        </div>
+      </ClientAuthGate>
+    );
+  }
+
+  if (isDoor) {
+    return (
+      <ClientAuthGate>
+        <div className="min-h-screen bg-[#050505] text-white">
+          <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+            <Link href="/admin/door" className="flex items-center gap-2 text-white/80">
+              <div className="flex h-10 items-center">
+                {resolvedLogo ? (
+                  <img src={resolvedLogo} alt="BABY" className="h-10 w-auto object-contain" />
+                ) : (
+                  <span className="text-lg font-semibold">BABY</span>
+                )}
+              </div>
+            </Link>
+            <div className="relative">
+              <button
+                onClick={() => setProfileOpen((v) => !v)}
+                className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:border-white"
+              >
+                {accountLabel}
+              </button>
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-white/10 bg-[#0c0c0c] p-3 text-sm text-white shadow-lg">
+                  {userName && <p className="font-semibold">{userName}</p>}
+                  {userEmail && <p className="text-xs text-white/60">{userEmail}</p>}
+                  <button
+                    onClick={() => {
+                      setProfileOpen(false);
+                      setProfileModal(true);
+                    }}
+                    className="mt-2 w-full rounded-xl border border-white/15 px-3 py-2 text-left text-white hover:border-white"
+                  >
+                    Perfil
+                  </button>
+                  <div className="mt-2">
+                    <LogoutButton />
+                  </div>
+                </div>
+              )}
+            </div>
+          </header>
+
+          <main className="mx-auto max-w-5xl p-4 lg:p-8">
+            <div className="rounded-3xl border border-white/10 bg-[#0b0b0b] p-4 lg:p-6">{children}</div>
+          </main>
+
+          <EditUserModal
+            open={profileModal}
+            onClose={() => setProfileModal(false)}
+            user={userStaff}
+            roles={roles}
+          />
+        </div>
+      </ClientAuthGate>
+    );
+  }
 
   return (
     <ClientAuthGate>
@@ -165,14 +387,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   </div>
                 </Link>
               </div>
+
               <div className="flex items-center gap-3">
-                <Link
-                  href="/admin/events/create"
-                  className="hidden rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white sm:inline-flex"
-                >
-                  Nuevo evento
-                </Link>
-                <LogoutButton />
+                <div className="relative">
+                  <button
+                    onClick={() => setProfileOpen((v) => !v)}
+                    className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:border-white"
+                  >
+                    {accountLabel}
+                  </button>
+                  {profileOpen && (
+                    <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-white/10 bg-[#0c0c0c] p-3 text-sm text-white shadow-lg">
+                      {userName && <p className="font-semibold">{userName}</p>}
+                      {userEmail && <p className="text-xs text-white/60">{userEmail}</p>}
+                      <button
+                        onClick={() => {
+                          setProfileOpen(false);
+                          setProfileModal(true);
+                        }}
+                        className="mt-2 w-full rounded-xl border border-white/15 px-3 py-2 text-left text-white hover:border-white"
+                      >
+                        Perfil
+                      </button>
+                      <div className="mt-2">
+                        <LogoutButton />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </header>
 
@@ -191,6 +433,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         )}
       </div>
+
+      <EditUserModal
+        open={profileModal}
+        onClose={() => setProfileModal(false)}
+        user={userStaff}
+        roles={roles}
+      />
     </ClientAuthGate>
   );
 }

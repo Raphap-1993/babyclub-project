@@ -36,8 +36,22 @@ export async function POST(req: NextRequest) {
   const eventId = data?.id;
 
   if (eventId) {
-    const codeToUse = generateCode(requestedCode || "", name || "", eventId);
-    await insertCodeWithFallback(supabase, codeToUse, eventId, capacity);
+    const codeToUse = requestedCode as string;
+    const { data: rpcResult, error: rpcError } = await supabase.rpc("set_event_general_code", {
+      p_event_id: eventId,
+      p_code: codeToUse,
+      p_capacity: capacity,
+    });
+    if (rpcError) {
+      await supabase.from("events").delete().eq("id", eventId);
+      const errorMessage =
+        rpcError.code === "23505" ? "Ese código ya está asignado a otro evento" : rpcError.message || "Código no disponible";
+      return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
+    }
+    if (!rpcResult) {
+      await supabase.from("events").delete().eq("id", eventId);
+      return NextResponse.json({ success: false, error: "No se pudo guardar el código del evento" }, { status: 400 });
+    }
     if (cover_image) {
       await upsertCover(supabase, eventId, cover_image);
     }
@@ -70,6 +84,7 @@ function buildEventPayload(body: any): {
 
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
+  if (!code) return { error: "code is required" };
 
   return {
     payload: {
@@ -85,45 +100,6 @@ function buildEventPayload(body: any): {
     name,
     cover_image,
   };
-}
-
-function generateCode(requested: string, name: string, eventId: string) {
-  const base =
-    requested ||
-    name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 32);
-
-  const cleaned = base || eventId.replace(/-/g, "").slice(0, 8);
-  return cleaned.toLowerCase();
-}
-
-async function insertCodeWithFallback(
-  supabase: any,
-  code: string,
-  eventId: string,
-  capacity?: number
-) {
-  const candidates = [code, `${code}-${Math.floor(Math.random() * 9000 + 1000)}`].filter(Boolean) as string[];
-
-  for (const candidate of candidates) {
-    const { error } = await supabase.from("codes").insert({
-      code: candidate,
-      event_id: eventId,
-      max_uses: Number.isFinite(capacity) ? capacity : 1,
-      expires_at: null,
-      is_active: true,
-      type: "general",
-      promoter_id: null,
-    });
-    if (!error) return candidate;
-  }
-
-  return code;
 }
 
 async function upsertCover(supabase: any, eventId: string, coverUrl: string) {

@@ -3,8 +3,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import DateTimePicker from "@/components/ui/DateTimePicker";
 import ManifestUploader from "./ManifestUploader";
+import DatePickerSimple from "@/components/ui/DatePickerSimple";
 
 type EventFormProps = {
   mode: "create" | "edit";
@@ -56,6 +56,8 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [codeTouched, setCodeTouched] = useState(false);
+  const dateTimeParts = useMemo(() => toDateTimeParts12(form.starts_at), [form.starts_at]);
+  const codeSuggestion = useMemo(() => slugify(form.name), [form.name]);
 
   useEffect(() => {
     setForm({ ...emptyForm, ...normalizeInitial(initialData) });
@@ -68,16 +70,6 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
   useEffect(() => {
     setErrors(validate(form));
   }, [form]);
-
-  useEffect(() => {
-    if (codeTouched) return;
-    if (!form.name.trim()) {
-      setForm((prev) => ({ ...prev, code: "" }));
-      return;
-    }
-    const suggestion = slugify(form.name);
-    setForm((prev) => ({ ...prev, code: suggestion }));
-  }, [form.name, codeTouched]);
 
   const isValid = useMemo(() => Object.keys(validate(form)).length === 0, [form]);
   const showReadyBadge = isValid && !isSubmitting;
@@ -167,7 +159,7 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
           />
           <Field
             label="Código del evento"
-            placeholder="baby-deluxe-2025"
+            placeholder={codeSuggestion || "baby-deluxe-2025"}
             value={form.code}
             onChange={(val) => {
               setCodeTouched(true);
@@ -233,11 +225,108 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <DateTimePicker
-              label="Fecha del evento"
-              value={form.starts_at}
-              onChange={(iso) => updateField("starts_at", iso)}
-            />
+            <label className="text-sm font-semibold text-white" htmlFor="starts-at">
+              Fecha y hora del evento
+            </label>
+            <div className="grid gap-3 md:grid-cols-[1.1fr,1fr]">
+              <DatePickerSimple
+                value={dateTimeParts.datePart}
+                onChange={(next) => {
+                  const nextIso = toIsoFromParts12(next, dateTimeParts.hour12, dateTimeParts.minute, dateTimeParts.period);
+                  updateField("starts_at", nextIso);
+                }}
+                label={undefined}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    aria-label="Hora"
+                    value={dateTimeParts.hour12}
+                    onChange={(e) => {
+                      const nextIso = toIsoFromParts12(
+                        dateTimeParts.datePart,
+                        e.target.value,
+                        dateTimeParts.minute,
+                        dateTimeParts.period
+                      );
+                      updateField("starts_at", nextIso);
+                    }}
+                    className="w-full min-w-[68px] rounded-2xl border border-white/10 bg-[#0c0c0c] px-3 py-3 text-sm text-white outline-none transition focus:border-white"
+                  >
+                    {Array.from({ length: 12 }).map((_, idx) => {
+                      const h = ((idx + 1) % 13) || 1;
+                      return (
+                        <option key={h} value={String(h).padStart(2, "0")}>
+                          {String(h).padStart(2, "0")}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <select
+                    aria-label="Minutos"
+                    value={dateTimeParts.minute}
+                    onChange={(e) => {
+                      const nextIso = toIsoFromParts12(
+                        dateTimeParts.datePart,
+                        dateTimeParts.hour12,
+                        e.target.value,
+                        dateTimeParts.period
+                      );
+                      updateField("starts_at", nextIso);
+                    }}
+                    className="w-full min-w-[68px] rounded-2xl border border-white/10 bg-[#0c0c0c] px-3 py-3 text-sm text-white outline-none transition focus:border-white"
+                  >
+                    {["00", "15", "30", "45"].map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Periodo"
+                    value={dateTimeParts.period}
+                    onChange={(e) => {
+                      const nextIso = toIsoFromParts12(
+                        dateTimeParts.datePart,
+                        dateTimeParts.hour12,
+                        dateTimeParts.minute,
+                        e.target.value as "AM" | "PM"
+                      );
+                      updateField("starts_at", nextIso);
+                    }}
+                    className="w-full min-w-[68px] rounded-2xl border border-white/10 bg-[#0c0c0c] px-3 py-3 text-sm text-white outline-none transition focus:border-white"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const iso = now.toISOString();
+                    updateField("starts_at", iso);
+                  }}
+                  className="rounded-2xl border border-white/10 bg-[#111] px-3 text-xs font-semibold text-white transition hover:border-white/30"
+                >
+                  Ahora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const base = dateTimeParts.datePart
+                      ? new Date(`${dateTimeParts.datePart}T${to24h(dateTimeParts.hour12, dateTimeParts.minute, dateTimeParts.period)}`)
+                      : new Date();
+                    base.setMinutes(base.getMinutes() + 30);
+                    updateField("starts_at", base.toISOString());
+                  }}
+                  className="rounded-2xl border border-white/10 bg-[#111] px-3 text-xs font-semibold text-white transition hover:border-white/30"
+                >
+                  +30m
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-white/60">Se guarda en tu zona horaria local.</p>
             {errors.starts_at && <ErrorText message={errors.starts_at} />}
           </div>
         </div>
@@ -329,6 +418,35 @@ function ErrorText({ message }: { message: string }) {
   return <p className="text-xs font-semibold text-[#ff9a9a]">{message}</p>;
 }
 
+function toDateTimeParts12(iso: string): { datePart: string; hour12: string; minute: string; period: "AM" | "PM" } {
+  if (!iso) return { datePart: "", hour12: "12", minute: "00", period: "AM" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { datePart: "", hour12: "12", minute: "00", period: "AM" };
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const datePart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const hours24 = d.getHours();
+  const period: "AM" | "PM" = hours24 >= 12 ? "PM" : "AM";
+  const hour12 = pad(((hours24 + 11) % 12) + 1);
+  const minute = pad(d.getMinutes());
+  return { datePart, hour12, minute, period };
+}
+
+function to24h(hour12: string, minute: string, period: "AM" | "PM") {
+  const h12 = Number(hour12) || 12;
+  const minutes = minute || "00";
+  const h24 = period === "PM" ? ((h12 % 12) + 12) % 24 : h12 % 12;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h24)}:${pad(Number(minutes) || 0)}`;
+}
+
+function toIsoFromParts12(datePart: string, hour12: string, minute: string, period: "AM" | "PM") {
+  if (!datePart) return "";
+  const time24 = to24h(hour12, minute, period);
+  const local = new Date(`${datePart}T${time24}`);
+  if (Number.isNaN(local.getTime())) return "";
+  return local.toISOString();
+}
+
 function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<FormValues> {
   if (!initialData) return {};
   return {
@@ -352,7 +470,8 @@ function validate(values: FormValues): Partial<Record<keyof FormValues, string>>
   const capacity = Number(values.capacity);
   if (!Number.isFinite(capacity) || capacity < 10) errors.capacity = "Capacidad mínima 10";
 
-  if (values.code && values.code.length < 3) errors.code = "Código mínimo 3 caracteres";
+  if (!values.code.trim()) errors.code = "Código requerido";
+  else if (values.code.length < 3) errors.code = "Código mínimo 3 caracteres";
 
   return errors;
 }

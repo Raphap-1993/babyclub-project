@@ -46,38 +46,30 @@ export async function POST(req: NextRequest) {
     return json({ error: "Invalid JSON payload" }, 400);
   }
 
-  const {
-    code,
-    event_id,
-    max_uses = 1,
-    expires_at = null,
-    is_active = true,
-    type = "general",
-    promoter_id = null,
-  } = body || {};
+  const { code, event_id, max_uses = null } = body || {};
 
   if (!code || !event_id) {
     return json({ error: "code and event_id are required" }, 400);
   }
 
-  const payload = {
-    code,
-    event_id,
-    max_uses: Number.isFinite(max_uses) ? Number(max_uses) : 1,
-    expires_at: expires_at ? new Date(expires_at).toISOString() : null,
-    is_active: Boolean(is_active),
-    type,
-    promoter_id,
-  };
+  const trimmedCode = typeof code === "string" ? code.trim() : "";
+  if (!trimmedCode) {
+    return json({ error: "code and event_id are required" }, 400);
+  }
+  const numericCapacity = Number(max_uses);
+  const parsedCapacity = Number.isFinite(numericCapacity) ? numericCapacity : null;
 
-  const { data, error } = await supabase
-    .from("codes")
-    .insert(payload)
-    .select("id")
-    .single();
+  const { data, error } = await supabase.rpc("set_event_general_code", {
+    p_event_id: event_id,
+    p_code: trimmedCode,
+    p_capacity: parsedCapacity,
+  });
 
   if (error) {
-    return json({ error: error.message }, 500);
+    const isConflict = error.code === "23505";
+    const isEventMissing = error.code === "P0002";
+    const message = isConflict ? "El código ya está en uso" : error.message;
+    return json({ error: message || "No se pudo guardar el código" }, isConflict || isEventMissing ? 400 : 500);
   }
 
   return json({ success: true, id: data?.id });

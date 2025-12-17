@@ -1,7 +1,6 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import EventsClient from "./EventsClient";
 import { createClient } from "@supabase/supabase-js";
-import EventActions from "./components/EventActions";
+import { notFound } from "next/navigation";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,176 +16,51 @@ type EventRow = {
   code?: string | null;
 };
 
-async function getEvents(): Promise<EventRow[] | null> {
+async function getEvents(params: { page: number; pageSize: number }): Promise<{ events: EventRow[]; total: number } | null> {
   if (!supabaseUrl || !supabaseServiceKey) return null;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
+  const start = (params.page - 1) * params.pageSize;
+  const end = start + params.pageSize - 1;
+
+  const { data, error, count } = await supabase
     .from("events")
-    .select("id,name,location,starts_at,capacity,is_active,header_image")
+    .select("id,name,location,starts_at,capacity,is_active,header_image", { count: "exact" })
     .order("starts_at", { ascending: true })
-    .limit(500);
+    .range(start, end);
 
   if (error || !data) return null;
-  if (data.length === 0) return [];
+  if (data.length === 0) return { events: [], total: 0 };
 
   const ids = data.map((e) => e.id);
-  const { data: codes } = await supabase.from("codes").select("event_id,code").in("event_id", ids);
+  const { data: codes } = await supabase
+    .from("codes")
+    .select("event_id,code")
+    .in("event_id", ids)
+    .eq("type", "general")
+    .eq("is_active", true);
   const codeMap = new Map<string, string>();
-  (codes || []).forEach((c: any) => codeMap.set(c.event_id, c.code));
+  (codes || []).forEach((c: any) => {
+    if (!codeMap.has(c.event_id)) codeMap.set(c.event_id, c.code);
+  });
 
-  return (data as EventRow[]).map((e) => ({ ...e, code: codeMap.get(e.id) ?? null }));
+  return {
+    events: (data as EventRow[]).map((e) => ({ ...e, code: codeMap.get(e.id) ?? null })),
+    total: count ?? data.length,
+  };
 }
 
 export const dynamic = "force-dynamic";
 
-export default async function EventsPage() {
-  const events = await getEvents();
-  if (!events) return notFound();
+export default async function EventsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+  const page = Math.max(1, parseInt((searchParams?.page as string) || "1", 10) || 1);
+  const pageSize = Math.min(100, Math.max(5, parseInt((searchParams?.pageSize as string) || "10", 10) || 10));
 
-  return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Eventos</p>
-          <h1 className="text-3xl font-semibold">Listado de eventos</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            ← Volver
-          </Link>
-          <Link
-            href="/admin/events/create"
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-5 py-2 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)]"
-          >
-            Crear evento
-          </Link>
-        </div>
-      </div>
+  const result = await getEvents({ page, pageSize });
+  if (!result) return notFound();
 
-      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
-        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
-          <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
-            <tr>
-              <th className="w-[26%] px-4 py-3 text-left">Nombre</th>
-              <th className="w-[18%] px-4 py-3 text-left">Ubicación</th>
-              <th className="w-[18%] px-4 py-3 text-left">Fecha</th>
-              <th className="w-[10%] px-4 py-3 text-left">Capacidad</th>
-              <th className="w-[12%] px-4 py-3 text-left">Código</th>
-              <th className="w-[10%] px-4 py-3 text-left">Estado</th>
-              <th className="w-[6%] px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {events.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-white/60">
-                  No hay eventos aún. Crea el primero.
-                </td>
-              </tr>
-            )}
-            {events.map((event) => (
-              <tr key={event.id} className="hover:bg-white/[0.02]">
-                <td className="px-4 py-3">
-                  <div className="font-semibold text-white">{event.name}</div>
-                  {event.header_image && (
-                    <div className="break-all text-xs text-white/50">{event.header_image}</div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-white/80">{event.location || "—"}</td>
-                <td className="px-4 py-3 text-white/80">
-                  {formatDate(event.starts_at)}
-                </td>
-                <td className="px-4 py-3 text-white/80">{event.capacity ?? "—"}</td>
-                <td className="px-4 py-3 text-white/80">{event.code ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                      event.is_active
-                        ? "bg-[#e91e63]/15 text-[#e91e63]"
-                        : "bg-white/5 text-white/70"
-                    }`}
-                  >
-                    {event.is_active ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <EventActions id={event.id} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="space-y-3 lg:hidden">
-        {events.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
-            No hay eventos aún. Crea el primero.
-          </div>
-        )}
-        {events.map((event) => (
-          <div
-            key={event.id}
-            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-white">{event.name}</p>
-                {event.header_image && <p className="break-all text-xs text-white/50">{event.header_image}</p>}
-                <p className="text-xs uppercase tracking-[0.15em] text-white/50">{event.code || "Sin código"}</p>
-              </div>
-              <span
-                className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                  event.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
-                }`}
-              >
-                {event.is_active ? "Activo" : "Inactivo"}
-              </span>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
-              <Info label="Ubicación" value={event.location || "—"} />
-              <Info label="Fecha" value={formatDate(event.starts_at)} />
-              <Info label="Capacidad" value={event.capacity?.toString() || "—"} />
-              <Info label="Código" value={event.code || "—"} />
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2">
-              <EventActions id={event.id} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </main>
-  );
-}
-
-function formatDate(dateString: string | null) {
-  if (!dateString) return "—";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("es-PE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className="font-semibold text-white">{value}</p>
-    </div>
-  );
+  return <EventsClient events={result.events} pagination={{ page, pageSize }} total={result.total} />;
 }

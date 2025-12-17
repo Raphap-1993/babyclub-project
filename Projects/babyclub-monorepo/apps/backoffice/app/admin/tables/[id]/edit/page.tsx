@@ -13,20 +13,11 @@ async function getTable(id: string) {
   });
   const { data, error } = await supabase
     .from("tables")
-    .select("id,event_id,name,ticket_count,min_consumption,price,is_active,notes")
+    .select("id,name,ticket_count,min_consumption,price,is_active,notes")
     .eq("id", id)
     .maybeSingle();
   if (error || !data) return null;
   return data;
-}
-
-async function getEvents() {
-  if (!supabaseUrl || !supabaseServiceKey) return [];
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data } = await supabase.from("events").select("id,name").order("created_at", { ascending: false });
-  return data || [];
 }
 
 export const dynamic = "force-dynamic";
@@ -35,7 +26,6 @@ export default async function EditTablePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const table = await getTable(id);
   if (!table) return notFound();
-  const events = await getEvents();
 
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-10">
@@ -53,7 +43,7 @@ export default async function EditTablePage({ params }: { params: Promise<{ id: 
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        <TableForm mode="edit" initialData={table as any} events={events} />
+        <TableForm mode="edit" initialData={table as any} />
       </div>
     </main>
   );
