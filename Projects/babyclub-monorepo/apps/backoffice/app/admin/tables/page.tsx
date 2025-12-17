@@ -16,7 +16,7 @@ type TableRow = {
 };
 
 async function getTables(params: { page: number; pageSize: number }): Promise<{ tables: TableRow[]; total: number; error?: string }> {
-  if (!supabaseUrl || !supabaseServiceKey) return { tables: [], error: "Falta configuración de Supabase" };
+  if (!supabaseUrl || !supabaseServiceKey) return { tables: [], total: 0, error: "Falta configuración de Supabase" };
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
