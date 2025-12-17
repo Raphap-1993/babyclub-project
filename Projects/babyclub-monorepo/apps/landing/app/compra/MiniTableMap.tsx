@@ -38,14 +38,14 @@ export default function MiniTableMap({
         {tables.map((t) => {
           const match = t.name.match(/(\d+)/);
           const label = match ? `M${match[1]}` : t.name;
-          const isReserved = t.is_reserved;
+          const isReserved = Boolean(t.is_reserved);
           return (
             <button
               key={t.id}
               type="button"
               onClick={() => !isReserved && onSelect(t.id)}
               disabled={isReserved}
-            className={`absolute flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border text-[11px] font-semibold ${
+              className={`absolute flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border text-[11px] font-semibold ${
                 isReserved
                   ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
                   : selectedId === t.id
@@ -58,11 +58,11 @@ export default function MiniTableMap({
                 width: `${t.pos_w ?? 9}%`,
                 height: `${t.pos_h ?? 6}%`,
               }}
-          >
-            <span className="leading-none">{label}</span>
-          </button>
-        );
-      })}
+            >
+              <span className="leading-none">{label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
