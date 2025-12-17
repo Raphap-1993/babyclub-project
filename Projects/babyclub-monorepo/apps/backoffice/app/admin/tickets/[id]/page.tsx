@@ -25,7 +25,7 @@ type TicketDetail = {
 };
 
 async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; error?: string }> {
-  if (!supabaseUrl || !supabaseServiceKey) return null;
+  if (!supabaseUrl || !supabaseServiceKey) return { ticket: null, error: "Falta configuración de Supabase" };
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
