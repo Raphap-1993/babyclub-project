@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 type Table = {
   id: string;
   name: string;
+  ticket_count?: number | null;
+  min_consumption?: number | null;
+  price?: number | null;
+  notes?: string | null;
+  is_active?: boolean | null;
   pos_x?: number | null;
   pos_y?: number | null;
   pos_w?: number | null;
