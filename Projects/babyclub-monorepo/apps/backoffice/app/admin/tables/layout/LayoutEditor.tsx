@@ -165,9 +165,11 @@ export default function LayoutEditor({ initial }: { initial?: LayoutData }) {
       <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
         <div
           ref={containerRef}
-          className="relative min-h-[520px] rounded-3xl border border-white/15 bg-black"
+          className="relative w-full rounded-3xl border border-white/15 bg-black"
           style={{
-            aspectRatio: "1 / 1",
+            aspectRatio: "3 / 4",
+            minHeight: "320px",
+            maxHeight: "80vh",
             backgroundImage: data.layout_url ? `url(${data.layout_url})` : undefined,
             backgroundSize: "contain",
             backgroundRepeat: "no-repeat",
@@ -194,8 +196,8 @@ export default function LayoutEditor({ initial }: { initial?: LayoutData }) {
                 style={{
                   left: `${t.pos_x ?? 10}%`,
                   top: `${t.pos_y ?? 10}%`,
-                  width: `${t.pos_w ?? 9}%`,
-                  height: `${t.pos_h ?? 6}%`,
+                  width: `clamp(40px, ${t.pos_w ?? 9}%, 110px)`,
+                  height: `clamp(40px, ${t.pos_h ?? 6}%, 110px)`,
                 }}
               >
                 {shortLabel}
