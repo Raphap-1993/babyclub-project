@@ -677,16 +677,9 @@ function RegistroContent() {
 
             {reservationError && <p className="text-xs font-semibold text-[#ff9a9a]">{reservationError}</p>}
             {reservationCodes && reservationCodes.length > 0 && (
-              <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-white">
-                <p className="font-semibold mb-2">Reserva registrada. Códigos generados:</p>
-                <div className="space-y-1">
-                  {reservationCodes.map((c) => (
-                    <div key={c} className="rounded-xl bg-black/30 px-3 py-2 font-mono text-xs">
-                      {c}
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs text-white/70">Comparte estos códigos con tu grupo para que generen sus QR.</p>
+              <div className="rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-white">
+                <p className="font-semibold">Reserva registrada.</p>
+                <p className="text-xs text-white/70">Validaremos el pago y te enviaremos los códigos por correo.</p>
               </div>
             )}
 
@@ -701,7 +694,7 @@ function RegistroContent() {
               <button
                 type="submit"
                 disabled={reservationLoading}
-                className="w-2/3 rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-70"
+                className="w-2/3 rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(185,0,60,0.4)] transition hover:shadow-[0_14px_40px_rgba(185,0,60,0.45)] disabled:opacity-70"
               >
                 {reservationLoading ? "Procesando..." : "Revisar pago y enviar"}
               </button>
