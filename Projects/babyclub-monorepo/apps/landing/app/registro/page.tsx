@@ -987,6 +987,7 @@ function RegistroContent() {
 
   async function createTicketAndRedirect(extraCodes?: string[]) {
     setError(null);
+    if (extraCodes?.length) setReservationError(null);
     if (ticketId) {
       router.push(`/ticket/${ticketId}`);
       return;
@@ -1011,12 +1012,20 @@ function RegistroContent() {
       setError("Debes ser mayor de 18 años");
       return;
     }
+    const codeToUse = (extraCodes && extraCodes[0]) || code;
+    if (!codeToUse) {
+      const msg = "No hay código disponible para generar el ticket";
+      setError(msg);
+      if (extraCodes?.length) setReservationError(msg);
+      return;
+    }
+
     try {
       const res = await fetch("/api/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code,
+          code: codeToUse,
           dni: form.dni,
           nombre: form.nombre,
           apellido_paterno: form.apellido_paterno,
@@ -1029,13 +1038,18 @@ function RegistroContent() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setError(data?.error || "No se pudo generar la entrada");
+        const msg = data?.error || "No se pudo generar la entrada";
+        setError(msg);
+        if (extraCodes?.length) setReservationError(msg);
         return;
       }
       setTicketId(data.ticketId);
+      setExistingTicketId(data.ticketId);
       router.push(`/ticket/${data.ticketId}`);
     } catch (err: any) {
-      setError(err?.message || "Error al generar entrada");
+      const msg = err?.message || "Error al generar entrada";
+      setError(msg);
+      if (extraCodes?.length) setReservationError(msg);
     }
   }
 }
