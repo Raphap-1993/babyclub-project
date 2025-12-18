@@ -9,6 +9,7 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@types/luxon": "^3.7.1",
     "@types/node": "^22.15.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
