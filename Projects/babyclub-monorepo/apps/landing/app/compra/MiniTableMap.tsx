@@ -26,7 +26,7 @@ export default function MiniTableMap({
 }) {
   return (
     <div
-      className="relative min-h-[520px] overflow-hidden rounded-xl border border-white/10 bg-black"
+      className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-black aspect-[3/4] min-h-[320px] md:min-h-[480px]"
       style={{
         backgroundImage: layoutUrl ? `url(${layoutUrl})` : undefined,
         backgroundSize: "contain",
@@ -39,6 +39,10 @@ export default function MiniTableMap({
           const match = t.name.match(/(\d+)/);
           const label = match ? `M${match[1]}` : t.name;
           const isReserved: boolean = !!t.is_reserved;
+          const posX = t.pos_x ?? 10;
+          const posY = t.pos_y ?? 10;
+          const posW = t.pos_w ?? 9;
+          const posH = t.pos_h ?? 6;
           return (
             <button
               key={t.id}
@@ -53,10 +57,10 @@ export default function MiniTableMap({
                   : "border-white/50 bg-white/10 text-white"
               }`}
               style={{
-                left: `${t.pos_x ?? 10}%`,
-                top: `${t.pos_y ?? 10}%`,
-                width: `${t.pos_w ?? 9}%`,
-                height: `${t.pos_h ?? 6}%`,
+                left: `${posX}%`,
+                top: `${posY}%`,
+                width: `clamp(40px, ${posW}%, 100px)`,
+                height: `clamp(40px, ${posH}%, 100px)`,
               }}
             >
               <span className="leading-none">{label}</span>
