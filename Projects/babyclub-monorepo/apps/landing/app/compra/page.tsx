@@ -823,7 +823,7 @@ export default function CompraPage() {
                 type="button"
                 onClick={confirmReservation}
                 disabled={loading || uploading || reservationSubmitted}
-                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(185,0,60,0.4)] transition hover:shadow-[0_14px_38px_rgba(185,0,60,0.45)] disabled:opacity-60"
               >
                 {loading ? "Enviando..." : reservationSubmitted ? "Reserva enviada" : "Enviar reserva"}
               </button>
