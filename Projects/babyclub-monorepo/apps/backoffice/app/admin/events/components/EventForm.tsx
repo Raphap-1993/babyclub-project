@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ManifestUploader from "./ManifestUploader";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
-import { toLimaPartsFromDb, toUTCISOFromLimaParts } from "shared/limaTime";
+import { EVENT_ZONE, toLimaPartsFromDb, toUTCISOFromLimaParts } from "shared/limaTime";
+import { DateTime } from "luxon";
 
 type EventFormProps = {
   mode: "create" | "edit";
@@ -304,9 +305,8 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    const now = new Date();
-                    const iso = now.toISOString();
-                    updateField("starts_at", iso);
+                    const nowIso = DateTime.now().setZone(EVENT_ZONE).toUTC().toISO();
+                    if (nowIso) updateField("starts_at", nowIso);
                   }}
                   className="rounded-2xl border border-white/10 bg-[#111] px-3 text-xs font-semibold text-white transition hover:border-white/30"
                 >
@@ -315,11 +315,19 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    const base = dateTimeParts.datePart
-                      ? new Date(`${dateTimeParts.datePart}T${to24h(dateTimeParts.hour12, dateTimeParts.minute, dateTimeParts.period)}`)
-                      : new Date();
-                    base.setMinutes(base.getMinutes() + 30);
-                    updateField("starts_at", base.toISOString());
+                    let base = DateTime.now().setZone(EVENT_ZONE);
+                    if (dateTimeParts.datePart) {
+                      const h24 = to24h(Number(dateTimeParts.hour12) || 12, dateTimeParts.period);
+                      const d = DateTime.fromFormat(dateTimeParts.datePart, "yyyy-MM-dd", { zone: EVENT_ZONE }).set({
+                        hour: h24,
+                        minute: Number(dateTimeParts.minute) || 0,
+                        second: 0,
+                        millisecond: 0,
+                      });
+                      if (d.isValid) base = d;
+                    }
+                    const iso = base.plus({ minutes: 30 }).toUTC().toISO();
+                    if (iso) updateField("starts_at", iso);
                   }}
                   className="rounded-2xl border border-white/10 bg-[#111] px-3 text-xs font-semibold text-white transition hover:border-white/30"
                 >
@@ -327,7 +335,7 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
                 </button>
               </div>
             </div>
-            <p className="text-xs text-white/60">Se guarda en tu zona horaria local.</p>
+            <p className="text-xs text-white/60">Hora del evento (America/Lima). Se guarda en UTC en la BD.</p>
             {errors.starts_at && <ErrorText message={errors.starts_at} />}
           </div>
         </div>
@@ -458,6 +466,11 @@ function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<Fo
     is_active: initialData.is_active ?? true,
     code: initialData.code ?? "",
   };
+}
+
+function to24h(hour12: number, ampm: "AM" | "PM") {
+  if (ampm === "AM") return hour12 === 12 ? 0 : hour12;
+  return hour12 === 12 ? 12 : hour12 + 12;
 }
 
 function toLimaDate(inputDatePart: string) {
