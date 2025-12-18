@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const documentRaw = req.nextUrl.searchParams.get("document") || req.nextUrl.searchParams.get("dni") || "";
   const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
   const dni = docType === "dni" ? document : "";
+  const normalizedDocument = document.toLowerCase();
   const code = req.nextUrl.searchParams.get("code")?.trim() || "";
   if (!validateDocument(docType, document)) {
     return NextResponse.json({ person: null, error: "Documento inválido" }, { status: 400 });
@@ -23,10 +24,12 @@ export async function GET(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const docQuery =
-    docType === "dni"
-      ? `document.eq.${document},dni.eq.${document}`
-      : `document.eq.${document}`;
+  const docQuery = [
+    normalizedDocument ? `document.ilike.${normalizedDocument}` : "",
+    docType === "dni" && dni ? `dni.eq.${dni}` : "",
+  ]
+    .filter(Boolean)
+    .join(",");
 
   const { data, error } = await supabase
     .from("persons")
@@ -75,12 +78,18 @@ export async function GET(req: NextRequest) {
     const { data: codeRow } = await supabase.from("codes").select("event_id").eq("code", code).maybeSingle();
     const eventId = codeRow?.event_id;
     if (eventId) {
-      const docFilter = personRecord.document ? { document: personRecord.document } : { dni: personRecord.dni };
+      const ticketDocQuery = [
+        personRecord.document ? `document.ilike.${(personRecord.document as string).toLowerCase()}` : "",
+        personRecord.dni ? `dni.eq.${personRecord.dni}` : "",
+      ]
+        .filter(Boolean)
+        .join(",");
+
       const { data: ticketRow } = await supabase
         .from("tickets")
         .select("id,promoter_id")
         .eq("event_id", eventId)
-        .match(docFilter)
+        .or(ticketDocQuery)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

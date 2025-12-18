@@ -1,7 +1,7 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { useSearchParams } from "next/navigation";
 
@@ -44,18 +44,54 @@ export default function TableMap({
 }: TableMapProps) {
   const searchParams = useSearchParams();
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [viewBoxSize, setViewBoxSize] = useState(MAP_VIEWBOX);
   const debugEnabled = searchParams?.get("debugMap") === "1" || process.env.NEXT_PUBLIC_MAP_DEBUG === "true";
+
+  useEffect(() => {
+    if (!layoutUrl) {
+      setViewBoxSize(MAP_VIEWBOX);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight) {
+        setViewBoxSize({ width: img.naturalWidth, height: img.naturalHeight });
+      } else {
+        setViewBoxSize(MAP_VIEWBOX);
+      }
+    };
+    img.onerror = () => setViewBoxSize(MAP_VIEWBOX);
+    img.src = layoutUrl;
+
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [layoutUrl]);
+
+  const scaledSlots = useMemo(() => {
+    const scaleX = viewBoxSize.width / MAP_VIEWBOX.width;
+    const scaleY = viewBoxSize.height / MAP_VIEWBOX.height;
+    return slots.map((slot) => ({
+      ...slot,
+      x: slot.x * scaleX,
+      y: slot.y * scaleY,
+      w: slot.w * scaleX,
+      h: slot.h * scaleY,
+    }));
+  }, [slots, viewBoxSize.height, viewBoxSize.width]);
 
   const handleDebugClick = (event: MouseEvent<SVGSVGElement>) => {
     if (!debugEnabled || !svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * MAP_VIEWBOX.width;
-    const y = ((event.clientY - rect.top) / rect.height) * MAP_VIEWBOX.height;
+    const x = ((event.clientX - rect.left) / rect.width) * viewBoxSize.width;
+    const y = ((event.clientY - rect.top) / rect.height) * viewBoxSize.height;
     console.info("[map debug]", {
       x: Number(x.toFixed(1)),
       y: Number(y.toFixed(1)),
-      xPct: Number(((x / MAP_VIEWBOX.width) * 100).toFixed(2)),
-      yPct: Number(((y / MAP_VIEWBOX.height) * 100).toFixed(2)),
+      xPct: Number(((x / viewBoxSize.width) * 100).toFixed(2)),
+      yPct: Number(((y / viewBoxSize.height) * 100).toFixed(2)),
     });
   };
 
@@ -125,19 +161,22 @@ export default function TableMap({
   const mapContent = (
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${MAP_VIEWBOX.width} ${MAP_VIEWBOX.height}`}
+      viewBox={`0 0 ${viewBoxSize.width} ${viewBoxSize.height}`}
       preserveAspectRatio="xMidYMid meet"
       className="h-full w-full"
       onClick={debugEnabled ? handleDebugClick : undefined}
     >
-      {layoutUrl && <image href={layoutUrl} x={0} y={0} width={MAP_VIEWBOX.width} height={MAP_VIEWBOX.height} />}
-      {slots.map(renderSlot)}
+      {layoutUrl && <image href={layoutUrl} x={0} y={0} width={viewBoxSize.width} height={viewBoxSize.height} />}
+      {scaledSlots.map(renderSlot)}
     </svg>
   );
 
   return (
     <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#121212] to-[#050505] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-5 md:p-6">
-      <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/80 shadow-inner aspect-[1080/1659]">
+      <div
+        className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/80 shadow-inner"
+        style={{ aspectRatio: `${viewBoxSize.width} / ${viewBoxSize.height}` }}
+      >
         {enableZoom ? (
           <TransformWrapper
             disabled={!enableZoom}

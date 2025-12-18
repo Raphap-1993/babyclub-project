@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
   const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
   const documentRaw = typeof body?.document === "string" ? body.document : "";
   const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
+  const normalizedDocument = document.toLowerCase();
   const dni = docType === "dni" ? document : "";
   const first_name = typeof body?.nombre === "string" ? body.nombre.trim() : "";
   const last_name_p = typeof body?.apellido_paterno === "string" ? body.apellido_paterno.trim() : "";
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
   const personPayload = {
     dni: docType === "dni" ? dni : null,
     doc_type: docType,
-    document,
+    document: normalizedDocument,
     first_name,
     last_name,
     email: email || null,
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
     .or(
       [
         docType === "dni" && dni ? `dni.eq.${dni}` : "",
-        `document.eq.${document}`,
+        normalizedDocument ? `document.ilike.${normalizedDocument}` : "",
       ]
         .filter(Boolean)
         .join(",")
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
       promoter_id: finalPromoterId,
       qr_token,
       dni: docType === "dni" ? dni : null,
-      document,
+      document: normalizedDocument,
       doc_type: docType,
       full_name,
       email: email || null,
