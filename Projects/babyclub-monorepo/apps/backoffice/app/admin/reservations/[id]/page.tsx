@@ -13,6 +13,8 @@ type Reservation = {
   full_name: string;
   email: string | null;
   phone: string | null;
+  doc_type?: string | null;
+  document?: string | null;
   voucher_url: string | null;
   status: string;
   codes: string[] | null;
@@ -30,7 +32,7 @@ async function getReservation(id: string): Promise<Reservation | null> {
   const { data, error } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location)),created_by_staff:staff(id,person:persons(first_name,last_name)),event:event_id(name,starts_at,location)"
+      "id,full_name,email,phone,doc_type,document,dni,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location)),created_by_staff:staff(id,person:persons(first_name,last_name)),event:event_id(name,starts_at,location)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -63,6 +65,8 @@ async function getReservation(id: string): Promise<Reservation | null> {
     full_name: (data as any).full_name ?? "",
     email: (data as any).email ?? null,
     phone: (data as any).phone ?? null,
+    doc_type: (data as any).doc_type ?? "dni",
+    document: (data as any).document ?? (data as any).dni ?? null,
     voucher_url: (data as any).voucher_url ?? null,
     status: (data as any).status ?? "",
     codes: (data as any).codes ?? null,

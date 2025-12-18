@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
+import TableMap, { type MapSlot, percentToViewBox } from "./TableMap";
 
 type TableInfo = {
   id: string;
@@ -32,24 +33,22 @@ type TableInfo = {
 type TableSlot = {
   id: string;
   label: string;
-  left: string;
-  top: string;
-  width: string;
-  height: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 };
 
-type TableSlotWithData = TableSlot & { table: TableInfo | null };
+type TableSlotWithData = MapSlot & { table: TableInfo | null };
 
-const TABLE_LAYOUT: TableSlot[] = [
-  { id: "slot-1", label: "1", left: "18%", top: "10%", width: "14%", height: "10%" },
-  { id: "slot-2", label: "2", left: "12%", top: "30%", width: "14%", height: "10%" },
-  { id: "slot-3", label: "3", left: "12%", top: "50%", width: "14%", height: "10%" },
-  { id: "slot-4", label: "4", left: "12%", top: "68%", width: "14%", height: "10%" },
-  { id: "slot-5", label: "5", left: "24%", top: "80%", width: "14%", height: "10%" },
-  { id: "slot-6", label: "6", left: "70%", top: "80%", width: "16%", height: "12%" },
+const TABLES: TableSlot[] = [
+  { id: "M1", label: "1", x: percentToViewBox(21, "x"), y: percentToViewBox(8.5, "y"), w: percentToViewBox(14, "x"), h: percentToViewBox(10, "y") },
+  { id: "M2", label: "2", x: percentToViewBox(13.5, "x"), y: percentToViewBox(16.5, "y"), w: percentToViewBox(8, "x"), h: percentToViewBox(5, "y") },
+  { id: "M3", label: "3", x: percentToViewBox(12, "x"), y: percentToViewBox(50, "y"), w: percentToViewBox(14, "x"), h: percentToViewBox(10, "y") },
+  { id: "M4", label: "4", x: percentToViewBox(13.5, "x"), y: percentToViewBox(44, "y"), w: percentToViewBox(8, "x"), h: percentToViewBox(5, "y") },
+  { id: "M5", label: "5", x: percentToViewBox(18.5, "x"), y: percentToViewBox(60, "y"), w: percentToViewBox(14, "x"), h: percentToViewBox(10, "y") },
+  { id: "M6", label: "6", x: percentToViewBox(70, "x"), y: percentToViewBox(80, "y"), w: percentToViewBox(16, "x"), h: percentToViewBox(12, "y") },
 ];
-
-const DEFAULT_LAYOUT_RATIO = 1.18; // fallback ratio to keep the overlay aligned while the image loads or is missing
 
 const normalizeTableName = (name: string) => name.replace(/\s+/g, "").toLowerCase();
 
@@ -70,6 +69,9 @@ const formatCurrency = (value?: number | null) => {
 
 const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
 
+const LOCAL_MAP_ASSET = "/maps/venue-plan.png";
+const ENABLE_MAP_ZOOM = process.env.NEXT_PUBLIC_MAP_ENABLE_ZOOM !== "false";
+
 export default function RegistroPage() {
   return (
     <Suspense fallback={<Placeholder />}>
@@ -82,7 +84,7 @@ function RegistroContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const code = searchParams.get("code") || "";
-  const tableLayoutUrl = process.env.NEXT_PUBLIC_TABLE_LAYOUT_URL || "";
+  const tableLayoutUrl = process.env.NEXT_PUBLIC_TABLE_LAYOUT_URL || LOCAL_MAP_ASSET;
   const initialCover = process.env.NEXT_PUBLIC_REGISTRO_COVER_URL || "";
   const [coverUrl, setCoverUrl] = useState<string>(initialCover);
   const [logoUrl, setLogoUrl] = useState<string | null>(process.env.NEXT_PUBLIC_LOGO_URL || null);
@@ -287,9 +289,31 @@ function RegistroContent() {
   }, []);
 
   const tableSlots = useMemo<TableSlotWithData[]>(
-    () => TABLE_LAYOUT.map((slot) => ({ ...slot, table: findTableForSlot(slot.label, tables) })),
+    () =>
+      TABLES.map((slot) => {
+        const table = findTableForSlot(slot.label, tables);
+        const x = table?.pos_x != null ? percentToViewBox(table.pos_x, "x") : slot.x;
+        const y = table?.pos_y != null ? percentToViewBox(table.pos_y, "y") : slot.y;
+        const w = table?.pos_w != null ? percentToViewBox(table.pos_w, "x") : slot.w;
+        const h = table?.pos_h != null ? percentToViewBox(table.pos_h, "y") : slot.h;
+        const status: MapSlot["status"] = table ? (table.is_reserved ? "reserved" : "available") : "unavailable";
+        return {
+          ...slot,
+          x,
+          y,
+          w,
+          h,
+          table,
+          tableId: table?.id,
+          tableName: table?.name || `Mesa ${slot.label}`,
+          capacity: table?.ticket_count ?? null,
+          status,
+        };
+      }),
     [tables]
   );
+  const mapUrl = layoutUrl || tableLayoutUrl || LOCAL_MAP_ASSET;
+  const enableMapZoom = ENABLE_MAP_ZOOM;
 
   const tableInfo = useMemo(() => {
     const direct = tables.find((t) => t.id === selectedTable);
@@ -540,25 +564,35 @@ function RegistroContent() {
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">Paso 2</p>
                   <h2 className="text-xl font-semibold text-white">Elige tu mesa en el mapa</h2>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-white/50">
-                  <span className="h-3 w-3 rounded-full border border-white/30 bg-white/10" /> Disponible
-                  <span className="h-3 w-3 rounded-full border border-[#e91e63] bg-[#e91e63]" /> Seleccionada
+                <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.12em] text-white/50">
+                  <span className="flex items-center gap-1">
+                    <span className="h-3 w-3 rounded-full border border-white/30 bg-white/10" /> Disponible
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-3 w-3 rounded-full border border-white/15 bg-white/5" /> Reservada
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-3 w-3 rounded-full border border-[#e91e63] bg-[#e91e63]" /> Seleccionada
+                  </span>
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[1.4fr,1fr]">
-                <TableMap
-                  slots={tableSlots}
-                  selectedTableId={selectedTable}
-                  onSelect={(id) => {
-                    setSelectedTable(id);
-                    const nextTable = tables.find((t) => t.id === id);
-                    const nextProduct = nextTable?.products?.find((p: any) => p.is_active !== false);
-                    setSelectedProduct(nextProduct?.id || "");
-                  }}
-                  loading={tables.length === 0}
-                  layoutUrl={layoutUrl || tableLayoutUrl || undefined}
-                />
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start">
+                <div className="mx-auto w-full max-w-[520px] md:max-w-none">
+                  <TableMap
+                    slots={tableSlots}
+                    selectedTableId={selectedTable}
+                    onSelect={(id) => {
+                      setSelectedTable(id);
+                      const nextTable = tables.find((t) => t.id === id);
+                      const nextProduct = nextTable?.products?.find((p: any) => p.is_active !== false);
+                      setSelectedProduct(nextProduct?.id || "");
+                    }}
+                    loading={tables.length === 0}
+                    layoutUrl={mapUrl}
+                    enableZoom={enableMapZoom}
+                  />
+                </div>
 
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4 text-sm text-white/80">
@@ -663,11 +697,11 @@ function RegistroContent() {
                     </div>
                   )}
 
-                  {tableLayoutUrl && (
+                  {mapUrl && (
                     <details className="rounded-2xl border border-white/10 bg-[#0b0b0b] p-3 text-sm text-white/70">
                       <summary className="cursor-pointer text-white">Ver plano original (imagen)</summary>
                       <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
-                        <img src={tableLayoutUrl} alt="Distribución de mesas" className="w-full object-cover" />
+                        <img src={mapUrl} alt="Distribución de mesas" className="w-full object-cover" />
                       </div>
                     </details>
                   )}
@@ -1137,106 +1171,6 @@ function RegistroContent() {
       setError(msg);
     }
   }
-}
-
-function TableMap({
-  slots,
-  selectedTableId,
-  onSelect,
-  loading = false,
-  layoutUrl,
-}: {
-  slots: TableSlotWithData[];
-  selectedTableId: string;
-  onSelect: (tableId: string) => void;
-  loading?: boolean;
-  layoutUrl?: string;
-}) {
-  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!layoutUrl) {
-      setAspectRatio(null);
-      return;
-    }
-    const img = new Image();
-    img.onload = () => {
-      if (img.naturalWidth && img.naturalHeight) {
-        setAspectRatio(img.naturalWidth / img.naturalHeight);
-      }
-    };
-    img.onerror = () => setAspectRatio(null);
-    img.src = layoutUrl;
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [layoutUrl]);
-
-  const mapRatio = aspectRatio || DEFAULT_LAYOUT_RATIO;
-
-  return (
-    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#121212] to-[#050505] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-5 md:p-6">
-      <div
-        className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/80"
-        style={{
-          backgroundImage: layoutUrl ? `url(${layoutUrl})` : undefined,
-          backgroundSize: "contain",
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "center",
-          aspectRatio: mapRatio,
-        }}
-      >
-        {/* mesas */}
-        <div className="absolute inset-0">
-          {slots.map((slot) => {
-            const isAvailable = !!slot.table;
-            const isReserved = slot.table?.is_reserved;
-            const canSelect = isAvailable && !isReserved;
-            const isSelected = slot.table?.id === selectedTableId;
-            const tableLabel = slot.table?.name || `Mesa ${slot.label}`;
-            const left = slot.table?.pos_x != null ? `${slot.table.pos_x}%` : slot.left;
-            const top = slot.table?.pos_y != null ? `${slot.table.pos_y}%` : slot.top;
-            const width = slot.table?.pos_w != null ? `${slot.table.pos_w}%` : "9%";
-            const height = slot.table?.pos_h != null ? `${slot.table.pos_h}%` : "6%";
-            const match = tableLabel.match(/(\d+)/);
-            const shortLabel = match ? `M${match[1]}` : slot.label;
-
-            return (
-              <button
-                key={slot.id}
-                type="button"
-                disabled={!canSelect}
-                onClick={() => slot.table && canSelect && onSelect(slot.table.id)}
-                className={`absolute flex flex-col items-center justify-center gap-1 rounded-xl border text-center text-[11px] font-semibold transition focus:outline-none ${
-                  isSelected
-                    ? "border-[#e91e63] bg-[#e91e63] text-white shadow-[0_15px_35px_rgba(233,30,99,0.35)]"
-                    : canSelect
-                      ? "border-white/50 bg-white/10 text-white hover:border-white"
-                      : "cursor-not-allowed border-white/10 bg-white/5 text-white/30"
-                }`}
-                style={{
-                  left,
-                  top,
-                  width,
-                  height,
-                  minWidth: "40px",
-                  minHeight: "40px",
-                  maxWidth: "140px",
-                  maxHeight: "120px",
-                }}
-              >
-                <span className="leading-none">{shortLabel}</span>
-                {isReserved && <span className="text-[10px] font-normal leading-tight text-white/60">Reservada</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {loading && <div className="absolute inset-0 animate-pulse bg-white/5" />}
-      </div>
-    </div>
-  );
 }
 
 function isAdult(birthdate: string) {
