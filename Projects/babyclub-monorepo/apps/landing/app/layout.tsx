@@ -25,17 +25,14 @@ export const metadata: Metadata = {
     url: "/",
     siteName: "BabyClub Access",
     type: "website",
-    images: ["/opengraph-image.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "BabyClub Access",
     description: "Tickets, promoters, and event access—built for nightlife operations.",
-    images: ["/opengraph-image.png"],
   },
   icons: {
-    icon: "/icon.png",
-    apple: "/apple-icon.png",
+    icon: "/favicon.ico",
   },
 };
 
