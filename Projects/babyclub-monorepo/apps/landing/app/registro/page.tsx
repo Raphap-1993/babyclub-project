@@ -799,8 +799,8 @@ function RegistroContent() {
       </div>
 
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
-          <div className="relative w-full max-w-2xl space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 sm:items-center">
+          <div className="relative w-full max-w-2xl space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)] max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>

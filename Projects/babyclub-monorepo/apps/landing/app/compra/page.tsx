@@ -499,7 +499,7 @@ export default function CompraPage() {
               <Field label="Teléfono" value={ticketForm.phone} onChange={(v) => setTicketForm((p) => ({ ...p, phone: v }))} placeholder="+51 999 999 999" />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
+              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
                 <input
                   type="radio"
                   name="ticketQty"
@@ -507,9 +507,10 @@ export default function CompraPage() {
                   onChange={() => setTicketQuantity(1)}
                   className="h-4 w-4 accent-[#e91e63]"
                 />
-                1 QR – S/ 20
+                <span>1 QR – S/ 20</span>
+                <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
               </label>
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
+              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
                 <input
                   type="radio"
                   name="ticketQty"
@@ -517,7 +518,8 @@ export default function CompraPage() {
                   onChange={() => setTicketQuantity(2)}
                   className="h-4 w-4 accent-[#e91e63]"
                 />
-                2 QR – S/ 35
+                <span>2 QR – S/ 35</span>
+                <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
               </label>
             </div>
             {ticketError && <p className="text-xs font-semibold text-[#ff9a9a]">{ticketError}</p>}
@@ -733,8 +735,8 @@ export default function CompraPage() {
       </div>
 
       {showSummary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
-          <div className="relative w-full max-w-2xl space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 sm:items-center">
+          <div className="relative w-full max-w-2xl space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)] max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>
@@ -877,8 +879,8 @@ export default function CompraPage() {
       )}
 
       {showTicketSummary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
-          <div className="relative w-full max-w-2xl space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 sm:items-center">
+          <div className="relative w-full max-w-2xl space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)] max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>
