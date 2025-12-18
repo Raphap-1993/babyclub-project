@@ -20,6 +20,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
   }
 
+  const trace: string[] = [];
+
   let body: any = null;
   try {
     body = await req.json();
@@ -74,7 +76,13 @@ export async function POST(req: NextRequest) {
       ? (reservation as any).event?.[0]
       : (reservation as any).event
     : null;
+  const codesList = Array.isArray((reservation as any).codes)
+    ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
+    : [];
   const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || eventDirectRel?.id || null;
+  trace.push(`eventId:${eventId || "null"}`);
+  trace.push(`table:${tableRel?.name || "?"}`);
+  trace.push(`codes:${codesList.length}`);
   const codes = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];
@@ -82,16 +90,16 @@ export async function POST(req: NextRequest) {
   if (updateData.status === "approved") {
     if (!resendApiKey) {
       return NextResponse.json(
-        { success: false, error: "Correo no disponible: configura RESEND_API_KEY" },
+        { success: false, error: "Correo no disponible: configura RESEND_API_KEY", trace },
         { status: 400 }
       );
     }
     if (!resolvedEmail) {
-      return NextResponse.json({ success: false, error: "Ingresa un correo para notificar" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Ingresa un correo para notificar", trace }, { status: 400 });
     }
     if (!eventId) {
       return NextResponse.json(
-        { success: false, error: "Mesa sin evento asignado; no se generó ticket/QR." },
+        { success: false, error: "Mesa sin evento asignado; no se generó ticket/QR.", trace },
         { status: 400 }
       );
     }
@@ -114,20 +122,24 @@ export async function POST(req: NextRequest) {
         fullName: resolvedFullName,
         email: resolvedEmail,
         phone: resolvedPhone,
-        reuseCodes: codes,
+        reuseCodes: codesList,
       });
       ticketId = createdTicketId;
+      trace.push(`ticketId:${ticketId}`);
 
       if (ticketId) {
         await sendTicketEmail(ticketId, resolvedEmail);
         emailSent = true;
+        trace.push("emailSent:true");
       }
     } catch (err: any) {
       emailError = err?.message || "No se pudo enviar el correo";
+      trace.push(`error:${emailError}`);
+      console.error("[reservations/update] approval error", { id, trace, err });
     }
   }
 
-  return NextResponse.json({ success: true, emailSent, emailError });
+  return NextResponse.json({ success: true, emailSent, emailError, trace });
 }
 
 async function sendApprovalEmail({
