@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import { Resend, type CreateEmailOptions } from "resend";
 
 const DEFAULT_FROM_RAW = process.env.RESEND_FROM ?? "BabyClub Access <no-reply@babyclubaccess.com>";
 const EXPECTED_DOMAIN = "@babyclubaccess.com";
@@ -35,12 +35,13 @@ export async function sendEmail({
 }) {
   const resend = getResendClient();
   validateFromAddress(DEFAULT_FROM_RAW);
-  return resend.emails.send({
+  const payload: any = {
     from: DEFAULT_FROM_RAW,
     to,
     subject,
-    html,
-    text,
-    replyTo,
-  });
+  };
+  if (html) payload.html = html;
+  if (text) payload.text = text;
+  if (replyTo) (payload as any).reply_to = replyTo;
+  return resend.emails.send(payload);
 }

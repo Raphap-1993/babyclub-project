@@ -163,14 +163,6 @@ export async function POST(req: NextRequest) {
   const textWarnings = warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
   const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDNI: ${data.dni || "-"}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}`;
 
-  const emailPayload = {
-    from: fromEmail,
-    to: toEmail,
-    subject: `BABY - Entrada ${eventRel?.name || "evento"}`,
-    html,
-    text: textBody,
-  };
-
   try {
     await sendEmail({
       to: toEmail,
