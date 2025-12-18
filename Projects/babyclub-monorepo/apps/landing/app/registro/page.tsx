@@ -955,6 +955,8 @@ function RegistroContent() {
         setReservationCodes(data.codes || []);
         setShowPaymentModal(false);
         setShowReservationSent(true);
+        resetReservationForm();
+        setStep(1);
       }
     } catch (err: any) {
       const msg = err?.message || "Error al registrar reserva";

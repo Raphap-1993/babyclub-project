@@ -39,7 +39,9 @@ export async function POST(req: NextRequest) {
 
   const { data: reservation } = await supabase
     .from("table_reservations")
-    .select("id,full_name,email,phone,codes,table:tables(id,name,event_id,event:events(id,name,starts_at,location))")
+    .select(
+      "id,full_name,email,phone,codes,event_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,event:events(id,name,starts_at,location))"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -67,7 +69,12 @@ export async function POST(req: NextRequest) {
 
   const tableRel = Array.isArray((reservation as any).table) ? (reservation as any).table?.[0] : (reservation as any).table;
   const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
-  const eventId = tableRel?.event_id || eventRel?.id || null;
+  const eventDirectRel = (reservation as any).event
+    ? Array.isArray((reservation as any).event)
+      ? (reservation as any).event?.[0]
+      : (reservation as any).event
+    : null;
+  const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || eventDirectRel?.id || null;
   const codes = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];

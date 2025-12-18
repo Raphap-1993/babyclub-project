@@ -123,7 +123,7 @@ export default function ReservationEditor({ id, initial }: Props) {
           type="button"
           disabled={pending || !dirty}
           onClick={onSave}
-          className="rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-[0_10px_30px_rgba(233,30,99,0.35)] transition hover:shadow-[0_12px_34px_rgba(233,30,99,0.45)] disabled:opacity-60"
+          className="rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-[0_10px_30px_rgba(185,0,60,0.4)] transition hover:shadow-[0_12px_34px_rgba(185,0,60,0.45)] disabled:opacity-60"
         >
           {pending ? "Guardando..." : "Guardar y notificar"}
         </button>
