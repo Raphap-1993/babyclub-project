@@ -576,6 +576,7 @@ function FieldInput({
   required,
   maxLength,
   type = "text",
+  onBlur,
 }: {
   label: string;
   value: string;
@@ -585,6 +586,7 @@ function FieldInput({
   required?: boolean;
   maxLength?: number;
   type?: string;
+  onBlur?: () => void;
 }) {
   return (
     <label className="block space-y-1 text-sm font-semibold text-white">
@@ -597,6 +599,7 @@ function FieldInput({
         inputMode={inputMode}
         maxLength={maxLength}
         required={required}
+        onBlur={onBlur}
         className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2.5 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
       />
     </label>
