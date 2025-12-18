@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import EventActions from "./components/EventActions";
-import { formatEventDateTime } from "shared/datetime";
+import { formatLimaFromDb } from "shared/limaTime";
 
 type EventRow = {
   id: string;
@@ -79,7 +79,7 @@ export default function EventsClient({
                   {event.header_image && <div className="break-all text-xs text-white/50">{event.header_image}</div>}
                 </td>
                 <td className="px-4 py-3 text-white/80">{event.location || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{formatEventDateTime(event.starts_at)}</td>
+                <td className="px-4 py-3 text-white/80">{formatLimaFromDb(event.starts_at ?? "")}</td>
                 <td className="px-4 py-3 text-white/80">{event.capacity ?? "—"}</td>
                 <td className="px-4 py-3 text-white/80 whitespace-nowrap" title={event.code ?? "—"}>
                   {event.code ?? "—"}
@@ -132,7 +132,7 @@ export default function EventsClient({
 
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
               <Info label="Ubicación" value={event.location || "—"} />
-              <Info label="Fecha" value={formatEventDateTime(event.starts_at)} />
+              <Info label="Fecha" value={formatLimaFromDb(event.starts_at ?? "")} />
               <Info label="Capacidad" value={event.capacity?.toString() || "—"} />
               <Info label="Código" value={event.code || "—"} />
             </div>

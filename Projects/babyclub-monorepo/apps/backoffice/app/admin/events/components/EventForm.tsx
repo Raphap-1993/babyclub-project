@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ManifestUploader from "./ManifestUploader";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
-import { EVENT_TZ, toLimaPartsFromIso, toDbTimestamptzFromLima } from "shared/datetime";
+import { toLimaPartsFromDb, toUTCISOFromLimaParts } from "shared/limaTime";
 
 type EventFormProps = {
   mode: "create" | "edit";
@@ -420,24 +420,26 @@ function ErrorText({ message }: { message: string }) {
 }
 
 function toDateTimeParts12(iso: string): { datePart: string; hour12: string; minute: string; period: "AM" | "PM" } {
-  const parsed = toLimaPartsFromIso(iso);
-  return parsed ?? { datePart: "", hour12: "12", minute: "00", period: "AM" };
-}
-
-function to24h(hour12: string, minute: string, period: "AM" | "PM") {
-  const h12 = Number(hour12) || 12;
-  const minutes = minute || "00";
-  const h24 = period === "PM" ? ((h12 % 12) + 12) % 24 : h12 % 12;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h24)}:${pad(Number(minutes) || 0)}`;
+  if (!iso) return { datePart: "", hour12: "12", minute: "00", period: "AM" };
+  try {
+    const parsed = toLimaPartsFromDb(iso);
+    return {
+      datePart: toInputDate(parsed.date),
+      hour12: String(parsed.hour12).padStart(2, "0"),
+      minute: String(parsed.minute).padStart(2, "0"),
+      period: parsed.ampm,
+    };
+  } catch (_err) {
+    return { datePart: "", hour12: "12", minute: "00", period: "AM" };
+  }
 }
 
 function toIsoFromParts12(datePart: string, hour12: string, minute: string, period: "AM" | "PM") {
   if (!datePart) return "";
   const hour12Num = Number(hour12) || 12;
   const minuteNum = Number(minute) || 0;
-  return toDbTimestamptzFromLima({
-    date: datePart,
+  return toUTCISOFromLimaParts({
+    date: toLimaDate(datePart),
     hour12: hour12Num,
     minute: minuteNum,
     ampm: period,
@@ -449,13 +451,27 @@ function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<Fo
   return {
     name: initialData.name ?? "",
     location: initialData.location ?? "",
-    starts_at: initialData.starts_at ? new Date(initialData.starts_at).toISOString() : "",
+    starts_at: initialData.starts_at ?? "",
     capacity: initialData.capacity != null ? String(initialData.capacity) : "",
     header_image: initialData.header_image ?? "",
     cover_image: initialData.cover_image ?? "",
     is_active: initialData.is_active ?? true,
     code: initialData.code ?? "",
   };
+}
+
+function toLimaDate(inputDatePart: string) {
+  // input datePart viene como yyyy-MM-dd desde el picker
+  const [y, m, d] = inputDatePart.split("-").map((n) => Number(n));
+  if (!y || !m || !d) throw new Error("Fecha inválida");
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${String(y).padStart(4, "0")}`;
+}
+
+function toInputDate(limaDate: string) {
+  // convierte dd/LL/yyyy a yyyy-MM-dd
+  const [d, m, y] = limaDate.split("/").map((n) => Number(n));
+  if (!y || !m || !d) return "";
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 function validate(values: FormValues): Partial<Record<keyof FormValues, string>> {

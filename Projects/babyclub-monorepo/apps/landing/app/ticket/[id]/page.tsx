@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { EmailSender } from "./EmailSender";
 import Link from "next/link";
-import { formatEventDate, formatEventDateTime, formatEventTime } from "shared/datetime";
+import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -144,10 +144,13 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   const codeType = (ticket.code.type || "").toLowerCase();
   const isPromoterCode = Boolean(ticket.code.promoter_id || ticket.promoter?.code);
   const expiresAt = ticket.code.expires_at ? new Date(ticket.code.expires_at) : null;
-  const expiresLabel = expiresAt ? formatEventTime(expiresAt.toISOString()) : null;
-  const eventDateLabel = formatEventDate(ticket.event.starts_at);
-  const eventTimeLabel = formatEventTime(ticket.event.starts_at);
-  const eventDateTime = formatEventDateTime(ticket.event.starts_at);
+  const expiresLabel = expiresAt ? formatLimaFromDb(expiresAt.toISOString()) : null;
+  const eventParts = toLimaPartsFromDb(ticket.event.starts_at);
+  const eventDateLabel = eventParts.date.replace(/\//g, "/");
+  const eventTimeLabel = `${String(eventParts.hour12).padStart(2, "0")}:${String(eventParts.minute).padStart(2, "0")} ${
+    eventParts.ampm
+  }`;
+  const eventDateTime = formatLimaFromDb(ticket.event.starts_at);
   const warnings = buildWarnings({ codeType, isPromoterCode, expiresLabel, eventTimeLabel });
 
   return (
