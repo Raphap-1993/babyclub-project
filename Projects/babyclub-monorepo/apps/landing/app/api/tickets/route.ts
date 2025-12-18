@@ -74,29 +74,56 @@ export async function POST(req: NextRequest) {
   }
 
   // Persona
-  const { data: personData, error: personError } = await supabase
-    .from("persons")
-    .upsert(
-      {
-        dni: docType === "dni" ? dni : null,
-        doc_type: docType,
-        document,
-        first_name,
-        last_name,
-        email: email || null,
-        phone: phone || null,
-        birthdate: birthdate.toISOString().slice(0, 10),
-      },
-      { onConflict: "document" }
-    )
-    .select("id")
-    .single();
+  const personPayload = {
+    dni: docType === "dni" ? dni : null,
+    doc_type: docType,
+    document,
+    first_name,
+    last_name,
+    email: email || null,
+    phone: phone || null,
+    birthdate: birthdate.toISOString().slice(0, 10),
+  };
 
-  if (personError) {
-    return NextResponse.json({ success: false, error: personError.message }, { status: 500 });
+  // Buscamos primero por document/dni para no depender de un índice único en "document"
+  const { data: existingPerson, error: findPersonError } = await supabase
+    .from("persons")
+    .select("id")
+    .or(
+      [
+        docType === "dni" && dni ? `dni.eq.${dni}` : "",
+        `document.eq.${document}`,
+      ]
+        .filter(Boolean)
+        .join(",")
+    )
+    .limit(1)
+    .maybeSingle();
+
+  if (findPersonError && findPersonError.code !== "PGRST116") {
+    return NextResponse.json({ success: false, error: findPersonError.message }, { status: 500 });
   }
 
-  const person_id = personData?.id;
+  let person_id = existingPerson?.id;
+
+  if (person_id) {
+    const { error: updatePersonError } = await supabase.from("persons").update(personPayload).eq("id", person_id);
+    if (updatePersonError) {
+      return NextResponse.json({ success: false, error: updatePersonError.message }, { status: 500 });
+    }
+  } else {
+    const { data: createdPerson, error: insertPersonError } = await supabase
+      .from("persons")
+      .insert(personPayload)
+      .select("id")
+      .single();
+
+    if (insertPersonError) {
+      return NextResponse.json({ success: false, error: insertPersonError.message }, { status: 500 });
+    }
+
+    person_id = createdPerson?.id;
+  }
   const finalPromoterId = promoter_id || codeRow.promoter_id || null;
   const full_name = `${first_name} ${last_name}`.trim();
   const qr_token = crypto.randomUUID();
