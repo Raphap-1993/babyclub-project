@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
+import { sendEmail } from "shared/email/resend";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
 const supabase =
   supabaseUrl && supabaseServiceKey
@@ -225,27 +225,12 @@ async function sendApprovalEmail({
     .filter(Boolean)
     .join("\n");
 
-  const payload = {
-    from: fromEmail,
+  await sendEmail({
     to: email,
     subject: "Reserva aprobada - códigos y QR",
     html,
     text: textBody,
-  };
-
-  const sendRes = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
   });
-
-  if (!sendRes.ok) {
-    const errText = await sendRes.text().catch(() => "");
-    throw new Error(errText || "No se pudo enviar el correo de reserva");
-  }
 }
 
 async function createTicketForReservation({
@@ -478,25 +463,10 @@ async function sendTicketEmail(ticketId: string, toEmail: string) {
   const textWarnings = warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
   const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDNI: ${data.dni || "-"}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}`;
 
-  const emailPayload = {
-    from: fromEmail,
+  await sendEmail({
     to: toEmail,
     subject: `BABY - Entrada ${eventRel?.name || "evento"}`,
     html,
     text: textBody,
-  };
-
-  const sendRes = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(emailPayload),
   });
-
-  if (!sendRes.ok) {
-    const errText = await sendRes.text().catch(() => "");
-    throw new Error(errText || "No se pudo enviar el correo");
-  }
 }

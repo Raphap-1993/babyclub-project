@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
+import { sendEmail } from "shared/email/resend";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export async function POST(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
   }
-  if (!resendApiKey) {
-    return NextResponse.json({ success: false, error: "Correo no disponible: configura RESEND_API_KEY" }, { status: 400 });
-  }
-
   let body: any = null;
   try {
     body = await req.json();
@@ -176,19 +171,16 @@ export async function POST(req: NextRequest) {
     text: textBody,
   };
 
-  const sendRes = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(emailPayload),
-  });
-
-  if (!sendRes.ok) {
-    const errText = await sendRes.text().catch(() => "");
-    return NextResponse.json({ success: false, error: errText || "No se pudo enviar el correo" }, { status: 500 });
+  try {
+    await sendEmail({
+      to: toEmail,
+      subject: `BABY - Entrada ${eventRel?.name || "evento"}`,
+      html,
+      text: textBody,
+    });
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Error sending email via Resend", err);
+    return NextResponse.json({ success: false, error: "No se pudo enviar el correo. Intenta nuevamente." }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true });
 }
