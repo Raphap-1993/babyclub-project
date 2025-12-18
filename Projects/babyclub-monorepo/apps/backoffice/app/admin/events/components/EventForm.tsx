@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ManifestUploader from "./ManifestUploader";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
-import { EVENT_TZ, toLimaPartsFromIso, toUtcIsoFromLimaParts } from "shared/datetime";
+import { EVENT_TZ, toLimaPartsFromIso, toDbTimestamptzFromLima } from "shared/datetime";
 
 type EventFormProps = {
   mode: "create" | "edit";
@@ -434,14 +434,14 @@ function to24h(hour12: string, minute: string, period: "AM" | "PM") {
 
 function toIsoFromParts12(datePart: string, hour12: string, minute: string, period: "AM" | "PM") {
   if (!datePart) return "";
-  const time24 = to24h(hour12, minute, period);
-  const [hourStr, minuteStr] = time24.split(":");
-  const year = Number(datePart.slice(0, 4));
-  const month = Number(datePart.slice(5, 7));
-  const day = Number(datePart.slice(8, 10));
-  const hour = Number(hourStr);
-  const min = Number(minuteStr);
-  return toUtcIsoFromLimaParts({ year, month, day, hour, minute: min });
+  const hour12Num = Number(hour12) || 12;
+  const minuteNum = Number(minute) || 0;
+  return toDbTimestamptzFromLima({
+    date: datePart,
+    hour12: hour12Num,
+    minute: minuteNum,
+    ampm: period,
+  });
 }
 
 function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<FormValues> {
