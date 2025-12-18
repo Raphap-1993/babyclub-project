@@ -48,6 +48,8 @@ const TABLE_LAYOUT: TableSlot[] = [
   { id: "slot-6", label: "6", left: "70%", top: "80%", width: "16%", height: "12%" },
 ];
 
+const DEFAULT_LAYOUT_RATIO = 1.18; // fallback ratio to keep the overlay aligned while the image loads or is missing
+
 const normalizeTableName = (name: string) => name.replace(/\s+/g, "").toLowerCase();
 
 function findTableForSlot(label: string, tables: TableInfo[]) {
@@ -449,7 +451,7 @@ function RegistroContent() {
         {step === 2 && (
           <form onSubmit={(e) => { e.preventDefault(); submitReservation(); }} className="space-y-4">
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">Paso 2</p>
                   <h2 className="text-xl font-semibold text-white">Elige tu mesa en el mapa</h2>
@@ -880,15 +882,39 @@ function TableMap({
   loading?: boolean;
   layoutUrl?: string;
 }) {
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!layoutUrl) {
+      setAspectRatio(null);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight) {
+        setAspectRatio(img.naturalWidth / img.naturalHeight);
+      }
+    };
+    img.onerror = () => setAspectRatio(null);
+    img.src = layoutUrl;
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [layoutUrl]);
+
+  const mapRatio = aspectRatio || DEFAULT_LAYOUT_RATIO;
+
   return (
-    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#121212] to-[#050505] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.45)]">
+    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#121212] to-[#050505] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-5 md:p-6">
       <div
-        className="relative min-h-[520px] overflow-hidden rounded-2xl border border-white/10 bg-black/80"
+        className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/80"
         style={{
           backgroundImage: layoutUrl ? `url(${layoutUrl})` : undefined,
           backgroundSize: "contain",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center",
+          aspectRatio: mapRatio,
         }}
       >
         {/* mesas */}
@@ -919,7 +945,16 @@ function TableMap({
                       ? "border-white/50 bg-white/10 text-white hover:border-white"
                       : "cursor-not-allowed border-white/10 bg-white/5 text-white/30"
                 }`}
-                style={{ left, top, width, height }}
+                style={{
+                  left,
+                  top,
+                  width,
+                  height,
+                  minWidth: "40px",
+                  minHeight: "40px",
+                  maxWidth: "140px",
+                  maxHeight: "120px",
+                }}
               >
                 <span className="leading-none">{shortLabel}</span>
                 {isReserved && <span className="text-[10px] font-normal leading-tight text-white/60">Reservada</span>}

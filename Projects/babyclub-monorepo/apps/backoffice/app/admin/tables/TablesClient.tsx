@@ -11,6 +11,7 @@ type TableRow = {
   price: number | null;
   is_active: boolean | null;
   notes: string | null;
+  reserved: boolean;
 };
 
 export default function TablesClient({
@@ -96,7 +97,7 @@ export default function TablesClient({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <TableActions id={table.id} />
+                  <TableActions id={table.id} reserved={table.reserved} />
                 </td>
               </tr>
             ))}
@@ -138,7 +139,7 @@ export default function TablesClient({
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
-              <TableActions id={table.id} />
+              <TableActions id={table.id} reserved={table.reserved} />
             </div>
           </div>
         ))}

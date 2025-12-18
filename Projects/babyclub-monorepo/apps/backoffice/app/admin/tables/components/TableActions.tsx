@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function TableActions({ id }: { id: string }) {
+export default function TableActions({ id, reserved }: { id: string; reserved?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -56,14 +56,16 @@ export default function TableActions({ id }: { id: string }) {
       >
         Editar
       </Link>
-      <button
-        type="button"
-        onClick={onRelease}
-        disabled={pending}
-        className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e3b341] hover:text-[#e3b341] disabled:opacity-60"
-      >
-        Liberar
-      </button>
+      {reserved && (
+        <button
+          type="button"
+          onClick={onRelease}
+          disabled={pending}
+          className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e3b341] hover:text-[#e3b341] disabled:opacity-60"
+        >
+          Liberar
+        </button>
+      )}
       <button
         type="button"
         onClick={onDelete}

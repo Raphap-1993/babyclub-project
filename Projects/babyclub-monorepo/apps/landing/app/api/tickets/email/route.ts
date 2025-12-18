@@ -44,6 +44,15 @@ export async function POST(req: NextRequest) {
   const eventRel = Array.isArray((data as any).event) ? (data as any).event?.[0] : (data as any).event;
   const codeRel = Array.isArray((data as any).code) ? (data as any).code?.[0] : (data as any).code;
   const dateLabel = eventRel?.starts_at ? formatLimaFromDb(eventRel.starts_at) : "";
+  const eventTimeLabel = (() => {
+    if (!eventRel?.starts_at) return null;
+    try {
+      const parts = toLimaPartsFromDb(eventRel.starts_at);
+      return `${String(parts.hour12).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")} ${parts.ampm}`;
+    } catch {
+      return null;
+    }
+  })();
   const ticketUrl = `${appUrl}/ticket/${ticketId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(data.qr_token)}`;
   const quickChartUrl = `https://quickchart.io/qr?size=240&text=${encodeURIComponent(data.qr_token)}`;
@@ -86,6 +95,15 @@ export async function POST(req: NextRequest) {
   if (isPromoterCode && !isFreeCode) {
     warnings.push("QR de promotor: no tiene límite de hora de ingreso. Coordina con tu promotor.");
   }
+  if (!isFreeCode && !isPromoterCode) {
+    const timeInfo = expiresLabel
+      ? `Hora límite de ingreso: ${expiresLabel}.`
+      : eventTimeLabel
+        ? `Hora de ingreso del evento: ${eventTimeLabel}.`
+        : "";
+    const toleranceText = `${timeInfo ? `${timeInfo} ` : ""}Tolerancia hasta las 11:30 PM.`;
+    warnings.push(toleranceText.trim());
+  }
 
   const warningsHtml = warnings
     .map(
@@ -93,6 +111,17 @@ export async function POST(req: NextRequest) {
         `<div style="margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(233,30,99,0.35);background:linear-gradient(120deg,rgba(233,30,99,0.12),rgba(233,30,99,0.04));color:#ffddea;font-size:13px;line-height:1.4;">${w}</div>`
     )
     .join("");
+
+  const infoLines = [
+    "(+18) Presentando DNI",
+    "¿Llegas tarde? Adquiere tu entrada!",
+    "Si te registras y no asistes, no tendras acceso al link de registro o seras filtrado para proximos eventos.",
+  ];
+
+  const infoHtml = `<div style="margin-top:12px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:linear-gradient(120deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02));color:#f5f5f5;font-size:13px;line-height:1.5;">
+    <div style="text-transform:uppercase;font-size:11px;letter-spacing:0.12em;color:#bcbcbc;font-weight:700;margin-bottom:6px;">Info</div>
+    ${infoLines.map((line) => `<div style="margin-top:3px;">${line}</div>`).join("")}
+  </div>`;
 
   const html = `
   <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
@@ -143,6 +172,7 @@ export async function POST(req: NextRequest) {
                     </td>
                   </tr>
                   ${warningsHtml ? `<tr><td style="padding-top:12px;">${warningsHtml}</td></tr>` : ""}
+                  <tr><td style="padding-top:12px;">${infoHtml}</td></tr>
                   <tr>
                     <td align="center" style="padding:20px 0 6px;">
                       <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket</a>
@@ -161,7 +191,8 @@ export async function POST(req: NextRequest) {
   </div>`;
 
   const textWarnings = warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
-  const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDNI: ${data.dni || "-"}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}`;
+  const textInfo = `\n\nInfo:\n- ${infoLines.join("\n- ")}`;
+  const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDNI: ${data.dni || "-"}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}${textInfo}`;
 
   try {
     await sendEmail({

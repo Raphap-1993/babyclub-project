@@ -118,14 +118,10 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
 
   if (error || !data) return [];
   const activeStatuses = new Set(["approved", "confirmed", "paid"]);
-  const now = Date.now();
+  // Priorizar la reserva más reciente con códigos y estado activo
   const valid = (data as any[]).find((r) => {
     const status = (r?.status || "").toLowerCase();
     if (!activeStatuses.has(status)) return false;
-    if (r?.created_at) {
-      const ts = new Date(r.created_at).getTime();
-      if (Number.isFinite(ts) && now - ts > 72 * 60 * 60 * 1000) return false;
-    }
     return Array.isArray(r.codes) && r.codes.length > 0;
   });
   return valid?.codes || [];
@@ -237,12 +233,13 @@ function VerticalTicket({
           </div>
         )}
 
+        <AdditionalInfo />
+
         <div className="rounded-2xl border border-white/20 bg-[#0a0a0a] p-4">
           <p className="text-sm font-semibold text-white/70">Evento</p>
           <h2 className="text-2xl font-bold">{ticket.event.name}</h2>
           <p className="text-sm text-white/60">{ticket.event.location || "Por definir"}</p>
           <p className="text-sm text-white/60">{eventDateTime}</p>
-          <p className="text-[11px] text-white/40">Hora del evento (America/Lima)</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -292,6 +289,27 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+function AdditionalInfo() {
+  const lines = [
+    "(+18) Presentando DNI",
+    "¿Llegas tarde? Adquiere tu entrada!",
+    "Si te registras y no asistes, no tendras acceso al link de registro o seras filtrado para proximos eventos.",
+  ];
+
+  return (
+    <div className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/50">Info</p>
+      <div className="mt-2 space-y-1 text-xs text-white/80">
+        {lines.map((line) => (
+          <p key={line} className="leading-relaxed">
+            {line}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Notches() {
   return (
     <>
@@ -329,17 +347,16 @@ function buildWarnings({
 }) {
   const items: { title: string; body: string }[] = [];
   if (codeType === "courtesy" || codeType === "promoter") {
-    // códigos de cortesía/promotor: solo indican que son de promotor
     items.push({
-      title: "QR de promotor",
+      title: "QR de mesa / promotor",
       body: "Este QR no tiene límite de hora de ingreso.",
     });
   } else {
     items.push({
       title: "QR público",
       body: expiresLabel
-        ? `Hora límite de ingreso: ${expiresLabel}. Horario del evento: ${eventTimeLabel}.`
-        : `Hora de ingreso del evento: ${eventTimeLabel}.`,
+        ? `Hora límite de ingreso: ${expiresLabel}. Tolerancia hasta las 11:30 PM. Horario del evento: ${eventTimeLabel}.`
+        : `Hora de ingreso del evento: ${eventTimeLabel}. Tolerancia hasta las 11:30 PM.`,
     });
   }
   return items;

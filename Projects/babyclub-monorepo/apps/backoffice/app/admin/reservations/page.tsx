@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import ReservationActions from "./components/ReservationActions";
+import CreateReservationButton from "./components/CreateReservationButton";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -66,6 +67,10 @@ export default async function ReservationsPage() {
           <h1 className="text-3xl font-semibold">Reservas de mesas</h1>
         </div>
         <div className="flex gap-3">
+          <div className="flex flex-col items-end gap-1 text-right">
+            <CreateReservationButton />
+            <p className="text-[11px] text-white/60">Al guardar se notificará por email al cliente si hay correo y estado aprobado.</p>
+          </div>
           <Link
             href="/admin"
             className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
@@ -90,14 +95,13 @@ export default async function ReservationsPage() {
               <th className="w-[24%] px-4 py-3 text-left">Contacto</th>
               <th className="w-[10%] px-4 py-3 text-left">Estado</th>
               <th className="w-[14%] px-4 py-3 text-left">Voucher</th>
-              <th className="w-[12%] px-4 py-3 text-left">Códigos</th>
-              <th className="w-[8%] px-4 py-3 text-right">Acciones</th>
+              <th className="w-[12%] px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {reservations.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-white/60">
+                <td colSpan={6} className="px-4 py-6 text-center text-white/60">
                   {error ? `Error: ${error}` : "No hay reservas aún."}
                 </td>
               </tr>
@@ -138,9 +142,6 @@ export default async function ReservationsPage() {
                     "—"
                   )}
                 </td>
-                <td className="px-4 py-3 text-white/80 break-words">
-                  {res.codes && res.codes.length > 0 ? res.codes.join(", ") : "—"}
-                </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
                     <Link
@@ -149,13 +150,17 @@ export default async function ReservationsPage() {
                     >
                       Ver
                     </Link>
-                    <ReservationActions id={res.id} />
+                    <ReservationActions id={res.id} status={res.status} />
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mb-4 lg:hidden">
+        <CreateReservationButton />
       </div>
 
       <div className="space-y-3 lg:hidden">
@@ -230,7 +235,7 @@ export default async function ReservationsPage() {
               >
                 Ver detalle
               </Link>
-              <ReservationActions id={res.id} />
+              <ReservationActions id={res.id} status={res.status} />
             </div>
           </div>
         ))}

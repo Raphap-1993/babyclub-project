@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
     .from("table_reservations")
     .insert({
       table_id,
+       event_id: effectiveEventId,
       product_id,
       full_name,
       email: email || null,

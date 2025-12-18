@@ -13,6 +13,7 @@ type TableRow = {
   price: number | null;
   is_active: boolean | null;
   notes: string | null;
+  reserved: boolean;
 };
 
 async function getTables(params: { page: number; pageSize: number }): Promise<{ tables: TableRow[]; total: number; error?: string }> {
@@ -28,6 +29,13 @@ async function getTables(params: { page: number; pageSize: number }): Promise<{ 
     .order("created_at", { ascending: true })
     .range(start, end);
 
+  const activeStatuses = ["pending", "approved", "confirmed", "paid"];
+  const { data: resData } = await supabase
+    .from("table_reservations")
+    .select("table_id,status")
+    .in("status", activeStatuses);
+  const reservedSet = new Set<string>((resData || []).map((r: any) => r.table_id).filter(Boolean));
+
   if (error || !data) return { tables: [], total: 0, error: error?.message || "No se pudieron cargar mesas" };
   const normalized: TableRow[] = (data as any[]).map((t) => {
     return {
@@ -38,6 +46,7 @@ async function getTables(params: { page: number; pageSize: number }): Promise<{ 
       price: t.price ?? null,
       is_active: t.is_active ?? null,
       notes: t.notes ?? null,
+      reserved: reservedSet.has(t.id),
     };
   });
   return { tables: normalized, total: count ?? data.length };

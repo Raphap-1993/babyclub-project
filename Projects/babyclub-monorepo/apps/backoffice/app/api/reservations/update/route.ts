@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { sendEmail } from "shared/email/resend";
+import { createTicketForReservation } from "../utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
 
         let ticketId: string | null = null;
         if (eventId) {
-          ticketId = await createTicketForReservation({
+          ticketId = await createTicketForReservation(supabase, {
             eventId,
             tableName: tableRel?.name || "",
             full_name: (reservation as any).full_name || "",
@@ -233,112 +234,11 @@ async function sendApprovalEmail({
   });
 }
 
-async function createTicketForReservation({
-  eventId,
-  tableName,
-  full_name,
-  email,
-  phone,
-  codes,
-}: {
-  eventId: string;
-  tableName: string;
-  full_name: string;
-  email: string;
-  phone: string | null;
-  codes: string[];
-}): Promise<string | null> {
-  if (!supabase) return null;
-  const [firstName, ...rest] = (full_name || "").trim().split(" ");
-  const lastName = rest.join(" ").trim() || "Invitado";
-
-  // 1. Buscar o crear persona (por email/phone)
-  let personId: string | null = null;
-  if (email) {
-    const { data: person } = await supabase.from("persons").select("id").eq("email", email).maybeSingle();
-    personId = person?.id || null;
-  }
-  if (!personId && phone) {
-    const { data: person } = await supabase.from("persons").select("id").eq("phone", phone).maybeSingle();
-    personId = person?.id || null;
-  }
-  if (!personId) {
-    const { data: inserted, error } = await supabase
-      .from("persons")
-      .insert({
-        first_name: firstName || "Invitado",
-        last_name: lastName || "Reserva",
-        email: email || null,
-        phone: phone || null,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    personId = inserted?.id;
-  }
-  if (!personId) throw new Error("No se pudo crear persona");
-
-  // 2. Crear código único para la mesa si no hay códigos existentes
-  let codeId: string | null = null;
-  let codeValue: string | null = null;
-  if (codes && codes.length > 0) {
-    const { data: codeRow } = await supabase.from("codes").select("id").eq("code", codes[0]).maybeSingle();
-    codeId = codeRow?.id || null;
-    codeValue = codes[0];
-  }
-  if (!codeId) {
-    // generar código tipo mesa
-    const base = `mesa-${tableName || "res"}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 12);
-    let attempts = 0;
-    while (!codeId && attempts < 5) {
-      attempts++;
-      const value = `${base}-${Math.floor(Math.random() * 900000 + 100000)}`;
-      const { data: insertedCode, error: codeErr } = await supabase
-        .from("codes")
-        .insert({
-          code: value,
-          event_id: eventId,
-          type: "table",
-          is_active: true,
-          max_uses: 1,
-          uses: 0,
-        })
-        .select("id,code")
-        .single();
-      if (!codeErr && insertedCode?.id) {
-        codeId = insertedCode.id;
-        codeValue = insertedCode.code;
-        break;
-      }
-    }
-  }
-  if (!codeId) throw new Error("No se pudo generar código para el ticket");
-
-  // 3. Crear ticket
-  const qr_token = crypto.randomUUID();
-  const { data: ticket, error: ticketErr } = await supabase
-    .from("tickets")
-    .insert({
-      event_id: eventId,
-      code_id: codeId,
-      person_id: personId,
-      qr_token,
-      full_name: full_name || null,
-      email: email || null,
-      phone: phone || null,
-    })
-    .select("id")
-    .single();
-  if (ticketErr) throw new Error(ticketErr.message);
-
-  return ticket?.id || null;
-}
-
 async function sendTicketEmail(ticketId: string, toEmail: string) {
   if (!supabase) throw new Error("Supabase no disponible");
   if (!resendApiKey) throw new Error("Correo no disponible: configura RESEND_API_KEY");
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
 
   const { data, error } = await supabase
     .from("tickets")

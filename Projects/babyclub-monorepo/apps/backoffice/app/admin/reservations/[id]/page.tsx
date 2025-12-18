@@ -16,8 +16,10 @@ type Reservation = {
   voucher_url: string | null;
   status: string;
   codes: string[] | null;
+  created_by_staff?: { id: string; person?: { first_name?: string | null; last_name?: string | null } | null } | null;
   created_at: string;
   table: { name: string; event: { name: string; starts_at: string | null; location: string | null } | null } | null;
+  event_fallback?: { name: string | null; starts_at: string | null; location: string | null } | null;
 };
 
 async function getReservation(id: string): Promise<Reservation | null> {
@@ -28,7 +30,7 @@ async function getReservation(id: string): Promise<Reservation | null> {
   const { data, error } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location))"
+      "id,full_name,email,phone,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location)),created_by_staff:staff(id,person:persons(first_name,last_name)),event:event_id(name,starts_at,location)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -40,6 +42,21 @@ async function getReservation(id: string): Promise<Reservation | null> {
       ? tableRel.event[0]
       : tableRel.event
     : null;
+  const staffRel = data.created_by_staff
+    ? Array.isArray((data as any).created_by_staff)
+      ? (data as any).created_by_staff?.[0]
+      : (data as any).created_by_staff
+    : null;
+  const staffPerson = staffRel?.person
+    ? Array.isArray(staffRel.person)
+      ? staffRel.person[0]
+      : staffRel.person
+    : null;
+  const eventDirect = data.event
+    ? Array.isArray((data as any).event)
+      ? (data as any).event?.[0]
+      : (data as any).event
+    : null;
 
   const normalized: Reservation = {
     id: data.id as string,
@@ -49,7 +66,20 @@ async function getReservation(id: string): Promise<Reservation | null> {
     voucher_url: (data as any).voucher_url ?? null,
     status: (data as any).status ?? "",
     codes: (data as any).codes ?? null,
+    created_by_staff: staffRel
+      ? {
+          id: staffRel.id,
+          person: staffPerson ? { first_name: staffPerson.first_name, last_name: staffPerson.last_name } : null,
+        }
+      : null,
     created_at: (data as any).created_at ?? "",
+    event_fallback: eventDirect
+      ? {
+          name: eventDirect.name ?? null,
+          starts_at: eventDirect.starts_at ?? null,
+          location: eventDirect.location ?? null,
+        }
+      : null,
     table: tableRel
       ? {
           name: tableRel.name ?? "",
@@ -73,6 +103,7 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
   const { id } = await params;
   const reservation = await getReservation(id);
   if (!reservation) return notFound();
+  const eventData = reservation.table?.event || reservation.event_fallback || null;
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
@@ -88,7 +119,7 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
           >
             ← Volver
           </Link>
-          <ReservationActions id={reservation.id} />
+          <ReservationActions id={reservation.id} status={reservation.status} />
         </div>
       </div>
 
@@ -97,10 +128,18 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
           <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6">
             <h2 className="mb-4 text-lg font-semibold">Datos</h2>
             <Info label="Mesa" value={reservation.table?.name || "—"} />
-            <Info label="Evento" value={reservation.table?.event?.name || "—"} />
-            <Info label="Fecha evento" value={formatLimaFromDb(reservation.table?.event?.starts_at || "")} />
-            <Info label="Ubicación" value={reservation.table?.event?.location || "—"} />
+            <Info label="Evento" value={eventData?.name || "—"} />
+            <Info label="Fecha evento" value={safeFormat(eventData?.starts_at)} />
+            <Info label="Ubicación" value={eventData?.location || "—"} />
             <Info label="Creada" value={formatDate(reservation.created_at)} />
+            <Info
+              label="Creado por"
+              value={
+                reservation.created_by_staff?.person
+                  ? `${reservation.created_by_staff.person.first_name || ""} ${reservation.created_by_staff.person.last_name || ""}`.trim()
+                  : reservation.created_by_staff?.id || "—"
+              }
+            />
             <div className="mt-2 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Voucher</p>
               {reservation.voucher_url ? (
@@ -178,4 +217,13 @@ function formatDate(dateStr?: string | null) {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function safeFormat(value?: string | null) {
+  if (!value) return "—";
+  try {
+    return formatLimaFromDb(value);
+  } catch (_err) {
+    return "—";
+  }
 }
