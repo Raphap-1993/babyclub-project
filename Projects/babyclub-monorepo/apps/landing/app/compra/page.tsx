@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import MiniTableMap from "./MiniTableMap";
+import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
 
 type TableRow = {
   id: string;
@@ -32,8 +33,8 @@ type TableRow = {
 export default function CompraPage() {
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
-  const [form, setForm] = useState({ dni: "", full_name: "", email: "", phone: "", voucher_url: "" });
-  const [ticketForm, setTicketForm] = useState({ dni: "", full_name: "", email: "", phone: "" });
+  const [form, setForm] = useState({ doc_type: "dni", document: "", full_name: "", email: "", phone: "", voucher_url: "" });
+  const [ticketForm, setTicketForm] = useState({ doc_type: "dni", document: "", full_name: "", email: "", phone: "" });
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [mode, setMode] = useState<"mesa" | "ticket">("mesa");
   const [uploading, setUploading] = useState(false);
@@ -58,8 +59,10 @@ export default function CompraPage() {
   const [ticketVoucherUrl, setTicketVoucherUrl] = useState<string>("");
   const [ticketQuantity, setTicketQuantity] = useState<1 | 2>(1);
   const defaultCode = process.env.NEXT_PUBLIC_DEFAULT_CODE || "public";
-  const dniErrorTicket = ticketForm.dni && ticketForm.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
-  const dniErrorMesa = form.dni && form.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
+  const dniErrorTicket =
+    ticketForm.document && !validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) ? "Documento inválido" : "";
+  const dniErrorMesa =
+    form.document && !validateDocument(form.doc_type as DocumentType, form.document) ? "Documento inválido" : "";
   const yapeNumber = "950 144 641";
   const yapeHolder = "Kevin Andree Huansi Ruiz";
 
@@ -69,13 +72,13 @@ export default function CompraPage() {
   };
 
   const resetTicketForm = () => {
-    setTicketForm({ dni: "", full_name: "", email: "", phone: "" });
+    setTicketForm({ doc_type: "dni", document: "", full_name: "", email: "", phone: "" });
     setTicketError(null);
     setTicketSuccessId(null);
   };
 
   const resetMesaForm = () => {
-    setForm({ dni: "", full_name: "", email: "", phone: "", voucher_url: "" });
+    setForm({ doc_type: "dni", document: "", full_name: "", email: "", phone: "", voucher_url: "" });
     setError(null);
     setSuccessCodes(null);
   };
@@ -101,16 +104,16 @@ export default function CompraPage() {
   }, []);
 
   useEffect(() => {
-    if (ticketForm.dni.length === 8) {
-      lookupPerson(ticketForm.dni, "ticket");
+    if (validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document)) {
+      lookupPerson(ticketForm.document, "ticket", ticketForm.doc_type as DocumentType);
     }
-  }, [ticketForm.dni]);
+  }, [ticketForm.doc_type, ticketForm.document]);
 
   useEffect(() => {
-    if (form.dni.length === 8) {
-      lookupPerson(form.dni, "mesa");
+    if (validateDocument(form.doc_type as DocumentType, form.document)) {
+      lookupPerson(form.document, "mesa", form.doc_type as DocumentType);
     }
-  }, [form.dni]);
+  }, [form.doc_type, form.document]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -136,9 +139,9 @@ export default function CompraPage() {
     }
   };
 
-  const lookupPerson = async (dni: string, target: "ticket" | "mesa") => {
+  const lookupPerson = async (document: string, target: "ticket" | "mesa", docType: DocumentType = "dni") => {
     try {
-      const res = await fetch(`/api/persons?dni=${dni}`);
+      const res = await fetch(`/api/persons?document=${encodeURIComponent(document)}&doc_type=${docType}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.person) return;
       const p = data.person;
@@ -155,6 +158,8 @@ export default function CompraPage() {
       } else {
         setForm((prev) => ({
           ...prev,
+          doc_type: prev.doc_type || docType,
+          document: prev.document || document,
           full_name: prev.full_name || fullName,
           email: prev.email || p.email || "",
           phone: prev.phone || p.phone || "",
@@ -174,7 +179,8 @@ export default function CompraPage() {
     if (mode === "mesa") {
       setForm((prev) => ({
         ...prev,
-        dni: prev.dni || ticketForm.dni,
+        doc_type: prev.doc_type || ticketForm.doc_type,
+        document: prev.document || ticketForm.document,
         full_name: prev.full_name || ticketForm.full_name,
         email: prev.email || ticketForm.email,
         phone: prev.phone || ticketForm.phone,
@@ -182,7 +188,8 @@ export default function CompraPage() {
     } else if (mode === "ticket") {
       setTicketForm((prev) => ({
         ...prev,
-        dni: prev.dni || form.dni,
+        doc_type: prev.doc_type || form.doc_type,
+        document: prev.document || form.document,
         full_name: prev.full_name || form.full_name,
         email: prev.email || form.email,
         phone: prev.phone || form.phone,
@@ -203,8 +210,8 @@ export default function CompraPage() {
       setError("Selecciona el evento para esta reserva");
       return;
     }
-    if (!selected || form.dni.length !== 8 || !form.full_name.trim()) {
-      setError("Selecciona una mesa e ingresa DNI y tu nombre");
+    if (!selected || !validateDocument(form.doc_type as DocumentType, form.document) || !form.full_name.trim()) {
+      setError("Selecciona una mesa e ingresa documento y tu nombre");
       return;
     }
     if (!selectedProduct) {
@@ -223,8 +230,8 @@ export default function CompraPage() {
       setModalError("Sube tu comprobante de pago para continuar.");
       return;
     }
-    if (!selected || form.dni.length !== 8 || !form.full_name.trim()) {
-      setModalError("Revisa los datos obligatorios: mesa, DNI y nombre.");
+    if (!selected || !validateDocument(form.doc_type as DocumentType, form.document) || !form.full_name.trim()) {
+      setModalError("Revisa los datos obligatorios: mesa, documento y nombre.");
       return;
     }
 
@@ -236,7 +243,8 @@ export default function CompraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           table_id: selected,
-          dni: form.dni,
+          doc_type: form.doc_type,
+          document: form.document,
           full_name: form.full_name,
           email: form.email,
           phone: form.phone,
@@ -311,8 +319,8 @@ export default function CompraPage() {
     setTicketModalError(null);
     setTicketSuccessId(null);
     setTicketSuccessIds([]);
-    if (ticketForm.dni.length !== 8 || !ticketForm.full_name.trim()) {
-      setTicketError("Ingresa DNI y tu nombre");
+    if (!validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) || !ticketForm.full_name.trim()) {
+      setTicketError("Ingresa documento y tu nombre");
       return;
     }
     setShowTicketSummary(true);
@@ -321,8 +329,8 @@ export default function CompraPage() {
   const confirmTicketPurchase = async () => {
     setTicketModalError(null);
     setTicketError(null);
-    if (ticketForm.dni.length !== 8 || !ticketForm.full_name.trim()) {
-      setTicketModalError("Ingresa DNI y tu nombre");
+    if (!validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) || !ticketForm.full_name.trim()) {
+      setTicketModalError("Ingresa documento y tu nombre");
       return;
     }
     if (!ticketVoucherUrl) {
@@ -340,7 +348,8 @@ export default function CompraPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             code: codeToUse,
-            dni: ticketForm.dni,
+            doc_type: ticketForm.doc_type,
+            document: ticketForm.document,
             nombre: ticketForm.full_name,
             apellido_paterno: "",
             apellido_materno: "",
@@ -452,13 +461,27 @@ export default function CompraPage() {
         {mode === "ticket" && (
           <form onSubmit={onSubmitTicket} className="space-y-4 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
             <div className="grid gap-3 md:grid-cols-[0.6fr,1.4fr]">
+              <label className="block space-y-2 text-sm font-semibold text-white">
+                Tipo de documento
+                <select
+                  value={ticketForm.doc_type as DocumentType}
+                  onChange={(e) => setTicketForm((p) => ({ ...p, doc_type: e.target.value as DocumentType, document: "" }))}
+                  className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                >
+                  {DOCUMENT_TYPES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <Field
-                label="DNI"
-                value={ticketForm.dni}
-                onChange={(v) => setTicketForm((p) => ({ ...p, dni: v }))}
-                inputMode="numeric"
-                digitOnly
-                maxLength={8}
+                label="Número de documento"
+                value={ticketForm.document}
+                onChange={(v) => setTicketForm((p) => ({ ...p, document: v }))}
+                inputMode={ticketForm.doc_type === "dni" || ticketForm.doc_type === "ruc" ? "numeric" : "text"}
+                digitOnly={ticketForm.doc_type === "dni" || ticketForm.doc_type === "ruc"}
+                maxLength={ticketForm.doc_type === "dni" ? 8 : ticketForm.doc_type === "ruc" ? 11 : 12}
                 required
                 error={dniErrorTicket}
                 allowClear
@@ -518,7 +541,8 @@ export default function CompraPage() {
               onClick={() => {
                 setForm((prev) => ({
                   ...prev,
-                  dni: prev.dni || ticketForm.dni,
+                  doc_type: prev.doc_type || ticketForm.doc_type,
+                  document: prev.document || ticketForm.document,
                   full_name: prev.full_name || ticketForm.full_name,
                   email: prev.email || ticketForm.email,
                   phone: prev.phone || ticketForm.phone,
@@ -619,20 +643,34 @@ export default function CompraPage() {
                 )}
 
                 <div className="grid gap-3 md:grid-cols-[0.6fr,1.4fr]">
-              <Field
-                label="DNI"
-                value={form.dni}
-                onChange={(v) => setForm((p) => ({ ...p, dni: v }))}
-                inputMode="numeric"
-                digitOnly
-                maxLength={8}
-                required
-                error={dniErrorMesa}
-                allowClear
-                onClear={resetMesaForm}
-              />
-              <Field label="Nombre completo" value={form.full_name} onChange={(v) => setForm((p) => ({ ...p, full_name: v }))} required />
-            </div>
+                  <label className="block space-y-2 text-sm font-semibold text-white">
+                    Tipo de documento
+                    <select
+                      value={form.doc_type as DocumentType}
+                      onChange={(e) => setForm((p) => ({ ...p, doc_type: e.target.value as DocumentType, document: "" }))}
+                      className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                    >
+                      {DOCUMENT_TYPES.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Field
+                    label="Número de documento"
+                    value={form.document}
+                    onChange={(v) => setForm((p) => ({ ...p, document: v }))}
+                    inputMode={form.doc_type === "dni" || form.doc_type === "ruc" ? "numeric" : "text"}
+                    digitOnly={form.doc_type === "dni" || form.doc_type === "ruc"}
+                    maxLength={form.doc_type === "dni" ? 8 : form.doc_type === "ruc" ? 11 : 12}
+                    required
+                    error={dniErrorMesa}
+                    allowClear
+                    onClear={resetMesaForm}
+                  />
+                  <Field label="Nombre completo" value={form.full_name} onChange={(v) => setForm((p) => ({ ...p, full_name: v }))} required />
+                </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <Field label="Email" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} type="email" />
@@ -716,6 +754,12 @@ export default function CompraPage() {
               <div className="flex items-center justify-between text-white">
                 <span className="font-semibold">Mesa</span>
                 <span className="font-semibold">{tableInfo?.name || "Por definir"}</span>
+              </div>
+              <div className="flex items-center justify-between text-white">
+                <span>Documento</span>
+                <span className="font-semibold text-white">
+                  {form.document || "—"} ({form.doc_type})
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Pack seleccionado</span>
@@ -852,8 +896,10 @@ export default function CompraPage() {
 
             <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
               <div className="flex items-center justify-between text-white">
-                <span className="font-semibold">DNI</span>
-                <span className="font-semibold">{ticketForm.dni}</span>
+                <span className="font-semibold">Documento</span>
+                <span className="font-semibold">
+                  {ticketForm.document || "—"} ({ticketForm.doc_type})
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Nombre</span>

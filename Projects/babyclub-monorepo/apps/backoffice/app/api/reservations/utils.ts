@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeDocument, type DocumentType } from "shared/document";
 
 type Supabase = SupabaseClient<any, "public", any>;
 
@@ -18,20 +19,33 @@ const splitName = (fullName: string) => {
 
 async function ensurePerson(
   supabase: Supabase,
-  { fullName, email, phone, dni }: { fullName: string; email?: string | null; phone?: string | null; dni?: string | null }
+  {
+    fullName,
+    email,
+    phone,
+    dni,
+    docType,
+    document,
+  }: { fullName: string; email?: string | null; phone?: string | null; dni?: string | null; docType?: DocumentType; document?: string | null }
 ): Promise<string> {
   const cleanDni = dni?.trim() || null;
   const cleanEmail = email?.trim() || null;
   const cleanPhone = phone?.trim() || null;
+  const { docType: safeDocType, document: safeDocument } = normalizeDocument(docType, document);
   const { first, last } = splitName(fullName);
 
-  const searchOrder: Array<{ field: "dni" | "email" | "phone"; value: string }> = [];
+  const searchOrder: Array<{ field: "document" | "dni" | "email" | "phone"; value: string }> = [];
+  if (safeDocument) searchOrder.push({ field: "document", value: safeDocument });
   if (cleanDni) searchOrder.push({ field: "dni", value: cleanDni });
   if (cleanEmail) searchOrder.push({ field: "email", value: cleanEmail });
   if (cleanPhone) searchOrder.push({ field: "phone", value: cleanPhone });
 
   for (const item of searchOrder) {
-    const { data, error } = await supabase.from("persons").select("id").eq(item.field, item.value).maybeSingle();
+    const { data, error } = await supabase
+      .from("persons")
+      .select("id")
+      .eq(item.field, item.value)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     if (data?.id) return data.id;
   }
@@ -40,6 +54,8 @@ async function ensurePerson(
     .from("persons")
     .insert({
       dni: cleanDni || null,
+      doc_type: safeDocType,
+      document: safeDocument || null,
       first_name: first,
       last_name: last,
       email: cleanEmail,
@@ -93,6 +109,8 @@ export async function createTicketForReservation(
     phone,
     dni,
     reuseCodes,
+    docType,
+    document,
   }: {
     eventId: string;
     tableName: string;
@@ -101,9 +119,11 @@ export async function createTicketForReservation(
     phone?: string | null;
     dni?: string | null;
     reuseCodes?: string[];
+    docType?: DocumentType;
+    document?: string | null;
   }
 ): Promise<{ ticketId: string; code: string }> {
-  const personId = await ensurePerson(supabase, { fullName, email, phone, dni });
+  const personId = await ensurePerson(supabase, { fullName, email, phone, dni, docType, document });
   const { codeId, code } = await ensureCodeForTicket(supabase, { eventId, tableName, reuseCodes });
   const qr_token = randomUUID();
 
@@ -118,6 +138,8 @@ export async function createTicketForReservation(
       email: email || null,
       phone: phone || null,
       dni: dni || null,
+      document: document || null,
+      doc_type: (docType as any) || "dni",
     })
     .select("id")
     .single();

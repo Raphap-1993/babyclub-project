@@ -2,19 +2,20 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { DOCUMENT_TYPES, type DocumentType, validateDocument } from "shared/document";
 
 type Props = {
   id: string;
-  initial: { full_name: string; email: string | null; phone: string | null; status: string };
+  initial: { full_name: string; email: string | null; phone: string | null; status: string; doc_type?: string | null; document?: string | null };
 };
 
 export default function ReservationEditor({ id, initial }: Props) {
   const [fullName, setFullName] = useState(initial.full_name);
   const [email, setEmail] = useState(initial.email || "");
   const [phone, setPhone] = useState(initial.phone || "");
-  const [status, setStatus] = useState<"pending" | "approved" | "rejected">(
-    normalizeStatus(initial.status)
-  );
+  const [docType, setDocType] = useState<DocumentType>((initial.doc_type as DocumentType) || "dni");
+  const [document, setDocument] = useState(initial.document || "");
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected">(normalizeStatus(initial.status));
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,15 +25,29 @@ export default function ReservationEditor({ id, initial }: Props) {
       fullName.trim() !== initial.full_name.trim() ||
       (email || "") !== (initial.email || "") ||
       (phone || "") !== (initial.phone || "") ||
+      (docType || "dni") !== ((initial.doc_type as DocumentType) || "dni") ||
+      (document || "") !== (initial.document || "") ||
       status !== normalizeStatus(initial.status)
     );
-  }, [fullName, email, phone, status, initial]);
+  }, [fullName, email, phone, status, initial, docType, document]);
 
   const onSave = () => {
     setMessage(null);
     setError(null);
+    if (!validateDocument(docType, document)) {
+      setError("Documento inválido");
+      return;
+    }
     startTransition(async () => {
-      const payload = { id, full_name: fullName.trim(), email: email.trim(), phone: phone.trim(), status };
+      const payload = {
+        id,
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        status,
+        doc_type: docType,
+        document: document.trim(),
+      };
       const res = await fetch("/api/reservations/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -84,6 +99,30 @@ export default function ReservationEditor({ id, initial }: Props) {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-[0.1em] text-white/60">Tipo documento</label>
+          <select
+            value={docType}
+            onChange={(e) => setDocType(e.target.value as DocumentType)}
+            className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+          >
+            {DOCUMENT_TYPES.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-[0.1em] text-white/60">Nro. documento</label>
+          <input
+            value={document}
+            onChange={(e) => setDocument(e.target.value)}
+            inputMode={docType === "dni" || docType === "ruc" ? "numeric" : "text"}
+            className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+            placeholder={docType === "dni" ? "00000000" : "Documento"}
+          />
+        </div>
         <div className="space-y-2">
           <label className="text-xs uppercase tracking-[0.1em] text-white/60">Email</label>
           <input

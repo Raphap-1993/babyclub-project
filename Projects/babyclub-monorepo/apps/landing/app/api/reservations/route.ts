@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
 
+  const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
+  const documentRaw = typeof body?.document === "string" ? body.document : body?.dni || "";
+  const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
   const table_id = typeof body?.table_id === "string" ? body.table_id : "";
   const full_name = typeof body?.full_name === "string" ? body.full_name.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim() : "";
@@ -31,6 +35,9 @@ export async function POST(req: NextRequest) {
 
   if (!table_id || !full_name || !voucher_url) {
     return NextResponse.json({ success: false, error: "table_id, full_name y voucher_url son requeridos" }, { status: 400 });
+  }
+  if (!validateDocument(docType, document)) {
+    return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
   }
 
   const { data: table, error: tableError } = await supabase
@@ -74,6 +81,8 @@ export async function POST(req: NextRequest) {
       table_id,
        event_id: effectiveEventId,
       product_id,
+      doc_type: docType,
+      document,
       full_name,
       email: email || null,
       phone: phone || null,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,7 +22,10 @@ export async function POST(req: NextRequest) {
   }
 
   const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
-  const dni = typeof body?.dni === "string" ? body.dni.trim() : "";
+  const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
+  const documentRaw = typeof body?.document === "string" ? body.document : "";
+  const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
+  const dni = docType === "dni" ? document : "";
   const first_name = typeof body?.nombre === "string" ? body.nombre.trim() : "";
   const last_name_p = typeof body?.apellido_paterno === "string" ? body.apellido_paterno.trim() : "";
   const last_name_m = typeof body?.apellido_materno === "string" ? body.apellido_materno.trim() : "";
@@ -33,7 +37,9 @@ export async function POST(req: NextRequest) {
   const birthdate = birthdateStr ? new Date(birthdateStr) : null;
 
   if (!codeValue) return NextResponse.json({ success: false, error: "code is required" }, { status: 400 });
-  if (!dni || dni.length !== 8) return NextResponse.json({ success: false, error: "dni must be 8 digits" }, { status: 400 });
+  if (!validateDocument(docType, document)) {
+    return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
+  }
   if (!first_name || !last_name)
     return NextResponse.json({ success: false, error: "nombre y apellido son requeridos" }, { status: 400 });
   if (!birthdate || Number.isNaN(birthdate.getTime())) {
@@ -72,14 +78,16 @@ export async function POST(req: NextRequest) {
     .from("persons")
     .upsert(
       {
-        dni,
+        dni: docType === "dni" ? dni : null,
+        doc_type: docType,
+        document,
         first_name,
         last_name,
         email: email || null,
         phone: phone || null,
         birthdate: birthdate.toISOString().slice(0, 10),
       },
-      { onConflict: "dni" }
+      { onConflict: "document" }
     )
     .select("id")
     .single();
@@ -123,7 +131,9 @@ export async function POST(req: NextRequest) {
       person_id,
       promoter_id: finalPromoterId,
       qr_token,
-      dni,
+      dni: docType === "dni" ? dni : null,
+      document,
+      doc_type: docType,
       full_name,
       email: email || null,
       phone: phone || null,

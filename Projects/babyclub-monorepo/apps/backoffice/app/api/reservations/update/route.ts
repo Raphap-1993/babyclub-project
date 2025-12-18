@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
   const full_name = typeof body?.full_name === "string" ? body.full_name.trim() : undefined;
   const email = typeof body?.email === "string" ? body.email.trim() : undefined;
   const phone = typeof body?.phone === "string" ? body.phone.trim() : undefined;
+  const doc_type = typeof body?.doc_type === "string" ? body.doc_type : undefined;
+  const document = typeof body?.document === "string" ? body.document : undefined;
 
   if (!id) {
     return NextResponse.json({ success: false, error: "Invalid id" }, { status: 400 });
@@ -54,6 +56,8 @@ export async function POST(req: NextRequest) {
   const resolvedFullName = full_name?.trim() || (reservation as any).full_name || "";
   const resolvedEmail = email === "" ? "" : email ?? ((reservation as any).email || "");
   const resolvedPhone = phone === "" ? "" : phone ?? ((reservation as any).phone || "");
+  const resolvedDocType = (doc_type || (reservation as any).doc_type || "dni") as any;
+  const resolvedDocument = document ?? (reservation as any).document ?? (reservation as any).dni ?? "";
 
   const updateData: Record<string, any> = {};
   if (status && ["pending", "approved", "rejected"].includes(status)) updateData.status = status;
@@ -64,6 +68,8 @@ export async function POST(req: NextRequest) {
     updateData.email = resolvedEmail || null;
   }
   if (phone !== undefined) updateData.phone = resolvedPhone || null;
+  if (doc_type !== undefined) updateData.doc_type = resolvedDocType;
+  if (document !== undefined) updateData.document = resolvedDocument || null;
 
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ success: false, error: "Nada para actualizar" }, { status: 400 });
@@ -83,9 +89,6 @@ export async function POST(req: NextRequest) {
   trace.push(`eventId:${eventId || "null"}`);
   trace.push(`table:${tableRel?.name || "?"}`);
   trace.push(`codes:${codesList.length}`);
-  const codes = Array.isArray((reservation as any).codes)
-    ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
-    : [];
 
   if (updateData.status === "approved") {
     if (!resendApiKey) {
@@ -122,6 +125,8 @@ export async function POST(req: NextRequest) {
         fullName: resolvedFullName,
         email: resolvedEmail,
         phone: resolvedPhone,
+        docType: resolvedDocType,
+        document: resolvedDocument,
         reuseCodes: codesList,
       });
       ticketId = createdTicketId;

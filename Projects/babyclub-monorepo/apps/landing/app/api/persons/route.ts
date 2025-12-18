@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function GET(req: NextRequest) {
-  const dni = req.nextUrl.searchParams.get("dni")?.trim() || "";
+  const docTypeRaw = (req.nextUrl.searchParams.get("doc_type") || "dni") as DocumentType;
+  const documentRaw = req.nextUrl.searchParams.get("document") || req.nextUrl.searchParams.get("dni") || "";
+  const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
+  const dni = docType === "dni" ? document : "";
   const code = req.nextUrl.searchParams.get("code")?.trim() || "";
-  if (!dni || dni.length !== 8) {
-    return NextResponse.json({ person: null, error: "DNI inválido" }, { status: 400 });
+  if (!validateDocument(docType, document)) {
+    return NextResponse.json({ person: null, error: "Documento inválido" }, { status: 400 });
   }
 
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -19,10 +23,15 @@ export async function GET(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  const docQuery =
+    docType === "dni"
+      ? `document.eq.${document},dni.eq.${document}`
+      : `document.eq.${document}`;
+
   const { data, error } = await supabase
     .from("persons")
-    .select("dni,first_name,last_name,email,phone,birthdate")
-    .eq("dni", dni)
+    .select("id,doc_type,document,dni,first_name,last_name,email,phone,birthdate")
+    .or(docQuery)
     .maybeSingle();
 
   let personRecord = data;
@@ -38,6 +47,9 @@ export async function GET(req: NextRequest) {
         const payload = await resp.json();
         if (resp.ok && payload?.data) {
           personRecord = {
+            id: null,
+            doc_type: "dni",
+            document: dni,
             dni,
             first_name: payload.data.nombres || "",
             last_name: `${payload.data.apellido_paterno || ""} ${payload.data.apellido_materno || ""}`.trim(),
@@ -59,15 +71,16 @@ export async function GET(req: NextRequest) {
   let ticketPromoterId: string | null = null;
   let ticketId: string | null = null;
 
-  if (code) {
+  if (code && (personRecord?.dni || personRecord?.document)) {
     const { data: codeRow } = await supabase.from("codes").select("event_id").eq("code", code).maybeSingle();
     const eventId = codeRow?.event_id;
     if (eventId) {
+      const docFilter = personRecord.document ? { document: personRecord.document } : { dni: personRecord.dni };
       const { data: ticketRow } = await supabase
         .from("tickets")
         .select("id,promoter_id")
         .eq("event_id", eventId)
-        .eq("dni", dni)
+        .match(docFilter)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

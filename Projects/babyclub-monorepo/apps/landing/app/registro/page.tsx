@@ -2,6 +2,7 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
 
 type TableInfo = {
   id: string;
@@ -87,6 +88,8 @@ function RegistroContent() {
   const [logoUrl, setLogoUrl] = useState<string | null>(process.env.NEXT_PUBLIC_LOGO_URL || null);
   const [step, setStep] = useState<1 | 2>(1);
   const initialFormState = {
+    doc_type: "dni",
+    document: "",
     dni: "",
     nombre: "",
     apellido_paterno: "",
@@ -96,7 +99,15 @@ function RegistroContent() {
     promoter_id: "",
     birthdate: "",
   };
-  const initialReservationState = { dni: "", full_name: "", email: "", phone: "", voucher_url: "" };
+  const initialReservationState = {
+    doc_type: "dni",
+    document: "",
+    dni: "",
+    full_name: "",
+    email: "",
+    phone: "",
+    voucher_url: "",
+  };
   const [form, setForm] = useState({ ...initialFormState });
   const [tab, setTab] = useState<"ticket" | "mesa">("ticket");
   const [reniecLoading, setReniecLoading] = useState(false);
@@ -159,16 +170,17 @@ function RegistroContent() {
     createTicketAndRedirect();
   };
 
-  const lookupDni = async () => {
-    if (!form.dni || form.dni.length !== 8) {
-      setError("DNI inválido");
+  const lookupDocument = async () => {
+    if (!validateDocument(form.doc_type as DocumentType, form.document)) {
+      setError("Documento inválido");
       return;
     }
-    await loadPersonData(form.dni, { force: true });
+    await loadPersonData(form.document, { force: true, docType: form.doc_type as DocumentType });
+    if (form.doc_type !== "dni") return;
     setReniecLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reniec?dni=${form.dni}`);
+      const res = await fetch(`/api/reniec?dni=${form.document}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data?.error || "No se pudo validar DNI");
@@ -183,7 +195,7 @@ function RegistroContent() {
         apellido_paterno: apellidoPaterno || prev.apellido_paterno,
         apellido_materno: apellidoMaterno || prev.apellido_materno,
       }));
-      await loadPersonData(form.dni);
+      await loadPersonData(form.document, { docType: "dni" });
     } catch (err: any) {
       setError(err?.message || "Error al validar DNI");
     } finally {
@@ -192,16 +204,16 @@ function RegistroContent() {
   };
 
   useEffect(() => {
-    if (form.dni && form.dni.length === 8) {
-      loadPersonData(form.dni);
+    if (validateDocument(form.doc_type as DocumentType, form.document)) {
+      loadPersonData(form.document, { docType: form.doc_type as DocumentType });
     }
-  }, [form.dni]);
+  }, [form.doc_type, form.document]);
 
   useEffect(() => {
-    if (reservation.dni && reservation.dni.length === 8) {
-      loadPersonData(reservation.dni);
+    if (validateDocument(reservation.doc_type as DocumentType, reservation.document)) {
+      loadPersonData(reservation.document, { docType: reservation.doc_type as DocumentType });
     }
-  }, [reservation.dni]);
+  }, [reservation.doc_type, reservation.document]);
 
   useEffect(() => {
     // sincroniza datos del formulario principal con el de reserva si están vacíos
@@ -209,13 +221,15 @@ function RegistroContent() {
       const fullNameFromForm = `${form.nombre} ${form.apellido_paterno} ${form.apellido_materno}`.trim();
       return {
         ...prev,
-        dni: prev.dni || form.dni || "",
+        doc_type: prev.doc_type || form.doc_type || "dni",
+        document: prev.document || form.document || "",
+        dni: prev.dni || form.document || "",
         full_name: prev.full_name || fullNameFromForm,
         email: prev.email || form.email,
         phone: prev.phone || form.telefono,
       };
     });
-  }, [form.dni, form.nombre, form.apellido_paterno, form.apellido_materno, form.email, form.telefono]);
+  }, [form.doc_type, form.document, form.nombre, form.apellido_paterno, form.apellido_materno, form.email, form.telefono]);
 
   useEffect(() => {
     fetch("/api/promoters", { cache: "no-store" })
@@ -298,8 +312,10 @@ function RegistroContent() {
   const totalLabel = totalPrice != null ? formatCurrency(totalPrice) : null;
 
   const aforoWidth = Math.max(0, Math.min(aforo, 100));
-  const dniError = form.dni && form.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
-  const reservationDniError = reservation.dni && reservation.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
+  const reservationDocError =
+    reservation.document && !validateDocument(reservation.doc_type as DocumentType, reservation.document)
+      ? "Documento inválido"
+      : "";
 
   const copyYapeNumber = async () => {
     try {
@@ -323,8 +339,8 @@ function RegistroContent() {
       setReservationError("Selecciona una mesa");
       return;
     }
-    if (reservation.dni.length !== 8 || !reservation.full_name.trim()) {
-      setReservationError("Ingresa DNI y nombre de la reserva");
+    if (!validateDocument(reservation.doc_type as DocumentType, reservation.document) || !reservation.full_name.trim()) {
+      setReservationError("Ingresa documento y nombre de la reserva");
       return;
     }
     if (products.length > 0 && !selectedProduct) {
@@ -375,19 +391,37 @@ function RegistroContent() {
         {step === 1 && (
           <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
+              <label className="block space-y-2 text-sm font-semibold text-white">
+                Tipo de documento
+                <select
+                  value={form.doc_type as DocumentType}
+                  onChange={(e) => setForm((prev) => ({ ...prev, doc_type: e.target.value as DocumentType }))}
+                  className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                >
+                  {DOCUMENT_TYPES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <Field
-                label="DNI"
-                value={form.dni}
-                onChange={handleChange("dni")}
-                placeholder="00000000"
+                label="Número de documento"
+                value={form.document}
+                onChange={handleChange("document")}
+                placeholder={form.doc_type === "dni" ? "00000000" : "Documento"}
                 required
-                onBlur={lookupDni}
-                inputMode="numeric"
-                digitOnly
-                maxLength={8}
+                onBlur={lookupDocument}
+                inputMode={form.doc_type === "dni" || form.doc_type === "ruc" ? "numeric" : "text"}
+                digitOnly={form.doc_type === "dni" || form.doc_type === "ruc"}
+                maxLength={form.doc_type === "dni" ? 8 : form.doc_type === "ruc" ? 11 : 12}
                 autoComplete="off"
                 allowClear
-                error={dniError}
+                error={
+                  form.document && !validateDocument(form.doc_type as DocumentType, form.document)
+                    ? "Documento inválido"
+                    : ""
+                }
                 onClear={resetMainForm}
               />
               <Field
@@ -640,19 +674,44 @@ function RegistroContent() {
             </div>
 
             <div className="grid gap-3 md:grid-cols-[0.6fr,1.4fr]">
-              <Field
-                label="DNI"
-                value={reservation.dni || ""}
-                onChange={(v) => setReservation((p) => ({ ...p, dni: v }))}
-                onBlur={() => reservation.dni?.length === 8 && loadPersonData(reservation.dni, { force: true })}
-                required
-                inputMode="numeric"
-                digitOnly
-                maxLength={8}
-                allowClear
-                error={reservationDniError}
-                onClear={resetReservationForm}
-              />
+              <div className="grid gap-3 md:grid-cols-2 md:col-span-2">
+                <label className="block space-y-2 text-sm font-semibold text-white">
+                  Tipo de documento
+                  <select
+                    value={reservation.doc_type as DocumentType}
+                    onChange={(e) =>
+                      setReservation((p) => ({
+                        ...p,
+                        doc_type: e.target.value as DocumentType,
+                        document: "",
+                      }))
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                  >
+                    {DOCUMENT_TYPES.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Field
+                  label="Número de documento"
+                  value={reservation.document || ""}
+                  onChange={(v) => setReservation((p) => ({ ...p, document: v }))}
+                  onBlur={() =>
+                    validateDocument(reservation.doc_type as DocumentType, reservation.document) &&
+                    loadPersonData(reservation.document, { force: true, docType: reservation.doc_type as DocumentType })
+                  }
+                  required
+                  inputMode={reservation.doc_type === "dni" || reservation.doc_type === "ruc" ? "numeric" : "text"}
+                  digitOnly={reservation.doc_type === "dni" || reservation.doc_type === "ruc"}
+                  maxLength={reservation.doc_type === "dni" ? 8 : reservation.doc_type === "ruc" ? 11 : 12}
+                  allowClear
+                  error={reservationDocError}
+                  onClear={resetReservationForm}
+                />
+              </div>
               <Field
                 label="Nombre completo"
                 value={reservation.full_name}
@@ -725,7 +784,7 @@ function RegistroContent() {
               </button>
             </div>
 
-            <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
               <div className="flex items-center justify-between text-white">
                 <span className="font-semibold">Mesa</span>
                 <span className="font-semibold">{tableInfo?.name || "Por definir"}</span>
@@ -741,7 +800,7 @@ function RegistroContent() {
                 </div>
               )}
               <div className="flex flex-col gap-1 text-xs text-white/60">
-                <span>DNI: {reservation.dni || "—"}</span>
+                <span>Documento: {reservation.document || "—"} ({reservation.doc_type})</span>
                 <span>Nombre: {reservation.full_name || "—"}</span>
                 <span>Email: {reservation.email || "—"}</span>
                 <span>Teléfono: {reservation.phone || "—"}</span>
@@ -911,8 +970,8 @@ function RegistroContent() {
     setReservationError(null);
     setReservationCodes(null);
     setModalError(null);
-    if (!selectedTable || reservation.dni.length !== 8 || !reservation.full_name.trim()) {
-      const msg = "Selecciona una mesa e ingresa DNI y nombre";
+    if (!selectedTable || !validateDocument(reservation.doc_type as DocumentType, reservation.document) || !reservation.full_name.trim()) {
+      const msg = "Selecciona una mesa e ingresa documento y nombre";
       setModalError(msg);
       setReservationError(msg);
       return;
@@ -940,6 +999,8 @@ function RegistroContent() {
           product_id: selectedProduct || null,
           event_id: tableInfo?.event_id || null,
           code,
+          doc_type: reservation.doc_type,
+          document: reservation.document,
           full_name: reservation.full_name,
           email: reservation.email,
           phone: reservation.phone,
@@ -967,13 +1028,16 @@ function RegistroContent() {
     }
   }
 
-  async function loadPersonData(dni: string, opts: { force?: boolean } = {}) {
-    if (!dni || dni.length !== 8) return;
-    if (!opts.force && lastPersonLookup.current === dni) return;
-    lastPersonLookup.current = dni;
+  async function loadPersonData(dni: string, opts: { force?: boolean; docType?: DocumentType } = {}) {
+    if (!dni) return;
+    const docType = opts.docType || "dni";
+    if (!opts.force && lastPersonLookup.current === `${docType}:${dni}`) return;
+    lastPersonLookup.current = `${docType}:${dni}`;
     setPersonLoading(true);
     try {
-      const res = await fetch(`/api/persons?dni=${dni}${code ? `&code=${encodeURIComponent(code)}` : ""}`);
+      const res = await fetch(
+        `/api/persons?document=${encodeURIComponent(dni)}&doc_type=${docType}${code ? `&code=${encodeURIComponent(code)}` : ""}`
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.person) return;
       const p = data.person;
@@ -983,6 +1047,8 @@ function RegistroContent() {
       const ticketFromPerson = (p as any)?.ticket_id || null;
       setForm((prev) => ({
         ...prev,
+        doc_type: prev.doc_type || docType,
+        document: prev.document || dni,
         nombre: prev.nombre || p.first_name || "",
         apellido_paterno: prev.apellido_paterno || apPat || "",
         apellido_materno: prev.apellido_materno || apMat || "",
@@ -993,6 +1059,8 @@ function RegistroContent() {
       }));
       setReservation((prev) => ({
         ...prev,
+        doc_type: prev.doc_type || docType,
+        document: prev.document || dni,
         dni: prev.dni || dni,
         full_name: prev.full_name || `${p.first_name || ""} ${apPat || ""} ${apMat || ""}`.trim(),
         email: prev.email || p.email || "",
@@ -1016,8 +1084,8 @@ function RegistroContent() {
       router.push(`/ticket/${ticketId}`);
       return;
     }
-    if (!form.dni || form.dni.length !== 8) {
-      setError("DNI inválido");
+    if (!validateDocument(form.doc_type as DocumentType, form.document)) {
+      setError("Documento inválido");
       return;
     }
     if (!form.nombre.trim() || !form.apellido_paterno.trim()) {
@@ -1042,7 +1110,8 @@ function RegistroContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code,
-          dni: form.dni,
+          doc_type: form.doc_type,
+          document: form.document,
           nombre: form.nombre,
           apellido_paterno: form.apellido_paterno,
           apellido_materno: form.apellido_materno,
