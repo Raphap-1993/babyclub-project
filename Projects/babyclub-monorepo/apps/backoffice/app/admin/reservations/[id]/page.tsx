@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import ReservationActions from "../components/ReservationActions";
 import ReservationEditor from "../components/ReservationEditor";
-import { formatEventDateTime } from "@/lib/date";
+import { formatEventDateTime } from "shared/datetime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

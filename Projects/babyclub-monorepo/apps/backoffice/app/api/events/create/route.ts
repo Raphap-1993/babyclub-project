@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { DateTime } from "luxon";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -74,12 +75,12 @@ function buildEventPayload(body: any): {
   const cover_image = typeof body?.cover_image === "string" ? body.cover_image.trim() : "";
 
   const date_input = body?.starts_at ?? body?.date;
-  const date_value = date_input ? new Date(date_input) : null;
+  const date_value = typeof date_input === "string" ? DateTime.fromISO(date_input, { setZone: true }) : null;
 
   const capacity = Number(body?.capacity);
 
   if (!name) return { error: "name is required" };
-  if (!date_value || Number.isNaN(date_value.getTime())) return { error: "date must be a valid date" };
+  if (!date_value || !date_value.isValid) return { error: "date must be a valid date" };
   if (!Number.isFinite(capacity) || capacity < 10) return { error: "capacity must be >= 10" };
 
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
@@ -90,7 +91,7 @@ function buildEventPayload(body: any): {
     payload: {
       name,
       location,
-      starts_at: new Date(date_value).toISOString(),
+      starts_at: date_value.toUTC().toISO(),
       capacity,
       header_image,
       is_active,

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ManifestUploader from "./ManifestUploader";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
+import { EVENT_TZ, toLimaPartsFromIso, toUtcIsoFromLimaParts } from "shared/datetime";
 
 type EventFormProps = {
   mode: "create" | "edit";
@@ -226,7 +227,7 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-white" htmlFor="starts-at">
-              Fecha y hora del evento
+              Fecha y hora del evento (America/Lima)
             </label>
             <div className="grid gap-3 md:grid-cols-[1.1fr,1fr]">
               <DatePickerSimple
@@ -419,16 +420,8 @@ function ErrorText({ message }: { message: string }) {
 }
 
 function toDateTimeParts12(iso: string): { datePart: string; hour12: string; minute: string; period: "AM" | "PM" } {
-  if (!iso) return { datePart: "", hour12: "12", minute: "00", period: "AM" };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { datePart: "", hour12: "12", minute: "00", period: "AM" };
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const datePart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const hours24 = d.getHours();
-  const period: "AM" | "PM" = hours24 >= 12 ? "PM" : "AM";
-  const hour12 = pad(((hours24 + 11) % 12) + 1);
-  const minute = pad(d.getMinutes());
-  return { datePart, hour12, minute, period };
+  const parsed = toLimaPartsFromIso(iso);
+  return parsed ?? { datePart: "", hour12: "12", minute: "00", period: "AM" };
 }
 
 function to24h(hour12: string, minute: string, period: "AM" | "PM") {
@@ -442,9 +435,13 @@ function to24h(hour12: string, minute: string, period: "AM" | "PM") {
 function toIsoFromParts12(datePart: string, hour12: string, minute: string, period: "AM" | "PM") {
   if (!datePart) return "";
   const time24 = to24h(hour12, minute, period);
-  const local = new Date(`${datePart}T${time24}`);
-  if (Number.isNaN(local.getTime())) return "";
-  return local.toISOString();
+  const [hourStr, minuteStr] = time24.split(":");
+  const year = Number(datePart.slice(0, 4));
+  const month = Number(datePart.slice(5, 7));
+  const day = Number(datePart.slice(8, 10));
+  const hour = Number(hourStr);
+  const min = Number(minuteStr);
+  return toUtcIsoFromLimaParts({ year, month, day, hour, minute: min });
 }
 
 function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<FormValues> {

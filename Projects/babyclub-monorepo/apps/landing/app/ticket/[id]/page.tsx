@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { EmailSender } from "./EmailSender";
 import Link from "next/link";
-import { formatEventDate, formatEventDateTime, formatEventTime } from "../../lib/date";
+import { formatEventDate, formatEventDateTime, formatEventTime } from "shared/datetime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

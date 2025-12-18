@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import EventActions from "./components/EventActions";
-import { formatEventDateTime } from "@/lib/date";
+import { formatEventDateTime } from "shared/datetime";
 
 type EventRow = {
   id: string;
