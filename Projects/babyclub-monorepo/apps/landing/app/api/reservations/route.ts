@@ -97,27 +97,36 @@ export async function POST(req: NextRequest) {
 
   let codesList: string[] = [];
   if (codesToGenerate > 0 && effectiveEventId) {
-    const codesToInsert = Array.from({ length: codesToGenerate }, () => {
-      const suffix = String(Math.floor(Math.random() * 90) + 10); // 2 dígitos
-      const codeValue = `${friendlyBase}-${suffix}`;
-      return {
-        code: codeValue,
-        event_id: effectiveEventId,
-        type: "courtesy",
-        promoter_id: null,
-        is_active: true,
-        max_uses: 1,
-        uses: 0,
-        expires_at: null,
-      };
-    });
+    const buildCodes = () =>
+      Array.from({ length: codesToGenerate }, () => {
+        const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const codeValue = `${friendlyBase}-${suffix}`;
+        return {
+          code: codeValue,
+          event_id: effectiveEventId,
+          type: "courtesy",
+          promoter_id: null,
+          is_active: true,
+          max_uses: 1,
+          uses: 0,
+          expires_at: null,
+        };
+      });
 
-    const { data: codes, error: codeError } = await supabase.from("codes").insert(codesToInsert).select("code");
-    if (codeError) {
-      return NextResponse.json({ success: false, error: codeError.message }, { status: 500 });
+    let attempts = 0;
+    while (attempts < 5) {
+      attempts++;
+      const codesToInsert = buildCodes();
+      const { data: codes, error: codeError } = await supabase.from("codes").insert(codesToInsert).select("code");
+      if (!codeError) {
+        codesList = codes?.map((c: any) => c.code) || [];
+        await supabase.from("table_reservations").update({ codes: codesList }).eq("id", reservationId);
+        break;
+      }
+      if (codeError.code !== "23505" || attempts >= 5) {
+        return NextResponse.json({ success: false, error: codeError.message }, { status: 500 });
+      }
     }
-    codesList = codes?.map((c: any) => c.code) || [];
-    await supabase.from("table_reservations").update({ codes: codesList }).eq("id", reservationId);
   }
 
   return NextResponse.json({
