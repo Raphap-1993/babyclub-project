@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import EventActions from "./components/EventActions";
+import { formatEventDateTime } from "@/lib/date";
 
 type EventRow = {
   id: string;
@@ -78,7 +79,7 @@ export default function EventsClient({
                   {event.header_image && <div className="break-all text-xs text-white/50">{event.header_image}</div>}
                 </td>
                 <td className="px-4 py-3 text-white/80">{event.location || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{formatDate(event.starts_at)}</td>
+                <td className="px-4 py-3 text-white/80">{formatEventDateTime(event.starts_at)}</td>
                 <td className="px-4 py-3 text-white/80">{event.capacity ?? "—"}</td>
                 <td className="px-4 py-3 text-white/80 whitespace-nowrap" title={event.code ?? "—"}>
                   {event.code ?? "—"}
@@ -131,7 +132,7 @@ export default function EventsClient({
 
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
               <Info label="Ubicación" value={event.location || "—"} />
-              <Info label="Fecha" value={formatDate(event.starts_at)} />
+              <Info label="Fecha" value={formatEventDateTime(event.starts_at)} />
               <Info label="Capacidad" value={event.capacity?.toString() || "—"} />
               <Info label="Código" value={event.code || "—"} />
             </div>
@@ -145,20 +146,6 @@ export default function EventsClient({
       <PaginationControls basePath="/admin/events" page={currentPage} totalPages={totalPages} pageSize={pageSize} isMobile />
     </main>
   );
-}
-
-function formatDate(dateString: string | null) {
-  if (!dateString) return "—";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("es-PE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }
 
 function Info({ label, value }: { label: string; value: string }) {

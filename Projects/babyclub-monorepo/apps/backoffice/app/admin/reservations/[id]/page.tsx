@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import ReservationActions from "../components/ReservationActions";
 import ReservationEditor from "../components/ReservationEditor";
+import { formatEventDateTime } from "@/lib/date";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -97,7 +98,7 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
             <h2 className="mb-4 text-lg font-semibold">Datos</h2>
             <Info label="Mesa" value={reservation.table?.name || "—"} />
             <Info label="Evento" value={reservation.table?.event?.name || "—"} />
-            <Info label="Fecha evento" value={formatDate(reservation.table?.event?.starts_at)} />
+            <Info label="Fecha evento" value={formatEventDateTime(reservation.table?.event?.starts_at)} />
             <Info label="Ubicación" value={reservation.table?.event?.location || "—"} />
             <Info label="Creada" value={formatDate(reservation.created_at)} />
             <div className="mt-2 space-y-2">

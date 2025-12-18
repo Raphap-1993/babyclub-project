@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { EmailSender } from "./EmailSender";
 import Link from "next/link";
+import { formatEventDate, formatEventDateTime, formatEventTime } from "../../lib/date";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -143,11 +144,10 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   const codeType = (ticket.code.type || "").toLowerCase();
   const isPromoterCode = Boolean(ticket.code.promoter_id || ticket.promoter?.code);
   const expiresAt = ticket.code.expires_at ? new Date(ticket.code.expires_at) : null;
-  const expiresLabel = expiresAt
-    ? expiresAt.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false })
-    : null;
-  const eventDate = new Date(ticket.event.starts_at);
-  const eventTimeLabel = eventDate.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const expiresLabel = expiresAt ? formatEventTime(expiresAt.toISOString()) : null;
+  const eventDateLabel = formatEventDate(ticket.event.starts_at);
+  const eventTimeLabel = formatEventTime(ticket.event.starts_at);
+  const eventDateTime = formatEventDateTime(ticket.event.starts_at);
   const warnings = buildWarnings({ codeType, isPromoterCode, expiresLabel, eventTimeLabel });
 
   return (
@@ -166,7 +166,15 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
           </Link>
         </div>
 
-        <VerticalTicket ticket={ticket} promoterName={promoterName} extraCodes={extraCodes} warnings={warnings} />
+        <VerticalTicket
+          ticket={ticket}
+          promoterName={promoterName}
+          extraCodes={extraCodes}
+          warnings={warnings}
+          eventDateLabel={eventDateLabel}
+          eventTimeLabel={eventTimeLabel}
+          eventDateTime={eventDateTime}
+        />
 
         <EmailSender ticketId={ticket.id} defaultEmail={ticket.email} />
       </div>
@@ -178,13 +186,18 @@ function VerticalTicket({
   promoterName,
   extraCodes,
   warnings,
+  eventDateLabel,
+  eventTimeLabel,
+  eventDateTime,
 }: {
   ticket: TicketView;
   promoterName: string | null;
   extraCodes: string[];
   warnings: Array<{ title: string; body: string }>;
+  eventDateLabel: string;
+  eventTimeLabel: string;
+  eventDateTime: string;
 }) {
-  const eventDate = new Date(ticket.event.starts_at);
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(ticket.qr_token)}`;
 
   return (
@@ -194,7 +207,7 @@ function VerticalTicket({
       <div className="space-y-5">
         <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/60">
           <span>Ticket #{ticket.id.slice(0, 8)}</span>
-          <span>{eventDate.toLocaleDateString("es-PE", { year: "numeric", month: "short", day: "2-digit" })}</span>
+          <span>{eventDateLabel}</span>
         </div>
 
         <div className="flex justify-center">
@@ -225,9 +238,8 @@ function VerticalTicket({
           <p className="text-sm font-semibold text-white/70">Evento</p>
           <h2 className="text-2xl font-bold">{ticket.event.name}</h2>
           <p className="text-sm text-white/60">{ticket.event.location || "Por definir"}</p>
-          <p className="text-sm text-white/60">
-            {eventDate.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false })}
-          </p>
+          <p className="text-sm text-white/60">{eventDateTime}</p>
+          <p className="text-[11px] text-white/40">Hora del evento (America/Lima)</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
