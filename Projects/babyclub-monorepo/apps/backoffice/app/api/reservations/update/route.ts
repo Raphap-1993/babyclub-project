@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -131,17 +132,14 @@ async function sendApprovalEmail({
   const safeEventName = event?.name ? escape(event.name) : "";
   const safeLocation = event?.location ? escape(event.location) : "";
 
-  const dateLabel =
-    event?.starts_at && !Number.isNaN(new Date(event.starts_at).getTime())
-      ? new Date(event.starts_at).toLocaleString("es-PE", {
-          weekday: "short",
-          day: "2-digit",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-      : null;
+  const dateLabel = (() => {
+    if (!event?.starts_at) return null;
+    try {
+      return formatLimaFromDb(event.starts_at);
+    } catch {
+      return null;
+    }
+  })();
 
   const qrImg = async (code: string) => {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(code)}`;
@@ -368,17 +366,7 @@ async function sendTicketEmail(ticketId: string, toEmail: string) {
 
   const eventRel = Array.isArray((data as any).event) ? (data as any).event?.[0] : (data as any).event;
   const codeRel = Array.isArray((data as any).code) ? (data as any).code?.[0] : (data as any).code;
-  const eventDate = eventRel?.starts_at ? new Date(eventRel.starts_at) : null;
-  const dateLabel = eventDate
-    ? eventDate.toLocaleDateString("es-PE", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-    : "";
+  const dateLabel = eventRel?.starts_at ? formatLimaFromDb(eventRel.starts_at) : "";
   const ticketUrl = `${appUrl}/ticket/${ticketId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(data.qr_token)}`;
   let qrImg = qrUrl;
@@ -393,10 +381,15 @@ async function sendTicketEmail(ticketId: string, toEmail: string) {
   }
   const isFreeCode = (codeRel?.type || "").toLowerCase() === "free";
   const isPromoterCode = Boolean(codeRel?.promoter_id);
-  const expiresAt = codeRel?.expires_at ? new Date(codeRel.expires_at) : null;
-  const expiresLabel = expiresAt
-    ? expiresAt.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false })
-    : null;
+  const expiresLabel = (() => {
+    if (!codeRel?.expires_at) return null;
+    try {
+      const parts = toLimaPartsFromDb(codeRel.expires_at);
+      return `${String(parts.hour12).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")} ${parts.ampm}`;
+    } catch {
+      return null;
+    }
+  })();
 
   const warnings: string[] = [];
   if (isFreeCode) {
