@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
+import { EVENT_TZ } from "shared/datetime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -74,12 +75,12 @@ function buildEventPayload(body: any): {
   const cover_image = typeof body?.cover_image === "string" ? body.cover_image.trim() : "";
 
   const date_input = body?.starts_at ?? body?.date;
-  const date_value = typeof date_input === "string" ? DateTime.fromISO(date_input, { setZone: true }) : null;
+  const date_value = parseDateToLima(date_input);
 
   const capacity = Number(body?.capacity);
 
   if (!name) return { id, error: "name is required" };
-  if (!date_value || !date_value.isValid) return { id, error: "date must be a valid date" };
+  if (!date_value) return { id, error: "date must be a valid date" };
   if (!Number.isFinite(capacity) || capacity < 10) return { id, error: "capacity must be >= 10" };
 
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
@@ -107,4 +108,14 @@ async function upsertCover(supabase: any, eventId: string, coverUrl: string) {
   await supabase
     .from("event_messages")
     .upsert({ event_id: eventId, key: "cover_image", value_text: coverUrl }, { onConflict: "event_id,key" });
+}
+
+function parseDateToLima(date_input: any) {
+  if (!date_input || typeof date_input !== "string") return null;
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(date_input);
+  const base = hasZone
+    ? DateTime.fromISO(date_input, { setZone: true })
+    : DateTime.fromISO(date_input, { zone: EVENT_TZ });
+  if (!base.isValid) return null;
+  return base.setZone(EVENT_TZ);
 }
