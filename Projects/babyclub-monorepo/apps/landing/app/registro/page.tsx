@@ -506,7 +506,9 @@ function RegistroContent() {
                     } else {
                       setReservation((prev) => ({
                         ...prev,
-                        dni: form.dni,
+                        doc_type: form.doc_type as DocumentType,
+                        document: form.document,
+                        dni: form.document,
                         full_name: `${form.nombre} ${form.apellido_paterno} ${form.apellido_materno}`.trim(),
                         email: form.email,
                         phone: form.telefono,
