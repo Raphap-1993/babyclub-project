@@ -577,6 +577,7 @@ function FieldInput({
   maxLength,
   type = "text",
   onBlur,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -587,6 +588,7 @@ function FieldInput({
   maxLength?: number;
   type?: string;
   onBlur?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="block space-y-1 text-sm font-semibold text-white">
@@ -600,7 +602,8 @@ function FieldInput({
         maxLength={maxLength}
         required={required}
         onBlur={onBlur}
-        className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2.5 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+        disabled={disabled}
+        className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2.5 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none disabled:opacity-60"
       />
     </label>
   );

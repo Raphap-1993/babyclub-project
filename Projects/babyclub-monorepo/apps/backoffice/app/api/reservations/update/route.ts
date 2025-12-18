@@ -83,14 +83,15 @@ export async function POST(req: NextRequest) {
 
         let ticketId: string | null = null;
         if (eventId) {
-          ticketId = await createTicketForReservation(supabase, {
+          const { ticketId: createdTicketId } = await createTicketForReservation(supabase, {
             eventId,
             tableName: tableRel?.name || "",
-            full_name: (reservation as any).full_name || "",
+            fullName: (reservation as any).full_name || "",
             email: (reservation as any).email || "",
             phone: (reservation as any).phone || "",
-            codes,
+            reuseCodes: codes,
           });
+          ticketId = createdTicketId;
         } else {
           emailError = "Mesa sin evento asignado; no se generó ticket/QR.";
         }
