@@ -111,6 +111,9 @@ function RegistroContent() {
   const [reservationCodes, setReservationCodes] = useState<string[] | null>(null);
   const [reservationError, setReservationError] = useState<string | null>(null);
   const [reservationLoading, setReservationLoading] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [existingTicketId, setExistingTicketId] = useState<string | null>(null);
   const [aforo, setAforo] = useState<number>(0);
@@ -127,6 +130,8 @@ function RegistroContent() {
     () => (codeInfo?.type || "").toLowerCase() === "courtesy",
     [codeInfo]
   );
+  const yapeNumber = "950 144 641";
+  const yapeHolder = "Kevin Andree Huansi Ruiz";
 
   const resetMainForm = () => {
     setForm({ ...initialFormState });
@@ -288,9 +293,44 @@ function RegistroContent() {
   );
   const selectedProductInfo = products.find((p: any) => p.id === selectedProduct) || products[0] || null;
 
+  const totalPrice = selectedProductInfo?.price ?? tableInfo?.price ?? tableInfo?.min_consumption ?? null;
+  const totalLabel = totalPrice != null ? formatCurrency(totalPrice) : null;
+
   const aforoWidth = Math.max(0, Math.min(aforo, 100));
   const dniError = form.dni && form.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
   const reservationDniError = reservation.dni && reservation.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
+
+  const copyYapeNumber = async () => {
+    try {
+      await navigator.clipboard.writeText(yapeNumber.replace(/\s/g, ""));
+      setCopyFeedback("copied");
+      setTimeout(() => setCopyFeedback("idle"), 1800);
+    } catch (_err) {
+      setCopyFeedback("error");
+      setTimeout(() => setCopyFeedback("idle"), 1800);
+    }
+  };
+
+  const openReservationSummary = () => {
+    setReservationError(null);
+    setModalError(null);
+    setReservationCodes(null);
+    setCopyFeedback("idle");
+
+    if (!selectedTable) {
+      setReservationError("Selecciona una mesa");
+      return;
+    }
+    if (reservation.dni.length !== 8 || !reservation.full_name.trim()) {
+      setReservationError("Ingresa DNI y nombre de la reserva");
+      return;
+    }
+    if (products.length > 0 && !selectedProduct) {
+      setReservationError("Elige un pack para tu mesa");
+      return;
+    }
+    setShowPaymentModal(true);
+  };
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-white">
@@ -449,7 +489,13 @@ function RegistroContent() {
         )}
 
         {step === 2 && (
-          <form onSubmit={(e) => { e.preventDefault(); submitReservation(); }} className="space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              openReservationSummary();
+            }}
+            className="space-y-4"
+          >
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -627,27 +673,6 @@ function RegistroContent() {
               />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-white">Voucher (Yape/Plin)</label>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={onVoucherChange}
-                disabled={uploadingVoucher}
-                className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
-              />
-              {reservation.voucher_url && (
-                <a
-                  href={reservation.voucher_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-[#e91e63] underline-offset-4 hover:underline"
-                >
-                  Ver voucher subido
-                </a>
-              )}
-            </div>
-
             {reservationError && <p className="text-xs font-semibold text-[#ff9a9a]">{reservationError}</p>}
             {reservationCodes && reservationCodes.length > 0 && (
               <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-white">
@@ -676,12 +701,136 @@ function RegistroContent() {
                 disabled={reservationLoading}
                 className="w-2/3 rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-70"
               >
-                {reservationLoading ? "Procesando..." : "Confirmar y generar QR"}
+                {reservationLoading ? "Procesando..." : "Revisar pago y enviar"}
               </button>
             </div>
           </form>
         )}
       </div>
+
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="relative w-full max-w-2xl space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>
+                <h3 className="text-2xl font-semibold text-white">Recuento y pago Yape</h3>
+                <p className="text-sm text-white/60">Confirma tu reserva y adjunta el comprobante.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setModalError(null);
+                  setCopyFeedback("idle");
+                }}
+                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70 transition hover:border-white"
+              >
+                Editar datos
+              </button>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
+              <div className="flex items-center justify-between text-white">
+                <span className="font-semibold">Mesa</span>
+                <span className="font-semibold">{tableInfo?.name || "Por definir"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Pack seleccionado</span>
+                <span className="font-semibold text-white">{selectedProductInfo?.name || "Sin pack"}</span>
+              </div>
+              {totalLabel && (
+                <div className="flex items-center justify-between text-white">
+                  <span className="text-white/80">Total a pagar</span>
+                  <span className="text-lg font-semibold text-[#e91e63]">{totalLabel}</span>
+                </div>
+              )}
+              <div className="flex flex-col gap-1 text-xs text-white/60">
+                <span>DNI: {reservation.dni || "—"}</span>
+                <span>Nombre: {reservation.full_name || "—"}</span>
+                <span>Email: {reservation.email || "—"}</span>
+                <span>Teléfono: {reservation.phone || "—"}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/60">Paga con Yape/Plin</p>
+                  <p className="text-2xl font-semibold leading-tight text-white">{yapeNumber}</p>
+                  <p className="text-xs text-white/60">Titular: {yapeHolder}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyYapeNumber}
+                  className="flex items-center gap-2 rounded-full border border-white/20 px-3 py-2 text-xs font-semibold text-white transition hover:border-white"
+                >
+                  {copyFeedback === "copied" ? "Copiado" : copyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
+                  <span className="text-white/50">(para abrir Yape)</span>
+                </button>
+              </div>
+              {totalLabel && (
+                <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                  Envía <span className="font-semibold text-white">{totalLabel}</span> al número indicado y adjunta el comprobante abajo.
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+              <label className="text-sm font-semibold text-white">Comprobante de pago</label>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={onVoucherChange}
+                disabled={uploadingVoucher || reservationLoading}
+                className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+              />
+              <div className="flex items-center gap-2 text-xs text-white/60">
+                {uploadingVoucher ? "Subiendo comprobante..." : "Formatos: JPG, PNG, WEBP. Máx 5MB."}
+              </div>
+              {reservation.voucher_url && (
+                <a
+                  href={reservation.voucher_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                >
+                  Ver comprobante subido
+                </a>
+              )}
+            </div>
+
+            {modalError && <p className="text-xs font-semibold text-[#ff9a9a]">{modalError}</p>}
+
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
+              Validaremos el pago manualmente. Te confirmaremos por correo tu reserva en los próximos minutos.
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setModalError(null);
+                  setCopyFeedback("idle");
+                }}
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white"
+              >
+                Volver al formulario
+              </button>
+              <button
+                type="button"
+                onClick={submitReservation}
+                disabled={reservationLoading || uploadingVoucher}
+                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-60"
+              >
+                {reservationLoading ? "Enviando..." : "Enviar reserva"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         @keyframes shimmerBorder {
           0% {
@@ -712,6 +861,7 @@ function RegistroContent() {
     if (!file) return;
     setUploadingVoucher(true);
     setReservationError(null);
+    setModalError(null);
     const fd = new FormData();
     fd.append("file", file);
     fd.append("tableName", selectedTable || "mesa");
@@ -719,26 +869,42 @@ function RegistroContent() {
       const res = await fetch("/api/uploads/voucher", { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setReservationError(data?.error || "No se pudo subir el voucher");
+        const msg = data?.error || "No se pudo subir el voucher";
+        setReservationError(msg);
+        setModalError(msg);
       } else {
         setReservation((prev) => ({ ...prev, voucher_url: data.url }));
       }
     } catch (err: any) {
-      setReservationError(err?.message || "Error al subir voucher");
+      const msg = err?.message || "Error al subir voucher";
+      setReservationError(msg);
+      setModalError(msg);
     } finally {
       setUploadingVoucher(false);
+      if (e.target) e.target.value = "";
     }
   }
 
   async function submitReservation() {
     setReservationError(null);
     setReservationCodes(null);
-    if (!selectedTable || !reservation.full_name.trim() || !reservation.voucher_url || reservation.dni.length !== 8) {
-      setReservationError("Selecciona una mesa, ingresa DNI, nombre y sube el voucher");
+    setModalError(null);
+    if (!selectedTable || reservation.dni.length !== 8 || !reservation.full_name.trim()) {
+      const msg = "Selecciona una mesa e ingresa DNI y nombre";
+      setModalError(msg);
+      setReservationError(msg);
+      return;
+    }
+    if (!reservation.voucher_url) {
+      const msg = "Sube tu comprobante de pago para continuar.";
+      setModalError(msg);
+      setReservationError(msg);
       return;
     }
     if (products.length > 0 && !selectedProduct) {
-      setReservationError("Elige un pack para tu mesa");
+      const msg = "Elige un pack para tu mesa";
+      setModalError(msg);
+      setReservationError(msg);
       return;
     }
     const tableInfo = tables.find((t) => t.id === selectedTable);
@@ -760,13 +926,18 @@ function RegistroContent() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setReservationError(data?.error || "No se pudo registrar la reserva");
+        const msg = data?.error || "No se pudo registrar la reserva";
+        setReservationError(msg);
+        setModalError(msg);
       } else {
         setReservationCodes(data.codes || []);
+        setShowPaymentModal(false);
         await createTicketAndRedirect(data.codes || []);
       }
     } catch (err: any) {
-      setReservationError(err?.message || "Error al registrar reserva");
+      const msg = err?.message || "Error al registrar reserva";
+      setReservationError(msg);
+      setModalError(msg);
     } finally {
       setReservationLoading(false);
     }

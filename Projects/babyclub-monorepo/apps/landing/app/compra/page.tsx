@@ -60,8 +60,8 @@ export default function CompraPage() {
   const defaultCode = process.env.NEXT_PUBLIC_DEFAULT_CODE || "public";
   const dniErrorTicket = ticketForm.dni && ticketForm.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
   const dniErrorMesa = form.dni && form.dni.length !== 8 ? "El DNI debe tener 8 dígitos" : "";
-  const yapeNumber = "940 503 791";
-  const yapeHolder = "Diego Alonso Huansi Ruiz";
+  const yapeNumber = "950 144 641";
+  const yapeHolder = "Kevin Andree Huansi Ruiz";
 
   const formatPrice = (value?: number | null) => {
     if (value == null) return null;
