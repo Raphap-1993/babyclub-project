@@ -114,6 +114,7 @@ function RegistroContent() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
+  const [showReservationSent, setShowReservationSent] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [existingTicketId, setExistingTicketId] = useState<string | null>(null);
   const [aforo, setAforo] = useState<number>(0);
@@ -316,6 +317,7 @@ function RegistroContent() {
     setModalError(null);
     setReservationCodes(null);
     setCopyFeedback("idle");
+    setShowReservationSent(false);
 
     if (!selectedTable) {
       setReservationError("Selecciona una mesa");
@@ -831,6 +833,33 @@ function RegistroContent() {
         </div>
       )}
 
+      {showReservationSent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-md space-y-3 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Reserva recibida</p>
+              <h3 className="text-xl font-semibold">Estamos validando tu pago</h3>
+              <p className="text-sm text-white/70">
+                Enviaremos por correo los detalles y QR de tu reserva cuando sea aprobada. Mantén tu comprobante a la mano por si lo
+                solicitamos.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
+              Recibirás un correo desde BABY con la confirmación. Si no lo ves, revisa tu carpeta de spam.
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowReservationSent(false)}
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         @keyframes shimmerBorder {
           0% {
@@ -932,7 +961,7 @@ function RegistroContent() {
       } else {
         setReservationCodes(data.codes || []);
         setShowPaymentModal(false);
-        await createTicketAndRedirect(data.codes || []);
+        setShowReservationSent(true);
       }
     } catch (err: any) {
       const msg = err?.message || "Error al registrar reserva";
@@ -1012,20 +1041,12 @@ function RegistroContent() {
       setError("Debes ser mayor de 18 años");
       return;
     }
-    const codeToUse = (extraCodes && extraCodes[0]) || code;
-    if (!codeToUse) {
-      const msg = "No hay código disponible para generar el ticket";
-      setError(msg);
-      if (extraCodes?.length) setReservationError(msg);
-      return;
-    }
-
     try {
       const res = await fetch("/api/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: codeToUse,
+          code,
           dni: form.dni,
           nombre: form.nombre,
           apellido_paterno: form.apellido_paterno,
@@ -1040,7 +1061,6 @@ function RegistroContent() {
       if (!res.ok || !data?.success) {
         const msg = data?.error || "No se pudo generar la entrada";
         setError(msg);
-        if (extraCodes?.length) setReservationError(msg);
         return;
       }
       setTicketId(data.ticketId);
@@ -1049,7 +1069,6 @@ function RegistroContent() {
     } catch (err: any) {
       const msg = err?.message || "Error al generar entrada";
       setError(msg);
-      if (extraCodes?.length) setReservationError(msg);
     }
   }
 }
