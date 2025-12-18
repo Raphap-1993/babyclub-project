@@ -37,18 +37,57 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid id" }, { status: 400 });
   }
 
+  const { data: reservation } = await supabase
+    .from("table_reservations")
+    .select("id,full_name,email,phone,codes,table:tables(id,name,event_id,event:events(id,name,starts_at,location))")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!reservation) {
+    return NextResponse.json({ success: false, error: "Reserva no encontrada" }, { status: 404 });
+  }
+
+  const resolvedFullName = full_name?.trim() || (reservation as any).full_name || "";
+  const resolvedEmail = email === "" ? "" : email ?? ((reservation as any).email || "");
+  const resolvedPhone = phone === "" ? "" : phone ?? ((reservation as any).phone || "");
+
   const updateData: Record<string, any> = {};
   if (status && ["pending", "approved", "rejected"].includes(status)) updateData.status = status;
-  if (full_name !== undefined && full_name.length > 0) updateData.full_name = full_name;
+  if (full_name !== undefined && resolvedFullName.length > 0) updateData.full_name = resolvedFullName;
   if (email !== undefined) {
     const emailValid = email === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!emailValid) return NextResponse.json({ success: false, error: "Email inválido" }, { status: 400 });
-    updateData.email = email || null;
+    updateData.email = resolvedEmail || null;
   }
-  if (phone !== undefined) updateData.phone = phone || null;
+  if (phone !== undefined) updateData.phone = resolvedPhone || null;
 
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ success: false, error: "Nada para actualizar" }, { status: 400 });
+  }
+
+  const tableRel = Array.isArray((reservation as any).table) ? (reservation as any).table?.[0] : (reservation as any).table;
+  const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
+  const eventId = tableRel?.event_id || eventRel?.id || null;
+  const codes = Array.isArray((reservation as any).codes)
+    ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
+    : [];
+
+  if (updateData.status === "approved") {
+    if (!resendApiKey) {
+      return NextResponse.json(
+        { success: false, error: "Correo no disponible: configura RESEND_API_KEY" },
+        { status: 400 }
+      );
+    }
+    if (!resolvedEmail) {
+      return NextResponse.json({ success: false, error: "Ingresa un correo para notificar" }, { status: 400 });
+    }
+    if (!eventId) {
+      return NextResponse.json(
+        { success: false, error: "Mesa sin evento asignado; no se generó ticket/QR." },
+        { status: 400 }
+      );
+    }
   }
 
   const { error } = await supabase.from("table_reservations").update(updateData).eq("id", id);
@@ -61,45 +100,20 @@ export async function POST(req: NextRequest) {
 
   if (updateData.status === "approved") {
     try {
-      const { data: reservation } = await supabase
-        .from("table_reservations")
-        .select("id,full_name,email,phone,codes,table:tables(id,name,event_id,event:events(id,name,starts_at,location))")
-        .eq("id", id)
-        .maybeSingle();
+      let ticketId: string | null = null;
+      const { ticketId: createdTicketId } = await createTicketForReservation(supabase, {
+        eventId,
+        tableName: tableRel?.name || "",
+        fullName: resolvedFullName,
+        email: resolvedEmail,
+        phone: resolvedPhone,
+        reuseCodes: codes,
+      });
+      ticketId = createdTicketId;
 
-      if (!resendApiKey) {
-        emailError = "Correo no disponible: configura RESEND_API_KEY";
-      } else if (!reservation) {
-        emailError = "Reserva no encontrada para enviar correo";
-      } else if (!reservation.email) {
-        emailError = "Reserva aprobada sin correo del cliente";
-      } else {
-        const codes = Array.isArray((reservation as any).codes)
-          ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
-          : [];
-        const tableRel = Array.isArray((reservation as any).table) ? (reservation as any).table?.[0] : (reservation as any).table;
-        const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
-        const eventId = tableRel?.event_id || eventRel?.id || null;
-
-        let ticketId: string | null = null;
-        if (eventId) {
-          const { ticketId: createdTicketId } = await createTicketForReservation(supabase, {
-            eventId,
-            tableName: tableRel?.name || "",
-            fullName: (reservation as any).full_name || "",
-            email: (reservation as any).email || "",
-            phone: (reservation as any).phone || "",
-            reuseCodes: codes,
-          });
-          ticketId = createdTicketId;
-        } else {
-          emailError = "Mesa sin evento asignado; no se generó ticket/QR.";
-        }
-
-        if (ticketId) {
-          await sendTicketEmail(ticketId, (reservation as any).email || "");
-          emailSent = true;
-        }
+      if (ticketId) {
+        await sendTicketEmail(ticketId, resolvedEmail);
+        emailSent = true;
       }
     } catch (err: any) {
       emailError = err?.message || "No se pudo enviar el correo";
