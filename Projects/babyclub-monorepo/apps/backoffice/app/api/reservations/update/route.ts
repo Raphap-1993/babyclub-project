@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
   if (updateData.status === "approved") {
     try {
       let ticketId: string | null = null;
-      const { ticketId: createdTicketId } = await createTicketForReservation(supabase, {
+      const { ticketId: createdTicketId, code: ticketCode } = await createTicketForReservation(supabase, {
         eventId,
         tableName: tableRel?.name || "",
         fullName: resolvedFullName,
@@ -136,6 +136,17 @@ export async function POST(req: NextRequest) {
         await sendTicketEmail(ticketId, resolvedEmail);
         emailSent = true;
         trace.push("emailSent:true");
+        const codesForEmail = Array.from(new Set([...(codesList || []), ticketCode].filter(Boolean)));
+        const eventData = eventRel || eventDirectRel || null;
+        await sendApprovalEmail({
+          id,
+          full_name: resolvedFullName,
+          email: resolvedEmail,
+          phone: resolvedPhone || null,
+          codes: codesForEmail,
+          tableName: tableRel?.name || "",
+          event: eventData,
+        });
       }
     } catch (err: any) {
       emailError = err?.message || "No se pudo enviar el correo";
