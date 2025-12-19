@@ -139,9 +139,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0 space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Tickets / QR</p>
-          <h1 className="text-3xl font-semibold">Detalle del ticket</h1>
+          <h1 className="text-3xl font-semibold leading-tight">Detalle del ticket</h1>
           <p className="text-sm text-white/60">Vista solo lectura para personal admin/staff.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -168,14 +168,14 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(ticket.qr_token)}`}
                 alt="QR"
-                className="h-56 w-56 rounded-xl bg-white p-2"
+                className="h-56 w-56 max-w-full rounded-xl bg-white p-2 object-contain"
               />
             ) : (
               <p className="text-sm text-white/60">Sin QR</p>
             )}
           </div>
 
-          <dl className="grid gap-4 text-sm text-white/80 md:grid-cols-2">
+          <dl className="grid min-w-0 gap-4 text-sm text-white/80 md:grid-cols-2">
             <Info label="ID" value={ticket.id} mono />
             <Info
               label="Fecha de creación"
@@ -224,9 +224,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
 function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 min-w-0 break-words">
       <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className={`text-base font-semibold text-white ${mono ? "font-mono break-all" : ""}`}>{value}</p>
+      <p className={`text-base font-semibold text-white break-words ${mono ? "font-mono break-all" : ""}`}>{value}</p>
     </div>
   );
 }

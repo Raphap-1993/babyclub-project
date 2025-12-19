@@ -18,6 +18,8 @@ type TicketRow = {
   promoter_name: string | null;
 };
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
 async function getTickets(params: {
   from?: string;
   to?: string;
@@ -61,7 +63,14 @@ async function getTickets(params: {
     }
   }
   if (params.promoter_id) {
-    query = query.or(`promoter_id.eq.${params.promoter_id},code.promoter_id.eq.${params.promoter_id}`);
+    // Traemos los IDs de códigos asignados a ese promotor para filtrar también por code_id y evitar parsers raros en Supabase.
+    const { data: codesByPromoter } = await supabase.from("codes").select("id").eq("promoter_id", params.promoter_id);
+    const codeIdsForPromoter = (codesByPromoter || []).map((c: any) => c.id).filter(Boolean);
+    const promoterFilters = [`promoter_id.eq.${params.promoter_id}`];
+    if (codeIdsForPromoter.length > 0) {
+      promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
+    }
+    query = query.or(promoterFilters.join(","));
   }
 
   const { data, error, count } = await query;
@@ -137,13 +146,14 @@ async function getTickets(params: {
 
 export const dynamic = "force-dynamic";
 
-export default async function TicketsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
-  const from = (searchParams?.from as string) || "";
-  const to = (searchParams?.to as string) || "";
-  const q = (searchParams?.q as string) || "";
-  const promoter_id = (searchParams?.promoter_id as string) || "";
-  const page = Math.max(1, parseInt((searchParams?.page as string) || "1", 10) || 1);
-  const pageSize = Math.min(100, Math.max(5, parseInt((searchParams?.pageSize as string) || "10", 10) || 10));
+export default async function TicketsPage({ searchParams }: { searchParams?: SearchParams | Promise<SearchParams> }) {
+  const params = await searchParams;
+  const from = (params?.from as string) || "";
+  const to = (params?.to as string) || "";
+  const q = (params?.q as string) || "";
+  const promoter_id = (params?.promoter_id as string) || "";
+  const page = Math.max(1, parseInt((params?.page as string) || "1", 10) || 1);
+  const pageSize = Math.min(100, Math.max(5, parseInt((params?.pageSize as string) || "10", 10) || 10));
 
   const { tickets, total, error } = await getTickets({ from, to, q, promoter_id, page, pageSize });
   const supabaseForFilters =

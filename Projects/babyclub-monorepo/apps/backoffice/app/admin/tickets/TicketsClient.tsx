@@ -39,6 +39,14 @@ export default function TicketsClient({
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const currentPage = Math.min(page, totalPages);
+  const exportHref = useMemo(() => {
+    const params = new URLSearchParams();
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    if (searchValue) params.set("q", searchValue);
+    if (promoterId) params.set("promoter_id", promoterId);
+    return `/api/admin/tickets/export?${params.toString()}`;
+  }, [fromDate, toDate, searchValue, promoterId]);
 
   // Rehidrata los filtros cuando cambian los searchParams
   useEffect(() => {
@@ -75,166 +83,177 @@ export default function TicketsClient({
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mx-auto w-full max-w-6xl">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Tickets / QR</p>
-          <h1 className="text-3xl font-semibold">Listado de tickets</h1>
-          <p className="text-sm text-white/60">Filtra por fecha, busca por datos de contacto o acota por promotor.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            ← Volver
-          </Link>
-        </div>
-      </div>
-
-      <form
-        className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] md:grid-cols-2 lg:grid-cols-5"
-        onSubmit={handleSubmit}
-      >
-        <label className="space-y-2 text-sm font-semibold text-white">
-          Desde
-          <DatePickerSimple value={fromDate} onChange={setFromDate} name="from" />
-        </label>
-        <label className="space-y-2 text-sm font-semibold text-white">
-          Hasta
-          <DatePickerSimple value={toDate} onChange={setToDate} name="to" />
-        </label>
-        <label className="space-y-2 text-sm font-semibold text-white lg:col-span-2">
-          Búsqueda
-          <input
-            type="text"
-            name="q"
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            placeholder="DNI, nombre o email"
-            className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
-          />
-        </label>
-        <label className="space-y-2 text-sm font-semibold text-white">
-          Promotor
-          <select
-            name="promoter_id"
-            value={promoterId}
-            onChange={(e) => setPromoterId(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
-          >
-            <option value="">Todos</option>
-            {promoterOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="flex items-end gap-2">
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(233,30,99,0.35)] transition hover:shadow-[0_12px_32px_rgba(233,30,99,0.45)]"
-          >
-            Filtrar
-          </button>
-          {(from || to || q || promoterId) && (
-            <Link
-              href="/admin/tickets"
-              className="inline-flex items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:border-white"
-            >
-              Limpiar
-            </Link>
-          )}
-        </div>
-      </form>
-
-      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
-        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
-          <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
-            <tr>
-              <th className="w-[18%] px-4 py-3 text-left">Evento</th>
-              <th className="w-[14%] px-4 py-3 text-left">DNI</th>
-              <th className="w-[20%] px-4 py-3 text-left">Nombre</th>
-              <th className="w-[18%] px-4 py-3 text-left">Email</th>
-              <th className="w-[12%] px-4 py-3 text-left">Teléfono</th>
-              <th className="w-[10%] px-4 py-3 text-left">Código</th>
-              <th className="w-[12%] px-4 py-3 text-left">Promotor</th>
-              <th className="w-[10%] px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {initialTickets.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-white/60">
-                  {error ? `Error: ${error}` : "No hay tickets en este rango."}
-                </td>
-              </tr>
-            )}
-            {initialTickets.map((t) => (
-              <tr key={t.id} className="hover:bg-white/[0.02]">
-                <td className="px-4 py-3 font-semibold text-white">{t.event_name || "—"}</td>
-                <td className="px-4 py-3 font-mono text-white/90">{t.dni || "—"}</td>
-                <td className="px-4 py-3 text-white/90">{t.full_name || "—"}</td>
-                <td className="px-4 py-3 break-words text-white/80">{t.email || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{t.phone || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{t.code_value || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{t.promoter_name || "—"}</td>
-                <td className="px-4 py-3 text-right">
-                  <TicketActions id={t.id} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <PaginationControls
-        basePath="/admin/tickets"
-        page={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        filters={{ from, to, q, promoter_id: promoterId }}
-      />
-
-      <div className="space-y-3 lg:hidden">
-        {initialTickets.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
-            {error ? `Error: ${error}` : "No hay tickets en este rango."}
+      <div className="mx-auto w-full max-w-6xl min-w-0 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Tickets / QR</p>
+            <h1 className="text-3xl font-semibold leading-tight">Listado de tickets</h1>
+            <p className="text-sm text-white/60">Filtra por fecha, busca por datos de contacto o acota por promotor.</p>
           </div>
-        )}
-        {initialTickets.map((t) => (
-          <div
-            key={t.id}
-            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-base font-semibold text-white">{t.full_name || "Sin nombre"}</p>
-                <p className="text-sm font-mono text-white/80">{t.dni || "—"}</p>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin"
+              className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+            >
+              ← Volver
+            </Link>
+          </div>
+        </div>
+
+        <form
+          className="grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] md:grid-cols-2 xl:grid-cols-[repeat(12,minmax(0,1fr))]"
+          onSubmit={handleSubmit}
+        >
+          <label className="space-y-2 text-sm font-semibold text-white md:col-span-1 xl:col-span-2">
+            Desde
+            <DatePickerSimple value={fromDate} onChange={setFromDate} name="from" />
+          </label>
+          <label className="space-y-2 text-sm font-semibold text-white md:col-span-1 xl:col-span-2">
+            Hasta
+            <DatePickerSimple value={toDate} onChange={setToDate} name="to" />
+          </label>
+          <label className="space-y-2 text-sm font-semibold text-white md:col-span-2 xl:col-span-5">
+            Búsqueda
+            <input
+              type="text"
+              name="q"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              placeholder="DNI, nombre o email"
+              className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+            />
+          </label>
+          <label className="space-y-2 text-sm font-semibold text-white md:col-span-2 xl:col-span-3">
+            Promotor
+            <select
+              name="promoter_id"
+              value={promoterId}
+              onChange={(e) => setPromoterId(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+            >
+              <option value="">Todos</option>
+              {promoterOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="md:col-span-2 xl:col-span-12 flex flex-wrap items-center justify-between gap-3 pt-1 xl:items-end">
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                className="rounded-xl bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(233,30,99,0.35)] transition hover:shadow-[0_12px_32px_rgba(233,30,99,0.45)]"
+              >
+                Filtrar
+              </button>
+              {(from || to || q || promoterId) && (
+                <Link
+                  href="/admin/tickets"
+                  className="inline-flex items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:border-white"
+                >
+                  Limpiar
+                </Link>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-white/80">
+              <a
+                href={exportHref}
+                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white transition hover:border-white/40 hover:bg-white/[0.06]"
+              >
+                Exportar CSV
+              </a>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
+                {total} resultado{total === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+        </form>
+
+        <div className="hidden overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
+          <table className="w-full table-auto divide-y divide-white/10 text-sm">
+            <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
+              <tr>
+                <th className="w-[18%] px-4 py-3 text-left">Evento</th>
+                <th className="w-[12%] px-4 py-3 text-left">DNI</th>
+                <th className="w-[24%] px-4 py-3 text-left">Nombre</th>
+                <th className="w-[14%] px-4 py-3 text-left">Teléfono</th>
+                <th className="w-[12%] px-4 py-3 text-left">Código</th>
+                <th className="w-[14%] px-4 py-3 text-left">Promotor</th>
+                <th className="w-[6%] px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {initialTickets.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-6 text-center text-white/60">
+                    {error ? `Error: ${error}` : "No hay tickets en este rango."}
+                  </td>
+                </tr>
+              )}
+              {initialTickets.map((t) => (
+                <tr key={t.id} className="hover:bg-white/[0.02]">
+                  <td className="px-4 py-3 align-top font-semibold text-white break-words">{t.event_name || "—"}</td>
+                  <td className="px-4 py-3 align-top font-mono text-white/90 break-words">{t.dni || "—"}</td>
+                  <td className="px-4 py-3 align-top text-white/90 break-words">{t.full_name || "—"}</td>
+                  <td className="px-4 py-3 align-top text-white/80 break-words">{t.phone || "—"}</td>
+                  <td className="px-4 py-3 align-top text-white/80 break-words">{t.code_value || "—"}</td>
+                  <td className="px-4 py-3 align-top text-white/80 break-words">{t.promoter_name || "—"}</td>
+                  <td className="px-4 py-3 align-top text-right">
+                    <TicketActions id={t.id} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <PaginationControls
+          basePath="/admin/tickets"
+          page={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          filters={{ from, to, q, promoter_id: promoterId }}
+        />
+
+        <div className="space-y-3 lg:hidden">
+          {initialTickets.length === 0 && (
+            <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
+              {error ? `Error: ${error}` : "No hay tickets en este rango."}
+            </div>
+          )}
+          {initialTickets.map((t) => (
+            <div
+              key={t.id}
+              className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1">
+                  <p className="truncate text-base font-semibold text-white">{t.full_name || "Sin nombre"}</p>
+                  <p className="text-sm font-mono text-white/80">{t.dni || "—"}</p>
+                </div>
+              </div>
+              <div className="mt-3 space-y-1 text-sm text-white/80">
+                <Info label="Evento" value={t.event_name || "—"} />
+                <Info label="Email" value={t.email || "—"} />
+                <Info label="Teléfono" value={t.phone || "—"} />
+                <Info label="Código" value={t.code_value || "—"} />
+                <Info label="Promotor" value={t.promoter_name || "—"} />
+              </div>
+              <div className="mt-3 flex justify-end">
+                <TicketActions id={t.id} compact />
               </div>
             </div>
-            <div className="mt-3 space-y-1 text-sm text-white/80">
-              <Info label="Evento" value={t.event_name || "—"} />
-              <Info label="Email" value={t.email || "—"} />
-              <Info label="Teléfono" value={t.phone || "—"} />
-              <Info label="Código" value={t.code_value || "—"} />
-              <Info label="Promotor" value={t.promoter_name || "—"} />
-            </div>
-            <div className="mt-3 flex justify-end">
-              <TicketActions id={t.id} compact />
-            </div>
-          </div>
-        ))}
-      </div>
-      <PaginationControls
-        basePath="/admin/tickets"
-        page={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        filters={{ from, to, q, promoter_id: promoterId }}
-        isMobile
-      />
+          ))}
+        </div>
+        <PaginationControls
+          basePath="/admin/tickets"
+          page={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          filters={{ from, to, q, promoter_id: promoterId }}
+          isMobile
+        />
       </div>
     </main>
   );
@@ -244,7 +263,7 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <p className="text-sm text-white/80">
       <span className="text-white/50">{label}: </span>
-      <span className="font-semibold text-white">{value}</span>
+      <span className="font-semibold text-white break-words">{value}</span>
     </p>
   );
 }

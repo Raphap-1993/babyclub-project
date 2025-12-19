@@ -8,6 +8,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { supabaseClient } from "@/lib/supabaseClient";
 import EditUserModal from "@/app/admin/users/EditUserModal";
 import type { Role, StaffUser } from "@/app/admin/users/types";
+import type { User } from "@supabase/supabase-js";
 
 const MENU = {
   OPERACIONES: [
@@ -32,6 +33,48 @@ const MENU = {
     { label: "Integraciones", href: "/admin/integraciones" },
     { label: "Seguridad", href: "/admin/seguridad" },
   ],
+};
+
+const joinName = (...parts: Array<string | null | undefined>) => {
+  return parts
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+};
+
+const nameFromEmail = (email?: string | null) => {
+  if (!email) return null;
+  const [local] = email.split("@");
+  if (!local) return null;
+  const cleaned = local.replace(/[._-]+/g, " ").trim();
+  if (!cleaned) return null;
+  return cleaned
+    .split(" ")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+};
+
+const getPreferredSessionName = (user?: User | null) => {
+  if (!user) return null;
+  const meta = (user.user_metadata || {}) as Record<string, any>;
+  const appMeta = (user.app_metadata || {}) as Record<string, any>;
+
+  const candidates = [
+    joinName(meta.full_name),
+    joinName(meta.fullName),
+    joinName(meta.name),
+    joinName(meta.first_name, meta.last_name),
+    joinName(appMeta.full_name),
+    joinName(appMeta.name),
+    joinName(appMeta.first_name, appMeta.last_name),
+    typeof meta.user_name === "string" ? meta.user_name.trim() : null,
+    typeof meta.username === "string" ? meta.username.trim() : null,
+  ];
+
+  const found = candidates.find((value) => !!value);
+  return (found as string | undefined) || nameFromEmail(user.email) || null;
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -75,17 +118,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const fetchProfile = async () => {
       if (!supabaseClient) return;
       const { data } = await supabaseClient.auth.getSession();
+      const sessionUser = data.session?.user;
       const authUserId = data.session?.user.id;
-      const sessionEmail = data.session?.user.email || null;
+      const sessionEmail = sessionUser?.email || null;
       const sessionMetaRole =
-        (data.session?.user.user_metadata?.role as string | undefined) ||
-        (data.session?.user.app_metadata?.role as string | undefined) ||
-        (data.session?.user.app_metadata?.user_role as string | undefined) ||
+        (sessionUser?.user_metadata?.role as string | undefined) ||
+        (sessionUser?.app_metadata?.role as string | undefined) ||
+        (sessionUser?.app_metadata?.user_role as string | undefined) ||
         null;
-          const sessionName =
-            (data.session?.user.user_metadata?.full_name as string | undefined) ||
-            (data.session?.user.user_metadata?.name as string | undefined) ||
-            null;
+      const sessionName = getPreferredSessionName(sessionUser);
       setInitialRole(sessionMetaRole);
       if (!authUserId) return;
       try {
@@ -100,7 +141,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (staff) {
           const person = Array.isArray(staff.person) ? staff.person[0] : staff.person;
           const role = Array.isArray(staff.role) ? staff.role[0] : staff.role;
-          setUserName(`${person?.first_name || ""} ${person?.last_name || ""}`.trim() || sessionName || sessionEmail || null);
+          const personName = joinName(person?.first_name, person?.last_name);
+          setUserName(personName || sessionName || nameFromEmail(sessionEmail) || null);
           setUserRole(role?.code || sessionMetaRole || null);
           setUserEmail(person?.email || sessionEmail || null);
           setUserStaff({
@@ -113,7 +155,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           });
         } else {
           setUserEmail(sessionEmail);
-          setUserName(sessionName || sessionEmail);
+          setUserName(sessionName || nameFromEmail(sessionEmail) || null);
           setUserRole(sessionMetaRole || null);
         }
         // Redirigir inmediatamente si es rol puerta
@@ -124,7 +166,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
       } catch (_err) {
         setUserEmail(sessionEmail);
-        setUserName(sessionName || sessionEmail);
+        setUserName(sessionName || nameFromEmail(sessionEmail) || null);
         setUserRole(sessionMetaRole || null);
       } finally {
         setRoleResolved(true);
@@ -162,9 +204,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const roleText = (userRole || initialRole || "").toLowerCase();
   const isDoorRole = roleText.includes("door") || roleText.includes("entrance") || roleText.includes("control");
   const isDoor = isDoorRole || (pathname ? pathname.startsWith("/admin/door") : false);
-  const accountLabel = userName
-    ? `${userName}${userRole ? ` (${userRole})` : ""}`
-    : userEmail || "Cuenta";
+  const displayName = userName || nameFromEmail(userEmail) || "Cuenta";
+  const accountLabel = userRole ? `${displayName} (${userRole})` : displayName;
 
   if (profileLoading || !roleResolved) {
     return (
@@ -306,7 +347,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <ClientAuthGate>
         <div className="min-h-screen bg-[#050505] text-white">
-          <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <Link href="/admin/door" className="flex items-center gap-2 text-white/80">
               <div className="flex h-10 items-center">
                 {resolvedLogo ? (
@@ -316,10 +357,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
               </div>
             </Link>
-            <div className="relative">
+            <div className="relative min-w-0">
               <button
                 onClick={() => setProfileOpen((v) => !v)}
-                className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:border-white"
+                className="max-w-[72vw] truncate rounded-full border border-white/15 px-3 py-2 text-left text-sm font-semibold text-white transition hover:border-white sm:text-center sm:max-w-xs"
               >
                 {accountLabel}
               </button>
@@ -366,11 +407,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <ClientAuthGate>
       <div className="min-h-screen bg-[#050505] text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 xl:flex-row xl:gap-6 xl:px-6 xl:py-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 xl:flex-row xl:gap-6 xl:px-6 xl:py-6">
           <aside className="hidden w-[250px] xl:block">{renderSidebar()}</aside>
 
-          <main className="flex-1 space-y-4">
-            <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b0b0b] px-4 py-3">
+          <main className="flex-1 space-y-4 min-w-0">
+            <header className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b0b0b] px-4 py-3">
               <div className="flex items-center gap-3">
                 <button
                   className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white xl:hidden"
@@ -393,11 +434,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </Link>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="relative">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="relative min-w-0">
                   <button
                     onClick={() => setProfileOpen((v) => !v)}
-                    className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:border-white"
+                    className="max-w-[70vw] truncate rounded-full border border-white/15 px-3 py-2 text-left text-sm font-semibold text-white transition hover:border-white sm:text-center sm:max-w-xs"
                   >
                     {accountLabel}
                   </button>
