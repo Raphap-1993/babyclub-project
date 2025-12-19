@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
 
   let ticketPromoterId: string | null = null;
   let ticketId: string | null = null;
+  let ticketEventId: string | null = null;
 
   if (code && (personRecord?.dni || personRecord?.document)) {
     const { data: codeRow } = await supabase.from("codes").select("event_id").eq("code", code).maybeSingle();
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
 
       const { data: ticketRow } = await supabase
         .from("tickets")
-        .select("id,promoter_id")
+        .select("id,promoter_id,event_id")
         .eq("event_id", eventId)
         .or(ticketDocQuery)
         .order("created_at", { ascending: false })
@@ -95,8 +96,40 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
       ticketPromoterId = (ticketRow as any)?.promoter_id ?? null;
       ticketId = (ticketRow as any)?.id ?? null;
+      ticketEventId = (ticketRow as any)?.event_id ?? null;
     }
   }
 
-  return NextResponse.json({ person: { ...personRecord, ticket_promoter_id: ticketPromoterId, ticket_id: ticketId } });
+  // Fallback: si no se pasó code o no se encontró ticket con el evento del code, busca el último ticket por documento/dni
+  if (!ticketId && (personRecord?.document || personRecord?.dni)) {
+    const fallbackTicketQuery = [
+      personRecord.document ? `document.ilike.${(personRecord.document as string).toLowerCase()}` : "",
+      personRecord.dni ? `dni.eq.${personRecord.dni}` : "",
+    ]
+      .filter(Boolean)
+      .join(",");
+
+    const { data: latestTicket } = await supabase
+      .from("tickets")
+      .select("id,promoter_id,event_id")
+      .or(fallbackTicketQuery)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestTicket) {
+      ticketPromoterId = (latestTicket as any)?.promoter_id ?? ticketPromoterId;
+      ticketId = (latestTicket as any)?.id ?? ticketId;
+      ticketEventId = (latestTicket as any)?.event_id ?? ticketEventId;
+    }
+  }
+
+  return NextResponse.json({
+    person: {
+      ...personRecord,
+      ticket_promoter_id: ticketPromoterId,
+      ticket_id: ticketId,
+      ticket_event_id: ticketEventId,
+    },
+  });
 }
