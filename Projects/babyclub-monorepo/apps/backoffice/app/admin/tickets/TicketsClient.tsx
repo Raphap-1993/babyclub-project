@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import TicketActions from "./components/TicketActions";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
 
@@ -32,9 +33,43 @@ export default function TicketsClient({
   const [fromDate, setFromDate] = useState(from);
   const [toDate, setToDate] = useState(to);
   const [promoterId, setPromoterId] = useState(promoter_id);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const currentPage = Math.min(page, totalPages);
+
+  // Rehidrata los filtros cuando cambian los searchParams
+  useEffect(() => {
+    setFromDate(from);
+    setToDate(to);
+    setPromoterId(promoter_id);
+  }, [from, to, promoter_id]);
+
+  const buildQuery = (params: Record<string, string | number | undefined>) => {
+    const search = new URLSearchParams();
+    if (params.from) search.set("from", String(params.from));
+    if (params.to) search.set("to", String(params.to));
+    if (params.q) search.set("q", String(params.q));
+    if (params.promoter_id) search.set("promoter_id", String(params.promoter_id));
+    if (params.page) search.set("page", String(params.page));
+    if (params.pageSize) search.set("pageSize", String(params.pageSize));
+    return `${pathname}?${search.toString()}`;
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    router.push(
+      buildQuery({
+        from: fromDate || undefined,
+        to: toDate || undefined,
+        q: q || undefined,
+        promoter_id: promoterId || undefined,
+        page: 1,
+        pageSize,
+      })
+    );
+  };
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
@@ -57,8 +92,7 @@ export default function TicketsClient({
 
       <form
         className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] md:grid-cols-2 lg:grid-cols-5"
-        method="get"
-        action="/admin/tickets"
+        onSubmit={handleSubmit}
       >
         <label className="space-y-2 text-sm font-semibold text-white">
           Desde
@@ -94,8 +128,6 @@ export default function TicketsClient({
             ))}
           </select>
         </label>
-        <input type="hidden" name="page" value="1" />
-        <input type="hidden" name="pageSize" value={pageSize} />
         <div className="flex items-end gap-2">
           <button
             type="submit"
@@ -229,6 +261,7 @@ function PaginationControls({
   filters: { from: string; to: string; q: string; promoter_id: string };
   isMobile?: boolean;
 }) {
+  const router = useRouter();
   const options = [5, 10, 15, 20, 30];
   const qs = (nextPage: number, size: number) => {
     const params = new URLSearchParams();
@@ -253,7 +286,7 @@ function PaginationControls({
           defaultValue={pageSize}
           onChange={(e) => {
             const size = parseInt(e.target.value, 10);
-            window.location.href = qs(1, size);
+            router.push(qs(1, size));
           }}
           className="rounded-lg border border-white/15 bg-[#0c0c0c] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
         >
@@ -265,25 +298,25 @@ function PaginationControls({
         </select>
       </div>
       <div className="flex items-center gap-2">
-        <a
+        <Link
           href={qs(Math.max(1, page - 1), pageSize)}
           className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
             page <= 1 ? "pointer-events-none text-white/30" : "text-white hover:border-white"
           }`}
         >
           ← Anterior
-        </a>
+        </Link>
         <span className="text-white/60">
           Página {page} de {totalPages}
         </span>
-        <a
+        <Link
           href={qs(Math.min(totalPages, page + 1), pageSize)}
           className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
             page >= totalPages ? "pointer-events-none text-white/30" : "text-white hover:border-white"
           }`}
         >
           Siguiente →
-        </a>
+        </Link>
       </div>
     </div>
   );
