@@ -103,8 +103,8 @@ async function getReservation(id: string): Promise<Reservation | null> {
 
 export const dynamic = "force-dynamic";
 
-export default async function ReservationDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function ReservationDetail({ params }: { params: { id: string } }) {
+  const { id } = params;
   const reservation = await getReservation(id);
   if (!reservation) return notFound();
   const eventData = reservation.table?.event || reservation.event_fallback || null;

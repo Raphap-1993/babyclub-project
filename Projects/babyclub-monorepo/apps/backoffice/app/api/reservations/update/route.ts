@@ -192,37 +192,23 @@ async function sendApprovalEmail({
     }
   })();
 
-  const qrImg = async (code: string) => {
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(code)}`;
-    const quickChart = `https://quickchart.io/qr?size=240&text=${encodeURIComponent(code)}`;
-    try {
-      const res = await fetch(quickChart, { cache: "no-store" });
-      if (res.ok) {
-        const buffer = Buffer.from(await res.arrayBuffer());
-        return `data:image/png;base64,${buffer.toString("base64")}`;
-      }
-      const res2 = await fetch(qrUrl, { cache: "no-store" });
-      if (res2.ok) {
-        const buffer = Buffer.from(await res2.arrayBuffer());
-        return `data:image/png;base64,${buffer.toString("base64")}`;
-      }
-    } catch (_err) {
-      // ignore y usa URL remota
-    }
-    return qrUrl;
-  };
+  const qrImgUrl = (code: string) => `https://quickchart.io/qr?size=240&format=png&text=${encodeURIComponent(code)}`;
+  const qrFallbackUrl = (code: string) =>
+    `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=png&data=${encodeURIComponent(code)}`;
 
   const codesHtml =
     codes.length > 0
       ? (
           await Promise.all(
             codes.map(async (code) => {
-              const img = await qrImg(code);
+              const img = qrImgUrl(code);
+              const fallback = qrFallbackUrl(code);
               return `
         <div style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#0f0f0f;margin-bottom:12px;">
           <div style="font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-size:14px;color:#f5f5f5;font-weight:700;">${escape(code)}</div>
           <div style="font-size:12px;color:#cfcfcf;margin:6px 0 8px;">Comparte este código con tu grupo.</div>
           <img src="${img}" alt="QR ${code}" width="180" height="180" style="border-radius:12px;border:6px solid #0b0b0b;background:#fff;" />
+          <div style="font-size:11px;color:#bcbcbc;margin-top:6px;">Si no ves el QR, ábrelo aquí: <a href="${fallback}" style="color:#e91e63;">ver imagen</a></div>
         </div>
       `;
             })
