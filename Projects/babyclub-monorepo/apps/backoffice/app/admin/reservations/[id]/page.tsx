@@ -32,7 +32,7 @@ async function getReservation(id: string): Promise<Reservation | null> {
   const { data, error } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,doc_type,document,dni,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location)),created_by_staff:staff(id,person:persons(first_name,last_name)),event:event_id(name,starts_at,location)"
+      "id,full_name,email,phone,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location)),created_by_staff:staff(id,person:persons(first_name,last_name)),event:event_id(name,starts_at,location)"
     )
     .eq("id", id)
     .maybeSingle();
