@@ -44,16 +44,6 @@ async function getReservation(id: string): Promise<Reservation | null> {
       ? tableRel.event[0]
       : tableRel.event
     : null;
-  const staffRel = data.created_by_staff
-    ? Array.isArray((data as any).created_by_staff)
-      ? (data as any).created_by_staff?.[0]
-      : (data as any).created_by_staff
-    : null;
-  const staffPerson = staffRel?.person
-    ? Array.isArray(staffRel.person)
-      ? staffRel.person[0]
-      : staffRel.person
-    : null;
   const eventDirect = data.event
     ? Array.isArray((data as any).event)
       ? (data as any).event?.[0]
@@ -70,12 +60,7 @@ async function getReservation(id: string): Promise<Reservation | null> {
     voucher_url: (data as any).voucher_url ?? null,
     status: (data as any).status ?? "",
     codes: (data as any).codes ?? null,
-    created_by_staff: staffRel
-      ? {
-          id: staffRel.id,
-          person: staffPerson ? { first_name: staffPerson.first_name, last_name: staffPerson.last_name } : null,
-        }
-      : null,
+    created_by_staff: null,
     created_at: (data as any).created_at ?? "",
     event_fallback: eventDirect
       ? {
@@ -136,14 +121,6 @@ export default async function ReservationDetail({ params }: { params: { id: stri
             <Info label="Fecha evento" value={safeFormat(eventData?.starts_at)} />
             <Info label="Ubicación" value={eventData?.location || "—"} />
             <Info label="Creada" value={formatDate(reservation.created_at)} />
-            <Info
-              label="Creado por"
-              value={
-                reservation.created_by_staff?.person
-                  ? `${reservation.created_by_staff.person.first_name || ""} ${reservation.created_by_staff.person.last_name || ""}`.trim()
-                  : reservation.created_by_staff?.id || "—"
-              }
-            />
             <div className="mt-2 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Voucher</p>
               {reservation.voucher_url ? (
