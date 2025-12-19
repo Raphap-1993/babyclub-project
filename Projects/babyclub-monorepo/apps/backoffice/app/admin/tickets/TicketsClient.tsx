@@ -33,6 +33,13 @@ export default function TicketsClient({
   const [toDate, setToDate] = useState(to);
   const [promoterId, setPromoterId] = useState(promoter_id);
 
+  // Sincroniza el formulario cuando cambian los filtros por navegación
+  useEffect(() => {
+    setFromDate(from);
+    setToDate(to);
+    setPromoterId(promoter_id);
+  }, [from, to, promoter_id]);
+
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const currentPage = Math.min(page, totalPages);
 
@@ -54,7 +61,11 @@ export default function TicketsClient({
         </div>
       </div>
 
-      <form className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:grid-cols-6">
+      <form
+        className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:grid-cols-6"
+        method="get"
+        action="/admin/tickets"
+      >
         <label className="space-y-2 text-sm font-semibold text-white">
           Desde
           <DatePickerSimple value={fromDate} onChange={setFromDate} name="from" />
@@ -89,6 +100,8 @@ export default function TicketsClient({
             ))}
           </select>
         </label>
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value={pageSize} />
         <div className="flex items-end gap-2">
           <button
             type="submit"
