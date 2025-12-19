@@ -36,7 +36,10 @@ async function getTickets(params: {
 
   let query = supabase
     .from("tickets")
-    .select("id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id", { count: "exact" })
+    .select(
+      "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)",
+      { count: "exact" }
+    )
     .order("created_at", { ascending: false })
     .range(start, end);
 
@@ -57,15 +60,33 @@ async function getTickets(params: {
     }
   }
   if (params.promoter_id) {
-    query = query.eq("promoter_id", params.promoter_id);
+    query = query.or(`promoter_id.eq.${params.promoter_id},code.promoter_id.eq.${params.promoter_id}`);
   }
 
   const { data, error, count } = await query;
   if (error || !data) return { tickets: [], total: 0, error: error?.message || "No se pudieron cargar tickets" };
 
   const eventIds = Array.from(new Set((data as any[]).map((t) => t.event_id).filter(Boolean)));
-  const codeIds = Array.from(new Set((data as any[]).map((t) => t.code_id).filter(Boolean)));
-  const promoterIds = Array.from(new Set((data as any[]).map((t) => t.promoter_id).filter(Boolean)));
+  const codeIds = Array.from(
+    new Set(
+      (data as any[])
+        .map((t) => {
+          const cRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+          return cRel?.id || t.code_id;
+        })
+        .filter(Boolean)
+    )
+  );
+  const promoterIds = Array.from(
+    new Set(
+      (data as any[])
+        .flatMap((t) => {
+          const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+          return [t.promoter_id, codeRel?.promoter_id].filter(Boolean);
+        })
+        .filter(Boolean)
+    )
+  );
 
   const [eventsRes, codesRes, promotersRes] = await Promise.all([
     eventIds.length
@@ -99,7 +120,12 @@ async function getTickets(params: {
     phone: t.phone ?? null,
     event_name: t.event_id ? eventMap.get(t.event_id) ?? null : null,
     code_value: t.code_id ? codeMap.get(t.code_id) ?? null : null,
-    promoter_name: t.promoter_id ? promoterMap.get(t.promoter_id) ?? null : null,
+    promoter_name: (() => {
+      const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+      const promoterId = t.promoter_id || codeRel?.promoter_id || null;
+      if (!promoterId) return null;
+      return promoterMap.get(promoterId) ?? null;
+    })(),
   }));
 
   return { tickets: normalized, total: count ?? normalized.length };
