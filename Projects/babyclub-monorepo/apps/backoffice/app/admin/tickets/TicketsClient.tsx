@@ -32,6 +32,7 @@ export default function TicketsClient({
   const { from, to, q, promoter_id, page, pageSize, total } = filters;
   const [fromDate, setFromDate] = useState(from);
   const [toDate, setToDate] = useState(to);
+  const [searchValue, setSearchValue] = useState(q);
   const [promoterId, setPromoterId] = useState(promoter_id);
   const router = useRouter();
   const pathname = usePathname();
@@ -43,8 +44,9 @@ export default function TicketsClient({
   useEffect(() => {
     setFromDate(from);
     setToDate(to);
+    setSearchValue(q);
     setPromoterId(promoter_id);
-  }, [from, to, promoter_id]);
+  }, [from, to, q, promoter_id]);
 
   const buildQuery = (params: Record<string, string | number | undefined>) => {
     const search = new URLSearchParams();
@@ -63,7 +65,7 @@ export default function TicketsClient({
       buildQuery({
         from: fromDate || undefined,
         to: toDate || undefined,
-        q: q || undefined,
+        q: searchValue || undefined,
         promoter_id: promoterId || undefined,
         page: 1,
         pageSize,
@@ -107,7 +109,8 @@ export default function TicketsClient({
           <input
             type="text"
             name="q"
-            defaultValue={q}
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
             placeholder="DNI, nombre o email"
             className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
           />
@@ -283,7 +286,7 @@ function PaginationControls({
       <div className="flex items-center gap-2">
         <span className="text-white/60">Ver</span>
         <select
-          defaultValue={pageSize}
+          value={pageSize}
           onChange={(e) => {
             const size = parseInt(e.target.value, 10);
             router.push(qs(1, size));
