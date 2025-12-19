@@ -54,24 +54,8 @@ export async function POST(req: NextRequest) {
     }
   })();
   const ticketUrl = `${appUrl}/ticket/${ticketId}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(data.qr_token)}`;
-  const quickChartUrl = `https://quickchart.io/qr?size=240&text=${encodeURIComponent(data.qr_token)}`;
-  let qrImg = qrUrl;
-  try {
-    const qrRes = await fetch(quickChartUrl, { cache: "no-store" });
-    if (qrRes.ok) {
-      const buffer = Buffer.from(await qrRes.arrayBuffer());
-      qrImg = `data:image/png;base64,${buffer.toString("base64")}`;
-    } else {
-      const fallbackRes = await fetch(qrUrl, { cache: "no-store" });
-      if (fallbackRes.ok) {
-        const buffer = Buffer.from(await fallbackRes.arrayBuffer());
-        qrImg = `data:image/png;base64,${buffer.toString("base64")}`;
-      }
-    }
-  } catch (_err) {
-    qrImg = qrUrl;
-  }
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=png&data=${encodeURIComponent(data.qr_token)}`;
+  const qrImg = `https://quickchart.io/qr?size=240&format=png&text=${encodeURIComponent(data.qr_token)}`;
   const isFreeCode = (codeRel?.type || "").toLowerCase() === "free";
   const isPromoterCode = Boolean(codeRel?.promoter_id);
   const expiresLabel = (() => {
@@ -144,6 +128,7 @@ export async function POST(req: NextRequest) {
                   <tr>
                     <td align="center" style="padding:12px 0 18px;">
                       <img src="${qrImg}" alt="QR" width="220" height="220" style="border-radius:18px;border:8px solid #0f0f0f;background:#fff;display:block;" />
+                      <div style="font-size:11px;color:#bcbcbc;margin-top:6px;">Si no ves el QR, ábrelo aquí: <a href="${qrUrl}" style="color:#e91e63;">ver imagen</a></div>
                     </td>
                   </tr>
                   <tr>
