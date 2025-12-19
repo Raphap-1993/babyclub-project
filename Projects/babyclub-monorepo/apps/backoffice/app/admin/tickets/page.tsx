@@ -1,6 +1,7 @@
 import TicketsClient from "./TicketsClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -145,15 +146,15 @@ export default async function TicketsPage({ searchParams }: { searchParams?: Rec
   const pageSize = Math.min(100, Math.max(5, parseInt((searchParams?.pageSize as string) || "10", 10) || 10));
 
   const { tickets, total, error } = await getTickets({ from, to, q, promoter_id, page, pageSize });
-  const supabase =
+  const supabaseForFilters =
     supabaseUrl && supabaseServiceKey
       ? createClient(supabaseUrl, supabaseServiceKey, {
           auth: { autoRefreshToken: false, persistSession: false },
         })
       : null;
   const { data: promoterOptions } =
-    supabase
-      ? await supabase
+    supabaseForFilters
+      ? await supabaseForFilters
           .from("promoters")
           .select("id,code,person:persons(first_name,last_name)")
           .order("created_at", { ascending: true })
