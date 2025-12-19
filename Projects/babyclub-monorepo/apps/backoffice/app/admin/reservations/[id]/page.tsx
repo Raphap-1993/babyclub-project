@@ -29,6 +29,9 @@ type ReservationResult =
   | { reservation: null; error: string };
 
 async function getReservation(id: string): Promise<ReservationResult> {
+  if (!id || id === "undefined") {
+    return { reservation: null, error: "ID de reserva inválido" };
+  }
   if (!supabaseUrl || !supabaseServiceKey) return { reservation: null, error: "Supabase no configurado" };
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
