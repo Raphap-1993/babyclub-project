@@ -14,12 +14,14 @@ type TicketRow = {
   phone: string | null;
   event_name: string | null;
   code_value: string | null;
+  promoter_name: string | null;
 };
 
 async function getTickets(params: {
   from?: string;
   to?: string;
   q?: string;
+  promoter_id?: string;
   page: number;
   pageSize: number;
 }): Promise<{ tickets: TicketRow[]; total: number; error?: string }> {
@@ -34,7 +36,7 @@ async function getTickets(params: {
 
   let query = supabase
     .from("tickets")
-    .select("id,created_at,dni,full_name,email,phone,event_id,code_id", { count: "exact" })
+    .select("id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(start, end);
 
@@ -54,19 +56,26 @@ async function getTickets(params: {
       );
     }
   }
+  if (params.promoter_id) {
+    query = query.eq("promoter_id", params.promoter_id);
+  }
 
   const { data, error, count } = await query;
   if (error || !data) return { tickets: [], total: 0, error: error?.message || "No se pudieron cargar tickets" };
 
   const eventIds = Array.from(new Set((data as any[]).map((t) => t.event_id).filter(Boolean)));
   const codeIds = Array.from(new Set((data as any[]).map((t) => t.code_id).filter(Boolean)));
+  const promoterIds = Array.from(new Set((data as any[]).map((t) => t.promoter_id).filter(Boolean)));
 
-  const [eventsRes, codesRes] = await Promise.all([
+  const [eventsRes, codesRes, promotersRes] = await Promise.all([
     eventIds.length
       ? supabase.from("events").select("id,name").in("id", eventIds)
       : Promise.resolve({ data: [] as any[], error: null }),
     codeIds.length
       ? supabase.from("codes").select("id,code").in("id", codeIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    promoterIds.length
+      ? supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIds)
       : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 
@@ -74,6 +83,12 @@ async function getTickets(params: {
   (eventsRes.data || []).forEach((e: any) => eventMap.set(e.id, e.name));
   const codeMap = new Map<string, string>();
   (codesRes.data || []).forEach((c: any) => codeMap.set(c.id, c.code));
+  const promoterMap = new Map<string, string>();
+  (promotersRes.data || []).forEach((p: any) => {
+    const personRel = Array.isArray(p.person) ? p.person[0] : p.person;
+    const full = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
+    promoterMap.set(p.id, full || p.code || "");
+  });
 
   const normalized: TicketRow[] = (data as any[]).map((t) => ({
     id: t.id,
@@ -84,6 +99,7 @@ async function getTickets(params: {
     phone: t.phone ?? null,
     event_name: t.event_id ? eventMap.get(t.event_id) ?? null : null,
     code_value: t.code_id ? codeMap.get(t.code_id) ?? null : null,
+    promoter_name: t.promoter_id ? promoterMap.get(t.promoter_id) ?? null : null,
   }));
 
   return { tickets: normalized, total: count ?? normalized.length };
@@ -95,17 +111,40 @@ export default async function TicketsPage({ searchParams }: { searchParams?: Rec
   const from = (searchParams?.from as string) || "";
   const to = (searchParams?.to as string) || "";
   const q = (searchParams?.q as string) || "";
+  const promoter_id = (searchParams?.promoter_id as string) || "";
   const page = Math.max(1, parseInt((searchParams?.page as string) || "1", 10) || 1);
   const pageSize = Math.min(100, Math.max(5, parseInt((searchParams?.pageSize as string) || "10", 10) || 10));
 
-  const { tickets, total, error } = await getTickets({ from, to, q, page, pageSize });
+  const { tickets, total, error } = await getTickets({ from, to, q, promoter_id, page, pageSize });
+  const supabase =
+    supabaseUrl && supabaseServiceKey
+      ? createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        })
+      : null;
+  const { data: promoterOptions } =
+    supabase
+      ? await supabase
+          .from("promoters")
+          .select("id,code,person:persons(first_name,last_name)")
+          .order("created_at", { ascending: true })
+          .limit(300)
+      : { data: [] as any[] };
+  const promoterFilters =
+    (promoterOptions || []).map((p: any) => {
+      const personRel = Array.isArray(p.person) ? p.person[0] : p.person;
+      const full = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
+      return { id: p.id as string, label: full || p.code || "" };
+    }) ?? [];
+
   if (!tickets && error) return notFound();
 
   return (
     <TicketsClient
       initialTickets={tickets || []}
       error={error || null}
-      filters={{ from, to, q, page, pageSize, total }}
+      filters={{ from, to, q, promoter_id, page, pageSize, total }}
+      promoterOptions={promoterFilters}
     />
   );
 }

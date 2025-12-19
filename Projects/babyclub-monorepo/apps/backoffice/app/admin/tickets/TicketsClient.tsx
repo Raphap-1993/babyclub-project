@@ -14,20 +14,24 @@ type TicketRow = {
   phone: string | null;
   event_name: string | null;
   code_value: string | null;
+  promoter_name: string | null;
 };
 
 export default function TicketsClient({
   initialTickets,
   error,
   filters,
+  promoterOptions,
 }: {
   initialTickets: TicketRow[];
   error: string | null;
-  filters: { from: string; to: string; q: string; page: number; pageSize: number; total: number };
+  filters: { from: string; to: string; q: string; promoter_id: string; page: number; pageSize: number; total: number };
+  promoterOptions: Array<{ id: string; label: string }>;
 }) {
-  const { from, to, q, page, pageSize, total } = filters;
+  const { from, to, q, promoter_id, page, pageSize, total } = filters;
   const [fromDate, setFromDate] = useState(from);
   const [toDate, setToDate] = useState(to);
+  const [promoterId, setPromoterId] = useState(promoter_id);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const currentPage = Math.min(page, totalPages);
@@ -50,7 +54,7 @@ export default function TicketsClient({
         </div>
       </div>
 
-      <form className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:grid-cols-5">
+      <form className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:grid-cols-6">
         <label className="space-y-2 text-sm font-semibold text-white">
           Desde
           <DatePickerSimple value={fromDate} onChange={setFromDate} name="from" />
@@ -69,6 +73,22 @@ export default function TicketsClient({
             className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
           />
         </label>
+        <label className="space-y-2 text-sm font-semibold text-white">
+          Promotor
+          <select
+            name="promoter_id"
+            value={promoterId}
+            onChange={(e) => setPromoterId(e.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+          >
+            <option value="">Todos</option>
+            {promoterOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="flex items-end gap-2">
           <button
             type="submit"
@@ -76,7 +96,7 @@ export default function TicketsClient({
           >
             Filtrar
           </button>
-          {(from || to || q) && (
+          {(from || to || q || promoterId) && (
             <Link
               href="/admin/tickets"
               className="inline-flex items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:border-white"
@@ -92,13 +112,14 @@ export default function TicketsClient({
           <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
             <tr>
               <th className="w-[16%] px-4 py-3 text-left">Fecha</th>
-              <th className="w-[18%] px-4 py-3 text-left">Evento</th>
+              <th className="w-[16%] px-4 py-3 text-left">Evento</th>
               <th className="w-[12%] px-4 py-3 text-left">DNI</th>
-              <th className="w-[20%] px-4 py-3 text-left">Nombre</th>
-              <th className="w-[18%] px-4 py-3 text-left">Email</th>
+              <th className="w-[18%] px-4 py-3 text-left">Nombre</th>
+              <th className="w-[16%] px-4 py-3 text-left">Email</th>
               <th className="w-[12%] px-4 py-3 text-left">Teléfono</th>
               <th className="w-[10%] px-4 py-3 text-left">Código</th>
-              <th className="w-[12%] px-4 py-3 text-right">Acciones</th>
+              <th className="w-[10%] px-4 py-3 text-left">Promotor</th>
+              <th className="w-[10%] px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -120,6 +141,7 @@ export default function TicketsClient({
                 <td className="px-4 py-3 break-words text-white/80">{t.email || "—"}</td>
                 <td className="px-4 py-3 text-white/80">{t.phone || "—"}</td>
                 <td className="px-4 py-3 text-white/80">{t.code_value || "—"}</td>
+                <td className="px-4 py-3 text-white/80">{t.promoter_name || "—"}</td>
                 <td className="px-4 py-3 text-right">
                   <TicketActions id={t.id} />
                 </td>
@@ -134,7 +156,7 @@ export default function TicketsClient({
         page={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
-        filters={{ from, to, q }}
+        filters={{ from, to, q, promoter_id: promoterId }}
       />
 
       <div className="space-y-3 lg:hidden">
@@ -162,6 +184,7 @@ export default function TicketsClient({
               <Info label="Email" value={t.email || "—"} />
               <Info label="Teléfono" value={t.phone || "—"} />
               <Info label="Código" value={t.code_value || "—"} />
+              <Info label="Promotor" value={t.promoter_name || "—"} />
             </div>
             <div className="mt-3 flex justify-end">
               <TicketActions id={t.id} compact />
@@ -174,7 +197,7 @@ export default function TicketsClient({
         page={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
-        filters={{ from, to, q }}
+        filters={{ from, to, q, promoter_id: promoterId }}
         isMobile
       />
     </main>
@@ -202,7 +225,7 @@ function PaginationControls({
   page: number;
   totalPages: number;
   pageSize: number;
-  filters: { from: string; to: string; q: string };
+  filters: { from: string; to: string; q: string; promoter_id: string };
   isMobile?: boolean;
 }) {
   const options = [5, 10, 15, 20, 30];
@@ -211,6 +234,7 @@ function PaginationControls({
     if (filters.from) params.set("from", filters.from);
     if (filters.to) params.set("to", filters.to);
     if (filters.q) params.set("q", filters.q);
+    if (filters.promoter_id) params.set("promoter_id", filters.promoter_id);
     params.set("page", String(nextPage));
     params.set("pageSize", String(size));
     return `${basePath}?${params.toString()}`;
