@@ -24,8 +24,12 @@ type Reservation = {
   event_fallback?: { name: string | null; starts_at: string | null; location: string | null } | null;
 };
 
-async function getReservation(id: string): Promise<Reservation | null> {
-  if (!supabaseUrl || !supabaseServiceKey) return null;
+type ReservationResult =
+  | { reservation: Reservation; error?: null }
+  | { reservation: null; error: string };
+
+async function getReservation(id: string): Promise<ReservationResult> {
+  if (!supabaseUrl || !supabaseServiceKey) return { reservation: null, error: "Supabase no configurado" };
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -36,7 +40,10 @@ async function getReservation(id: string): Promise<Reservation | null> {
     )
     .eq("id", id)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error || !data) {
+    console.error("[admin/reservations/:id] load error", error?.message || "not found", { id });
+    return { reservation: null, error: error?.message || "Reserva no encontrada" };
+  }
 
   const tableRel = Array.isArray((data as any).table) ? (data as any).table?.[0] : (data as any).table;
   const eventRel = tableRel?.event
@@ -83,15 +90,33 @@ async function getReservation(id: string): Promise<Reservation | null> {
       : null,
   };
 
-  return normalized;
+  return { reservation: normalized };
 }
 
 export const dynamic = "force-dynamic";
 
 export default async function ReservationDetail({ params }: { params: { id: string } }) {
   const { id } = params;
-  const reservation = await getReservation(id);
-  if (!reservation) return notFound();
+  const { reservation, error } = await getReservation(id);
+  if (!reservation) {
+    return (
+      <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-3xl space-y-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Reservas</p>
+          <h1 className="text-3xl font-semibold">Reserva no encontrada</h1>
+          <p className="text-sm text-white/70">{error || "La reserva no existe o no está disponible en este entorno."}</p>
+          <div className="mt-4 flex justify-center gap-3">
+            <Link
+              href="/admin/reservations"
+              className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+            >
+              ← Volver a reservas
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
   const eventData = reservation.table?.event || reservation.event_fallback || null;
 
   return (
