@@ -34,17 +34,31 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
     .from("tickets")
     .select("id,created_at,dni,full_name,email,phone,qr_token,event_id,code_id,promoter_id")
     .eq("id", id)
+    .limit(1)
     .maybeSingle();
 
   if (error || !data) return { ticket: null, error: error?.message || "Ticket no encontrado" };
 
-  const [eventRes, codeRes, promoterRes] = await Promise.all([
-    data.event_id ? supabase.from("events").select("id,name").eq("id", data.event_id).maybeSingle() : Promise.resolve({ data: null }),
-    data.code_id ? supabase.from("codes").select("id,code").eq("id", data.code_id).maybeSingle() : Promise.resolve({ data: null }),
-    data.promoter_id
-      ? supabase.from("promoters").select("id,name").eq("id", data.promoter_id).maybeSingle()
-      : Promise.resolve({ data: null }),
+  const [eventRes, codeRes] = await Promise.all([
+    data.event_id ? supabase.from("events").select("id,name").eq("id", data.event_id).limit(1).maybeSingle() : Promise.resolve({ data: null }),
+    data.code_id ? supabase.from("codes").select("id,code,promoter_id").eq("id", data.code_id).limit(1).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+
+  const codeData = codeRes.data as any;
+  const promoterId = data.promoter_id || codeData?.promoter_id || null;
+  const promoterRes = promoterId
+    ? await supabase
+        .from("promoters")
+        .select("code,person:persons(first_name,last_name)")
+        .eq("id", promoterId)
+        .limit(1)
+        .maybeSingle()
+    : { data: null as any };
+
+  const promoterData = (promoterRes as any)?.data;
+  const promoterPerson = Array.isArray(promoterData?.person) ? promoterData.person?.[0] : promoterData?.person;
+  const promoterName =
+    [promoterPerson?.first_name, promoterPerson?.last_name].filter(Boolean).join(" ").trim() || promoterData?.code || null;
 
   // Buscar códigos asociados a una reserva de mesa del mismo email/teléfono
   let tableCodes: string[] = [];
@@ -87,7 +101,7 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
       code_id: data.code_id ?? null,
       event_name: eventRes.data?.name ?? null,
       code_value: codeRes.data?.code ?? null,
-      promoter_name: promoterRes.data?.name ?? null,
+      promoter_name: promoterName,
       table_codes: tableCodes,
       table_name: tableName,
       product_name: productName,

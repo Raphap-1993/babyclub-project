@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeDocument, type DocumentType } from "shared/document";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -16,15 +17,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
 
+  const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
+  const documentRaw = typeof body?.document === "string" ? body.document : body?.dni || "";
+  const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
   const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id.trim() : "";
-  const dni = typeof body?.dni === "string" ? body.dni.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
   const code = typeof body?.code === "string" ? body.code.trim() : "";
   const event_id = typeof body?.event_id === "string" ? body.event_id.trim() : "";
 
-  if (!ticket_id && !dni && !email && !phone && !code) {
-    return NextResponse.json({ success: false, error: "Ingresa ticket_id o DNI/Email/Teléfono/Código" }, { status: 400 });
+  if (!ticket_id && !document && !email && !phone && !code) {
+    return NextResponse.json({ success: false, error: "Ingresa ticket_id o Documento/Email/Teléfono/Código" }, { status: 400 });
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -54,7 +57,7 @@ export async function POST(req: NextRequest) {
   let query = supabase
     .from("tickets")
     .select(
-      "id,event_id,code_id,full_name,email,phone,dni,code:codes(code),person:persons(first_name,last_name,email,phone),event:events(name,starts_at)"
+      "id,event_id,code_id,full_name,email,phone,dni,doc_type,document,code:codes(code),person:persons(first_name,last_name,email,phone,doc_type,document,dni),event:events(name,starts_at)"
     )
     .limit(1);
 
@@ -62,7 +65,10 @@ export async function POST(req: NextRequest) {
   if (ticket_id) {
     query = query.eq("id", ticket_id);
   } else {
-    if (dni) ors.push(`dni.eq.${dni}`);
+    if (document) {
+      ors.push(`document.eq.${document}`);
+      if (docType === "dni") ors.push(`dni.eq.${document}`);
+    }
     if (email) ors.push(`email.eq.${email}`);
     if (phone) ors.push(`phone.eq.${phone}`);
     if (ors.length > 0) {
@@ -85,6 +91,13 @@ export async function POST(req: NextRequest) {
   const codeRel = Array.isArray((data as any).code) ? (data as any).code?.[0] : (data as any).code;
 
   const full_name = data.full_name || `${personRel?.first_name || ""} ${personRel?.last_name || ""}`.trim();
+  const ticketDocType = ((data as any).doc_type as DocumentType) || (personRel?.doc_type as DocumentType) || "dni";
+  const ticketDocument =
+    (data as any).document ||
+    (ticketDocType === "dni" ? (data as any).dni : null) ||
+    personRel?.document ||
+    (ticketDocType === "dni" ? (personRel as any)?.dni : null) ||
+    null;
 
   return NextResponse.json({
     success: true,
@@ -94,7 +107,9 @@ export async function POST(req: NextRequest) {
       full_name,
       email: data.email || personRel?.email || null,
       phone: data.phone || personRel?.phone || null,
-      dni: data.dni || null,
+      dni: ticketDocType === "dni" ? ticketDocument || null : null,
+      doc_type: ticketDocType,
+      document: ticketDocument,
       code: codeRel?.code || null,
       event: eventRel ? { name: eventRel.name, starts_at: eventRel.starts_at } : null,
     },

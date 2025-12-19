@@ -39,7 +39,7 @@ async function getReservation(id: string): Promise<ReservationResult> {
   const { data, error } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location)),event:event_id(name,starts_at,location)"
+      "id,full_name,email,phone,doc_type,document,voucher_url,status,codes,created_at,table:tables(name,event:events(name,starts_at,location)),event:event_id(name,starts_at,location)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -149,6 +149,14 @@ export default async function ReservationDetail({ params }: { params: { id: stri
             <Info label="Fecha evento" value={safeFormat(eventData?.starts_at)} />
             <Info label="Ubicación" value={eventData?.location || "—"} />
             <Info label="Creada" value={formatDate(reservation.created_at)} />
+            <Info
+              label="Documento"
+              value={
+                reservation.document
+                  ? `${(reservation.doc_type || "dni").toUpperCase()} • ${reservation.document}`
+                  : "—"
+              }
+            />
             <div className="mt-2 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Voucher</p>
               {reservation.voucher_url ? (
@@ -182,6 +190,8 @@ export default async function ReservationDetail({ params }: { params: { id: stri
               email: reservation.email,
               phone: reservation.phone,
               status: reservation.status,
+              doc_type: reservation.doc_type,
+              document: reservation.document,
             }}
           />
         </section>

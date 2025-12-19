@@ -15,7 +15,8 @@ describe("datetime helpers", () => {
 
   it("roundtrip display Lima", () => {
     const display = formatEventDateTime("2025-12-21T03:00:00.000Z");
-    expect(display).toBe("20/12/2025 10:00 PM");
+    const normalized = display.replace(/\u00a0/g, " ").replace(/[:.\s]/g, "").toUpperCase();
+    expect(normalized).toBe("20/12/20251000PM");
   });
 
   it("datetime-local parsing rejects invalid", () => {

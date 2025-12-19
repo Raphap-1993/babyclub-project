@@ -45,6 +45,7 @@ async function ensurePerson(
       .from("persons")
       .select("id")
       .eq(item.field, item.value)
+      .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (data?.id) return data.id;
@@ -75,7 +76,7 @@ async function ensureCodeForTicket(
   if (reuseCodes && reuseCodes.length > 0) {
     const candidate = reuseCodes.map((c) => String(c).trim()).find(Boolean);
     if (candidate) {
-      const { data } = await supabase.from("codes").select("id").eq("code", candidate).maybeSingle();
+      const { data } = await supabase.from("codes").select("id").eq("code", candidate).limit(1).maybeSingle();
       if (data?.id) return { codeId: data.id, code: candidate };
     }
   }

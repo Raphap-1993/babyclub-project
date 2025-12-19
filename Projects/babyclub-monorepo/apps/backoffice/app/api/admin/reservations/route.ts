@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createTicketForReservation, generateCourtesyCodes } from "../../reservations/utils";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb } from "shared/limaTime";
+import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,6 +21,10 @@ export async function POST(req: NextRequest) {
   } catch (_err) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
+
+  const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
+  const documentRaw = typeof body?.document === "string" ? body.document : body?.dni || "";
+  const { docType: bodyDocType, document: bodyDocument } = normalizeDocument(docTypeRaw, documentRaw);
 
   const modeRaw = typeof body?.mode === "string" ? body.mode : "";
   const mode: "existing_ticket" | "new_customer" = modeRaw === "existing_ticket" ? "existing_ticket" : "new_customer";
@@ -83,43 +88,52 @@ export async function POST(req: NextRequest) {
     .limit(1)
     .maybeSingle();
 
-  if (existingReservation) {
-    return NextResponse.json({ success: false, error: "La mesa ya tiene una reserva activa" }, { status: 409 });
-  }
+    if (existingReservation) {
+      return NextResponse.json({ success: false, error: "La mesa ya tiene una reserva activa" }, { status: 409 });
+    }
 
-  try {
-    if (mode === "existing_ticket") {
-      const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id : "";
-      const dni = typeof body?.dni === "string" ? body.dni.trim() : "";
-      const email = typeof body?.email === "string" ? body.email.trim() : "";
-      const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
-      const codes_count =
-        typeof body?.codes_count === "number" && Number.isFinite(body.codes_count) && body.codes_count >= 0
-          ? Math.floor(body.codes_count)
-          : Math.max(table.ticket_count || 1, 1);
+    try {
+      if (mode === "existing_ticket") {
+        const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id : "";
+        const email = typeof body?.email === "string" ? body.email.trim() : "";
+        const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
+        const documentValue = bodyDocument;
+        const docTypeValue = bodyDocType;
+        const docSearchValid = documentValue ? validateDocument(docTypeValue, documentValue) : false;
+        const codes_count =
+          typeof body?.codes_count === "number" && Number.isFinite(body.codes_count) && body.codes_count >= 0
+            ? Math.floor(body.codes_count)
+            : Math.max(table.ticket_count || 1, 1);
 
-      if (!ticket_id && !dni && !email && !phone) {
-        return NextResponse.json(
-          { success: false, error: "Proporciona ticket_id o un dato de contacto (dni/email/teléfono)" },
-          { status: 400 }
-        );
-      }
+        if (documentValue && !docSearchValid) {
+          return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
+        }
 
-      let ticketQuery = supabase
-        .from("tickets")
-        .select("id,event_id,full_name,email,phone,dni,person:persons(first_name,last_name,email,phone),code:codes(code)")
-        .limit(1);
-
-      if (ticket_id) {
-        ticketQuery = ticketQuery.eq("id", ticket_id);
-      } else {
-        const orFilters = [
-          dni ? `dni.eq.${dni}` : "",
-          email ? `email.eq.${email}` : "",
-          phone ? `phone.eq.${phone}` : "",
-        ].filter(Boolean);
-        if (orFilters.length === 0) {
+        if (!ticket_id && !docSearchValid && !email && !phone) {
           return NextResponse.json(
+            { success: false, error: "Proporciona ticket_id o un dato de contacto (documento/email/teléfono)" },
+            { status: 400 }
+          );
+        }
+
+        let ticketQuery = supabase
+          .from("tickets")
+          .select(
+            "id,event_id,full_name,email,phone,dni,doc_type,document,person:persons(first_name,last_name,email,phone,doc_type,document,dni),code:codes(code)"
+          )
+          .limit(1);
+
+        if (ticket_id) {
+          ticketQuery = ticketQuery.eq("id", ticket_id);
+        } else {
+          const orFilters = [
+            docSearchValid ? `document.eq.${documentValue}` : "",
+            docSearchValid && docTypeValue === "dni" ? `dni.eq.${documentValue}` : "",
+            email ? `email.eq.${email}` : "",
+            phone ? `phone.eq.${phone}` : "",
+          ].filter(Boolean);
+          if (orFilters.length === 0) {
+            return NextResponse.json(
             { success: false, error: "Falta ticket_id o al menos un campo para buscar el ticket" },
             { status: 400 }
           );
@@ -134,25 +148,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: ticketError?.message || "Ticket no encontrado" }, { status: 404 });
       }
 
-      if (eventId && ticket.event_id && ticket.event_id !== eventId) {
-        return NextResponse.json({ success: false, error: "El ticket pertenece a otro evento" }, { status: 400 });
-      }
-      eventId = eventId || ticket.event_id || null;
-      if (!eventId) {
-        return NextResponse.json({ success: false, error: "No se pudo determinar el evento" }, { status: 400 });
-      }
+          if (eventId && ticket.event_id && ticket.event_id !== eventId) {
+            return NextResponse.json({ success: false, error: "El ticket pertenece a otro evento" }, { status: 400 });
+          }
+          eventId = eventId || ticket.event_id || null;
+          if (!eventId) {
+            return NextResponse.json({ success: false, error: "No se pudo determinar el evento" }, { status: 400 });
+          }
 
-      const personRel = Array.isArray((ticket as any).person) ? (ticket as any).person?.[0] : (ticket as any).person;
-      const nameFromPerson = personRel ? `${personRel.first_name || ""} ${personRel.last_name || ""}`.trim() : "";
-      const full_name = typeof body?.full_name === "string" && body.full_name.trim() ? body.full_name.trim() : ticket.full_name || nameFromPerson;
-      const contactEmail = email || ticket.email || personRel?.email || null;
-      const contactPhone = phone || ticket.phone || personRel?.phone || null;
-      const contactDni = dni || ticket.dni || null;
-      const initialCodes = new Set<string>(providedCodes);
-      const toGenerate = Math.max((table.ticket_count || 1) - initialCodes.size, codes_count - initialCodes.size);
-      const autoCodes =
-        toGenerate > 0
-          ? await generateCourtesyCodes(supabase, {
+          const personRel = Array.isArray((ticket as any).person) ? (ticket as any).person?.[0] : (ticket as any).person;
+          const nameFromPerson = personRel ? `${personRel.first_name || ""} ${personRel.last_name || ""}`.trim() : "";
+          const full_name = typeof body?.full_name === "string" && body.full_name.trim() ? body.full_name.trim() : ticket.full_name || nameFromPerson;
+          const contactEmail = email || ticket.email || personRel?.email || null;
+          const contactPhone = phone || ticket.phone || personRel?.phone || null;
+          const ticketDocType = ((ticket as any).doc_type as DocumentType) || (personRel?.doc_type as DocumentType) || "dni";
+          const ticketDocument =
+            (ticket as any).document ||
+            (ticketDocType === "dni" ? (ticket as any).dni : null) ||
+            personRel?.document ||
+            (ticketDocType === "dni" ? (personRel as any)?.dni : null) ||
+            null;
+          const resolvedDocType = docSearchValid ? docTypeValue : ticketDocType;
+          const resolvedDocument = docSearchValid ? documentValue : ticketDocument || "";
+          const resolvedDni = resolvedDocType === "dni" ? resolvedDocument : "";
+          const initialCodes = new Set<string>(providedCodes);
+          const toGenerate = Math.max((table.ticket_count || 1) - initialCodes.size, codes_count - initialCodes.size);
+          const autoCodes =
+            toGenerate > 0
+              ? await generateCourtesyCodes(supabase, {
               eventId,
               tableName: table.name,
               count: toGenerate,
@@ -161,19 +184,22 @@ export async function POST(req: NextRequest) {
       const codes = Array.from(new Set([...initialCodes, ...autoCodes]));
 
       const { data: reservation, error: resError } = await supabase
-        .from("table_reservations")
-        .insert({
-          table_id,
-          event_id: eventId,
-          product_id,
-          full_name: full_name || "Invitado reserva",
-          email: contactEmail,
-          phone: contactPhone,
-          voucher_url: voucher_url || null,
-          status,
-          codes,
-          notes: notes || null,
-          ticket_id: ticket.id,
+            .from("table_reservations")
+            .insert({
+              table_id,
+              event_id: eventId,
+              product_id,
+              full_name: full_name || "Invitado reserva",
+              email: contactEmail,
+              phone: contactPhone,
+              doc_type: resolvedDocType,
+              document: resolvedDocument || null,
+              dni: resolvedDni || null,
+              voucher_url: voucher_url || null,
+              status,
+              codes,
+              notes: notes || null,
+              ticket_id: ticket.id,
           created_by_staff_id,
         })
         .select("id")
@@ -200,7 +226,9 @@ export async function POST(req: NextRequest) {
     const full_name = typeof body?.full_name === "string" ? body.full_name.trim() : "";
     const email = typeof body?.email === "string" ? body.email.trim() : "";
     const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
-    const dni = typeof body?.dni === "string" ? body.dni.trim() : "";
+    const docType = bodyDocType;
+    const document = bodyDocument;
+    const dni = docType === "dni" ? document : "";
     const ticketCount = Math.max(table.ticket_count || 1, 1);
     const codes_count =
       typeof body?.codes_count === "number" && Number.isFinite(body.codes_count) && body.codes_count >= 0
@@ -213,6 +241,9 @@ export async function POST(req: NextRequest) {
     if (!eventId) {
       return NextResponse.json({ success: false, error: "event_id es requerido para crear ticket" }, { status: 400 });
     }
+    if (!validateDocument(docType, document)) {
+      return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
+    }
 
     const ticketResult = await createTicketForReservation(supabase, {
       eventId,
@@ -221,6 +252,8 @@ export async function POST(req: NextRequest) {
       email: email || null,
       phone: phone || null,
       dni: dni || null,
+      docType,
+      document,
       reuseCodes: providedCodes,
     });
 
@@ -243,6 +276,9 @@ export async function POST(req: NextRequest) {
         event_id: eventId,
         product_id,
         full_name,
+        doc_type: docType,
+        document,
+        dni: dni || null,
         email: email || null,
         phone: phone || null,
         voucher_url: voucher_url || null,

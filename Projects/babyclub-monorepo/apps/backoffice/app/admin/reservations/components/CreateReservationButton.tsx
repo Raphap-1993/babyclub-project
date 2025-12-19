@@ -3,6 +3,7 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseClient } from "@/lib/supabaseClient";
+import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
 
 type EventOption = { id: string; name: string; starts_at?: string | null; is_active?: boolean | null };
 type TableOption = {
@@ -48,7 +49,8 @@ export default function CreateReservationButton() {
   const [fullName, setFullName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
-  const [dni, setDni] = useState<string>("");
+  const [docType, setDocType] = useState<DocumentType>("dni");
+  const [document, setDocument] = useState<string>("");
   const [ticketId, setTicketId] = useState<string>("");
   const [searchValue, setSearchValue] = useState<string>("");
   const [ticketLookupLoading, setTicketLookupLoading] = useState(false);
@@ -146,6 +148,16 @@ export default function CreateReservationButton() {
     return [];
   }, []);
 
+  const docPlaceholder = docType === "dni" ? "00000000" : docType === "ruc" ? "00000000000" : "Documento";
+  const docInputMode = docType === "dni" || docType === "ruc" ? "numeric" : "text";
+  const docMaxLength = docType === "dni" ? 8 : docType === "ruc" ? 11 : undefined;
+  const docTypeLabel = useMemo(
+    () => DOCUMENT_TYPES.find((d) => d.value === docType)?.label || docType.toUpperCase(),
+    [docType]
+  );
+  const docCleanValue = document.trim();
+  const docIsValid = validateDocument(docType, docCleanValue);
+
   const resetForm = () => {
     setMode("existing_ticket");
     setTableId("");
@@ -158,7 +170,8 @@ export default function CreateReservationButton() {
     setFullName("");
     setEmail("");
     setPhone("");
-    setDni("");
+    setDocType("dni");
+    setDocument("");
     setTicketId("");
     setSearchValue("");
     setSuccess(null);
@@ -167,12 +180,14 @@ export default function CreateReservationButton() {
     setTicketLookupError(null);
   };
 
-  const lookupPerson = async (dniValue: string) => {
-    const dniClean = (dniValue || "").trim();
-    if (dniClean.length !== 8) return;
+  const lookupPerson = async (docValue: string, docTypeOverride?: DocumentType) => {
+    const targetDocType = docTypeOverride || docType;
+    const docClean = (docValue || "").trim();
+    if (!validateDocument(targetDocType, docClean)) return;
     setPersonLoading(true);
     try {
-      const res = await fetch(`/api/admin/persons?dni=${dniClean}`);
+      const params = new URLSearchParams({ doc_type: targetDocType, document: docClean });
+      const res = await fetch(`/api/admin/persons?${params.toString()}`);
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.person) {
         const p = data.person;
@@ -191,22 +206,36 @@ export default function CreateReservationButton() {
   const handleLookupTicket = async () => {
     setTicketLookupError(null);
     const payload: Record<string, any> = { event_id: eventId || undefined };
+    const docClean = document.trim();
+    const hasValidDoc = validateDocument(docType, docClean);
+    if (hasValidDoc) {
+      payload.doc_type = docType;
+      payload.document = docClean;
+      if (docType === "dni") payload.dni = docClean;
+    }
     if (ticketId) payload.ticket_id = ticketId;
-    if (dni) payload.dni = dni;
     if (email) payload.email = email;
     if (phone) payload.phone = phone;
     if (searchValue) {
       const looksUuid = /^[0-9a-fA-F-]{8}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{12}$/.test(searchValue);
       const looksEmail = /@/.test(searchValue);
       const onlyDigits = /^[0-9]+$/.test(searchValue);
+      const searchValueTrim = searchValue.trim();
       if (looksUuid) {
         payload.ticket_id = payload.ticket_id || searchValue;
       } else if (looksEmail) {
         payload.email = payload.email || searchValue;
         setEmail((prev) => prev || searchValue);
       } else if (onlyDigits && searchValue.length === 8) {
-        payload.dni = payload.dni || searchValue;
-        setDni((prev) => prev || searchValue);
+        const validAsDoc = validateDocument(docType, searchValueTrim);
+        if (validAsDoc) {
+          payload.document = payload.document || searchValueTrim;
+          payload.doc_type = payload.doc_type || docType;
+          if (docType === "dni") payload.dni = payload.dni || searchValueTrim;
+          setDocument((prev) => prev || searchValueTrim);
+        } else {
+          payload.dni = payload.dni || searchValueTrim;
+        }
       } else if (onlyDigits && searchValue.length >= 7) {
         payload.phone = payload.phone || searchValue;
         setPhone((prev) => prev || searchValue);
@@ -214,7 +243,7 @@ export default function CreateReservationButton() {
         payload.code = searchValue;
       }
     }
-    if (!payload.ticket_id && !payload.dni && !payload.email && !payload.phone && !payload.code) {
+    if (!payload.ticket_id && !payload.document && !payload.dni && !payload.email && !payload.phone && !payload.code) {
       setTicketLookupError("Ingresa ticket_id o DNI/Email/Teléfono/Código");
       return;
     }
@@ -235,7 +264,10 @@ export default function CreateReservationButton() {
       setFullName(t.full_name || "");
       setEmail(t.email || "");
       setPhone(t.phone || "");
-      setDni(t.dni || "");
+      const ticketDocType = DOCUMENT_TYPES.some((opt) => opt.value === t.doc_type) ? (t.doc_type as DocumentType) : docType;
+      const ticketDocument = t.document || t.dni || "";
+      if (ticketDocument) setDocument(ticketDocument);
+      setDocType(ticketDocType);
       if (t.event_id && t.event_id !== eventId) {
         setEventId(t.event_id);
       }
@@ -250,6 +282,8 @@ export default function CreateReservationButton() {
   const handleSubmit = async () => {
     setError(null);
     setSuccess(null);
+    const docClean = document.trim();
+    const hasValidDoc = validateDocument(docType, docClean);
     if (!tableId) {
       setError("Selecciona una mesa");
       return;
@@ -262,8 +296,12 @@ export default function CreateReservationButton() {
       setError("Ingresa el nombre completo");
       return;
     }
-    if (mode === "existing_ticket" && !ticketId && !dni && !email && !phone && !searchValue) {
-      setError("Ingresa ticket_id o DNI/Email/Teléfono/Código para buscar el ticket");
+    if (mode === "new_customer" && !hasValidDoc) {
+      setError("Documento inválido");
+      return;
+    }
+    if (mode === "existing_ticket" && !ticketId && !hasValidDoc && !email && !phone && !searchValue) {
+      setError("Ingresa ticket_id o Documento/Email/Teléfono/Código para buscar el ticket");
       return;
     }
 
@@ -283,16 +321,22 @@ export default function CreateReservationButton() {
           codes: parsedCodes,
           codes_count: autoCodes ? undefined : 0,
           created_by_staff_id: createdByStaffId || null,
+          doc_type: docType,
+          document: hasValidDoc ? docClean : undefined,
+          dni: docType === "dni" && hasValidDoc ? docClean : undefined,
           ...(mode === "existing_ticket"
             ? {
                 ticket_id: ticketId || undefined,
-                dni: dni || undefined,
                 email: email || undefined,
                 phone: phone || undefined,
                 code: searchValue || undefined,
                 full_name: fullName || undefined,
               }
-            : { full_name: fullName, email: email || undefined, phone: phone || undefined, dni: dni || undefined }),
+            : {
+                full_name: fullName,
+                email: email || undefined,
+                phone: phone || undefined,
+              }),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -302,13 +346,13 @@ export default function CreateReservationButton() {
         return;
       }
       setSuccess("Reserva creada");
-       if (data?.emailSent) {
-         setEmailInfo("Correo enviado al cliente con su QR y códigos.");
-       } else if (status === "approved") {
-         setEmailInfo("Reserva aprobada. Si el cliente tiene email, se intentó enviar notificación.");
-       } else {
-         setEmailInfo(null);
-       }
+      if (data?.emailSent) {
+        setEmailInfo("Correo enviado al cliente con su QR y códigos.");
+      } else if (status === "approved") {
+        setEmailInfo("Reserva aprobada. Si el cliente tiene email, se intentó enviar notificación.");
+      } else {
+        setEmailInfo(null);
+      }
       setTimeout(() => {
         window.location.reload();
       }, 600);
@@ -422,12 +466,12 @@ export default function CreateReservationButton() {
 
                 <SectionTitle title="Datos del cliente" />
                 {mode === "existing_ticket" && (
-                  <div className="grid gap-3 md:grid-cols-[1.2fr,0.8fr] items-end">
+                  <div className="grid items-end gap-3 md:grid-cols-[1.2fr,0.8fr]">
                     <FieldInput
-                      label="DNI / Código / Email / Teléfono / UUID"
+                      label="Documento (DNI/CE/...) / Código / Email / Teléfono / UUID"
                       value={searchValue}
                       onChange={(v) => setSearchValue(v)}
-                      placeholder="Ingresa primero el DNI si lo tienes"
+                      placeholder="Ingresa primero el documento si lo tienes"
                     />
                     <button
                       type="button"
@@ -439,33 +483,41 @@ export default function CreateReservationButton() {
                     </button>
                   </div>
                 )}
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <FieldSelect
+                    label="Tipo de documento"
+                    value={docType}
+                    onChange={(v) => setDocType((v as DocumentType) || "dni")}
+                    options={DOCUMENT_TYPES}
+                  />
                   <FieldInput
-                    label="DNI"
-                    value={dni}
+                    label="Nro. documento"
+                    value={document}
                     onChange={(v) => {
-                      setDni(v);
-                      if (mode === "new_customer" && v.length === 8) lookupPerson(v);
+                      setDocument(v);
+                      if (mode === "new_customer" && validateDocument(docType, v)) lookupPerson(v);
                     }}
-                    onBlur={() => mode === "new_customer" && dni.length === 8 && lookupPerson(dni)}
-                    inputMode="numeric"
-                    maxLength={8}
-                    placeholder="00000000"
+                    onBlur={() => mode === "new_customer" && validateDocument(docType, document) && lookupPerson(document)}
+                    inputMode={docInputMode}
+                    maxLength={docMaxLength}
+                    placeholder={docPlaceholder}
                     required={mode === "new_customer"}
                   />
-                  <FieldInput
-                    label="Nombre completo"
-                    value={fullName}
-                    onChange={setFullName}
-                    required={mode === "new_customer"}
-                    placeholder="Nombre y apellidos"
-                  />
+                  <div className="md:col-span-2">
+                    <FieldInput
+                      label="Nombre completo"
+                      value={fullName}
+                      onChange={setFullName}
+                      required={mode === "new_customer"}
+                      placeholder="Nombre y apellidos"
+                    />
+                  </div>
                   <FieldInput label="Email" value={email} onChange={setEmail} placeholder="cliente@correo.com" />
                   <FieldInput label="Teléfono" value={phone} onChange={setPhone} placeholder="+51 999 999 999" />
                 </div>
                 {(ticketLookupError || personLoading) && (
                   <p className="text-sm font-semibold text-white/70">
-                    {ticketLookupError ? ticketLookupError : "Buscando datos por DNI..."}
+                    {ticketLookupError ? ticketLookupError : "Buscando datos por documento..."}
                   </p>
                 )}
 
@@ -531,6 +583,10 @@ export default function CreateReservationButton() {
                 ) : (
                   <SummaryItem label="Cliente" value={fullName || "—"} />
                 )}
+                <SummaryItem
+                  label="Documento"
+                  value={docIsValid ? `${docTypeLabel} • ${docCleanValue}` : "—"}
+                />
                 <SummaryItem label="Códigos" value={parsedCodes.length > 0 ? parsedCodes.join(", ") : autoCodes ? "Auto" : "0 extra"} />
                 {notes && <SummaryItem label="Notas" value={notes} />}
                 <div className="pt-2">
