@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
   const promoter_id = typeof body?.promoter_id === "string" && body.promoter_id ? body.promoter_id : null;
   const birthdateStr = typeof body?.birthdate === "string" ? body.birthdate : "";
   const birthdate = birthdateStr ? new Date(birthdateStr) : null;
+  const hasBirthdate = Boolean(birthdateStr);
 
   if (!codeValue) return NextResponse.json({ success: false, error: "code is required" }, { status: 400 });
   if (!validateDocument(docType, document)) {
@@ -43,10 +44,10 @@ export async function POST(req: NextRequest) {
   }
   if (!first_name || !last_name)
     return NextResponse.json({ success: false, error: "nombre y apellido son requeridos" }, { status: 400 });
-  if (!birthdate || Number.isNaN(birthdate.getTime())) {
-    return NextResponse.json({ success: false, error: "birthdate is required" }, { status: 400 });
+  if (hasBirthdate && Number.isNaN(birthdate!.getTime())) {
+    return NextResponse.json({ success: false, error: "birthdate inválida" }, { status: 400 });
   }
-  if (!isAdult(birthdate)) {
+  if (hasBirthdate && !isAdult(birthdate!)) {
     return NextResponse.json({ success: false, error: "Solo mayores de 18" }, { status: 403 });
   }
 
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
     last_name,
     email: email || null,
     phone: phone || null,
-    birthdate: birthdate.toISOString().slice(0, 10),
+    birthdate: hasBirthdate && birthdate ? birthdate.toISOString().slice(0, 10) : null,
   };
 
   // Buscamos primero por document/dni para no depender de un índice único en "document"
