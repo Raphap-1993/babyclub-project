@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import TicketActions from "./components/TicketActions";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
 
@@ -33,23 +33,17 @@ export default function TicketsClient({
   const [toDate, setToDate] = useState(to);
   const [promoterId, setPromoterId] = useState(promoter_id);
 
-  // Sincroniza el formulario cuando cambian los filtros por navegación
-  useEffect(() => {
-    setFromDate(from);
-    setToDate(to);
-    setPromoterId(promoter_id);
-  }, [from, to, promoter_id]);
-
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const currentPage = Math.min(page, totalPages);
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
+      <div className="mx-auto w-full max-w-6xl">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Tickets / QR</p>
           <h1 className="text-3xl font-semibold">Listado de tickets</h1>
-          <p className="text-sm text-white/60">Filtra por fecha o busca por DNI / nombre / email.</p>
+          <p className="text-sm text-white/60">Filtra por fecha, busca por datos de contacto o acota por promotor.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -62,7 +56,7 @@ export default function TicketsClient({
       </div>
 
       <form
-        className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:grid-cols-6"
+        className="mb-6 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] md:grid-cols-2 lg:grid-cols-5"
         method="get"
         action="/admin/tickets"
       >
@@ -206,6 +200,7 @@ export default function TicketsClient({
         filters={{ from, to, q, promoter_id: promoterId }}
         isMobile
       />
+      </div>
     </main>
   );
 }
