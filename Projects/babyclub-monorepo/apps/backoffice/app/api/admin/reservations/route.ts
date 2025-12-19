@@ -170,7 +170,6 @@ export async function POST(req: NextRequest) {
             null;
           const resolvedDocType = docSearchValid ? docTypeValue : ticketDocType;
           const resolvedDocument = docSearchValid ? documentValue : ticketDocument || "";
-          const resolvedDni = resolvedDocType === "dni" ? resolvedDocument : "";
           const initialCodes = new Set<string>(providedCodes);
           const toGenerate = Math.max((table.ticket_count || 1) - initialCodes.size, codes_count - initialCodes.size);
           const autoCodes =
@@ -194,7 +193,6 @@ export async function POST(req: NextRequest) {
               phone: contactPhone,
               doc_type: resolvedDocType,
               document: resolvedDocument || null,
-              dni: resolvedDni || null,
               voucher_url: voucher_url || null,
               status,
               codes,
@@ -228,7 +226,7 @@ export async function POST(req: NextRequest) {
     const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
     const docType = bodyDocType;
     const document = bodyDocument;
-    const dni = docType === "dni" ? document : "";
+    const dniForTicket = docType === "dni" ? document : null;
     const ticketCount = Math.max(table.ticket_count || 1, 1);
     const codes_count =
       typeof body?.codes_count === "number" && Number.isFinite(body.codes_count) && body.codes_count >= 0
@@ -251,7 +249,7 @@ export async function POST(req: NextRequest) {
       fullName: full_name,
       email: email || null,
       phone: phone || null,
-      dni: dni || null,
+      dni: dniForTicket || null,
       docType,
       document,
       reuseCodes: providedCodes,
@@ -278,7 +276,6 @@ export async function POST(req: NextRequest) {
         full_name,
         doc_type: docType,
         document,
-        dni: dni || null,
         email: email || null,
         phone: phone || null,
         voucher_url: voucher_url || null,

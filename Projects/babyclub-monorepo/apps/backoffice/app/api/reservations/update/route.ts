@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,doc_type,document,dni,codes,event_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,event:events(id,name,starts_at,location))"
+      "id,full_name,email,phone,doc_type,document,codes,event_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,event:events(id,name,starts_at,location))"
     )
     .eq("id", id)
     .maybeSingle();
