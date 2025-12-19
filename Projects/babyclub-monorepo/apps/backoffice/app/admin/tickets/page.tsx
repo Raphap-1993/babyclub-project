@@ -34,6 +34,18 @@ async function getTickets(params: {
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
 
+  const promoterCodeIds: string[] = [];
+  if (params.promoter_id) {
+    const { data: promoterCodes } = await supabase
+      .from("codes")
+      .select("id")
+      .eq("promoter_id", params.promoter_id)
+      .limit(5000);
+    promoterCodes?.forEach((c: any) => {
+      if (c?.id) promoterCodeIds.push(c.id);
+    });
+  }
+
   let query = supabase
     .from("tickets")
     .select(
@@ -60,7 +72,11 @@ async function getTickets(params: {
     }
   }
   if (params.promoter_id) {
-    query = query.or(`promoter_id.eq.${params.promoter_id},code.promoter_id.eq.${params.promoter_id}`);
+    const parts = [`promoter_id.eq.${params.promoter_id}`];
+    if (promoterCodeIds.length > 0) {
+      parts.push(`code_id.in.(${promoterCodeIds.join(",")})`);
+    }
+    query = query.or(parts.join(","));
   }
 
   const { data, error, count } = await query;
@@ -119,7 +135,10 @@ async function getTickets(params: {
     email: t.email ?? null,
     phone: t.phone ?? null,
     event_name: t.event_id ? eventMap.get(t.event_id) ?? null : null,
-    code_value: t.code_id ? codeMap.get(t.code_id) ?? null : null,
+    code_value: (() => {
+      const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+      return codeRel?.code || (t.code_id ? codeMap.get(t.code_id) ?? null : null);
+    })(),
     promoter_name: (() => {
       const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
       const promoterId = t.promoter_id || codeRel?.promoter_id || null;

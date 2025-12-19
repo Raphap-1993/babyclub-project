@@ -111,14 +111,13 @@ export default function TicketsClient({
         <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
           <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
             <tr>
-              <th className="w-[16%] px-4 py-3 text-left">Fecha</th>
-              <th className="w-[16%] px-4 py-3 text-left">Evento</th>
-              <th className="w-[12%] px-4 py-3 text-left">DNI</th>
-              <th className="w-[18%] px-4 py-3 text-left">Nombre</th>
-              <th className="w-[16%] px-4 py-3 text-left">Email</th>
+              <th className="w-[18%] px-4 py-3 text-left">Evento</th>
+              <th className="w-[14%] px-4 py-3 text-left">DNI</th>
+              <th className="w-[20%] px-4 py-3 text-left">Nombre</th>
+              <th className="w-[18%] px-4 py-3 text-left">Email</th>
               <th className="w-[12%] px-4 py-3 text-left">Teléfono</th>
               <th className="w-[10%] px-4 py-3 text-left">Código</th>
-              <th className="w-[10%] px-4 py-3 text-left">Promotor</th>
+              <th className="w-[12%] px-4 py-3 text-left">Promotor</th>
               <th className="w-[10%] px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
@@ -132,9 +131,6 @@ export default function TicketsClient({
             )}
             {initialTickets.map((t) => (
               <tr key={t.id} className="hover:bg-white/[0.02]">
-                <td className="px-4 py-3 text-white/80">
-                  {new Date(t.created_at).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" })}
-                </td>
                 <td className="px-4 py-3 font-semibold text-white">{t.event_name || "—"}</td>
                 <td className="px-4 py-3 font-mono text-white/90">{t.dni || "—"}</td>
                 <td className="px-4 py-3 text-white/90">{t.full_name || "—"}</td>
@@ -175,9 +171,6 @@ export default function TicketsClient({
                 <p className="text-base font-semibold text-white">{t.full_name || "Sin nombre"}</p>
                 <p className="text-sm font-mono text-white/80">{t.dni || "—"}</p>
               </div>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-[12px] font-semibold text-white">
-                {new Date(t.created_at).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit" })}
-              </span>
             </div>
             <div className="mt-3 space-y-1 text-sm text-white/80">
               <Info label="Evento" value={t.event_name || "—"} />
