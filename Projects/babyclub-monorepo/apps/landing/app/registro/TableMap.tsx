@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { useSearchParams } from "next/navigation";
 
-export const MAP_VIEWBOX = { width: 1080, height: 1659 } as const;
+type ViewBoxSize = { width: number; height: number };
+
+export const MAP_VIEWBOX: ViewBoxSize = { width: 1080, height: 1659 };
 
 export type MapSlot = {
   id: string;
@@ -44,7 +46,7 @@ export default function TableMap({
 }: TableMapProps) {
   const searchParams = useSearchParams();
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [viewBoxSize, setViewBoxSize] = useState(MAP_VIEWBOX);
+  const [viewBoxSize, setViewBoxSize] = useState<ViewBoxSize>(MAP_VIEWBOX);
   const debugEnabled = searchParams?.get("debugMap") === "1" || process.env.NEXT_PUBLIC_MAP_DEBUG === "true";
 
   useEffect(() => {
