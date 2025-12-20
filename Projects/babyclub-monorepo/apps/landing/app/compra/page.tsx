@@ -579,6 +579,30 @@ export default function CompraPage() {
 
         {mode === "ticket" && (
           <form onSubmit={onSubmitTicket} className="space-y-4 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
+                <input
+                  type="radio"
+                  name="ticketQty"
+                  checked={ticketQuantity === 1}
+                  onChange={() => setTicketQuantity(1)}
+                  className="h-4 w-4 accent-[#e91e63]"
+                />
+                <span>1 QR ALL NIGHT – S/ {ticketPriceSingle}</span>
+                <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
+              </label>
+              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
+                <input
+                  type="radio"
+                  name="ticketQty"
+                  checked={ticketQuantity === 2}
+                  onChange={() => setTicketQuantity(2)}
+                  className="h-4 w-4 accent-[#e91e63]"
+                />
+                <span>2 QR ALL NIGHT – S/ {ticketPriceDouble}</span>
+                <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
+              </label>
+            </div>
             {ticketEventOptions.length > 0 && (
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-white">Evento</label>
@@ -648,30 +672,6 @@ export default function CompraPage() {
             <div className="grid gap-3 md:grid-cols-[1.3fr,0.7fr]">
               <Field label="Email" value={ticketForm.email} onChange={(v) => setTicketForm((p) => ({ ...p, email: v }))} type="email" />
               <Field label="Teléfono" value={ticketForm.phone} onChange={(v) => setTicketForm((p) => ({ ...p, phone: v }))} placeholder="+51 999 999 999" />
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
-                <input
-                  type="radio"
-                  name="ticketQty"
-                  checked={ticketQuantity === 1}
-                  onChange={() => setTicketQuantity(1)}
-                  className="h-4 w-4 accent-[#e91e63]"
-                />
-                <span>1 QR ALL NIGHT – S/ {ticketPriceSingle}</span>
-                <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
-              </label>
-              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
-                <input
-                  type="radio"
-                  name="ticketQty"
-                  checked={ticketQuantity === 2}
-                  onChange={() => setTicketQuantity(2)}
-                  className="h-4 w-4 accent-[#e91e63]"
-                />
-                <span>2 QR ALL NIGHT – S/ {ticketPriceDouble}</span>
-                <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
-              </label>
             </div>
             {ticketError && <p className="text-xs font-semibold text-[#ff9a9a]">{ticketError}</p>}
             {ticketReservationId && (
