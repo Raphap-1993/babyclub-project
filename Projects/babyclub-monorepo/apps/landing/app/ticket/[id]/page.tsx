@@ -165,7 +165,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
           </div>
           <Link
             href={`/registro?code=${encodeURIComponent(ticket.code.code)}`}
-            className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+            className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-sm font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
           >
             Volver al registro
           </Link>

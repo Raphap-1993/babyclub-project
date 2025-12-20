@@ -516,7 +516,7 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => createTicketAndRedirect()}
-                className="w-full rounded-xl bg-white px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-black transition hover:scale-[1.01]"
+                className="w-full rounded-xl bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)]"
               >
                 {existingTicketId ? "Ver mi QR" : "Generar QR"}
               </button>
@@ -540,7 +540,7 @@ function RegistroContent() {
                       setStep(2);
                     }
                   }}
-                  className="relative w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:scale-[1.01]"
+                  className="relative w-full rounded-2xl bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)]"
                 >
                   {tables.length > 0 ? "Reservar mesa (opcional)" : "No hay mesas disponibles (generar QR)"}
                 </button>
@@ -636,8 +636,8 @@ function RegistroContent() {
                                 reserved
                                   ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
                                   : isActive
-                                    ? "border-[#e91e63] bg-[#e91e63] text-white shadow-[0_8px_25px_rgba(233,30,99,0.35)]"
-                                    : "border-white/15 bg-white/5 text-white hover:border-white/40"
+                                    ? "border-[#b5003c] bg-[#b5003c] text-white shadow-[0_8px_25px_rgba(181,0,60,0.35)]"
+                                    : "border-[#b5003c]/40 bg-white/5 text-[#b5003c] hover:border-[#e91e63]"
                               }`}
                             >
                               {t.name}
@@ -666,8 +666,8 @@ function RegistroContent() {
                               onClick={() => setSelectedProduct(p.id)}
                               className={`text-left rounded-2xl border px-4 py-3 transition ${
                                 active
-                                  ? "border-[#e91e63] bg-[#e91e63]/10 shadow-[0_10px_30px_rgba(233,30,99,0.25)]"
-                                  : "border-white/10 bg-black/30 hover:border-white/30"
+                                  ? "border-[#b5003c] bg-[#b5003c]/10 shadow-[0_10px_30px_rgba(181,0,60,0.25)]"
+                                  : "border-[#b5003c]/20 bg-black/30 hover:border-[#e91e63]"
                               }`}
                             >
                               <div className="flex items-center justify-between gap-2">
@@ -782,7 +782,7 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="w-1/3 rounded-xl border border-white/20 px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white transition hover:border-white"
+                className="w-1/3 rounded-xl border border-[#b5003c]/50 px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-[#b5003c] transition hover:border-[#e91e63]"
               >
                 Atrás
               </button>
@@ -814,7 +814,7 @@ function RegistroContent() {
                   setModalError(null);
                   setCopyFeedback("idle");
                 }}
-                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70 transition hover:border-white"
+                className="rounded-full border border-[#b5003c]/50 px-3 py-1 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
               >
                 Editar datos
               </button>
@@ -853,10 +853,10 @@ function RegistroContent() {
                 <button
                   type="button"
                   onClick={copyYapeNumber}
-                  className="flex items-center gap-2 rounded-full border border-white/20 px-3 py-2 text-xs font-semibold text-white transition hover:border-white"
+                  className="flex items-center gap-2 rounded-full border border-[#b5003c]/50 px-3 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
                 >
                   {copyFeedback === "copied" ? "Copiado" : copyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
-                  <span className="text-white/50">(para abrir Yape)</span>
+                  <span className="text-[#b5003c]/60">(para abrir Yape)</span>
                 </button>
               </div>
               {totalLabel && (
@@ -904,7 +904,7 @@ function RegistroContent() {
                   setModalError(null);
                   setCopyFeedback("idle");
                 }}
-                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white"
+                className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
               >
                 Volver al formulario
               </button>
@@ -912,7 +912,7 @@ function RegistroContent() {
                 type="button"
                 onClick={submitReservation}
                 disabled={reservationLoading || uploadingVoucher}
-                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)] disabled:opacity-60"
               >
                 {reservationLoading ? "Enviando..." : "Enviar reserva"}
               </button>
@@ -939,7 +939,7 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => setShowReservationSent(false)}
-                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white"
+                className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
               >
                 Entendido
               </button>
@@ -1330,7 +1330,7 @@ function BirthdateField({ value, onChange, max }: { value: string; onChange: (v:
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-left text-base text-white transition hover:border-white/30 focus:border-white focus:outline-none"
+        className="flex w-full items-center justify-between rounded-xl border border-[#b5003c]/40 bg-[#0f0f0f] px-4 py-3 text-left text-base text-white transition hover:border-[#e91e63] focus:border-[#e91e63] focus:outline-none"
       >
         <span className={value ? "text-white" : "text-white/40"}>{displayValue}</span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-white/60">

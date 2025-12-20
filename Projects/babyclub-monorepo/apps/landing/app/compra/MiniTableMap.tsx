@@ -53,8 +53,8 @@ export default function MiniTableMap({
                 isReserved
                   ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
                   : selectedId === t.id
-                  ? "border-[#e91e63] bg-[#e91e63] text-white shadow-[0_10px_25px_rgba(233,30,99,0.3)]"
-                  : "border-white/50 bg-white/10 text-white"
+                  ? "border-[#b5003c] bg-[#b5003c] text-white shadow-[0_10px_25px_rgba(181,0,60,0.3)]"
+                  : "border-[#b5003c]/40 bg-white/10 text-[#b5003c]"
               }`}
               style={{
                 left: `${posX}%`,
