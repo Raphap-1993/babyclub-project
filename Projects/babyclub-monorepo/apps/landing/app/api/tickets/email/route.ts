@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,qr_token,full_name,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location)"
+      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location)"
     )
     .eq("id", ticketId)
     .maybeSingle();
@@ -43,6 +43,10 @@ export async function POST(req: NextRequest) {
 
   const eventRel = Array.isArray((data as any).event) ? (data as any).event?.[0] : (data as any).event;
   const codeRel = Array.isArray((data as any).code) ? (data as any).code?.[0] : (data as any).code;
+  const docValue = (data as any).document || (data as any).dni || "";
+  const docTypeRaw = (data as any).doc_type || ((data as any).dni ? "dni" : "");
+  const docTypeLabel = docTypeRaw ? String(docTypeRaw).toUpperCase() : "";
+  const documentLabel = docValue ? `${docTypeLabel ? `${docTypeLabel} ` : ""}${docValue}`.trim() : "—";
   const dateLabel = eventRel?.starts_at ? formatLimaFromDb(eventRel.starts_at) : "";
   const eventTimeLabel = (() => {
     if (!eventRel?.starts_at) return null;
@@ -54,8 +58,8 @@ export async function POST(req: NextRequest) {
     }
   })();
   const ticketUrl = `${appUrl}/ticket/${ticketId}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=png&data=${encodeURIComponent(data.qr_token)}`;
-  const qrImg = `https://quickchart.io/qr?size=240&format=png&text=${encodeURIComponent(data.qr_token)}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(data.qr_token)}`;
+  const qrImg = qrUrl;
   const isFreeCode = (codeRel?.type || "").toLowerCase() === "free";
   const isPromoterCode = Boolean(codeRel?.promoter_id);
   const expiresLabel = (() => {
@@ -139,7 +143,7 @@ export async function POST(req: NextRequest) {
                             <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#bcbcbc;">Datos</p>
                             <p style="margin:0;font-size:14px;color:#f5f5f5;line-height:1.6;">
                               <strong>Nombre:</strong> ${data.full_name || "-"}<br/>
-                              <strong>DNI:</strong> ${data.dni || "-"}<br/>
+                              <strong>Documento:</strong> ${documentLabel}<br/>
                               <strong>Código:</strong> ${codeRel?.code || "-"}
                               ${data.phone ? `<br/><strong>Teléfono:</strong> ${data.phone}` : ""}
                             </p>
@@ -177,7 +181,7 @@ export async function POST(req: NextRequest) {
 
   const textWarnings = warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
   const textInfo = `\n\nInfo:\n- ${infoLines.join("\n- ")}`;
-  const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDNI: ${data.dni || "-"}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}${textInfo}`;
+  const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDocumento: ${documentLabel}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}${textInfo}`;
 
   try {
     await sendEmail({

@@ -24,6 +24,7 @@ const MENU = {
   REPORTES: [
     { label: "Asistencia", href: "/admin/asistencia" },
     { label: "Ingresos", href: "/admin/ingresos" },
+    { label: "Logs", href: "/admin/logs" },
     { label: "Promotores", href: "/admin/reportes/promotores" },
     { label: "Mesas", href: "/admin/reportes/mesas" },
   ],

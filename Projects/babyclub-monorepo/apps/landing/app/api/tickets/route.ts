@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
   const birthdate = birthdateStr ? new Date(birthdateStr) : null;
   const hasBirthdate = Boolean(birthdateStr);
 
-  if (!codeValue) return NextResponse.json({ success: false, error: "code is required" }, { status: 400 });
   if (!validateDocument(docType, document)) {
     return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
   }
@@ -51,10 +50,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Solo mayores de 18" }, { status: 403 });
   }
 
-  // Validar código
+  if (!codeValue) return NextResponse.json({ success: false, error: "code is required" }, { status: 400 });
+
   const { data: codeRow, error: codeError } = await supabase
     .from("codes")
-    .select("id,event_id,promoter_id,is_active,max_uses,uses,expires_at")
+    .select("id,code,event_id,promoter_id,is_active,max_uses,uses,expires_at")
     .eq("code", codeValue)
     .maybeSingle();
 
@@ -74,6 +74,8 @@ export async function POST(req: NextRequest) {
   if (typeof codeRow.uses === "number" && typeof codeRow.max_uses === "number" && codeRow.uses >= codeRow.max_uses) {
     return NextResponse.json({ success: false, error: "Código sin cupos" }, { status: 400 });
   }
+
+  const eventId = codeRow.event_id || "";
 
   // Persona
   const personPayload = {
@@ -126,7 +128,7 @@ export async function POST(req: NextRequest) {
 
     person_id = createdPerson?.id;
   }
-  const finalPromoterId = promoter_id || codeRow.promoter_id || null;
+  const finalPromoterId = promoter_id || codeRow?.promoter_id || null;
   const full_name = `${first_name} ${last_name}`.trim();
   const qr_token = crypto.randomUUID();
 
@@ -134,7 +136,7 @@ export async function POST(req: NextRequest) {
   const { data: existingTicket, error: existingError } = await supabase
     .from("tickets")
     .select("id,qr_token")
-    .eq("event_id", codeRow.event_id)
+    .eq("event_id", eventId)
     .eq("person_id", person_id)
     .limit(1)
     .maybeSingle();
@@ -155,8 +157,8 @@ export async function POST(req: NextRequest) {
   const { data: ticketData, error: ticketError } = await supabase
     .from("tickets")
     .insert({
-      event_id: codeRow.event_id,
-      code_id: codeRow.id,
+      event_id: eventId,
+      code_id: codeRow?.id || null,
       person_id,
       promoter_id: finalPromoterId,
       qr_token,
@@ -175,12 +177,20 @@ export async function POST(req: NextRequest) {
   }
 
   // incrementar uses del código
-  await supabase
-    .from("codes")
-    .update({ uses: (codeRow.uses || 0) + 1 })
-    .eq("id", codeRow.id);
+  if (codeRow?.id) {
+    await supabase
+      .from("codes")
+      .update({ uses: (codeRow.uses || 0) + 1 })
+      .eq("id", codeRow.id);
+  }
 
-  return NextResponse.json({ success: true, ticketId: ticketData?.id, qr: qr_token });
+  return NextResponse.json({
+    success: true,
+    ticketId: ticketData?.id,
+    qr: qr_token,
+    code: codeRow?.code || null,
+    eventId,
+  });
 }
 
 function isAdult(birthdate: Date) {

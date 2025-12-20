@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   const { data: codeRow, error: codeError } = await supabase
     .from("codes")
-    .select("event_id")
+    .select("id,event_id,max_uses")
     .eq("code", code)
     .maybeSingle();
 
@@ -29,22 +29,25 @@ export async function GET(req: NextRequest) {
   }
 
   const eventId = codeRow.event_id;
-  const { data: eventRow, error: eventError } = await supabase
-    .from("events")
-    .select("capacity")
-    .eq("id", eventId)
-    .maybeSingle();
+  let capacity = typeof codeRow.max_uses === "number" ? codeRow.max_uses : 0;
+  if (!capacity && eventId) {
+    const { data: eventRow, error: eventError } = await supabase
+      .from("events")
+      .select("capacity")
+      .eq("id", eventId)
+      .maybeSingle();
 
-  if (eventError || !eventRow) {
-    return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
+    if (eventError || !eventRow) {
+      return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
+    }
+
+    capacity = Number(eventRow.capacity) || 0;
   }
-
-  const capacity = Number(eventRow.capacity) || 0;
 
   const { count: used, error: ticketsError } = await supabase
     .from("tickets")
     .select("id", { count: "exact", head: true })
-    .eq("event_id", eventId);
+    .eq("code_id", codeRow.id);
 
   if (ticketsError) {
     return NextResponse.json({ success: false, error: ticketsError.message }, { status: 500 });

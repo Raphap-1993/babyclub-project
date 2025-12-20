@@ -12,6 +12,7 @@ type ScanResult =
   | "invalid"
   | "not_found"
   | "exhausted";
+type MatchType = "code" | "ticket" | "none";
 
 export async function POST(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -52,13 +53,16 @@ export async function POST(req: NextRequest) {
   }
 
   let result: ScanResult = "not_found";
-  let updatedUses = null as number | null;
   let code_id: string | null = null;
   let ticket_id: string | null = null;
   let person: { full_name: string | null; dni: string | null; email: string | null; phone: string | null } | null = null;
   let ticket_used = false;
+  let match_type: MatchType = "none";
+  let reason: string | null = null;
+  let other_event: { id: string; name: string | null } | null = null;
 
   if (codeRow) {
+    match_type = "code";
     code_id = codeRow.id;
     const expired = codeRow.expires_at ? new Date(codeRow.expires_at) < now : false;
     if (!codeRow.is_active) {
@@ -68,16 +72,7 @@ export async function POST(req: NextRequest) {
     } else if (codeRow.max_uses !== null && codeRow.max_uses !== undefined && (codeRow.uses ?? 0) >= codeRow.max_uses) {
       result = "exhausted";
     } else {
-      const nextUses = (codeRow.uses ?? 0) + 1;
-      const { error: updateErr } = await supabase
-        .from("codes")
-        .update({ uses: nextUses })
-        .eq("id", codeRow.id);
-      if (updateErr) {
-        return NextResponse.json({ success: false, error: updateErr.message }, { status: 400 });
-      }
-      updatedUses = nextUses;
-      result = codeRow.uses && codeRow.uses > 0 ? "duplicate" : "valid";
+      result = "valid";
     }
 
     // Intentar buscar datos de ticket asociado al code
@@ -113,6 +108,7 @@ export async function POST(req: NextRequest) {
       .eq("event_id", event_id)
       .maybeSingle();
     if (ticketRow) {
+      match_type = "ticket";
       ticket_id = ticketRow.id;
       code_id = ticketRow.code_id ?? null;
       ticket_used = Boolean((ticketRow as any).used);
@@ -123,6 +119,34 @@ export async function POST(req: NextRequest) {
         email: (ticketRow as any).email ?? null,
         phone: (ticketRow as any).phone ?? null,
       };
+    }
+  }
+
+  if (!codeRow && match_type === "none") {
+    const { data: otherCode } = await supabase
+      .from("codes")
+      .select("event_id,event:events(name)")
+      .eq("code", codeValue)
+      .neq("event_id", event_id)
+      .maybeSingle();
+    const { data: otherTicket } = await supabase
+      .from("tickets")
+      .select("event_id,event:events(name)")
+      .eq("qr_token", codeValue)
+      .neq("event_id", event_id)
+      .maybeSingle();
+    const otherSource: any = otherCode || otherTicket;
+    if (otherSource?.event_id) {
+      const eventRel = Array.isArray(otherSource.event) ? otherSource.event?.[0] : otherSource.event;
+      other_event = {
+        id: otherSource.event_id,
+        name: eventRel?.name ?? null,
+      };
+      result = "invalid";
+      reason = "event_mismatch";
+    } else {
+      result = "not_found";
+      reason = "not_found";
     }
   }
 
@@ -139,9 +163,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     result,
+    reason,
+    match_type,
+    other_event,
     code_id,
     ticket_id,
-    uses: updatedUses ?? codeRow?.uses ?? 0,
+    uses: codeRow?.uses ?? 0,
     max_uses: codeRow?.max_uses ?? null,
     expired_at: codeRow?.expires_at ?? null,
     person,

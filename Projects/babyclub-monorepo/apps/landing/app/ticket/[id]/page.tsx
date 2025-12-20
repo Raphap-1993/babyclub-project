@@ -11,6 +11,8 @@ type TicketView = {
   id: string;
   qr_token: string;
   full_name: string | null;
+  doc_type: string | null;
+  document: string | null;
   dni: string | null;
   email: string | null;
   phone: string | null;
@@ -32,7 +34,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,qr_token,full_name,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,location,starts_at),promoter:promoters(code,person:persons(first_name,last_name))"
+      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,location,starts_at),promoter:promoters(code,person:persons(first_name,last_name))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -52,6 +54,8 @@ async function getTicket(id: string): Promise<TicketView | null> {
     id: data.id as string,
     qr_token: data.qr_token as string,
     full_name: (data as any).full_name ?? null,
+    doc_type: (data as any).doc_type ?? ((data as any).document || (data as any).dni ? "dni" : null),
+    document: (data as any).document ?? (data as any).dni ?? null,
     dni: (data as any).dni ?? null,
     email: (data as any).email ?? null,
     phone: (data as any).phone ?? null,
@@ -139,6 +143,8 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   const extraCodes = await getReservationCodesFor(ticket);
   const codeType = (ticket.code.type || "").toLowerCase();
   const isPromoterCode = Boolean(ticket.code.promoter_id || ticket.promoter?.code);
+  const hasTableContext = Boolean(ticket.table_name || ticket.product_name);
+  const showAdditionalInfo = codeType === "general" || codeType === "free";
   const expiresAt = ticket.code.expires_at ? new Date(ticket.code.expires_at) : null;
   const expiresLabel = expiresAt ? formatLimaFromDb(expiresAt.toISOString()) : null;
   const eventParts = toLimaPartsFromDb(ticket.event.starts_at);
@@ -147,7 +153,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
     eventParts.ampm
   }`;
   const eventDateTime = formatLimaFromDb(ticket.event.starts_at);
-  const warnings = buildWarnings({ codeType, isPromoterCode, expiresLabel, eventTimeLabel });
+  const warnings = buildWarnings({ codeType, isPromoterCode, hasTableContext, expiresLabel, eventTimeLabel });
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-4 py-10 text-white">
@@ -170,6 +176,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
           promoterName={promoterName}
           extraCodes={extraCodes}
           warnings={warnings}
+          showAdditionalInfo={showAdditionalInfo}
           eventDateLabel={eventDateLabel}
           eventTimeLabel={eventTimeLabel}
           eventDateTime={eventDateTime}
@@ -185,6 +192,7 @@ function VerticalTicket({
   promoterName,
   extraCodes,
   warnings,
+  showAdditionalInfo,
   eventDateLabel,
   eventTimeLabel,
   eventDateTime,
@@ -193,11 +201,15 @@ function VerticalTicket({
   promoterName: string | null;
   extraCodes: string[];
   warnings: Array<{ title: string; body: string }>;
+  showAdditionalInfo: boolean;
   eventDateLabel: string;
   eventTimeLabel: string;
   eventDateTime: string;
 }) {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(ticket.qr_token)}`;
+  const docValue = ticket.document || ticket.dni || "—";
+  const docTypeLabel = (ticket.doc_type || (ticket.dni ? "dni" : "")).toUpperCase();
+  const documentLabel = docValue === "—" ? "—" : docTypeLabel ? `${docTypeLabel} · ${docValue}` : docValue;
 
   return (
     <div className="relative overflow-hidden rounded-[36px] border border-white/30 bg-[#0c0c0c] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.5)]">
@@ -233,7 +245,7 @@ function VerticalTicket({
           </div>
         )}
 
-        <AdditionalInfo />
+        {showAdditionalInfo && <AdditionalInfo />}
 
         <div className="rounded-2xl border border-white/20 bg-[#0a0a0a] p-4">
           <p className="text-sm font-semibold text-white/70">Evento</p>
@@ -244,7 +256,7 @@ function VerticalTicket({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Info label="Nombre" value={ticket.full_name || "—"} />
-          <Info label="DNI" value={ticket.dni || "—"} />
+          <Info label="Documento" value={documentLabel} />
           <Info label="Email" value={ticket.email || "—"} />
           <Info label="Teléfono" value={ticket.phone || "—"} />
           <Info label="Promotor" value={promoterName || "Sin promotor"} />
@@ -337,18 +349,20 @@ function Warnings({
 function buildWarnings({
   codeType,
   isPromoterCode,
+  hasTableContext,
   expiresLabel,
   eventTimeLabel,
 }: {
   codeType: string;
   isPromoterCode: boolean;
+  hasTableContext: boolean;
   expiresLabel: string | null;
   eventTimeLabel: string;
 }) {
   const items: { title: string; body: string }[] = [];
   if (codeType === "courtesy" || codeType === "promoter") {
     items.push({
-      title: "QR de mesa / promotor",
+      title: isPromoterCode || hasTableContext ? "QR de mesa / promotor" : "QR",
       body: "Este QR no tiene límite de hora de ingreso.",
     });
   } else {

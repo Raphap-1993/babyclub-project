@@ -30,11 +30,36 @@ type TableRow = {
   is_reserved?: boolean | null;
 };
 
+type EventOption = {
+  id: string;
+  name?: string | null;
+  starts_at?: string | null;
+  location?: string | null;
+  is_active?: boolean | null;
+};
+
 export default function CompraPage() {
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
-  const [form, setForm] = useState({ doc_type: "dni", document: "", full_name: "", email: "", phone: "", voucher_url: "" });
-  const [ticketForm, setTicketForm] = useState({ doc_type: "dni", document: "", full_name: "", email: "", phone: "" });
+  const [form, setForm] = useState({
+    doc_type: "dni",
+    document: "",
+    nombre: "",
+    apellido_paterno: "",
+    apellido_materno: "",
+    email: "",
+    phone: "",
+    voucher_url: "",
+  });
+  const [ticketForm, setTicketForm] = useState({
+    doc_type: "dni",
+    document: "",
+    nombre: "",
+    apellido_paterno: "",
+    apellido_materno: "",
+    email: "",
+    phone: "",
+  });
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [mode, setMode] = useState<"mesa" | "ticket">("mesa");
   const [uploading, setUploading] = useState(false);
@@ -44,18 +69,21 @@ export default function CompraPage() {
   const [error, setError] = useState<string | null>(null);
   const [ticketError, setTicketError] = useState<string | null>(null);
   const [successCodes, setSuccessCodes] = useState<string[] | null>(null);
-  const [ticketSuccessId, setTicketSuccessId] = useState<string | null>(null);
-  const [ticketSuccessIds, setTicketSuccessIds] = useState<string[]>([]);
+  const [ticketReservationId, setTicketReservationId] = useState<string | null>(null);
   const [layoutUrl, setLayoutUrl] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showTicketSummary, setShowTicketSummary] = useState(false);
+  const [showTicketConfirmation, setShowTicketConfirmation] = useState(false);
+  const [showReservationConfirmation, setShowReservationConfirmation] = useState(false);
+  const [mesaReservationId, setMesaReservationId] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [ticketModalError, setTicketModalError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
   const [ticketCopyFeedback, setTicketCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
-  const [justSubmitted, setJustSubmitted] = useState(false);
   const [reservationSubmitted, setReservationSubmitted] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [ticketEventId, setTicketEventId] = useState<string>("");
+  const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
   const [ticketVoucherUrl, setTicketVoucherUrl] = useState<string>("");
   const [ticketQuantity, setTicketQuantity] = useState<1 | 2>(1);
   const defaultCode = process.env.NEXT_PUBLIC_DEFAULT_CODE || "public";
@@ -71,16 +99,60 @@ export default function CompraPage() {
     return `S/ ${value.toLocaleString("es-PE")}`;
   };
 
+  const splitLastName = (lastName: string) => {
+    const parts = lastName.trim().split(/\s+/).filter(Boolean);
+    return {
+      apellidoPaterno: parts[0] || "",
+      apellidoMaterno: parts.slice(1).join(" "),
+    };
+  };
+
+  const buildFullName = (nombre: string, apellidoPaterno: string, apellidoMaterno: string) =>
+    [nombre, apellidoPaterno, apellidoMaterno].map((part) => part.trim()).filter(Boolean).join(" ");
+
   const resetTicketForm = () => {
-    setTicketForm({ doc_type: "dni", document: "", full_name: "", email: "", phone: "" });
+    setTicketForm({
+      doc_type: "dni",
+      document: "",
+      nombre: "",
+      apellido_paterno: "",
+      apellido_materno: "",
+      email: "",
+      phone: "",
+    });
     setTicketError(null);
-    setTicketSuccessId(null);
+    setTicketReservationId(null);
   };
 
   const resetMesaForm = () => {
-    setForm({ doc_type: "dni", document: "", full_name: "", email: "", phone: "", voucher_url: "" });
+    setForm({
+      doc_type: "dni",
+      document: "",
+      nombre: "",
+      apellido_paterno: "",
+      apellido_materno: "",
+      email: "",
+      phone: "",
+      voucher_url: "",
+    });
     setError(null);
     setSuccessCodes(null);
+    setMesaReservationId(null);
+  };
+
+  const clearTicketInputs = () => {
+    resetTicketForm();
+    setTicketVoucherUrl("");
+    setTicketModalError(null);
+    setTicketUploading(false);
+    setTicketQuantity(1);
+  };
+
+  const clearMesaInputs = () => {
+    resetMesaForm();
+    setReservationSubmitted(false);
+    setModalError(null);
+    setUploading(false);
   };
 
   useEffect(() => {
@@ -101,6 +173,19 @@ export default function CompraPage() {
       .then((res) => res.json())
       .then((data) => setLayoutUrl(data?.layout_url || null))
       .catch(() => null);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/events", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        const events = Array.isArray(data?.events) ? data.events : [];
+        setEventOptions(events);
+        if (events.length > 0) {
+          setTicketEventId((prev) => prev || events[0]?.id || "");
+        }
+      })
+      .catch(() => setEventOptions([]));
   }, []);
 
   useEffect(() => {
@@ -143,26 +228,47 @@ export default function CompraPage() {
     try {
       const res = await fetch(`/api/persons?document=${encodeURIComponent(document)}&doc_type=${docType}`);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.person) return;
-      const p = data.person;
-      const [apPat, ...rest] = (p.last_name || "").split(" ");
-      const apMat = rest.join(" ").trim();
-      const fullName = `${p.first_name || ""} ${apPat || ""} ${apMat || ""}`.trim();
+      let person = res.ok ? data?.person : null;
+      const fallbackEmail = person?.email || "";
+      const fallbackPhone = person?.phone || "";
+      const hasNames = Boolean(person?.first_name || person?.last_name);
+
+      if ((!person || !hasNames) && docType === "dni") {
+        const reniecRes = await fetch(`/api/reniec?dni=${encodeURIComponent(document)}`);
+        const reniecData = await reniecRes.json().catch(() => ({}));
+        if (reniecRes.ok) {
+          person = {
+            first_name: reniecData?.nombres || "",
+            last_name: `${reniecData?.apellidoPaterno || ""} ${reniecData?.apellidoMaterno || ""}`.trim(),
+            email: fallbackEmail,
+            phone: fallbackPhone,
+          };
+        }
+      }
+
+      if (!person) return;
+
+      const { apellidoPaterno, apellidoMaterno } = splitLastName(person.last_name || "");
+      const nombre = person.first_name || "";
       if (target === "ticket") {
         setTicketForm((prev) => ({
           ...prev,
-          full_name: prev.full_name || fullName,
-          email: prev.email || p.email || "",
-          phone: prev.phone || p.phone || "",
+          nombre: prev.nombre || nombre,
+          apellido_paterno: prev.apellido_paterno || apellidoPaterno,
+          apellido_materno: prev.apellido_materno || apellidoMaterno,
+          email: prev.email || person.email || "",
+          phone: prev.phone || person.phone || "",
         }));
       } else {
         setForm((prev) => ({
           ...prev,
           doc_type: prev.doc_type || docType,
           document: prev.document || document,
-          full_name: prev.full_name || fullName,
-          email: prev.email || p.email || "",
-          phone: prev.phone || p.phone || "",
+          nombre: prev.nombre || nombre,
+          apellido_paterno: prev.apellido_paterno || apellidoPaterno,
+          apellido_materno: prev.apellido_materno || apellidoMaterno,
+          email: prev.email || person.email || "",
+          phone: prev.phone || person.phone || "",
         }));
       }
     } catch (_err) {
@@ -170,9 +276,18 @@ export default function CompraPage() {
     }
   };
 
+  const ticketPriceSingle = 20;
+  const ticketPriceDouble = 35;
+
   // header text tweak
   const headerSubtitle = "Genera tu entrada o reserva tu mesa con voucher (Yape/Plin) y obtén los QR.";
-  const ticketPrice = ticketQuantity === 1 ? 20 : 35;
+  const ticketPrice = ticketQuantity === 1 ? ticketPriceSingle : ticketPriceDouble;
+  const ticketFullName = buildFullName(ticketForm.nombre, ticketForm.apellido_paterno, ticketForm.apellido_materno);
+  const mesaFullName = buildFullName(form.nombre, form.apellido_paterno, form.apellido_materno);
+  const ticketNameComplete = Boolean(
+    ticketForm.nombre.trim() && ticketForm.apellido_paterno.trim() && ticketForm.apellido_materno.trim()
+  );
+  const mesaNameComplete = Boolean(form.nombre.trim() && form.apellido_paterno.trim() && form.apellido_materno.trim());
 
   // sincronia de datos entre solo entrada y reserva
   useEffect(() => {
@@ -181,7 +296,9 @@ export default function CompraPage() {
         ...prev,
         doc_type: prev.doc_type || ticketForm.doc_type,
         document: prev.document || ticketForm.document,
-        full_name: prev.full_name || ticketForm.full_name,
+        nombre: prev.nombre || ticketForm.nombre,
+        apellido_paterno: prev.apellido_paterno || ticketForm.apellido_paterno,
+        apellido_materno: prev.apellido_materno || ticketForm.apellido_materno,
         email: prev.email || ticketForm.email,
         phone: prev.phone || ticketForm.phone,
       }));
@@ -190,7 +307,9 @@ export default function CompraPage() {
         ...prev,
         doc_type: prev.doc_type || form.doc_type,
         document: prev.document || form.document,
-        full_name: prev.full_name || form.full_name,
+        nombre: prev.nombre || form.nombre,
+        apellido_paterno: prev.apellido_paterno || form.apellido_paterno,
+        apellido_materno: prev.apellido_materno || form.apellido_materno,
         email: prev.email || form.email,
         phone: prev.phone || form.phone,
       }));
@@ -206,12 +325,12 @@ export default function CompraPage() {
     setCopyFeedback("idle");
     setReservationSubmitted(false);
 
-    if (eventsFromTables.length > 0 && !selectedEventId) {
+    if (mesaEventOptions.length > 0 && !selectedEventId) {
       setError("Selecciona el evento para esta reserva");
       return;
     }
-    if (!selected || !validateDocument(form.doc_type as DocumentType, form.document) || !form.full_name.trim()) {
-      setError("Selecciona una mesa e ingresa documento y tu nombre");
+    if (!selected || !validateDocument(form.doc_type as DocumentType, form.document) || !mesaNameComplete) {
+      setError("Selecciona una mesa e ingresa documento, nombres y apellidos");
       return;
     }
     if (!selectedProduct) {
@@ -230,8 +349,8 @@ export default function CompraPage() {
       setModalError("Sube tu comprobante de pago para continuar.");
       return;
     }
-    if (!selected || !validateDocument(form.doc_type as DocumentType, form.document) || !form.full_name.trim()) {
-      setModalError("Revisa los datos obligatorios: mesa, documento y nombre.");
+    if (!selected || !validateDocument(form.doc_type as DocumentType, form.document) || !mesaNameComplete) {
+      setModalError("Revisa los datos obligatorios: mesa, documento, nombres y apellidos.");
       return;
     }
 
@@ -245,7 +364,7 @@ export default function CompraPage() {
           table_id: selected,
           doc_type: form.doc_type,
           document: form.document,
-          full_name: form.full_name,
+          full_name: mesaFullName,
           email: form.email,
           phone: form.phone,
           product_id: selectedProduct || null,
@@ -260,6 +379,9 @@ export default function CompraPage() {
       } else {
         setSuccessCodes(data.codes || []);
         setReservationSubmitted(true);
+        setMesaReservationId(data.reservationId || null);
+        setShowSummary(false);
+        setShowReservationConfirmation(true);
       }
     } catch (err: any) {
       setModalError(err?.message || "Error al registrar reserva");
@@ -317,10 +439,13 @@ export default function CompraPage() {
     e.preventDefault();
     setTicketError(null);
     setTicketModalError(null);
-    setTicketSuccessId(null);
-    setTicketSuccessIds([]);
-    if (!validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) || !ticketForm.full_name.trim()) {
-      setTicketError("Ingresa documento y tu nombre");
+    setTicketReservationId(null);
+    if (ticketRequiresEvent && !ticketEventId) {
+      setTicketError("Selecciona el evento");
+      return;
+    }
+    if (!validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) || !ticketNameComplete) {
+      setTicketError("Ingresa documento, nombres y apellidos");
       return;
     }
     setShowTicketSummary(true);
@@ -329,49 +454,47 @@ export default function CompraPage() {
   const confirmTicketPurchase = async () => {
     setTicketModalError(null);
     setTicketError(null);
-    if (!validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) || !ticketForm.full_name.trim()) {
-      setTicketModalError("Ingresa documento y tu nombre");
+    if (ticketRequiresEvent && !ticketEventId) {
+      setTicketModalError("Selecciona el evento");
+      return;
+    }
+    if (!validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) || !ticketNameComplete) {
+      setTicketModalError("Ingresa documento, nombres y apellidos");
       return;
     }
     if (!ticketVoucherUrl) {
       setTicketModalError("Sube tu comprobante de pago para continuar.");
       return;
     }
-    const codeToUse = defaultCode;
     setTicketLoading(true);
     try {
-      const ids: string[] = [];
-      const loops = ticketQuantity === 2 ? 2 : 1;
-      for (let i = 0; i < loops; i++) {
-        const res = await fetch("/api/tickets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code: codeToUse,
-            doc_type: ticketForm.doc_type,
-            document: ticketForm.document,
-            nombre: ticketForm.full_name,
-            apellido_paterno: "",
-            apellido_materno: "",
-            email: ticketForm.email,
-            telefono: ticketForm.phone,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data?.success) {
-          setTicketModalError(data?.error || "No se pudo generar el ticket");
-          break;
-        } else {
-          ids.push(data.ticketId || "Generado");
-        }
-      }
-      if (ids.length === loops) {
-        setTicketSuccessId(ids[0] || null);
-        setTicketSuccessIds(ids);
+      const payload = {
+        event_id: ticketEventId,
+        doc_type: ticketForm.doc_type,
+        document: ticketForm.document,
+        nombre: ticketForm.nombre,
+        apellido_paterno: ticketForm.apellido_paterno,
+        apellido_materno: ticketForm.apellido_materno,
+        email: ticketForm.email,
+        telefono: ticketForm.phone,
+        voucher_url: ticketVoucherUrl,
+        ticket_quantity: ticketQuantity,
+      };
+      const res = await fetch("/api/ticket-reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        setTicketModalError(data?.error || "No se pudo registrar la reserva");
+      } else {
+        setTicketReservationId(data.reservationId || null);
         setShowTicketSummary(false);
+        setShowTicketConfirmation(true);
       }
     } catch (err: any) {
-      setTicketModalError(err?.message || "Error al generar ticket");
+      setTicketModalError(err?.message || "Error al registrar reserva");
     } finally {
       setTicketLoading(false);
     }
@@ -386,7 +509,7 @@ export default function CompraPage() {
   const totalPrice = selectedProductInfo?.price ?? tableInfo?.price ?? tableInfo?.min_consumption ?? null;
   const reservationDone = !!(successCodes && successCodes.length > 0);
   const totalLabel = formatPrice(totalPrice);
-  const eventsFromTables = Array.from(
+  const eventsFromTables: EventOption[] = Array.from(
     new Map(
       tables
         .map((t) => {
@@ -402,13 +525,17 @@ export default function CompraPage() {
         .map((e: any) => [e.id, e])
     ).values()
   );
+  const mesaEventOptions = eventsFromTables.length > 0 ? eventsFromTables : eventOptions;
+  const ticketEventOptions = eventOptions.length > 0 ? eventOptions : eventsFromTables;
+  const ticketSelectedEvent = ticketEventOptions.find((ev) => ev.id === ticketEventId);
+  const ticketRequiresEvent = ticketEventOptions.length > 0;
+  const firstTicketEventId = ticketEventOptions[0]?.id || "";
 
   useEffect(() => {
-    if (reservationSubmitted) {
-      setShowSummary(false);
-      setJustSubmitted(true);
+    if (!ticketEventId && firstTicketEventId) {
+      setTicketEventId(firstTicketEventId);
     }
-  }, [reservationSubmitted]);
+  }, [ticketEventId, firstTicketEventId]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-4 py-10 text-white">
@@ -428,14 +555,6 @@ export default function CompraPage() {
           </button>
         </div>
 
-      {justSubmitted && (
-          <div className="rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-4 text-sm text-white shadow-[0_12px_40px_rgba(0,255,170,0.12)]">
-            <p className="text-base font-semibold text-white">Recibimos tu solicitud.</p>
-            <p className="text-sm text-white/80">
-              Validaremos el pago manualmente y te confirmaremos por correo en breve. Si hay un problema te contactaremos.
-            </p>
-          </div>
-        )}
 
         <div className="flex gap-2">
           <button
@@ -460,7 +579,25 @@ export default function CompraPage() {
 
         {mode === "ticket" && (
           <form onSubmit={onSubmitTicket} className="space-y-4 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
-            <div className="grid gap-3 md:grid-cols-[0.6fr,1.4fr]">
+            {ticketEventOptions.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-white">Evento</label>
+                <select
+                  value={ticketEventId}
+                  onChange={(e) => setTicketEventId(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                >
+                  <option value="">Selecciona el evento</option>
+                  {ticketEventOptions.map((ev) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.name || `Evento ${ev.id.slice(0, 6)}`}
+                    </option>
+                  ))}
+                </select>
+                {!ticketEventId && <p className="text-xs text-[#ff9a9a]">Selecciona el evento para continuar.</p>}
+              </div>
+            )}
+            <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
               <label className="block space-y-2 text-sm font-semibold text-white">
                 Tipo de documento
                 <select
@@ -488,9 +625,23 @@ export default function CompraPage() {
                 onClear={resetTicketForm}
               />
               <Field
-                label="Nombre completo"
-                value={ticketForm.full_name}
-                onChange={(v) => setTicketForm((p) => ({ ...p, full_name: v }))}
+                label="Nombres"
+                value={ticketForm.nombre}
+                onChange={(v) => setTicketForm((p) => ({ ...p, nombre: v }))}
+                required
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field
+                label="Apellido paterno"
+                value={ticketForm.apellido_paterno}
+                onChange={(v) => setTicketForm((p) => ({ ...p, apellido_paterno: v }))}
+                required
+              />
+              <Field
+                label="Apellido materno"
+                value={ticketForm.apellido_materno}
+                onChange={(v) => setTicketForm((p) => ({ ...p, apellido_materno: v }))}
                 required
               />
             </div>
@@ -507,7 +658,7 @@ export default function CompraPage() {
                   onChange={() => setTicketQuantity(1)}
                   className="h-4 w-4 accent-[#e91e63]"
                 />
-                <span>1 QR – S/ 20</span>
+                <span>1 QR – S/ {ticketPriceSingle}</span>
                 <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
               </label>
               <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
@@ -518,17 +669,14 @@ export default function CompraPage() {
                   onChange={() => setTicketQuantity(2)}
                   className="h-4 w-4 accent-[#e91e63]"
                 />
-                <span>2 QR – S/ 35</span>
+                <span>2 QR – S/ {ticketPriceDouble}</span>
                 <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
               </label>
             </div>
             {ticketError && <p className="text-xs font-semibold text-[#ff9a9a]">{ticketError}</p>}
-            {ticketSuccessId && (
+            {ticketReservationId && (
               <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-white">
-                Ticket generado. ID(s):{" "}
-                <span className="font-mono">
-                  {ticketSuccessIds.length > 0 ? ticketSuccessIds.join(", ") : ticketSuccessId}
-                </span>
+                Reserva enviada. Te confirmaremos por correo tras validar el pago.
               </div>
             )}
             <button
@@ -545,7 +693,9 @@ export default function CompraPage() {
                   ...prev,
                   doc_type: prev.doc_type || ticketForm.doc_type,
                   document: prev.document || ticketForm.document,
-                  full_name: prev.full_name || ticketForm.full_name,
+                  nombre: prev.nombre || ticketForm.nombre,
+                  apellido_paterno: prev.apellido_paterno || ticketForm.apellido_paterno,
+                  apellido_materno: prev.apellido_materno || ticketForm.apellido_materno,
                   email: prev.email || ticketForm.email,
                   phone: prev.phone || ticketForm.phone,
                 }));
@@ -560,39 +710,56 @@ export default function CompraPage() {
 
         {mode === "mesa" && (
           <form onSubmit={handleOpenSummary} className="space-y-5">
-            <div className="grid gap-4 lg:grid-cols-[1.3fr,1fr]">
-              <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {tables.map((t) => {
-                      const eventRel = Array.isArray((t as any)?.event) ? (t as any)?.event?.[0] : (t as any)?.event;
-                      const evId = t.event_id || eventRel?.id || "";
-                      const isReserved = !!t.is_reserved;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            if (isReserved) return;
-                            setSelected(t.id);
-                            const firstProd = t.products?.find((p) => p.is_active !== false);
-                            setSelectedProduct(firstProd?.id || "");
-                            if (evId) setSelectedEventId(evId);
-                          }}
-                          disabled={isReserved}
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            isReserved
-                              ? "border border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
-                              : selected === t.id
-                                ? "bg-[#e91e63] text-white"
-                                : "border border-white/20 text-white/80"
-                          }`}
-                        >
-                          {t.name}
-                        </button>
-                      );
-                    })}
+            <div className="grid gap-4 lg:grid-cols-[1.3fr,1fr] lg:items-start">
+              <div className="space-y-3 lg:col-start-1 lg:row-start-1">
+                <div className="flex flex-wrap gap-2">
+                  {tables.map((t) => {
+                    const eventRel = Array.isArray((t as any)?.event) ? (t as any)?.event?.[0] : (t as any)?.event;
+                    const evId = t.event_id || eventRel?.id || "";
+                    const isReserved = !!t.is_reserved;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          if (isReserved) return;
+                          setSelected(t.id);
+                          const firstProd = t.products?.find((p) => p.is_active !== false);
+                          setSelectedProduct(firstProd?.id || "");
+                          if (evId) setSelectedEventId(evId);
+                        }}
+                        disabled={isReserved}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          isReserved
+                            ? "border border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
+                            : selected === t.id
+                              ? "bg-[#e91e63] text-white"
+                              : "border border-white/20 text-white/80"
+                        }`}
+                      >
+                        {t.name}
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
 
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0c0c0c] p-3 text-xs text-white/70 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+                <p className="font-semibold text-white">Plano de mesas</p>
+                <MiniTableMap
+                  tables={tables}
+                  selectedId={selected}
+                  onSelect={(id) => {
+                    setSelected(id);
+                    const next = tables.find((t) => t.id === id);
+                    const firstProd = next?.products?.find((p) => p.is_active !== false);
+                    setSelectedProduct(firstProd?.id || "");
+                  }}
+                  layoutUrl={layoutUrl}
+                />
+              </div>
+
+              <div className="space-y-3 lg:col-start-1 lg:row-start-2">
                 <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-3 text-xs text-white/70">
                   <p className="mb-2 text-sm font-semibold text-white">Packs de consumo</p>
                   {activeProducts.length > 0 ? (
@@ -625,7 +792,7 @@ export default function CompraPage() {
                   )}
                 </div>
 
-                {eventsFromTables.length > 0 && (
+                {mesaEventOptions.length > 0 && (
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-white">Evento</label>
                     <select
@@ -634,9 +801,9 @@ export default function CompraPage() {
                       className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-3 text-sm text-white focus:border-white focus:outline-none"
                     >
                       <option value="">Selecciona el evento</option>
-                      {eventsFromTables.map((ev) => (
+                      {mesaEventOptions.map((ev) => (
                         <option key={ev.id} value={ev.id}>
-                          {ev.name}
+                          {ev.name || `Evento ${ev.id.slice(0, 6)}`}
                         </option>
                       ))}
                     </select>
@@ -644,9 +811,9 @@ export default function CompraPage() {
                   </div>
                 )}
 
-                <div className="grid gap-3 md:grid-cols-[0.6fr,1.4fr]">
+                <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
                   <label className="block space-y-2 text-sm font-semibold text-white">
-                    Tipo de documento
+                    Tipo doc
                     <select
                       value={form.doc_type as DocumentType}
                       onChange={(e) => setForm((p) => ({ ...p, doc_type: e.target.value as DocumentType, document: "" }))}
@@ -671,7 +838,21 @@ export default function CompraPage() {
                     allowClear
                     onClear={resetMesaForm}
                   />
-                  <Field label="Nombre completo" value={form.full_name} onChange={(v) => setForm((p) => ({ ...p, full_name: v }))} required />
+                  <Field label="Nombres" value={form.nombre} onChange={(v) => setForm((p) => ({ ...p, nombre: v }))} required />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field
+                    label="Apellido paterno"
+                    value={form.apellido_paterno}
+                    onChange={(v) => setForm((p) => ({ ...p, apellido_paterno: v }))}
+                    required
+                  />
+                  <Field
+                    label="Apellido materno"
+                    value={form.apellido_materno}
+                    onChange={(v) => setForm((p) => ({ ...p, apellido_materno: v }))}
+                    required
+                  />
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
@@ -688,41 +869,9 @@ export default function CompraPage() {
                   Subirás el comprobante y verás el recuento antes de enviar la reserva.
                 </div>
               </div>
-
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0c0c0c] p-3 text-xs text-white/70">
-                <p className="font-semibold text-white">Plano de mesas</p>
-                <MiniTableMap
-                  tables={tables}
-                  selectedId={selected}
-                  onSelect={(id) => {
-                    setSelected(id);
-                    const next = tables.find((t) => t.id === id);
-                    const firstProd = next?.products?.find((p) => p.is_active !== false);
-                    setSelectedProduct(firstProd?.id || "");
-                  }}
-                  layoutUrl={layoutUrl}
-                />
-              </div>
             </div>
 
             {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
-            {successCodes && successCodes.length > 0 && (
-              <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-white">
-                <p className="mb-2 font-semibold">Reserva enviada. Estamos validando tu pago.</p>
-                <div className="space-y-1">
-                  {successCodes.map((c) => (
-                    <div key={c} className="rounded-xl bg-black/30 px-3 py-2 font-mono text-xs">
-                      {c}
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs text-white/70">
-                  Te confirmaremos por correo tu reserva en los próximos minutos. Comparte estos códigos con tu grupo para que generen sus
-                  QR.
-                </p>
-              </div>
-            )}
-
             <button
               type="submit"
               disabled={loading}
@@ -903,9 +1052,15 @@ export default function CompraPage() {
                   {ticketForm.document || "—"} ({ticketForm.doc_type})
                 </span>
               </div>
+              {ticketRequiresEvent && (
+                <div className="flex items-center justify-between">
+                  <span>Evento</span>
+                  <span className="font-semibold text-white">{ticketSelectedEvent?.name || "—"}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span>Nombre</span>
-                <span className="font-semibold text-white">{ticketForm.full_name || "—"}</span>
+                <span className="font-semibold text-white">{ticketFullName || "—"}</span>
               </div>
               <div className="flex flex-col gap-1 text-xs text-white/60">
                 <span>Email: {ticketForm.email || "—"}</span>
@@ -999,7 +1154,69 @@ export default function CompraPage() {
                 disabled={ticketLoading}
                 className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-60"
               >
-                {ticketLoading ? "Enviando..." : "Enviar entrada"}
+                {ticketLoading ? "Enviando..." : "Enviar solicitud"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTicketConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-lg space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Reserva recibida</p>
+              <h3 className="text-2xl font-semibold">Validaremos tu pago</h3>
+              <p className="text-sm text-white/70">
+                Revisaremos tu comprobante y te confirmaremos por correo con tu entrada y QR.
+              </p>
+              {ticketReservationId && (
+                <p className="text-xs text-white/60">
+                  Código de reserva: <span className="font-mono text-white">{ticketReservationId}</span>
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTicketConfirmation(false);
+                  clearTicketInputs();
+                }}
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReservationConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-lg space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Reserva recibida</p>
+              <h3 className="text-2xl font-semibold">Validaremos tu reserva de mesa</h3>
+              <p className="text-sm text-white/70">
+                Revisaremos tu comprobante y te confirmaremos por correo con el estado de la reserva y los códigos.
+              </p>
+              {mesaReservationId && (
+                <p className="text-xs text-white/60">
+                  Código de reserva: <span className="font-mono text-white">{mesaReservationId}</span>
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReservationConfirmation(false);
+                  clearMesaInputs();
+                }}
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white"
+              >
+                Entendido
               </button>
             </div>
           </div>

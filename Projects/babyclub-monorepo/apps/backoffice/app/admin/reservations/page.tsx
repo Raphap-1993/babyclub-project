@@ -11,13 +11,11 @@ type ReservationRow = {
   full_name: string;
   email: string | null;
   phone: string | null;
-  voucher_url: string | null;
   status: string;
   codes: string[] | null;
-  table: {
-    name: string;
-    event: { name: string };
-  } | null;
+  ticket_quantity: number | null;
+  table_name: string;
+  event_name: string;
 };
 
 async function getReservations(): Promise<{ reservations: ReservationRow[]; error?: string }> {
@@ -27,27 +25,24 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
   });
   const { data, error } = await supabase
     .from("table_reservations")
-    .select("id,full_name,email,phone,voucher_url,status,codes,table:tables(name,event:events(name))")
+    .select("id,full_name,email,phone,status,codes,ticket_quantity,table:tables(name,event:events(name)),event:event_id(name)")
     .order("created_at", { ascending: false });
   if (error || !data) return { reservations: [], error: error?.message || "No se pudieron cargar reservas" };
 
   const normalized: ReservationRow[] = (data as any[]).map((res) => {
     const tableRel = Array.isArray(res.table) ? res.table[0] : res.table;
     const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
+    const eventFallback = Array.isArray(res.event) ? res.event[0] : res.event;
     return {
       id: res.id,
       full_name: res.full_name ?? "",
       email: res.email ?? null,
       phone: res.phone ?? null,
-      voucher_url: res.voucher_url ?? null,
       status: res.status ?? "",
       codes: res.codes ?? null,
-      table: tableRel
-        ? {
-            name: tableRel.name ?? "",
-            event: { name: eventRel?.name ?? "—" },
-          }
-        : null,
+      ticket_quantity: typeof res.ticket_quantity === "number" ? res.ticket_quantity : null,
+      table_name: tableRel?.name ?? "Entrada",
+      event_name: eventRel?.name ?? eventFallback?.name ?? "—",
     };
   });
 
@@ -61,16 +56,14 @@ export default async function ReservationsPage() {
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Reservas</p>
-          <h1 className="text-3xl font-semibold">Reservas de mesas</h1>
+          <h1 className="text-3xl font-semibold">Reservas</h1>
+          <p className="mt-2 text-xs text-white/60">Al guardar se notificará por email al cliente si hay correo y estado aprobado.</p>
         </div>
-        <div className="flex gap-3">
-          <div className="flex flex-col items-end gap-1 text-right">
-            <CreateReservationButton />
-            <p className="text-[11px] text-white/60">Al guardar se notificará por email al cliente si hay correo y estado aprobado.</p>
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <CreateReservationButton />
           <Link
             href="/admin"
             className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
@@ -90,12 +83,12 @@ export default async function ReservationsPage() {
         <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
           <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
             <tr>
-              <th className="w-[16%] px-4 py-3 text-left">Mesa</th>
-              <th className="w-[16%] px-4 py-3 text-left">Evento</th>
-              <th className="w-[24%] px-4 py-3 text-left">Contacto</th>
-              <th className="w-[10%] px-4 py-3 text-left">Estado</th>
-              <th className="w-[14%] px-4 py-3 text-left">Voucher</th>
-              <th className="w-[12%] px-4 py-3 text-right">Acciones</th>
+              <th className="w-[14%] px-3 py-3 text-left">Mesa</th>
+              <th className="w-[18%] px-3 py-3 text-left">Evento</th>
+              <th className="w-[30%] px-3 py-3 text-left">Contacto</th>
+              <th className="w-[8%] px-3 py-3 text-left">Entradas</th>
+              <th className="w-[12%] px-3 py-3 text-left">Estado</th>
+              <th className="w-[18%] px-3 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -108,14 +101,15 @@ export default async function ReservationsPage() {
             )}
             {reservations.map((res) => (
               <tr key={res.id} className="hover:bg-white/[0.02]">
-                <td className="px-4 py-3 text-white font-semibold">{res.table?.name || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{res.table?.event?.name || "—"}</td>
-                <td className="px-4 py-3 text-white/80">
-                  <div className="font-semibold text-white">{res.full_name}</div>
+                <td className="px-3 py-3 font-semibold text-white">{res.table_name || "—"}</td>
+                <td className="px-3 py-3 text-white/80">{res.event_name || "—"}</td>
+                <td className="min-w-0 px-3 py-3 text-white/80">
+                  <div className="break-words font-semibold text-white">{res.full_name}</div>
                   {res.email && <div className="break-words text-xs text-white/60">{res.email}</div>}
                   {res.phone && <div className="text-xs text-white/60">{res.phone}</div>}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3 text-white/80">{res.ticket_quantity ?? 1}</td>
+                <td className="px-3 py-3">
                   <span
                     className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
                       res.status === "approved"
@@ -128,22 +122,8 @@ export default async function ReservationsPage() {
                     {res.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-white/80">
-                  {res.voucher_url ? (
-                    <a
-                      href={res.voucher_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[#e91e63] underline-offset-4 hover:underline"
-                    >
-                      Ver voucher
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-2">
+                <td className="px-3 py-3 text-right">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <Link
                       href={`/admin/reservations/${encodeURIComponent(res.id)}`}
                       className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e91e63] hover:text-[#e91e63]"
@@ -176,8 +156,8 @@ export default async function ReservationsPage() {
           >
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
-                <p className="text-base font-semibold text-white">{res.table?.name || "—"}</p>
-                <p className="text-xs uppercase tracking-[0.15em] text-white/50">{res.table?.event?.name || "—"}</p>
+                <p className="text-base font-semibold text-white">{res.table_name || "—"}</p>
+                <p className="text-xs uppercase tracking-[0.15em] text-white/50">{res.event_name || "—"}</p>
                 <p className="text-sm text-white/80">{res.full_name}</p>
               </div>
               <span
@@ -198,7 +178,7 @@ export default async function ReservationsPage() {
                 label="Contacto"
                 value={[res.email, res.phone].filter(Boolean).join(" · ") || "—"}
               />
-              <Info label="Voucher" value={res.voucher_url ? "Disponible" : "—"} />
+              <Info label="Entradas" value={`${res.ticket_quantity ?? 1}`} />
               <div>
                 <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Códigos</p>
                 {res.codes && res.codes.length > 0 ? (
@@ -216,16 +196,6 @@ export default async function ReservationsPage() {
                   <p className="text-sm font-semibold text-white">—</p>
                 )}
               </div>
-              {res.voucher_url && (
-                <a
-                  href={res.voucher_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center text-sm font-semibold text-[#e91e63] underline-offset-4 hover:underline"
-                >
-                  Ver voucher
-                </a>
-              )}
             </div>
 
             <div className="mt-4 flex flex-col gap-2">

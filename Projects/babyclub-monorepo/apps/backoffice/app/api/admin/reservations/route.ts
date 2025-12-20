@@ -4,6 +4,7 @@ import { createTicketForReservation, generateCourtesyCodes } from "../../reserva
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb } from "shared/limaTime";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
+import { logProcessEvent } from "../../logs/logger";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -331,7 +332,9 @@ async function sendReservationEmail({
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
     const ticketUrl = `${appUrl}/ticket/${ticketId}`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(qrToken || ticketId)}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(
+      qrToken || ticketId
+    )}`;
     const eventLabel = eventRel?.name || "Evento";
     const dateLabel = eventRel?.starts_at ? formatLimaFromDb(eventRel.starts_at) : "";
 
@@ -397,12 +400,45 @@ async function sendReservationEmail({
       .join("\n");
 
     if (email) {
-      await sendEmail({
-        to: email,
-        subject: `BABY - Reserva confirmada (${tableRel?.name || "Mesa"})`,
-        html,
-        text: textBody,
-      });
+      const subject = `BABY - Reserva confirmada (${tableRel?.name || "Mesa"})`;
+      let providerId: string | null = null;
+      try {
+        const result: any = await sendEmail({
+          to: email,
+          subject,
+          html,
+          text: textBody,
+        });
+        providerId = result?.data?.id || null;
+        if (result?.error) {
+          throw new Error(result.error?.message || "Error enviando correo");
+        }
+        await logProcessEvent({
+          supabase,
+          category: "email",
+          action: "reservation_confirmed",
+          status: "success",
+          message: subject,
+          toEmail: email,
+          provider: "resend",
+          providerId,
+          reservationId,
+          ticketId,
+        });
+      } catch (err: any) {
+        await logProcessEvent({
+          supabase,
+          category: "email",
+          action: "reservation_confirmed",
+          status: "error",
+          message: err?.message || "No se pudo enviar correo",
+          toEmail: email,
+          provider: "resend",
+          providerId,
+          reservationId,
+          ticketId,
+        });
+      }
     }
   } catch (_err) {
     // ignore email errors here

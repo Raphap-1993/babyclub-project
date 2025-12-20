@@ -20,6 +20,23 @@ type ReservationOption = { table_id: string; status: string; full_name?: string 
 
 type Mode = "existing_ticket" | "new_customer";
 
+const sortByName = <T extends { name?: string | null }>(items: T[]) => {
+  return [...items].sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "", "es", { sensitivity: "base", numeric: true })
+  );
+};
+
+const sortEvents = (events: EventOption[]) => {
+  return [...events].sort((a, b) => {
+    const activeDiff = Number(Boolean(b.is_active)) - Number(Boolean(a.is_active));
+    if (activeDiff !== 0) return activeDiff;
+    const aTime = a.starts_at ? new Date(a.starts_at).getTime() : Number.POSITIVE_INFINITY;
+    const bTime = b.starts_at ? new Date(b.starts_at).getTime() : Number.POSITIVE_INFINITY;
+    if (aTime !== bTime) return aTime - bTime;
+    return (a.name || "").localeCompare(b.name || "", "es", { sensitivity: "base", numeric: true });
+  });
+};
+
 export default function CreateReservationButton() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("existing_ticket");
@@ -66,15 +83,18 @@ export default function CreateReservationButton() {
           setError(data.error);
           return;
         }
-        setEvents(data.events || []);
-        setTables(data.tables || []);
-        setProducts(data.products || []);
+        const sortedEvents = sortEvents(data.events || []);
+        const sortedTables = sortByName<TableOption>(data.tables || []);
+        const sortedProducts = sortByName<ProductOption>(data.products || []);
+        setEvents(sortedEvents);
+        setTables(sortedTables);
+        setProducts(sortedProducts);
         setReservations(data.reservations || []);
         // preseleccionar evento activo y primera mesa libre
-        const activeEvent = (data.events || []).find((e: any) => e.is_active) || (data.events || [])[0];
+        const activeEvent = sortedEvents.find((e: any) => e.is_active) || sortedEvents[0];
         const nextEventId = activeEvent?.id || "";
         if (nextEventId) setEventId(nextEventId);
-        const eventTables = (data.tables || []).filter((t: any) => t.event_id === nextEventId);
+        const eventTables = sortedTables.filter((t: any) => t.event_id === nextEventId);
         const reservedIds = new Set((data.reservations || []).map((r: any) => r.table_id));
         const freeTable = eventTables.find((t: any) => !reservedIds.has(t.id)) || eventTables[0];
         if (freeTable?.id) setTableId(freeTable.id);

@@ -87,6 +87,12 @@ export default function ReservationEditor({ id, initial }: Props) {
           {status}
         </span>
       </div>
+      {(error || message) && (
+        <div className="space-y-1">
+          {error && <p className="text-xs text-[#ff9a9a]">{error}</p>}
+          {message && <p className="text-xs text-emerald-200">{message}</p>}
+        </div>
+      )}
 
       <div className="space-y-2">
         <label className="text-xs uppercase tracking-[0.1em] text-white/60">Nombre completo</label>
@@ -167,8 +173,6 @@ export default function ReservationEditor({ id, initial }: Props) {
           {pending ? "Guardando..." : "Guardar y notificar"}
         </button>
       </div>
-      {error && <p className="text-xs text-[#ff9a9a]">{error}</p>}
-      {message && <p className="text-xs text-emerald-200">{message}</p>}
     </div>
   );
 }

@@ -57,7 +57,7 @@ export default function ReservationActions({ id, status }: { id: string; status?
   };
 
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className="relative flex flex-wrap items-center justify-end gap-2">
       {currentStatus !== "approved" && (
         <button
           type="button"
@@ -86,8 +86,15 @@ export default function ReservationActions({ id, status }: { id: string; status?
       >
         Eliminar
       </button>
-      {error && <span className="text-xs text-[#ff9a9a]">{error}</span>}
-      {info && <span className="text-xs text-emerald-200">{info}</span>}
+      {(error || info) && (
+        <span
+          className={`absolute -top-5 right-0 max-w-[220px] text-right text-xs leading-tight ${
+            error ? "text-[#ff9a9a]" : "text-emerald-200"
+          }`}
+        >
+          {error || info}
+        </span>
+      )}
     </div>
   );
 }

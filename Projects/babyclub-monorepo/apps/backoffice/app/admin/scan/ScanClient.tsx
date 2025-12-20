@@ -13,6 +13,9 @@ type ScanLog = {
   details?: string;
 };
 
+type MatchType = "code" | "ticket" | "none";
+type ScanResult = "valid" | "duplicate" | "expired" | "inactive" | "invalid" | "not_found" | "exhausted" | "confirmed";
+
 export default function ScanClient({ events, simpleMode = false }: { events: Option[]; simpleMode?: boolean }) {
   const primaryBtn =
     "rounded-full bg-gradient-to-r from-[#a60c2f] via-[#b10e35] to-[#6f0c25] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(166,12,47,0.35)] transition hover:shadow-[0_12px_32px_rgba(166,12,47,0.45)] disabled:cursor-not-allowed disabled:opacity-60";
@@ -23,11 +26,14 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   const [logs, setLogs] = useState<ScanLog[]>([]);
   const [lastResult, setLastResult] = useState<{
     value: string;
-    result: string;
+    result: ScanResult;
     uses?: number;
     max_uses?: number | null;
     code_id?: string | null;
     ticket_id?: string | null;
+    match_type?: MatchType;
+    reason?: string | null;
+    other_event?: { id: string; name: string | null } | null;
   } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
@@ -35,13 +41,18 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   const [ready, setReady] = useState(false);
   const [modal, setModal] = useState<{
     value: string;
-    result: string;
+    result: ScanResult;
     uses?: number;
     max_uses?: number | null;
     code_id?: string | null;
     ticket_id?: string | null;
     person?: { full_name: string | null; dni: string | null; email: string | null; phone: string | null } | null;
     ticket_used?: boolean;
+    match_type?: MatchType;
+    reason?: string | null;
+    other_event?: { id: string; name: string | null } | null;
+    expired_at?: string | null;
+    confirmed_at?: string | null;
   } | null>(null);
   const [confirming, setConfirming] = useState(false);
 
@@ -99,9 +110,9 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok || !payload?.success) throw new Error(payload?.error || "Error al validar código");
-      const result = payload.result as string;
+      const result = payload.result as ScanResult;
       const color =
-        result === "valid"
+        result === "valid" || result === "confirmed"
           ? "text-green-400"
           : result === "duplicate" || result === "exhausted"
             ? "text-yellow-300"
@@ -115,6 +126,9 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         max_uses: payload.max_uses,
         code_id: payload.code_id,
         ticket_id: payload.ticket_id,
+        match_type: payload.match_type,
+        reason: payload.reason,
+        other_event: payload.other_event,
       });
       setModal({
         value,
@@ -125,6 +139,11 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         ticket_id: payload.ticket_id,
         person: payload.person ?? null,
         ticket_used: payload.ticket_used ?? false,
+        match_type: payload.match_type,
+        reason: payload.reason,
+        other_event: payload.other_event,
+        expired_at: payload.expired_at ?? null,
+        confirmed_at: null,
       });
       stopScanner();
     } catch (err: any) {
@@ -199,7 +218,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   <span className="font-mono text-[12px] text-white">{lastResult.value}</span>
                   <span
                     className={
-                      lastResult.result === "valid"
+                      lastResult.result === "valid" || lastResult.result === "confirmed"
                         ? "rounded-full bg-green-500/15 px-3 py-1 text-[12px] font-semibold text-green-300"
                         : lastResult.result === "duplicate" || lastResult.result === "exhausted"
                           ? "rounded-full bg-yellow-500/15 px-3 py-1 text-[12px] font-semibold text-yellow-200"
@@ -210,7 +229,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   </span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-white/70">
-                  {typeof lastResult.uses === "number" && (
+                  {lastResult.match_type === "code" && typeof lastResult.uses === "number" && (
                     <div>
                       <p className="text-white/50">Usos</p>
                       <p className="text-white">
@@ -279,12 +298,13 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b0b0b] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)]">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center sm:py-6">
+          <div className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b0b0b] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.65)] sm:p-6 max-h-[90vh] overflow-y-auto">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.15em] text-white/50">Resultado del scan</p>
-                <h3 className="text-xl font-semibold text-white">Código validado</h3>
+                <h3 className="text-xl font-semibold text-white">{getResultTitle(modal.result)}</h3>
+                <p className="text-sm text-white/60">{getResultHint(modal)}</p>
               </div>
               <button
                 onClick={() => {
@@ -301,7 +321,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                 <span className="font-mono text-[12px] text-white">{modal.value}</span>
                 <span
                   className={
-                    modal.result === "valid"
+                    modal.result === "valid" || modal.result === "confirmed"
                       ? "rounded-full bg-green-500/15 px-3 py-1 text-[12px] font-semibold text-green-300"
                       : modal.result === "duplicate" || modal.result === "exhausted"
                         ? "rounded-full bg-yellow-500/15 px-3 py-1 text-[12px] font-semibold text-yellow-200"
@@ -310,6 +330,31 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                 >
                   {modal.result}
                 </span>
+              </div>
+              {modal.result === "confirmed" && (
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+                  Ingreso registrado. {getConfirmHint(modal)}
+                </div>
+              )}
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white/80">
+                <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Detalle del scan</p>
+                <div className="mt-2 grid gap-2 text-[13px] text-white">
+                  <div className="text-white/80">Evento: {getEventName(events, eventId)}</div>
+                  <div className="text-white/80">Origen: {getMatchLabel(modal.match_type)}</div>
+                  {modal.other_event?.name && (
+                    <div className="text-white/80">Otro evento: {modal.other_event.name}</div>
+                  )}
+                  {modal.code_id && (
+                    <div className="text-white/80">
+                      Code ID: <span className="font-mono">{modal.code_id}</span>
+                    </div>
+                  )}
+                  {modal.ticket_id && (
+                    <div className="text-white/80">
+                      Ticket ID: <span className="font-mono">{modal.ticket_id}</span>
+                    </div>
+                  )}
+                </div>
               </div>
               {modal.person && (
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white/80">
@@ -322,8 +367,8 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
-                {typeof modal.uses === "number" && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {modal.match_type === "code" && typeof modal.uses === "number" && (
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
                     <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Usos</p>
                     <p className="text-white">
@@ -335,6 +380,12 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
                     <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Ticket ID</p>
                     <p className="truncate font-mono text-white">{modal.ticket_id}</p>
+                  </div>
+                )}
+                {modal.expired_at && (
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Expira</p>
+                    <p className="text-white">{new Date(modal.expired_at).toLocaleString()}</p>
                   </div>
                 )}
                 {modal.ticket_used && (
@@ -353,45 +404,67 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                 >
                   Cerrar
                 </button>
-                <button
-                  disabled={confirming || modal.ticket_used || modal.result !== "valid"}
-                  onClick={async () => {
-                    if (!modal?.code_id && !modal?.ticket_id) return;
-                    setConfirming(true);
-                    try {
-                      const res = await fetch("/api/scan/confirm", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ code_id: modal.code_id, ticket_id: modal.ticket_id }),
-                      });
-                      const payload = await res.json().catch(() => null);
-                      if (!res.ok || !payload?.success) {
-                        const errMsg = payload?.error || "No se pudo confirmar";
-                        throw new Error(errMsg);
+                {modal.result === "valid" && (
+                  <button
+                    disabled={confirming || modal.ticket_used}
+                    onClick={async () => {
+                      if (!modal?.code_id && !modal?.ticket_id) return;
+                      setConfirming(true);
+                      try {
+                        const res = await fetch("/api/scan/confirm", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ code_id: modal.code_id, ticket_id: modal.ticket_id }),
+                        });
+                        const payload = await res.json().catch(() => null);
+                        if (!res.ok || !payload?.success) {
+                          const errMsg = payload?.error || "No se pudo confirmar";
+                          throw new Error(errMsg);
+                        }
+                        const confirmedAt = new Date().toISOString();
+                        setMessage("Ingreso validado");
+                        setModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                result: "confirmed",
+                                ticket_used: typeof payload?.ticket_used === "boolean" ? payload.ticket_used : prev.ticket_used,
+                                uses: payload?.uses ?? prev.uses,
+                                max_uses: payload?.max_uses ?? prev.max_uses,
+                                confirmed_at: confirmedAt,
+                              }
+                            : prev
+                        );
+                        setLastResult((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                result: "confirmed",
+                                uses: payload?.uses ?? prev.uses,
+                                max_uses: payload?.max_uses ?? prev.max_uses,
+                              }
+                            : prev
+                        );
+                        setLogs((prev) => [
+                          { ts: Date.now(), value: modal.value, result: "confirmed", color: "text-green-300" },
+                          ...prev,
+                        ].slice(0, 5));
+                      } catch (err: any) {
+                        const msg = err?.message || "Error al confirmar ingreso";
+                        setMessage(msg);
+                        setLogs((prev) => [
+                          { ts: Date.now(), value: modal.value, result: "error", color: "text-red-300", details: msg },
+                          ...prev,
+                        ].slice(0, 5));
+                      } finally {
+                        setConfirming(false);
                       }
-                      setMessage("Ingreso validado");
-                      setModal(null);
-                      setLastResult(null);
-                      setLogs((prev) => [
-                        { ts: Date.now(), value: modal.value, result: "confirmed", color: "text-green-300" },
-                        ...prev,
-                      ].slice(0, 5));
-                      startScanner();
-                    } catch (err: any) {
-                      const msg = err?.message || "Error al confirmar ingreso";
-                      setMessage(msg);
-                      setLogs((prev) => [
-                        { ts: Date.now(), value: modal.value, result: "error", color: "text-red-300", details: msg },
-                        ...prev,
-                      ].slice(0, 5));
-                    } finally {
-                      setConfirming(false);
-                    }
-                  }}
-                  className={primaryBtn}
-                >
-                  {confirming ? "Confirmando..." : modal.ticket_used ? "Ya usado" : "Validar ingreso"}
-                </button>
+                    }}
+                    className={primaryBtn}
+                  >
+                    {confirming ? "Confirmando..." : modal.ticket_used ? "Ya usado" : "Validar ingreso"}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setModal(null);
@@ -408,4 +481,66 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       )}
     </main>
   );
+}
+
+function getResultTitle(result: string) {
+  switch (result) {
+    case "valid":
+      return "Código validado";
+    case "confirmed":
+      return "Ingreso confirmado";
+    case "duplicate":
+      return "Código ya usado";
+    case "exhausted":
+      return "Código sin cupos";
+    case "expired":
+      return "Código expirado";
+    case "inactive":
+      return "Código inactivo";
+    case "invalid":
+      return "Código no pertenece";
+    case "not_found":
+      return "Código no reconocido";
+    default:
+      return "Resultado del scan";
+  }
+}
+
+function getResultHint(modal: {
+  result: string;
+  reason?: string | null;
+  other_event?: { id: string; name: string | null } | null;
+  ticket_used?: boolean;
+}) {
+  if (modal.result === "confirmed") return "Ingreso registrado correctamente.";
+  if (modal.result === "valid") return "Puedes confirmar el ingreso.";
+  if (modal.result === "duplicate" || modal.ticket_used) return "Este QR ya fue validado anteriormente.";
+  if (modal.result === "expired") return "El código está vencido.";
+  if (modal.result === "inactive") return "El código está inactivo.";
+  if (modal.result === "exhausted") return "El código alcanzó el máximo de usos.";
+  if (modal.reason === "event_mismatch") {
+    return `Pertenece a otro evento${modal.other_event?.name ? `: ${modal.other_event.name}` : ""}.`;
+  }
+  if (modal.result === "invalid") return "El QR no pertenece a este evento.";
+  return "No se encontró en la base de datos.";
+}
+
+function getMatchLabel(match?: MatchType) {
+  if (match === "code") return "Código";
+  if (match === "ticket") return "QR ticket";
+  return "No encontrado";
+}
+
+function getConfirmHint(modal: { max_uses?: number | null; uses?: number; ticket_used?: boolean }) {
+  if (modal.ticket_used) return "Este QR ya no podrá volver a usarse.";
+  if (typeof modal.max_uses === "number" && typeof modal.uses === "number") {
+    if (modal.uses >= modal.max_uses) return "Este código ya no podrá volver a usarse.";
+    return `Uso registrado. Quedan ${modal.max_uses - modal.uses} usos.`;
+  }
+  return "Este QR ya quedó marcado como usado.";
+}
+
+function getEventName(events: Option[], eventId: string) {
+  const event = events.find((ev) => ev.id === eventId);
+  return event?.name || "—";
 }
