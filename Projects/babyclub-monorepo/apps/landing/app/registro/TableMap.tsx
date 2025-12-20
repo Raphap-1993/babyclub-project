@@ -174,7 +174,7 @@ export default function TableMap({
   );
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#121212] to-[#050505] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-5 md:p-6">
+    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#121212] to-[#050505] p-2 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-3 md:p-3">
       <div
         className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/80 shadow-inner"
         style={{ aspectRatio: `${viewBoxSize.width} / ${viewBoxSize.height}` }}

@@ -391,7 +391,7 @@ function RegistroContent() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-white">
-      <div className="w-full max-w-5xl space-y-6">
+      <div className="w-full max-w-7xl space-y-6">
         {coverUrl && (
           <div className="relative mx-auto w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0b]">
             <img
@@ -401,8 +401,17 @@ function RegistroContent() {
               style={{
                 aspectRatio: "32 / 14",
                 objectPosition: "center",
-                WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)",
-                maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)",
+                WebkitMaskImage:
+                  "linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0.6) 78%, rgba(0,0,0,0) 100%)",
+                maskImage:
+                  "linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0.6) 78%, rgba(0,0,0,0) 100%)",
+              }}
+            />
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0"
+              style={{
+                height: "45%",
+                background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 65%, rgba(0,0,0,1) 100%)",
               }}
             />
           </div>
@@ -598,7 +607,7 @@ function RegistroContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-[1.4fr_1fr] md:items-start">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-[1.5fr_1fr] lg:grid-cols-[1.8fr_1fr] md:items-start">
                 <div className="mx-auto w-full max-w-[520px] md:max-w-none">
                   <TableMap
                     slots={tableSlots}
