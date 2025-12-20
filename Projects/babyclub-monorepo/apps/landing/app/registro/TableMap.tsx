@@ -106,8 +106,8 @@ export default function TableMap({
     const label = slot.tableName || `Mesa ${slot.label}`;
     const capacity = slot.capacity != null ? `${slot.capacity} pax` : null;
     const statusLabel = isReserved ? "Reservada" : slot.status === "unavailable" ? "Fuera del mapa" : null;
-    const fill = isSelected ? "#e91e63" : isReserved ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.16)";
-    const stroke = isSelected ? "#e91e63" : isReserved ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.6)";
+    const fill = isSelected ? "rgba(242,242,242,0.18)" : isReserved ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.16)";
+    const stroke = isSelected ? "#f2f2f2" : isReserved ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.6)";
     const textColor = isSelected ? "#ffffff" : "#f5f5f5";
 
     return (
@@ -130,7 +130,7 @@ export default function TableMap({
           fill={fill}
           stroke={stroke}
           strokeWidth={isSelected ? 4 : 2}
-          style={{ filter: isSelected ? "drop-shadow(0px 10px 25px rgba(233,30,99,0.3))" : "drop-shadow(0px 8px 20px rgba(0,0,0,0.35))" }}
+          style={{ filter: isSelected ? "drop-shadow(0px 10px 25px rgba(242,242,242,0.2))" : "drop-shadow(0px 8px 20px rgba(0,0,0,0.35))" }}
         />
         <text
           x={centerX}

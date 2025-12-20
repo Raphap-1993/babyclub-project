@@ -55,7 +55,7 @@ export function EmailSender({ ticketId, defaultEmail = "" }: Props) {
           type="button"
           onClick={send}
           disabled={status === "sending"}
-          className="mt-2 sm:mt-6 rounded-xl bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)] disabled:opacity-70"
+          className="mt-2 sm:mt-6 rounded-xl px-4 py-2 text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
         >
           {status === "sent" ? "Enviado" : status === "sending" ? "Enviando..." : "Enviar"}
         </button>

@@ -85,7 +85,7 @@ function ManifiestoContent() {
         <div className="flex justify-center">
           <button
             onClick={onContinue}
-            className="rounded-xl bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)]"
+            className="rounded-xl px-6 py-3 text-sm font-semibold uppercase tracking-wide btn-smoke transition"
           >
             {error ? "Volver" : "Aceptar y continuar"}
           </button>

@@ -549,7 +549,7 @@ export default function CompraPage() {
           <button
             type="button"
             onClick={() => window.history.back()}
-            className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-sm font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+            className="rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
           >
             ← Volver
           </button>
@@ -560,8 +560,8 @@ export default function CompraPage() {
           <button
             type="button"
             onClick={() => setMode("ticket")}
-            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold ${
-              mode === "ticket" ? "bg-[#b5003c] text-white" : "border border-[#b5003c]/50 text-[#b5003c]"
+            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
+              mode === "ticket" ? "btn-smoke" : "btn-smoke-outline"
             }`}
           >
             Solo entrada
@@ -569,8 +569,8 @@ export default function CompraPage() {
           <button
             type="button"
             onClick={() => setMode("mesa")}
-            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold ${
-              mode === "mesa" ? "bg-[#b5003c] text-white" : "border border-[#b5003c]/50 text-[#b5003c]"
+            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
+              mode === "mesa" ? "btn-smoke" : "btn-smoke-outline"
             }`}
           >
             Reserva mesa
@@ -586,7 +586,7 @@ export default function CompraPage() {
                   name="ticketQty"
                   checked={ticketQuantity === 1}
                   onChange={() => setTicketQuantity(1)}
-                  className="h-4 w-4 accent-[#e91e63]"
+                  className="h-4 w-4 accent-[#f2f2f2]"
                 />
                 <span>1 QR ALL NIGHT – S/ {ticketPriceSingle}</span>
                 <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
@@ -597,7 +597,7 @@ export default function CompraPage() {
                   name="ticketQty"
                   checked={ticketQuantity === 2}
                   onChange={() => setTicketQuantity(2)}
-                  className="h-4 w-4 accent-[#e91e63]"
+                  className="h-4 w-4 accent-[#f2f2f2]"
                 />
                 <span>2 QR ALL NIGHT – S/ {ticketPriceDouble}</span>
                 <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
@@ -682,7 +682,7 @@ export default function CompraPage() {
             <button
               type="submit"
               disabled={ticketLoading}
-              className="w-full rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)] disabled:opacity-70"
+              className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
             >
               {ticketLoading ? "Procesando..." : "Revisar pago y enviar"}
             </button>
@@ -701,7 +701,7 @@ export default function CompraPage() {
                 }));
                 setMode("mesa");
               }}
-              className="relative w-full overflow-hidden rounded-full border border-[#b5003c]/50 px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-[#b5003c] transition hover:border-[#e91e63]"
+              className="relative w-full overflow-hidden rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention transition"
             >
               Quiero reservar mesa (opcional)
             </button>
@@ -733,8 +733,8 @@ export default function CompraPage() {
                           isReserved
                             ? "border border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
                             : selected === t.id
-                              ? "bg-[#b5003c] text-white"
-                              : "border border-[#b5003c]/40 text-[#b5003c]"
+                              ? "border border-[#f2f2f2] bg-white/10 text-white"
+                              : "border border-[#f2f2f2]/40 text-[#f2f2f2]"
                         }`}
                       >
                         {t.name}
@@ -771,12 +771,12 @@ export default function CompraPage() {
                           onClick={() => setSelectedProduct(p.id)}
                           className={`rounded-xl border p-2 text-left ${
                             selectedProduct === p.id
-                              ? "border-[#b5003c] bg-[#b5003c]/20 text-white"
-                              : "border-[#b5003c]/20 bg-black/40 text-white/80"
+                              ? "border-[#f2f2f2] bg-white/10 text-white"
+                              : "border-[#f2f2f2]/30 bg-black/40 text-[#f2f2f2]"
                           }`}
                         >
                           <div className="text-sm font-semibold text-white">{p.name}</div>
-                          {p.price != null && <div className="text-[#b5003c] font-semibold text-sm">S/ {p.price}</div>}
+                          {p.price != null && <div className="text-white/80 font-semibold text-sm">S/ {p.price}</div>}
                           {p.tickets_included != null && <div>Incluye {p.tickets_included} tickets</div>}
                           {p.items && p.items.length > 0 && (
                             <ul className="mt-1 space-y-1">
@@ -877,7 +877,7 @@ export default function CompraPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)] disabled:opacity-70"
+              className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
             >
               {loading ? "Procesando..." : "Revisar pago y enviar"}
             </button>
@@ -897,7 +897,7 @@ export default function CompraPage() {
               <button
                 type="button"
                 onClick={() => setShowSummary(false)}
-                className="rounded-full border border-[#b5003c]/50 px-3 py-1 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                className="rounded-full px-3 py-1 text-xs font-semibold btn-smoke-outline transition"
               >
                 Editar datos
               </button>
@@ -946,10 +946,10 @@ export default function CompraPage() {
                 <button
                   type="button"
                   onClick={copyYapeNumber}
-                  className="flex items-center gap-2 rounded-full border border-[#b5003c]/50 px-3 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                  className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
                 >
                   {copyFeedback === "copied" ? "Copiado" : copyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
-                  <span className="text-[#b5003c]/60">(para abrir Yape)</span>
+                  <span className="text-[#f2f2f2]/70">(para abrir Yape)</span>
                 </button>
               </div>
               {totalLabel && (
@@ -1012,7 +1012,7 @@ export default function CompraPage() {
               <button
                 type="button"
                 onClick={() => setShowSummary(false)}
-                className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
                 Volver al formulario
               </button>
@@ -1020,7 +1020,7 @@ export default function CompraPage() {
                 type="button"
                 onClick={confirmReservation}
                 disabled={loading || uploading || reservationSubmitted}
-                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(185,0,60,0.4)] transition hover:shadow-[0_14px_38px_rgba(185,0,60,0.45)] disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-60"
               >
                 {loading ? "Enviando..." : reservationSubmitted ? "Reserva enviada" : "Enviar reserva"}
               </button>
@@ -1041,7 +1041,7 @@ export default function CompraPage() {
               <button
                 type="button"
                 onClick={() => setShowTicketSummary(false)}
-                className="rounded-full border border-[#b5003c]/50 px-3 py-1 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                className="rounded-full px-3 py-1 text-xs font-semibold btn-smoke-outline transition"
               >
                 Editar datos
               </button>
@@ -1080,10 +1080,10 @@ export default function CompraPage() {
                 <button
                   type="button"
                   onClick={copyYapeNumberTicket}
-                  className="flex items-center gap-2 rounded-full border border-[#b5003c]/50 px-3 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                  className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
                 >
                   {ticketCopyFeedback === "copied" ? "Copiado" : ticketCopyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
-                  <span className="text-[#b5003c]/60">(para abrir Yape)</span>
+                  <span className="text-[#f2f2f2]/70">(para abrir Yape)</span>
                 </button>
               </div>
               <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
@@ -1146,7 +1146,7 @@ export default function CompraPage() {
               <button
                 type="button"
                 onClick={() => setShowTicketSummary(false)}
-                className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
                 Volver al formulario
               </button>
@@ -1154,7 +1154,7 @@ export default function CompraPage() {
                 type="button"
                 onClick={confirmTicketPurchase}
                 disabled={ticketLoading}
-                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_12px_35px_rgba(181,0,60,0.35)] transition hover:shadow-[0_14px_38px_rgba(181,0,60,0.45)] disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-60"
               >
                 {ticketLoading ? "Enviando..." : "Enviar solicitud"}
               </button>
@@ -1185,7 +1185,7 @@ export default function CompraPage() {
                   setShowTicketConfirmation(false);
                   clearTicketInputs();
                 }}
-                className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
                 Entendido
               </button>
@@ -1216,7 +1216,7 @@ export default function CompraPage() {
                   setShowReservationConfirmation(false);
                   clearMesaInputs();
                 }}
-                className="rounded-full border border-[#b5003c]/50 px-4 py-2 text-xs font-semibold text-[#b5003c] transition hover:border-[#e91e63]"
+                className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
                 Entendido
               </button>
