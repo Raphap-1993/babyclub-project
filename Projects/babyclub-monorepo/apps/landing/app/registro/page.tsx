@@ -105,7 +105,9 @@ function RegistroContent() {
     doc_type: "dni",
     document: "",
     dni: "",
-    full_name: "",
+    nombre: "",
+    apellido_paterno: "",
+    apellido_materno: "",
     email: "",
     phone: "",
     voucher_url: "",
@@ -220,13 +222,17 @@ function RegistroContent() {
   useEffect(() => {
     // sincroniza datos del formulario principal con el de reserva si están vacíos
     setReservation((prev) => {
-      const fullNameFromForm = `${form.nombre} ${form.apellido_paterno} ${form.apellido_materno}`.trim();
+      const nombreFromForm = form.nombre.trim();
+      const apellidoPaternoFromForm = form.apellido_paterno.trim();
+      const apellidoMaternoFromForm = form.apellido_materno.trim();
       return {
         ...prev,
         doc_type: prev.doc_type || form.doc_type || "dni",
         document: prev.document || form.document || "",
         dni: prev.dni || form.document || "",
-        full_name: prev.full_name || fullNameFromForm,
+        nombre: prev.nombre || nombreFromForm,
+        apellido_paterno: prev.apellido_paterno || apellidoPaternoFromForm,
+        apellido_materno: prev.apellido_materno || apellidoMaternoFromForm,
         email: prev.email || form.email,
         phone: prev.phone || form.telefono,
       };
@@ -340,6 +346,15 @@ function RegistroContent() {
     reservation.document && !validateDocument(reservation.doc_type as DocumentType, reservation.document)
       ? "Documento inválido"
       : "";
+  const reservationFullName = useMemo(
+    () =>
+      [reservation.nombre, reservation.apellido_paterno, reservation.apellido_materno]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    [reservation.nombre, reservation.apellido_paterno, reservation.apellido_materno]
+  );
 
   const copyYapeNumber = async () => {
     try {
@@ -363,8 +378,8 @@ function RegistroContent() {
       setReservationError("Selecciona una mesa");
       return;
     }
-    if (!validateDocument(reservation.doc_type as DocumentType, reservation.document) || !reservation.full_name.trim()) {
-      setReservationError("Ingresa documento y nombre de la reserva");
+    if (!validateDocument(reservation.doc_type as DocumentType, reservation.document) || !reservationFullName) {
+      setReservationError("Ingresa documento y nombres y apellidos de la reserva");
       return;
     }
     if (products.length > 0 && !selectedProduct) {
@@ -376,14 +391,19 @@ function RegistroContent() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-white">
-      <div className="w-full max-w-4xl space-y-6">
+      <div className="w-full max-w-5xl space-y-6">
         {coverUrl && (
-          <div className="mx-auto w-full max-w-[700px] overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0b]">
+          <div className="relative mx-auto w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0b]">
             <img
               src={coverUrl}
               alt="Cover"
               className="h-auto w-full object-cover"
-              style={{ aspectRatio: "32 / 14", objectPosition: "center" }}
+              style={{
+                aspectRatio: "32 / 14",
+                objectPosition: "center",
+                WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)",
+                maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)",
+              }}
             />
           </div>
         )}
@@ -532,7 +552,9 @@ function RegistroContent() {
                         doc_type: form.doc_type as DocumentType,
                         document: form.document,
                         dni: form.document,
-                        full_name: `${form.nombre} ${form.apellido_paterno} ${form.apellido_materno}`.trim(),
+                        nombre: form.nombre,
+                        apellido_paterno: form.apellido_paterno,
+                        apellido_materno: form.apellido_materno,
                         email: form.email,
                         phone: form.telefono,
                       }));
@@ -576,7 +598,7 @@ function RegistroContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-[1.4fr_1fr] md:items-start">
                 <div className="mx-auto w-full max-w-[520px] md:max-w-none">
                   <TableMap
                     slots={tableSlots}
@@ -696,20 +718,12 @@ function RegistroContent() {
                     </div>
                   )}
 
-                  {mapUrl && (
-                    <details className="rounded-2xl border border-white/10 bg-[#0b0b0b] p-3 text-sm text-white/70">
-                      <summary className="cursor-pointer text-white">Ver plano original (imagen)</summary>
-                      <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
-                        <img src={mapUrl} alt="Distribución de mesas" className="w-full object-cover" />
-                      </div>
-                    </details>
-                  )}
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[0.6fr,1.4fr]">
-              <div className="grid gap-3 md:grid-cols-2 md:col-span-2">
+            <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
                 <label className="block space-y-2 text-sm font-semibold text-white">
                   Tipo de documento
                   <select
@@ -746,27 +760,41 @@ function RegistroContent() {
                   error={reservationDocError}
                   onClear={resetReservationForm}
                 />
+                <Field
+                  label="Nombres"
+                  value={reservation.nombre}
+                  onChange={(v) => setReservation((p) => ({ ...p, nombre: v }))}
+                  required
+                />
               </div>
-              <Field
-                label="Nombre completo"
-                value={reservation.full_name}
-                onChange={(v) => setReservation((p) => ({ ...p, full_name: v }))}
-                required
-              />
-            </div>
-            <div className="grid gap-3 md:grid-cols-[1.3fr,0.7fr]">
-              <Field
-                label="Email"
-                type="email"
-                value={reservation.email}
-                onChange={(v) => setReservation((p) => ({ ...p, email: v }))}
-              />
-              <Field
-                label="Teléfono"
-                value={reservation.phone}
-                onChange={(v) => setReservation((p) => ({ ...p, phone: v }))}
-                placeholder="+51 999 999 999"
-              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field
+                  label="Apellido paterno"
+                  value={reservation.apellido_paterno}
+                  onChange={(v) => setReservation((p) => ({ ...p, apellido_paterno: v }))}
+                  required
+                />
+                <Field
+                  label="Apellido materno"
+                  value={reservation.apellido_materno}
+                  onChange={(v) => setReservation((p) => ({ ...p, apellido_materno: v }))}
+                  required
+                />
+              </div>
+              <div className="grid gap-3 md:grid-cols-[1.3fr,0.7fr]">
+                <Field
+                  label="Email"
+                  type="email"
+                  value={reservation.email}
+                  onChange={(v) => setReservation((p) => ({ ...p, email: v }))}
+                />
+                <Field
+                  label="Teléfono"
+                  value={reservation.phone}
+                  onChange={(v) => setReservation((p) => ({ ...p, phone: v }))}
+                  placeholder="+51 999 999 999"
+                />
+              </div>
             </div>
 
             {reservationError && <p className="text-xs font-semibold text-[#ff9a9a]">{reservationError}</p>}
@@ -788,7 +816,7 @@ function RegistroContent() {
               <button
                 type="submit"
                 disabled={reservationLoading}
-                className="w-2/3 rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
+                className="w-2/3 rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition disabled:opacity-70"
               >
                 {reservationLoading ? "Procesando..." : "Revisar pago y enviar"}
               </button>
@@ -836,7 +864,7 @@ function RegistroContent() {
               )}
               <div className="flex flex-col gap-1 text-xs text-white/60">
                 <span>Documento: {reservation.document || "—"} ({reservation.doc_type})</span>
-                <span>Nombre: {reservation.full_name || "—"}</span>
+                <span>Nombre: {reservationFullName || "—"}</span>
                 <span>Email: {reservation.email || "—"}</span>
                 <span>Teléfono: {reservation.phone || "—"}</span>
               </div>
@@ -983,8 +1011,8 @@ function RegistroContent() {
     setReservationError(null);
     setReservationCodes(null);
     setModalError(null);
-    if (!selectedTable || !validateDocument(reservation.doc_type as DocumentType, reservation.document) || !reservation.full_name.trim()) {
-      const msg = "Selecciona una mesa e ingresa documento y nombre";
+    if (!selectedTable || !validateDocument(reservation.doc_type as DocumentType, reservation.document) || !reservationFullName) {
+      const msg = "Selecciona una mesa e ingresa documento y nombres y apellidos";
       setModalError(msg);
       setReservationError(msg);
       return;
@@ -1014,7 +1042,7 @@ function RegistroContent() {
           code,
           doc_type: reservation.doc_type,
           document: reservation.document,
-          full_name: reservation.full_name,
+          full_name: reservationFullName,
           email: reservation.email,
           phone: reservation.phone,
           voucher_url: reservation.voucher_url,
@@ -1075,7 +1103,9 @@ function RegistroContent() {
         doc_type: prev.doc_type || docType,
         document: prev.document || dni,
         dni: prev.dni || dni,
-        full_name: prev.full_name || `${p.first_name || ""} ${apPat || ""} ${apMat || ""}`.trim(),
+        nombre: prev.nombre || p.first_name || "",
+        apellido_paterno: prev.apellido_paterno || apPat || "",
+        apellido_materno: prev.apellido_materno || apMat || "",
         email: prev.email || p.email || "",
         phone: prev.phone || p.phone || "",
       }));
