@@ -539,7 +539,7 @@ function RegistroContent() {
                       setStep(2);
                     }
                   }}
-                  className="relative w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke-outline transition"
+                  className="relative w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
                 >
                   {tables.length > 0 ? "Reservar mesa (opcional)" : "No hay mesas disponibles (generar QR)"}
                 </button>
@@ -571,7 +571,7 @@ function RegistroContent() {
                     <span className="h-3 w-3 rounded-full border border-white/15 bg-white/5" /> Reservada
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="h-3 w-3 rounded-full border border-[#f2f2f2] bg-[#f2f2f2]" /> Seleccionada
+                    <span className="h-3 w-3 rounded-full border border-[#e91e63] bg-[#e91e63]" /> Seleccionada
                   </span>
                 </div>
               </div>
@@ -635,7 +635,7 @@ function RegistroContent() {
                                 reserved
                                   ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
                                   : isActive
-                                    ? "border-[#f2f2f2] bg-white/10 text-white shadow-[0_8px_25px_rgba(242,242,242,0.2)]"
+                                    ? "border-[#e91e63] bg-[#e91e63]/10 text-white shadow-[0_8px_25px_rgba(233,30,99,0.35)]"
                                     : "border-[#f2f2f2]/40 bg-white/5 text-[#f2f2f2] hover:border-[#f2f2f2]"
                               }`}
                             >
@@ -665,7 +665,7 @@ function RegistroContent() {
                               onClick={() => setSelectedProduct(p.id)}
                               className={`text-left rounded-2xl border px-4 py-3 transition ${
                                 active
-                                  ? "border-[#f2f2f2] bg-white/10 shadow-[0_10px_30px_rgba(242,242,242,0.2)]"
+                                  ? "border-[#e91e63] bg-[#e91e63]/10 shadow-[0_10px_30px_rgba(233,30,99,0.3)]"
                                   : "border-[#f2f2f2]/20 bg-black/30 hover:border-[#f2f2f2]"
                               }`}
                             >
@@ -911,7 +911,7 @@ function RegistroContent() {
                 type="button"
                 onClick={submitReservation}
                 disabled={reservationLoading || uploadingVoucher}
-                className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-attention-red transition disabled:opacity-60"
               >
                 {reservationLoading ? "Enviando..." : "Enviar reserva"}
               </button>
@@ -1307,7 +1307,7 @@ function BirthdateField({ value, onChange, max }: { value: string; onChange: (v:
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-[#f2f2f2]/40 bg-[#0f0f0f] px-4 py-3 text-left text-base text-white transition hover:border-[#f2f2f2] focus:border-[#f2f2f2] focus:outline-none"
+        className="flex w-full items-center justify-between rounded-xl border border-[#e91e63]/40 bg-[#0f0f0f] px-4 py-3 text-left text-base text-white transition hover:border-[#e91e63] focus:border-[#e91e63] focus:outline-none"
       >
         <span className={value ? "text-white" : "text-white/40"}>{displayValue}</span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-white/60">

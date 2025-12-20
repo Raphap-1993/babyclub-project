@@ -62,6 +62,19 @@ a {
   box-shadow: 0 20px 46px rgba(242, 242, 242, 0.3);
 }
 
+.btn-attention-red {
+  background: linear-gradient(120deg, #6f0c25, #9f0f35, #b5003c, #6f0c25);
+  background-size: 300% 300%;
+  color: #ffffff;
+  border: 1px solid #b5003c;
+  box-shadow: 0 18px 40px rgba(181, 0, 60, 0.35);
+  animation: babyclubGlow 5s ease-in-out infinite;
+}
+
+.btn-attention-red:hover {
+  box-shadow: 0 20px 46px rgba(181, 0, 60, 0.4);
+}
+
 @keyframes babyclubGlow {
   0% {
     background-position: 0% 50%;

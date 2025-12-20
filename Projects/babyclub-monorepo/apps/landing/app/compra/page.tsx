@@ -586,7 +586,7 @@ export default function CompraPage() {
                   name="ticketQty"
                   checked={ticketQuantity === 1}
                   onChange={() => setTicketQuantity(1)}
-                  className="h-4 w-4 accent-[#f2f2f2]"
+                  className="h-4 w-4 accent-[#e91e63]"
                 />
                 <span>1 QR ALL NIGHT – S/ {ticketPriceSingle}</span>
                 <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
@@ -597,7 +597,7 @@ export default function CompraPage() {
                   name="ticketQty"
                   checked={ticketQuantity === 2}
                   onChange={() => setTicketQuantity(2)}
-                  className="h-4 w-4 accent-[#f2f2f2]"
+                  className="h-4 w-4 accent-[#e91e63]"
                 />
                 <span>2 QR ALL NIGHT – S/ {ticketPriceDouble}</span>
                 <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
@@ -701,7 +701,7 @@ export default function CompraPage() {
                 }));
                 setMode("mesa");
               }}
-              className="relative w-full overflow-hidden rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention transition"
+              className="relative w-full overflow-hidden rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
             >
               Quiero reservar mesa (opcional)
             </button>
@@ -733,7 +733,7 @@ export default function CompraPage() {
                           isReserved
                             ? "border border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
                             : selected === t.id
-                              ? "border border-[#f2f2f2] bg-white/10 text-white"
+                              ? "border border-[#e91e63] bg-[#e91e63]/10 text-white"
                               : "border border-[#f2f2f2]/40 text-[#f2f2f2]"
                         }`}
                       >
@@ -771,12 +771,12 @@ export default function CompraPage() {
                           onClick={() => setSelectedProduct(p.id)}
                           className={`rounded-xl border p-2 text-left ${
                             selectedProduct === p.id
-                              ? "border-[#f2f2f2] bg-white/10 text-white"
+                              ? "border-[#e91e63] bg-[#e91e63]/10 text-white"
                               : "border-[#f2f2f2]/30 bg-black/40 text-[#f2f2f2]"
                           }`}
                         >
                           <div className="text-sm font-semibold text-white">{p.name}</div>
-                          {p.price != null && <div className="text-white/80 font-semibold text-sm">S/ {p.price}</div>}
+                          {p.price != null && <div className="text-[#e91e63] font-semibold text-sm">S/ {p.price}</div>}
                           {p.tickets_included != null && <div>Incluye {p.tickets_included} tickets</div>}
                           {p.items && p.items.length > 0 && (
                             <ul className="mt-1 space-y-1">
@@ -1020,7 +1020,7 @@ export default function CompraPage() {
                 type="button"
                 onClick={confirmReservation}
                 disabled={loading || uploading || reservationSubmitted}
-                className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-attention-red transition disabled:opacity-60"
               >
                 {loading ? "Enviando..." : reservationSubmitted ? "Reserva enviada" : "Enviar reserva"}
               </button>

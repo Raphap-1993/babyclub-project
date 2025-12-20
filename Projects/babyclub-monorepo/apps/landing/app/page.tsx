@@ -70,7 +70,7 @@ export default function AccessCodePage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention transition hover:scale-[1.01] disabled:opacity-70"
+            className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition hover:scale-[1.01] disabled:opacity-70"
           >
             {loading ? "Validando..." : "Entrar"}
           </button>
