@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { sendEmail } from "shared/email/resend";
+import { getEntryCutoffDisplay } from "shared/entryLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location)"
+      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location,entry_limit)"
     )
     .eq("id", ticketId)
     .maybeSingle();
@@ -60,8 +61,17 @@ export async function POST(req: NextRequest) {
   const ticketUrl = `${appUrl}/ticket/${ticketId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(data.qr_token)}`;
   const qrImg = qrUrl;
-  const isFreeCode = (codeRel?.type || "").toLowerCase() === "free";
+  const codeType = (codeRel?.type || "").toLowerCase();
+  const isFreeCode = codeType === "free";
+  const isGeneralCode = codeType === "general";
+  const isCourtesyCode = codeType === "courtesy";
   const isPromoterCode = Boolean(codeRel?.promoter_id);
+  const entryCutoff = eventRel?.starts_at ? getEntryCutoffDisplay(eventRel.starts_at, eventRel?.entry_limit) : null;
+  const entryLimitLabel = entryCutoff
+    ? entryCutoff.isNextDay
+      ? `${entryCutoff.timeLabel} (${entryCutoff.dateLabel})`
+      : entryCutoff.timeLabel
+    : null;
   const expiresLabel = (() => {
     if (!codeRel?.expires_at) return null;
     try {
@@ -83,14 +93,21 @@ export async function POST(req: NextRequest) {
   if (isPromoterCode && !isFreeCode) {
     warnings.push("QR de promotor: no tiene límite de hora de ingreso. Coordina con tu promotor.");
   }
-  if (!isFreeCode && !isPromoterCode) {
-    const timeInfo = expiresLabel
-      ? `Hora límite de ingreso: ${expiresLabel}.`
-      : eventTimeLabel
-        ? `Hora de ingreso del evento: ${eventTimeLabel}.`
-        : "";
-    const toleranceText = `${timeInfo ? `${timeInfo} ` : ""}Tolerancia hasta las 11:30 PM.`;
-    warnings.push(toleranceText.trim());
+  if (isCourtesyCode) {
+    warnings.push("QR de cortesía: no tiene límite de hora de ingreso.");
+  }
+  if (isGeneralCode && !isPromoterCode) {
+    if (entryLimitLabel) {
+      warnings.push(
+        eventTimeLabel
+          ? `Hora límite de ingreso: ${entryLimitLabel}. Horario del evento: ${eventTimeLabel}.`
+          : `Hora límite de ingreso: ${entryLimitLabel}.`
+      );
+    } else if (eventTimeLabel) {
+      warnings.push(`Hora de ingreso del evento: ${eventTimeLabel}.`);
+    } else {
+      warnings.push("Hora límite de ingreso configurable.");
+    }
   }
 
   const warningsHtml = warnings

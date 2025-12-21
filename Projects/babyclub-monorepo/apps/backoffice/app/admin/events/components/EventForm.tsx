@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import ManifestUploader from "./ManifestUploader";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
 import { EVENT_ZONE, toLimaPartsFromDb, toUTCISOFromLimaParts } from "shared/limaTime";
+import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { DateTime } from "luxon";
 
 type EventFormProps = {
@@ -18,6 +19,7 @@ type EventRecord = {
   name: string;
   location: string;
   starts_at: string;
+  entry_limit?: string | null;
   capacity: number;
   header_image: string;
   cover_image?: string;
@@ -29,6 +31,7 @@ type FormValues = {
   name: string;
   location: string;
   starts_at: string;
+  entry_limit: string;
   capacity: string;
   header_image: string;
   cover_image: string;
@@ -40,6 +43,7 @@ const emptyForm: FormValues = {
   name: "",
   location: "",
   starts_at: "",
+  entry_limit: DEFAULT_ENTRY_LIMIT,
   capacity: "",
   header_image: "",
   cover_image: "",
@@ -94,11 +98,13 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
     setIsSubmitting(true);
     setServerError(null);
 
+    const entryLimit = normalizeEntryLimit(form.entry_limit) || DEFAULT_ENTRY_LIMIT;
     const payload = {
       id: initialData?.id,
       name: form.name.trim(),
       location: form.location.trim(),
       starts_at: form.starts_at,
+      entry_limit: entryLimit,
       capacity: Number(form.capacity || 0),
       header_image: form.header_image.trim(),
       cover_image: form.cover_image.trim(),
@@ -338,6 +344,23 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
             <p className="text-xs text-white/60">Hora del evento (America/Lima). Se guarda en UTC en la BD.</p>
             {errors.starts_at && <ErrorText message={errors.starts_at} />}
           </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-white" htmlFor="entry-limit">
+              Hora límite de ingreso (America/Lima)
+            </label>
+            <input
+              id="entry-limit"
+              type="time"
+              step={60}
+              value={form.entry_limit}
+              onChange={(e) => updateField("entry_limit", e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white outline-none transition focus:border-white"
+            />
+            <p className="text-xs text-white/60">
+              Si la hora es menor a la hora del evento, se asume día siguiente.
+            </p>
+            {errors.entry_limit && <ErrorText message={errors.entry_limit} />}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-4">
@@ -460,6 +483,7 @@ function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<Fo
     name: initialData.name ?? "",
     location: initialData.location ?? "",
     starts_at: initialData.starts_at ?? "",
+    entry_limit: normalizeEntryLimit(initialData.entry_limit) || DEFAULT_ENTRY_LIMIT,
     capacity: initialData.capacity != null ? String(initialData.capacity) : "",
     header_image: initialData.header_image ?? "",
     cover_image: initialData.cover_image ?? "",
@@ -492,6 +516,7 @@ function validate(values: FormValues): Partial<Record<keyof FormValues, string>>
 
   if (!values.name.trim()) errors.name = "Nombre requerido";
   if (!values.starts_at) errors.starts_at = "Selecciona fecha y hora";
+  if (!normalizeEntryLimit(values.entry_limit)) errors.entry_limit = "Hora límite inválida";
 
   const capacity = Number(values.capacity);
   if (!Number.isFinite(capacity) || capacity < 10) errors.capacity = "Capacidad mínima 10";

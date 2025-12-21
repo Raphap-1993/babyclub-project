@@ -16,6 +16,7 @@ type EventRow = {
   cover_image?: string;
   is_active: boolean;
   starts_at: string;
+  entry_limit?: string | null;
   code?: string;
 };
 
@@ -28,7 +29,7 @@ async function getEvent(id: string): Promise<EventRow | null> {
 
   const { data, error } = await supabase
     .from("events")
-    .select("id,name,location,starts_at,capacity,header_image,is_active")
+    .select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active")
     .eq("id", id)
     .maybeSingle();
 

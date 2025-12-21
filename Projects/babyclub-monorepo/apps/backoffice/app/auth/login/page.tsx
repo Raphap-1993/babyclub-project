@@ -3,6 +3,44 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseClient } from "@/lib/supabaseClient";
+import type { User } from "@supabase/supabase-js";
+
+const getSessionRole = (user?: User | null) => {
+  if (!user) return null;
+  const meta = (user.user_metadata || {}) as Record<string, any>;
+  const appMeta = (user.app_metadata || {}) as Record<string, any>;
+  return (
+    (meta.role as string | undefined) ||
+    (appMeta.role as string | undefined) ||
+    (appMeta.user_role as string | undefined) ||
+    null
+  );
+};
+
+const isDoorRole = (role?: string | null) => {
+  const roleText = (role || "").toLowerCase();
+  return roleText.includes("door") || roleText.includes("entrance") || roleText.includes("control");
+};
+
+const fetchStaffRoleCode = async (authUserId: string) => {
+  if (!supabaseClient) return null;
+  const { data, error } = await supabaseClient
+    .from("staff")
+    .select("role:staff_roles(code)")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const roleRel = Array.isArray((data as any).role) ? (data as any).role[0] : (data as any).role;
+  return typeof roleRel?.code === "string" ? roleRel.code : null;
+};
+
+const resolveDoorRedirect = async (sessionUser?: User | null) => {
+  if (!sessionUser) return false;
+  const sessionRole = getSessionRole(sessionUser);
+  const staffRole = sessionUser.id ? await fetchStaffRoleCode(sessionUser.id) : null;
+  const resolvedRole = staffRole || sessionRole;
+  return isDoorRole(resolvedRole);
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,11 +57,14 @@ export default function LoginPage() {
         setChecking(false);
         return;
       }
-      const { data } = await supabaseClient.auth.getSession();
-      if (data.session) {
-        router.replace("/admin");
-        return;
-      }
+      try {
+        const { data } = await supabaseClient.auth.getSession();
+        if (data.session) {
+          const shouldGoDoor = await resolveDoorRedirect(data.session.user);
+          router.replace(shouldGoDoor ? "/admin/door" : "/admin");
+          return;
+        }
+      } catch (_err) {}
       setChecking(false);
     };
     checkSession();
@@ -37,13 +78,16 @@ export default function LoginPage() {
       return;
     }
     setLoading(true);
-    const { error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
+    const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (signInError) {
       setError(signInError.message);
       return;
     }
-    router.push("/admin");
+    const sessionUser =
+      signInData.session?.user || (await supabaseClient.auth.getSession()).data.session?.user || null;
+    const shouldGoDoor = await resolveDoorRedirect(sessionUser);
+    router.push(shouldGoDoor ? "/admin/door" : "/admin");
   };
 
   if (checking) {

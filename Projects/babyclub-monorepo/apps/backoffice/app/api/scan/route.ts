@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { DateTime } from "luxon";
+import { EVENT_TZ } from "shared/datetime";
+import { getEntryCutoff } from "shared/entryLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -39,6 +42,24 @@ export async function POST(req: NextRequest) {
   });
 
   const now = new Date();
+  const nowLima = DateTime.fromJSDate(now).setZone(EVENT_TZ);
+
+  const { data: eventRow, error: eventError } = await supabase
+    .from("events")
+    .select("id,starts_at,entry_limit")
+    .eq("id", event_id)
+    .maybeSingle();
+
+  if (eventError) {
+    return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
+  }
+  if (!eventRow) {
+    return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
+  }
+
+  const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
+  const entryCutoffIso = entryCutoff?.cutoff.toUTC().toISO() ?? null;
+  const entryCutoffExceeded = entryCutoff ? nowLima > entryCutoff.cutoff : false;
 
   // Buscar el código exacto dentro del evento
   const { data: codeRow, error: codeErr } = await supabase
@@ -55,6 +76,7 @@ export async function POST(req: NextRequest) {
   let result: ScanResult = "not_found";
   let code_id: string | null = null;
   let ticket_id: string | null = null;
+  let code_type: string | null = null;
   let person: { full_name: string | null; dni: string | null; email: string | null; phone: string | null } | null = null;
   let ticket_used = false;
   let match_type: MatchType = "none";
@@ -64,6 +86,7 @@ export async function POST(req: NextRequest) {
   if (codeRow) {
     match_type = "code";
     code_id = codeRow.id;
+    code_type = (codeRow.type || "").toLowerCase() || null;
     const expired = codeRow.expires_at ? new Date(codeRow.expires_at) < now : false;
     if (!codeRow.is_active) {
       result = "inactive";
@@ -73,6 +96,10 @@ export async function POST(req: NextRequest) {
       result = "exhausted";
     } else {
       result = "valid";
+      if ((codeRow.type || "").toLowerCase() === "general" && entryCutoffExceeded) {
+        result = "expired";
+        reason = "entry_cutoff";
+      }
     }
 
     // Intentar buscar datos de ticket asociado al code
@@ -95,6 +122,7 @@ export async function POST(req: NextRequest) {
       };
       if (ticket_used) {
         result = "duplicate";
+        reason = null;
       }
     }
   }
@@ -103,16 +131,26 @@ export async function POST(req: NextRequest) {
   if (!codeRow) {
     const { data: ticketRow } = await supabase
       .from("tickets")
-      .select("id,code_id,full_name,dni,email,phone,used")
+      .select("id,code_id,full_name,dni,email,phone,used,code:codes(type)")
       .eq("qr_token", codeValue)
       .eq("event_id", event_id)
       .maybeSingle();
     if (ticketRow) {
+      const codeRel = Array.isArray((ticketRow as any).code) ? (ticketRow as any).code?.[0] : (ticketRow as any).code;
+      const codeType = (codeRel?.type || "").toLowerCase();
+      code_type = codeType || null;
       match_type = "ticket";
       ticket_id = ticketRow.id;
       code_id = ticketRow.code_id ?? null;
       ticket_used = Boolean((ticketRow as any).used);
-      result = ticket_used ? "duplicate" : "valid";
+      if (ticket_used) {
+        result = "duplicate";
+      } else if (codeType === "general" && entryCutoffExceeded) {
+        result = "expired";
+        reason = "entry_cutoff";
+      } else {
+        result = "valid";
+      }
       person = {
         full_name: (ticketRow as any).full_name ?? null,
         dni: (ticketRow as any).dni ?? null,
@@ -168,9 +206,10 @@ export async function POST(req: NextRequest) {
     other_event,
     code_id,
     ticket_id,
+    code_type,
     uses: codeRow?.uses ?? 0,
     max_uses: codeRow?.max_uses ?? null,
-    expired_at: codeRow?.expires_at ?? null,
+    expired_at: reason === "entry_cutoff" ? entryCutoffIso : codeRow?.expires_at ?? null,
     person,
     ticket_used,
   });

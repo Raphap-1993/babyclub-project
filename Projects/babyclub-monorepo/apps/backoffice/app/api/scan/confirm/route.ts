@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { DateTime } from "luxon";
+import { EVENT_TZ } from "shared/datetime";
+import { getEntryCutoff } from "shared/entryLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,6 +48,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Este ticket ya fue usado", result: "duplicate" }, { status: 400 });
     }
 
+    const { data: codeRow } = await supabase
+      .from("codes")
+      .select("id,type")
+      .eq("id", ticket.code_id)
+      .maybeSingle();
+    const codeType = (codeRow?.type || "").toLowerCase();
+    if (codeType === "general") {
+      const { data: eventRow, error: eventError } = await supabase
+        .from("events")
+        .select("starts_at,entry_limit")
+        .eq("id", ticket.event_id)
+        .maybeSingle();
+      if (eventError) {
+        return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
+      }
+      if (eventRow) {
+        const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
+        if (entryCutoff && DateTime.now().setZone(EVENT_TZ) > entryCutoff.cutoff) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Fuera de hora de ingreso",
+              result: "expired",
+              reason: "entry_cutoff",
+              expired_at: entryCutoff.cutoff.toUTC().toISO(),
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const now = new Date().toISOString();
     const { error: updErr } = await supabase
       .from("tickets")
@@ -78,7 +113,7 @@ export async function POST(req: NextRequest) {
 
   const { data: codeRow, error: codeErr } = await supabase
     .from("codes")
-    .select("id,event_id,is_active,max_uses,uses,expires_at")
+    .select("id,event_id,type,is_active,max_uses,uses,expires_at")
     .eq("id", code_id)
     .maybeSingle();
 
@@ -90,6 +125,31 @@ export async function POST(req: NextRequest) {
   }
   if (!codeRow.is_active) {
     return NextResponse.json({ success: false, error: "Código inactivo", result: "inactive" }, { status: 400 });
+  }
+  if ((codeRow.type || "").toLowerCase() === "general") {
+    const { data: eventRow, error: eventError } = await supabase
+      .from("events")
+      .select("starts_at,entry_limit")
+      .eq("id", codeRow.event_id)
+      .maybeSingle();
+    if (eventError) {
+      return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
+    }
+    if (eventRow) {
+      const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
+      if (entryCutoff && DateTime.now().setZone(EVENT_TZ) > entryCutoff.cutoff) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Fuera de hora de ingreso",
+            result: "expired",
+            reason: "entry_cutoff",
+            expired_at: entryCutoff.cutoff.toUTC().toISO(),
+          },
+          { status: 400 }
+        );
+      }
+    }
   }
   const expired = codeRow.expires_at ? new Date(codeRow.expires_at) < new Date() : false;
   if (expired) {

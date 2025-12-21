@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { EmailSender } from "./EmailSender";
 import Link from "next/link";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
+import { getEntryCutoffDisplay } from "shared/entryLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,7 +18,7 @@ type TicketView = {
   email: string | null;
   phone: string | null;
   code: { code: string; type?: string | null; expires_at?: string | null; promoter_id?: string | null };
-  event: { name: string; location: string | null; starts_at: string };
+  event: { name: string; location: string | null; starts_at: string; entry_limit?: string | null };
   promoter?: { code: string | null; person?: { first_name: string; last_name: string } | null } | null;
   reservation_codes?: string[] | null;
   table_name?: string | null;
@@ -34,7 +35,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,location,starts_at),promoter:promoters(code,person:persons(first_name,last_name))"
+      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,location,starts_at,entry_limit),promoter:promoters(code,person:persons(first_name,last_name))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -69,6 +70,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
       name: eventRel?.name ?? "",
       location: eventRel?.location ?? null,
       starts_at: eventRel?.starts_at ?? "",
+      entry_limit: eventRel?.entry_limit ?? null,
     },
     promoter: promoterRel
       ? {
@@ -147,13 +149,26 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   const showAdditionalInfo = codeType === "general" || codeType === "free";
   const expiresAt = ticket.code.expires_at ? new Date(ticket.code.expires_at) : null;
   const expiresLabel = expiresAt ? formatLimaFromDb(expiresAt.toISOString()) : null;
+  const entryCutoff = getEntryCutoffDisplay(ticket.event.starts_at, ticket.event.entry_limit);
+  const entryLimitLabel = entryCutoff
+    ? entryCutoff.isNextDay
+      ? `${entryCutoff.timeLabel} (${entryCutoff.dateLabel})`
+      : entryCutoff.timeLabel
+    : null;
   const eventParts = toLimaPartsFromDb(ticket.event.starts_at);
   const eventDateLabel = eventParts.date.replace(/\//g, "/");
   const eventTimeLabel = `${String(eventParts.hour12).padStart(2, "0")}:${String(eventParts.minute).padStart(2, "0")} ${
     eventParts.ampm
   }`;
   const eventDateTime = formatLimaFromDb(ticket.event.starts_at);
-  const warnings = buildWarnings({ codeType, isPromoterCode, hasTableContext, expiresLabel, eventTimeLabel });
+  const warnings = buildWarnings({
+    codeType,
+    isPromoterCode,
+    hasTableContext,
+    expiresLabel,
+    entryLimitLabel,
+    eventTimeLabel,
+  });
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-4 py-10 text-white">
@@ -351,26 +366,37 @@ function buildWarnings({
   isPromoterCode,
   hasTableContext,
   expiresLabel,
+  entryLimitLabel,
   eventTimeLabel,
 }: {
   codeType: string;
   isPromoterCode: boolean;
   hasTableContext: boolean;
   expiresLabel: string | null;
+  entryLimitLabel: string | null;
   eventTimeLabel: string;
 }) {
   const items: { title: string; body: string }[] = [];
-  if (codeType === "courtesy" || codeType === "promoter") {
+  if (codeType === "free") {
     items.push({
-      title: isPromoterCode || hasTableContext ? "QR de mesa / promotor" : "QR",
-      body: "Este QR no tiene límite de hora de ingreso.",
+      title: "QR libre",
+      body: expiresLabel
+        ? `Hora límite de ingreso: ${expiresLabel}.`
+        : "QR libre con hora límite configurable. Llega temprano para asegurar tu ingreso.",
+    });
+  } else if (codeType === "general") {
+    items.push({
+      title: "QR general",
+      body: entryLimitLabel
+        ? `Hora límite de ingreso: ${entryLimitLabel}. Horario del evento: ${eventTimeLabel}.`
+        : eventTimeLabel
+          ? `Hora de ingreso del evento: ${eventTimeLabel}.`
+          : "QR con hora límite configurable.",
     });
   } else {
     items.push({
-      title: "QR público",
-      body: expiresLabel
-        ? `Hora límite de ingreso: ${expiresLabel}. Tolerancia hasta las 11:30 PM. Horario del evento: ${eventTimeLabel}.`
-        : `Hora de ingreso del evento: ${eventTimeLabel}. Tolerancia hasta las 11:30 PM.`,
+      title: isPromoterCode || hasTableContext ? "QR de mesa / promotor" : "QR",
+      body: "Este QR no tiene límite de hora de ingreso.",
     });
   }
   return items;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 import { EVENT_TZ } from "shared/datetime";
+import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -73,15 +74,18 @@ function buildEventPayload(body: any): {
   const location = typeof body?.location === "string" ? body.location.trim() : "";
   const header_image = typeof body?.header_image === "string" ? body.header_image.trim() : "";
   const cover_image = typeof body?.cover_image === "string" ? body.cover_image.trim() : "";
+  const entry_limit_input = typeof body?.entry_limit === "string" ? body.entry_limit.trim() : "";
 
   const date_input = body?.starts_at ?? body?.date;
   const date_value = parseDateToLima(date_input);
 
   const capacity = Number(body?.capacity);
+  const entry_limit = normalizeEntryLimit(entry_limit_input || DEFAULT_ENTRY_LIMIT);
 
   if (!name) return { id, error: "name is required" };
   if (!date_value) return { id, error: "date must be a valid date" };
   if (!Number.isFinite(capacity) || capacity < 10) return { id, error: "capacity must be >= 10" };
+  if (!entry_limit) return { id, error: "entry_limit inválido" };
 
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
@@ -93,6 +97,7 @@ function buildEventPayload(body: any): {
       name,
       location,
       starts_at: date_value.toUTC().toISO(),
+      entry_limit,
       capacity,
       header_image,
       is_active,

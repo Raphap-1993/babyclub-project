@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
+import { DateTime } from "luxon";
+import { getEntryCutoffDisplay } from "shared/entryLimit";
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; starts_at: string; entry_limit?: string | null };
 
 type ScanLog = {
   ts: number;
@@ -39,6 +41,22 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const [ready, setReady] = useState(false);
+  const selectedEvent = useMemo(() => events.find((ev) => ev.id === eventId), [events, eventId]);
+  const entryCutoff = useMemo(() => {
+    if (!selectedEvent?.starts_at) return null;
+    return getEntryCutoffDisplay(selectedEvent.starts_at, selectedEvent.entry_limit);
+  }, [selectedEvent]);
+  const entryLimitLabel = entryCutoff
+    ? entryCutoff.isNextDay
+      ? `${entryCutoff.timeLabel} (${entryCutoff.dateLabel})`
+      : entryCutoff.timeLabel
+    : null;
+  const entryStatus = useMemo(() => {
+    if (!entryCutoff?.cutoffIso) return null;
+    const cutoff = DateTime.fromISO(entryCutoff.cutoffIso, { zone: "utc" });
+    if (!cutoff.isValid) return null;
+    return DateTime.now().toUTC() > cutoff ? "late" : "ok";
+  }, [entryCutoff]);
   const [modal, setModal] = useState<{
     value: string;
     result: ScanResult;
@@ -46,6 +64,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
     max_uses?: number | null;
     code_id?: string | null;
     ticket_id?: string | null;
+    code_type?: string | null;
     person?: { full_name: string | null; dni: string | null; email: string | null; phone: string | null } | null;
     ticket_used?: boolean;
     match_type?: MatchType;
@@ -137,6 +156,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         max_uses: payload.max_uses,
         code_id: payload.code_id,
         ticket_id: payload.ticket_id,
+        code_type: payload.code_type ?? null,
         person: payload.person ?? null,
         ticket_used: payload.ticket_used ?? false,
         match_type: payload.match_type,
@@ -164,8 +184,10 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         </div>
       </div>
 
-      <div className={`grid gap-4 ${simpleMode ? "" : "md:grid-cols-2"} rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] mb-4`}>
-        <div className="space-y-3">
+      <div
+        className={`grid gap-3 ${simpleMode ? "" : "md:grid-cols-2"} rounded-3xl border border-white/10 bg-[#0c0c0c] p-3 shadow-[0_20px_80px_rgba(0,0,0,0.45)] mb-3`}
+      >
+        <div className="space-y-2">
           <label className="block text-sm font-semibold text-white">Evento</label>
           <select
             value={eventId}
@@ -179,15 +201,28 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
               </option>
             ))}
           </select>
-          {!simpleMode && (
-            <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
-              - Mejor en HTTPS. <br />- Usa la cámara trasera si está disponible. <br />- Evita mover el dispositivo al detectar.
+          {entryLimitLabel && (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">
+              <span className="rounded-full border border-white/15 px-3 py-1 text-white/80">
+                Límite ingreso: {entryLimitLabel}
+              </span>
+              {entryStatus && (
+                <span
+                  className={
+                    entryStatus === "late"
+                      ? "rounded-full border border-red-500/40 bg-red-500/15 px-3 py-1 text-red-200"
+                      : "rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-emerald-200"
+                  }
+                >
+                  {entryStatus === "late" ? "Fuera de hora" : "Dentro de hora"}
+                </span>
+              )}
             </div>
           )}
         </div>
 
         {!simpleMode && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <label className="block text-sm font-semibold text-white">Código manual</label>
             <div className="flex gap-2">
               <input
@@ -303,7 +338,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.15em] text-white/50">Resultado del scan</p>
-                <h3 className="text-xl font-semibold text-white">{getResultTitle(modal.result)}</h3>
+                <h3 className="text-xl font-semibold text-white">{getResultTitle(modal.result, modal.reason)}</h3>
                 <p className="text-sm text-white/60">{getResultHint(modal)}</p>
               </div>
               <button
@@ -343,6 +378,14 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   <div className="text-white/80">Origen: {getMatchLabel(modal.match_type)}</div>
                   {modal.other_event?.name && (
                     <div className="text-white/80">Otro evento: {modal.other_event.name}</div>
+                  )}
+                  {modal.code_type === "general" && entryLimitLabel && entryStatus && modal.reason !== "event_mismatch" && (
+                    <div className="text-white/80">
+                      Límite ingreso: {entryLimitLabel} ·{" "}
+                      <span className={entryStatus === "late" ? "text-red-200" : "text-emerald-200"}>
+                        {entryStatus === "late" ? "Fuera de hora" : "Dentro de hora"}
+                      </span>
+                    </div>
                   )}
                   {modal.code_id && (
                     <div className="text-white/80">
@@ -384,7 +427,9 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                 )}
                 {modal.expired_at && (
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Expira</p>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">
+                      {modal.reason === "entry_cutoff" ? "Límite ingreso" : "Expira"}
+                    </p>
                     <p className="text-white">{new Date(modal.expired_at).toLocaleString()}</p>
                   </div>
                 )}
@@ -483,7 +528,8 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   );
 }
 
-function getResultTitle(result: string) {
+function getResultTitle(result: string, reason?: string | null) {
+  if (result === "expired" && reason === "entry_cutoff") return "Fuera de hora";
   switch (result) {
     case "valid":
       return "Código validado";
@@ -514,6 +560,7 @@ function getResultHint(modal: {
 }) {
   if (modal.result === "confirmed") return "Ingreso registrado correctamente.";
   if (modal.result === "valid") return "Puedes confirmar el ingreso.";
+  if (modal.reason === "entry_cutoff") return "Superó la hora máxima de ingreso para este evento.";
   if (modal.result === "duplicate" || modal.ticket_used) return "Este QR ya fue validado anteriormente.";
   if (modal.result === "expired") return "El código está vencido.";
   if (modal.result === "inactive") return "El código está inactivo.";
