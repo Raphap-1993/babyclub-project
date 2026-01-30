@@ -1,6 +1,5 @@
-const DOOR_ROLE_KEYS = ["door", "entrance", "control", "puerta", "ingreso", "entrada", "acceso", "scan", "scanner"];
+import { DOOR_ROLES, hasRole } from "shared/auth/roles";
 
-export const isDoorRole = (role?: string | null) => {
-  const roleText = (role || "").toLowerCase();
-  return DOOR_ROLE_KEYS.some((key) => roleText.includes(key));
-};
+export const isDoorRole = (role?: string | null) => hasRole(role ?? null, ["door"]);
+
+export { DOOR_ROLES };

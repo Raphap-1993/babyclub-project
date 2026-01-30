@@ -1,4 +1,5 @@
 import { createClient, type User } from "@supabase/supabase-js";
+import { hasRole } from "./roles";
 
 export type StaffContext = {
   user: User;
@@ -10,13 +11,6 @@ export type StaffContext = {
 export type StaffGuardResult =
   | { ok: true; context: StaffContext }
   | { ok: false; status: number; error: string };
-
-const doorRoleKeywords = ["door", "entrance", "control", "puerta", "ingreso", "entrada", "acceso", "scan", "scanner"];
-
-function isDoorRole(role?: string | null) {
-  const value = (role || "").toLowerCase();
-  return doorRoleKeywords.some((key) => value.includes(key));
-}
 
 function extractBearerToken(req: Request): string | null {
   const header = req.headers.get("authorization") || req.headers.get("Authorization");
@@ -88,11 +82,7 @@ export async function requireStaffRole(
     return ctx;
   }
 
-  const normalized = allowedRoles.map((r) => r.toLowerCase());
-  if (normalized.includes("door") && isDoorRole(role)) {
-    return ctx;
-  }
-  if (!role || !normalized.includes(role)) {
+  if (!hasRole(role, allowedRoles)) {
     return { ok: false, status: 403, error: "Rol sin permisos" };
   }
   return ctx;
