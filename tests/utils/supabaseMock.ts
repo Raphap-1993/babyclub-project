@@ -5,6 +5,7 @@ type QueryState = {
   table: string;
   op: "select" | "insert" | "update" | "delete";
   payload?: any;
+  filters?: { type: string; args: any[] }[];
 };
 
 const defaultResponse: Response = { data: null, error: null };
@@ -22,6 +23,11 @@ export function createSupabaseMock(responses: ResponseMap) {
 
   const makeChain = (state: QueryState) => {
     const chain: any = {
+      _addFilter: (type: string, args: any[]) => {
+        state.filters = state.filters || [];
+        state.filters.push({ type, args });
+        return chain;
+      },
       select: () => {
         if (!["insert", "update", "delete"].includes(state.op)) {
           state.op = "select";
@@ -42,11 +48,12 @@ export function createSupabaseMock(responses: ResponseMap) {
         state.op = "delete";
         return chain;
       },
-      eq: () => chain,
-      match: () => chain,
-      or: () => chain,
-      in: () => chain,
-      neq: () => chain,
+      eq: (...args: any[]) => chain._addFilter("eq", args),
+      match: (...args: any[]) => chain._addFilter("match", args),
+      or: (...args: any[]) => chain._addFilter("or", args),
+      in: (...args: any[]) => chain._addFilter("in", args),
+      neq: (...args: any[]) => chain._addFilter("neq", args),
+      is: (...args: any[]) => chain._addFilter("is", args),
       limit: () => chain,
       order: () => chain,
       maybeSingle: () => {
