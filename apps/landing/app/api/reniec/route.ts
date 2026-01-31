@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
 
 const token = process.env.API_PERU_TOKEN || "";
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_RENIEC_PER_MIN = parseRateLimitEnv(process.env.RATE_LIMIT_RENIEC_PER_MIN, 20);
 
 export async function GET(req: NextRequest) {
+  const limiter = rateLimit(req, {
+    keyPrefix: "landing:reniec",
+    limit: RATE_LIMIT_RENIEC_PER_MIN,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+  });
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: limiter.resetMs },
+      { status: 429, headers: rateLimitHeaders(limiter) }
+    );
+  }
+
   const dni = req.nextUrl.searchParams.get("dni") || "";
   if (!dni || dni.length !== 8) {
     return NextResponse.json({ error: "DNI inválido" }, { status: 400 });

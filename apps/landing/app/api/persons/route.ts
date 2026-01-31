@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
+import { parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_PERSONS_PER_MIN = parseRateLimitEnv(process.env.RATE_LIMIT_PERSONS_PER_MIN, 20);
 
 export async function GET(req: NextRequest) {
+  const limiter = rateLimit(req, {
+    keyPrefix: "landing:persons",
+    limit: RATE_LIMIT_PERSONS_PER_MIN,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+  });
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: limiter.resetMs },
+      { status: 429, headers: rateLimitHeaders(limiter) }
+    );
+  }
+
   const docTypeRaw = (req.nextUrl.searchParams.get("doc_type") || "dni") as DocumentType;
   const documentRaw = req.nextUrl.searchParams.get("document") || req.nextUrl.searchParams.get("dni") || "";
   const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);

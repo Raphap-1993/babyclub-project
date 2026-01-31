@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -7,8 +8,22 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = "event-assets";
 const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_VOUCHER_PER_MIN = parseRateLimitEnv(process.env.RATE_LIMIT_UPLOADS_VOUCHER_PER_MIN, 10);
 
 export async function POST(req: Request) {
+  const limiter = rateLimit(req, {
+    keyPrefix: "landing:uploads:voucher",
+    limit: RATE_LIMIT_VOUCHER_PER_MIN,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+  });
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { success: false, error: "rate_limited", retryAfterMs: limiter.resetMs },
+      { status: 429, headers: rateLimitHeaders(limiter) }
+    );
+  }
+
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
   }
