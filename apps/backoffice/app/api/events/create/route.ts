@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { EVENT_TZ } from "shared/datetime";
 import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { buildArchivePayload } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
   const eventId = data?.id;
 
   if (eventId) {
+    const archivePayload = buildArchivePayload(guard.context?.staffId);
     const codeToUse = requestedCode as string;
     const { data: rpcResult, error: rpcError } = await supabase.rpc("set_event_general_code", {
       p_event_id: eventId,
@@ -51,13 +53,13 @@ export async function POST(req: NextRequest) {
       p_capacity: capacity,
     });
     if (rpcError) {
-      await supabase.from("events").delete().eq("id", eventId);
+      await supabase.from("events").update(archivePayload).eq("id", eventId);
       const errorMessage =
         rpcError.code === "23505" ? "Ese código ya está asignado a otro evento" : rpcError.message || "Código no disponible";
       return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
     }
     if (!rpcResult) {
-      await supabase.from("events").delete().eq("id", eventId);
+      await supabase.from("events").update(archivePayload).eq("id", eventId);
       return NextResponse.json({ success: false, error: "No se pudo guardar el código del evento" }, { status: 400 });
     }
     if (cover_image) {

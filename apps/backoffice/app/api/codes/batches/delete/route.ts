@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { buildArchivePayload } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export async function POST(req: NextRequest) {
+export async function archiveBatch(req: NextRequest) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
     return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
@@ -30,19 +31,26 @@ export async function POST(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { error: codesError, count: codesCount } = await supabase
+  const { count: codesCount } = await supabase
     .from("codes")
-    .delete({ count: "exact" })
+    .select("id", { count: "exact", head: true })
     .eq("batch_id", batch_id);
+
+  const archivePayload = buildArchivePayload(guard.context?.staffId);
+  const { error: codesError } = await supabase.from("codes").update(archivePayload).eq("batch_id", batch_id);
 
   if (codesError) {
     return NextResponse.json({ success: false, error: codesError.message }, { status: 400 });
   }
 
-  const { error: batchError } = await supabase.from("code_batches").delete().eq("id", batch_id);
+  const { error: batchError } = await supabase.from("code_batches").update(archivePayload).eq("id", batch_id);
   if (batchError) {
     return NextResponse.json({ success: false, error: batchError.message }, { status: 400 });
   }
 
-  return NextResponse.json({ success: true, deleted_codes: codesCount ?? 0, batch_id });
+  return NextResponse.json({ success: true, archived: true, deleted_codes: codesCount ?? 0, batch_id });
+}
+
+export async function POST(req: NextRequest) {
+  return archiveBatch(req);
 }

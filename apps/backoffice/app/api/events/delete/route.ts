@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { buildArchivePayload } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -12,7 +13,7 @@ const supabase =
       })
     : null;
 
-export async function POST(req: NextRequest) {
+export async function archiveEvent(req: NextRequest) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
     return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
@@ -33,15 +34,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "id is required" }, { status: 400 });
   }
 
-  const { error: codeError } = await supabase.from("codes").delete().eq("event_id", id);
+  const archivePayload = buildArchivePayload(guard.context?.staffId);
+
+  const { error: codeError } = await supabase.from("codes").update(archivePayload).eq("event_id", id);
   if (codeError) {
     return NextResponse.json({ success: false, error: codeError.message }, { status: 500 });
   }
 
-  const { error: eventError } = await supabase.from("events").delete().eq("id", id);
+  const { error: eventError } = await supabase.from("events").update(archivePayload).eq("id", id);
   if (eventError) {
     return NextResponse.json({ success: false, error: eventError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, archived: true });
+}
+
+export async function POST(req: NextRequest) {
+  return archiveEvent(req);
 }

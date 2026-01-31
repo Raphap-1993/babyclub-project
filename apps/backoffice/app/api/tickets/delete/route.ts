@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { buildArchivePayload } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export async function POST(req: Request) {
+export async function archiveTicket(req: Request) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
     return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
@@ -39,7 +40,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: fetchError.message }, { status: 500 });
   }
 
-  const { error } = await supabase.from("tickets").delete().eq("id", id);
+  const archivePayload = buildArchivePayload(guard.context?.staffId);
+  const { error } = await supabase.from("tickets").update(archivePayload).eq("id", id);
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -64,5 +66,9 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, archived: true });
+}
+
+export async function POST(req: Request) {
+  return archiveTicket(req);
 }
