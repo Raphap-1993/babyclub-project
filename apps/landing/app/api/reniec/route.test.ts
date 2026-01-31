@@ -26,7 +26,8 @@ describe("GET /api/reniec rate limit", () => {
     const { GET } = await import("./route");
     const req = new Request("http://localhost/api/reniec?dni=12345678", {
       headers: { "x-forwarded-for": "9.9.9.9" },
-    });
+    }) as any;
+    req.nextUrl = new URL("http://localhost/api/reniec?dni=12345678");
 
     const first = await GET(req as any);
     expect(first.status).not.toBe(429);
