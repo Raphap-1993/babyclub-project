@@ -39,3 +39,12 @@ Set these to tune limits per environment (all are per minute):
 - `RATE_LIMIT_UPLOADS_VOUCHER_PER_MIN`
 - `RATE_LIMIT_TICKETS_EMAIL_PER_MIN`
 - `RATE_LIMIT_SCAN_PER_MIN`
+
+## Soft delete policy
+
+Critical tables use soft delete columns (`deleted_at`, `deleted_by`, `is_active`). API delete endpoints now archive rows instead of deleting.
+
+Archived records:
+- are excluded by default in list/lookup queries (`deleted_at IS NULL`)
+- keep historical data for audits
+- block staff access when staff is archived
