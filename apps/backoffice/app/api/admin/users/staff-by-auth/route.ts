@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,11 +31,10 @@ export async function POST(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("staff")
-    .select("id,person:persons(first_name,last_name)")
-    .eq("auth_user_id", auth_user_id)
-    .maybeSingle();
+  const staffQuery = applyNotDeleted(
+    supabase.from("staff").select("id,person:persons(first_name,last_name)").eq("auth_user_id", auth_user_id)
+  );
+  const { data, error } = await staffQuery.maybeSingle();
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

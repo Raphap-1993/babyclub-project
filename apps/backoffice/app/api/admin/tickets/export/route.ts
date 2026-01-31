@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -35,14 +36,16 @@ export async function GET(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  let query = supabase
-    .from("tickets")
-    .select("id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)", {
-      count: "exact",
-    })
-    .order("created_at", { ascending: false })
-    // límite para evitar respuestas gigantes y respetar el tope de PostgREST
-    .limit(5000);
+  let query = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)", {
+        count: "exact",
+      })
+      .order("created_at", { ascending: false })
+      // límite para evitar respuestas gigantes y respetar el tope de PostgREST
+      .limit(5000)
+  );
 
   if (from) {
     query = query.gte("created_at", `${from}T00:00:00`);
@@ -57,16 +60,17 @@ export async function GET(req: NextRequest) {
     }
   }
   if (promoter_id) {
-    const { data: promoterRows } = await supabase
-      .from("promoters")
-      .select("code,person:persons(first_name,last_name)")
-      .eq("id", promoter_id)
-      .maybeSingle();
+    const promoterQuery = applyNotDeleted(
+      supabase.from("promoters").select("code,person:persons(first_name,last_name)").eq("id", promoter_id)
+    );
+    const { data: promoterRows } = await promoterQuery.maybeSingle();
     const personRel = promoterRows ? (Array.isArray((promoterRows as any).person) ? (promoterRows as any).person?.[0] : (promoterRows as any).person) : null;
     const personName = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
     promoterLabel = personName || promoterRows?.code || promoter_id;
 
-    const { data: codesByPromoter } = await supabase.from("codes").select("id").eq("promoter_id", promoter_id);
+    const { data: codesByPromoter } = await applyNotDeleted(
+      supabase.from("codes").select("id").eq("promoter_id", promoter_id)
+    );
     const codeIdsForPromoter = (codesByPromoter || []).map((c: any) => c.id).filter(Boolean);
     const promoterFilters = [`promoter_id.eq.${promoter_id}`];
     if (codeIdsForPromoter.length > 0) {
@@ -104,13 +108,13 @@ export async function GET(req: NextRequest) {
 
   const [eventsRes, codesRes, promotersRes] = await Promise.all([
     eventIds.length
-      ? supabase.from("events").select("id,name").in("id", eventIds)
+      ? applyNotDeleted(supabase.from("events").select("id,name").in("id", eventIds))
       : Promise.resolve({ data: [] as any[], error: null }),
     codeIds.length
-      ? supabase.from("codes").select("id,code").in("id", codeIds)
+      ? applyNotDeleted(supabase.from("codes").select("id,code").in("id", codeIds))
       : Promise.resolve({ data: [] as any[], error: null }),
     promoterIds.length
-      ? supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIds)
+      ? applyNotDeleted(supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIds))
       : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 

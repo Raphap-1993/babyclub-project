@@ -6,6 +6,7 @@ import { formatLimaFromDb } from "shared/limaTime";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
 import { logProcessEvent } from "../../logs/logger";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -52,11 +53,10 @@ export async function POST(req: NextRequest) {
   });
 
   // Mesa
-  const { data: table, error: tableError } = await supabase
-    .from("tables")
-    .select("id,name,event_id,ticket_count,is_active")
-    .eq("id", table_id)
-    .maybeSingle();
+  const tableQuery = applyNotDeleted(
+    supabase.from("tables").select("id,name,event_id,ticket_count,is_active").eq("id", table_id)
+  );
+  const { data: table, error: tableError } = await tableQuery.maybeSingle();
 
   if (tableError || !table) {
     return NextResponse.json({ success: false, error: tableError?.message || "Mesa no encontrada" }, { status: 404 });
@@ -72,11 +72,10 @@ export async function POST(req: NextRequest) {
 
   // Validar producto pertenece a la mesa
   if (product_id) {
-    const { data: product, error: productError } = await supabase
-      .from("table_products")
-      .select("id,table_id")
-      .eq("id", product_id)
-      .maybeSingle();
+    const productQuery = applyNotDeleted(
+      supabase.from("table_products").select("id,table_id").eq("id", product_id)
+    );
+    const { data: product, error: productError } = await productQuery.maybeSingle();
     if (productError) {
       return NextResponse.json({ success: false, error: productError.message }, { status: 400 });
     }
@@ -86,13 +85,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Evitar doble reserva
-  const { data: existingReservation } = await supabase
-    .from("table_reservations")
-    .select("id,status")
-    .eq("table_id", table_id)
-    .in("status", ACTIVE_STATUSES)
-    .limit(1)
-    .maybeSingle();
+  const existingReservationQuery = applyNotDeleted(
+    supabase.from("table_reservations").select("id,status").eq("table_id", table_id).in("status", ACTIVE_STATUSES).limit(1)
+  );
+  const { data: existingReservation } = await existingReservationQuery.maybeSingle();
 
     if (existingReservation) {
       return NextResponse.json({ success: false, error: "La mesa ya tiene una reserva activa" }, { status: 409 });
@@ -122,12 +118,14 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        let ticketQuery = supabase
-          .from("tickets")
-          .select(
-            "id,event_id,full_name,email,phone,dni,doc_type,document,person:persons(first_name,last_name,email,phone,doc_type,document,dni),code:codes(code)"
-          )
-          .limit(1);
+        let ticketQuery = applyNotDeleted(
+          supabase
+            .from("tickets")
+            .select(
+              "id,event_id,full_name,email,phone,dni,doc_type,document,person:persons(first_name,last_name,email,phone,doc_type,document,dni),code:codes(code)"
+            )
+            .limit(1)
+        );
 
         if (ticket_id) {
           ticketQuery = ticketQuery.eq("id", ticket_id);

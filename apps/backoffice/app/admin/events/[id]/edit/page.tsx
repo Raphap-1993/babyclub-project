@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import EventForm from "../../components/EventForm";
 import Link from "next/link";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -27,11 +28,10 @@ async function getEvent(id: string): Promise<EventRow | null> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("events")
-    .select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active")
-    .eq("id", id)
-    .maybeSingle();
+  const eventQuery = applyNotDeleted(
+    supabase.from("events").select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active").eq("id", id)
+  );
+  const { data, error } = await eventQuery.maybeSingle();
 
   if (error || !data) return null;
 
@@ -42,13 +42,10 @@ async function getEvent(id: string): Promise<EventRow | null> {
     .eq("key", "cover_image")
     .maybeSingle();
 
-  const { data: codes } = await supabase
-    .from("codes")
-    .select("id,code")
-    .eq("event_id", id)
-    .eq("type", "general")
-    .eq("is_active", true)
-    .maybeSingle();
+  const codeQuery = applyNotDeleted(
+    supabase.from("codes").select("id,code").eq("event_id", id).eq("type", "general").eq("is_active", true)
+  );
+  const { data: codes } = await codeQuery.maybeSingle();
 
   const code = codes?.code || "";
   const cover_image = coverRow?.value_text || "";

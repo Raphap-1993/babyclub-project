@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import ProductManager from "./ProductManager";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -11,12 +12,14 @@ async function getData() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("tables")
-    .select(
-      "id,name,event:events(name),products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order)"
-    )
-    .order("name", { ascending: true });
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("tables")
+      .select(
+        "id,name,event:events(name),products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order,deleted_at)"
+      )
+      .order("name", { ascending: true })
+  );
 
   if (error || !data) return { tables: [], error: error?.message || "No se pudieron cargar las mesas" };
 
@@ -24,16 +27,18 @@ async function getData() {
     id: t.id,
     name: t.name,
     event: Array.isArray(t.event) ? t.event?.[0] : t.event,
-    products: (t.products || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      items: p.items || [],
-      price: p.price,
-      tickets_included: p.tickets_included,
-      is_active: p.is_active,
-      sort_order: p.sort_order,
-    })),
+    products: (t.products || [])
+      .filter((p: any) => !p?.deleted_at)
+      .map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        items: p.items || [],
+        price: p.price,
+        tickets_included: p.tickets_included,
+        is_active: p.is_active,
+        sort_order: p.sort_order,
+      })),
   }));
 
   return { tables: normalized };

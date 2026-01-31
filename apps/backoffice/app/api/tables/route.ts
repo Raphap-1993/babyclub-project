@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -16,10 +17,12 @@ export async function GET(req: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await supabase
-    .from("tables")
-    .select("id,name,ticket_count,min_consumption,price,is_active,notes,pos_x,pos_y,pos_w,pos_h")
-    .order("created_at", { ascending: true });
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("tables")
+      .select("id,name,ticket_count,min_consumption,price,is_active,notes,pos_x,pos_y,pos_w,pos_h")
+      .order("created_at", { ascending: true })
+  );
   if (error) return NextResponse.json({ tables: [], error: error.message }, { status: 500 });
   return NextResponse.json({ tables: data || [] });
 }

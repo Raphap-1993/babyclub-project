@@ -5,6 +5,7 @@ import { EVENT_TZ } from "shared/datetime";
 import { getEntryCutoff } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { getClientIp, parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -68,11 +69,10 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const nowLima = DateTime.fromJSDate(now).setZone(EVENT_TZ);
 
-  const { data: eventRow, error: eventError } = await supabase
-    .from("events")
-    .select("id,starts_at,entry_limit")
-    .eq("id", event_id)
-    .maybeSingle();
+  const eventQuery = applyNotDeleted(
+    supabase.from("events").select("id,starts_at,entry_limit").eq("id", event_id)
+  );
+  const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
 
   if (eventError) {
     return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
@@ -86,12 +86,14 @@ export async function POST(req: NextRequest) {
   const entryCutoffExceeded = entryCutoff ? nowLima > entryCutoff.cutoff : false;
 
   // Buscar el código exacto dentro del evento
-  const { data: codeRow, error: codeErr } = await supabase
-    .from("codes")
-    .select("id,code,type,event_id,is_active,max_uses,uses,expires_at")
-    .eq("event_id", event_id)
-    .eq("code", codeValue)
-    .maybeSingle();
+  const codeQuery = applyNotDeleted(
+    supabase
+      .from("codes")
+      .select("id,code,type,event_id,is_active,max_uses,uses,expires_at")
+      .eq("event_id", event_id)
+      .eq("code", codeValue)
+  );
+  const { data: codeRow, error: codeErr } = await codeQuery.maybeSingle();
 
   if (codeErr) {
     return NextResponse.json({ success: false, error: codeErr.message }, { status: 400 });
@@ -127,14 +129,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Intentar buscar datos de ticket asociado al code
-    const { data: ticketData } = await supabase
-      .from("tickets")
-      .select("id,full_name,dni,email,phone,used")
-      .eq("code_id", codeRow.id)
-      .eq("event_id", event_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const ticketQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("id,full_name,dni,email,phone,used")
+        .eq("code_id", codeRow.id)
+        .eq("event_id", event_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+    );
+    const { data: ticketData } = await ticketQuery.maybeSingle();
     if (ticketData) {
       ticket_id = (ticketData as any).id ?? null;
       ticket_used = Boolean((ticketData as any).used);
@@ -153,12 +157,14 @@ export async function POST(req: NextRequest) {
 
   // Si no encontró código, intentar por QR token en tickets
   if (!codeRow) {
-    const { data: ticketRow } = await supabase
-      .from("tickets")
-      .select("id,code_id,full_name,dni,email,phone,used,code:codes(type)")
-      .eq("qr_token", codeValue)
-      .eq("event_id", event_id)
-      .maybeSingle();
+    const qrTicketQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("id,code_id,full_name,dni,email,phone,used,code:codes(type)")
+        .eq("qr_token", codeValue)
+        .eq("event_id", event_id)
+    );
+    const { data: ticketRow } = await qrTicketQuery.maybeSingle();
     if (ticketRow) {
       const codeRel = Array.isArray((ticketRow as any).code) ? (ticketRow as any).code?.[0] : (ticketRow as any).code;
       const codeType = (codeRel?.type || "").toLowerCase();
@@ -185,18 +191,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (!codeRow && match_type === "none") {
-    const { data: otherCode } = await supabase
-      .from("codes")
-      .select("event_id,event:events(name)")
-      .eq("code", codeValue)
-      .neq("event_id", event_id)
-      .maybeSingle();
-    const { data: otherTicket } = await supabase
-      .from("tickets")
-      .select("event_id,event:events(name)")
-      .eq("qr_token", codeValue)
-      .neq("event_id", event_id)
-      .maybeSingle();
+    const otherCodeQuery = applyNotDeleted(
+      supabase
+        .from("codes")
+        .select("event_id,event:events(name)")
+        .eq("code", codeValue)
+        .neq("event_id", event_id)
+    );
+    const { data: otherCode } = await otherCodeQuery.maybeSingle();
+    const otherTicketQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("event_id,event:events(name)")
+        .eq("qr_token", codeValue)
+        .neq("event_id", event_id)
+    );
+    const { data: otherTicket } = await otherTicketQuery.maybeSingle();
     const otherSource: any = otherCode || otherTicket;
     if (otherSource?.event_id) {
       const eventRel = Array.isArray(otherSource.event) ? otherSource.event?.[0] : otherSource.event;

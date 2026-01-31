@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,11 +33,8 @@ export async function POST(req: NextRequest) {
   });
 
   // tomar código del promotor como prefijo si existe
-  const { data: promData, error: promError } = await supabase
-    .from("promoters")
-    .select("code")
-    .eq("id", promoter_id)
-    .maybeSingle();
+  const promoterQuery = applyNotDeleted(supabase.from("promoters").select("code").eq("id", promoter_id));
+  const { data: promData, error: promError } = await promoterQuery.maybeSingle();
   if (promError) return NextResponse.json({ success: false, error: promError.message }, { status: 500 });
   const prefixBase = (promData?.code || "courtesy").replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "courtesy";
 

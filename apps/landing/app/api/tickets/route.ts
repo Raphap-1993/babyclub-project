@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -52,11 +53,13 @@ export async function POST(req: NextRequest) {
 
   if (!codeValue) return NextResponse.json({ success: false, error: "code is required" }, { status: 400 });
 
-  const { data: codeRow, error: codeError } = await supabase
-    .from("codes")
-    .select("id,code,event_id,promoter_id,is_active,max_uses,uses,expires_at")
-    .eq("code", codeValue)
-    .maybeSingle();
+  const codeQuery = applyNotDeleted(
+    supabase
+      .from("codes")
+      .select("id,code,event_id,promoter_id,is_active,max_uses,uses,expires_at")
+      .eq("code", codeValue)
+  );
+  const { data: codeRow, error: codeError } = await codeQuery.maybeSingle();
 
   if (codeError || !codeRow) {
     return NextResponse.json({ success: false, error: "Código inválido" }, { status: 404 });

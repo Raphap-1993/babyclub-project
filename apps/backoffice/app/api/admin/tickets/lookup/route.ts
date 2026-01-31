@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { normalizeDocument, type DocumentType } from "shared/document";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -41,11 +42,8 @@ export async function POST(req: NextRequest) {
 
   let codeId: string | null = null;
   if (code) {
-    const { data: codeRow, error: codeErr } = await supabase
-      .from("codes")
-      .select("id,event_id")
-      .eq("code", code)
-      .maybeSingle();
+    const codeQuery = applyNotDeleted(supabase.from("codes").select("id,event_id").eq("code", code));
+    const { data: codeRow, error: codeErr } = await codeQuery.maybeSingle();
     if (codeErr) {
       return NextResponse.json({ success: false, error: codeErr.message }, { status: 400 });
     }
@@ -59,12 +57,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let query = supabase
-    .from("tickets")
-    .select(
-      "id,event_id,code_id,full_name,email,phone,dni,doc_type,document,code:codes(code),person:persons(first_name,last_name,email,phone,doc_type,document,dni),event:events(name,starts_at)"
-    )
-    .limit(1);
+  let query = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select(
+        "id,event_id,code_id,full_name,email,phone,dni,doc_type,document,code:codes(code),person:persons(first_name,last_name,email,phone,doc_type,document,dni),event:events(name,starts_at)"
+      )
+      .limit(1)
+  );
 
   const ors: string[] = [];
   if (ticket_id) {

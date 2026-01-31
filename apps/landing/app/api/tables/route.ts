@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,17 +14,19 @@ export async function GET() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("tables")
-    .select(
-      `
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("tables")
+      .select(
+        `
       id,name,event_id,ticket_count,min_consumption,price,is_active,notes,pos_x,pos_y,pos_w,pos_h,
-      table_reservations(status,created_at),
-      products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order)
+      table_reservations(status,created_at,deleted_at),
+      products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order,deleted_at)
     `
-    )
-    .eq("is_active", true)
-    .order("name", { ascending: true });
+      )
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+  );
 
   if (error) {
     return NextResponse.json({ tables: [], error: error.message }, { status: 500 });
@@ -32,9 +35,10 @@ export async function GET() {
   const normalized =
     data?.map((t: any) => {
       const reservations: any[] = Array.isArray(t.table_reservations) ? t.table_reservations : [];
+      const activeReservations = reservations.filter((r) => !r?.deleted_at);
       // Bloqueamos la mesa si existe alguna reserva activa (cualquier estado excepto rechazado/cancelado) reciente.
       const inactiveStatuses = new Set(["rejected", "cancelled", "canceled"]);
-      const is_reserved = reservations.some((r) => {
+      const is_reserved = activeReservations.some((r) => {
         const status = (r?.status || "").toLowerCase();
         if (inactiveStatuses.has(status)) return false;
         const created = r?.created_at ? new Date(r.created_at) : null;
@@ -44,7 +48,7 @@ export async function GET() {
       });
       return {
         ...t,
-        products: t.products || [],
+        products: (t.products || []).filter((p: any) => !p?.deleted_at),
         is_reserved,
       };
     }) || [];

@@ -5,6 +5,7 @@ import { EVENT_TZ } from "shared/datetime";
 import { getEntryCutoff } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { getClientIp, parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -55,13 +56,15 @@ export async function POST(req: NextRequest) {
   });
 
   // Buscar ticket si existe
-  const { data: ticket, error: ticketErr } = await supabase
-    .from("tickets")
-    .select("id,code_id,event_id,used,used_at")
-    .match(ticket_id ? { id: ticket_id } : { code_id })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const ticketQuery = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,code_id,event_id,used,used_at")
+      .match(ticket_id ? { id: ticket_id } : { code_id })
+      .order("created_at", { ascending: false })
+      .limit(1)
+  );
+  const { data: ticket, error: ticketErr } = await ticketQuery.maybeSingle();
 
   if (ticketErr) {
     return NextResponse.json({ success: false, error: ticketErr.message }, { status: 400 });
@@ -72,18 +75,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Este ticket ya fue usado", result: "duplicate" }, { status: 400 });
     }
 
-    const { data: codeRow } = await supabase
-      .from("codes")
-      .select("id,type")
-      .eq("id", ticket.code_id)
-      .maybeSingle();
+    const codeLookup = applyNotDeleted(supabase.from("codes").select("id,type").eq("id", ticket.code_id));
+    const { data: codeRow } = await codeLookup.maybeSingle();
     const codeType = (codeRow?.type || "").toLowerCase();
     if (codeType === "general") {
-      const { data: eventRow, error: eventError } = await supabase
-        .from("events")
-        .select("starts_at,entry_limit")
-        .eq("id", ticket.event_id)
-        .maybeSingle();
+      const eventQuery = applyNotDeleted(
+        supabase.from("events").select("starts_at,entry_limit").eq("id", ticket.event_id)
+      );
+      const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
       if (eventError) {
         return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
       }
@@ -135,11 +134,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Ticket no encontrado", result: "not_found" }, { status: 404 });
   }
 
-  const { data: codeRow, error: codeErr } = await supabase
-    .from("codes")
-    .select("id,event_id,type,is_active,max_uses,uses,expires_at")
-    .eq("id", code_id)
-    .maybeSingle();
+  const codeQuery = applyNotDeleted(
+    supabase.from("codes").select("id,event_id,type,is_active,max_uses,uses,expires_at").eq("id", code_id)
+  );
+  const { data: codeRow, error: codeErr } = await codeQuery.maybeSingle();
 
   if (codeErr) {
     return NextResponse.json({ success: false, error: codeErr.message }, { status: 400 });
@@ -151,11 +149,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código inactivo", result: "inactive" }, { status: 400 });
   }
   if ((codeRow.type || "").toLowerCase() === "general") {
-    const { data: eventRow, error: eventError } = await supabase
-      .from("events")
-      .select("starts_at,entry_limit")
-      .eq("id", codeRow.event_id)
-      .maybeSingle();
+    const codeEventQuery = applyNotDeleted(
+      supabase.from("events").select("starts_at,entry_limit").eq("id", codeRow.event_id)
+    );
+    const { data: eventRow, error: eventError } = await codeEventQuery.maybeSingle();
     if (eventError) {
       return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
     }

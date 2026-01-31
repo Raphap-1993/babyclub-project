@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,11 +27,9 @@ export async function GET(req: NextRequest) {
     return json({ events: [], error: "Supabase config missing" }, 500);
   }
 
-  const { data, error } = await supabase
-    .from("events")
-    .select("id,name")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const { data, error } = await applyNotDeleted(
+    supabase.from("events").select("id,name").order("created_at", { ascending: false }).limit(200)
+  );
 
   if (error) {
     return json({ events: [], error: error.message }, 500);

@@ -1,6 +1,7 @@
 import EventsClient from "./EventsClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,22 +27,21 @@ async function getEvents(params: { page: number; pageSize: number }): Promise<{ 
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
 
-  const { data, error, count } = await supabase
-    .from("events")
-    .select("id,name,location,starts_at,capacity,is_active,header_image", { count: "exact" })
-    .order("starts_at", { ascending: true })
-    .range(start, end);
+  const { data, error, count } = await applyNotDeleted(
+    supabase
+      .from("events")
+      .select("id,name,location,starts_at,capacity,is_active,header_image", { count: "exact" })
+      .order("starts_at", { ascending: true })
+      .range(start, end)
+  );
 
   if (error || !data) return null;
   if (data.length === 0) return { events: [], total: 0 };
 
   const ids = data.map((e) => e.id);
-  const { data: codes } = await supabase
-    .from("codes")
-    .select("event_id,code")
-    .in("event_id", ids)
-    .eq("type", "general")
-    .eq("is_active", true);
+  const { data: codes } = await applyNotDeleted(
+    supabase.from("codes").select("event_id,code").in("event_id", ids).eq("type", "general").eq("is_active", true)
+  );
   const codeMap = new Map<string, string>();
   (codes || []).forEach((c: any) => {
     if (!codeMap.has(c.event_id)) codeMap.set(c.event_id, c.code);

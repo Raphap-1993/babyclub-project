@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,11 +14,13 @@ export async function GET() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("promoters")
-    .select("id,is_active,person:persons(first_name,last_name)")
-    .eq("is_active", true)
-    .order("created_at", { ascending: true });
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("promoters")
+      .select("id,is_active,person:persons(first_name,last_name)")
+      .eq("is_active", true)
+      .order("created_at", { ascending: true })
+  );
 
   if (error) {
     return NextResponse.json({ promoters: [], error: error.message }, { status: 500 });

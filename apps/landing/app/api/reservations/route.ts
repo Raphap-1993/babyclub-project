@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,11 +41,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
   }
 
-  const { data: table, error: tableError } = await supabase
-    .from("tables")
-    .select("id,event_id,ticket_count,is_active,event:events(id,name)")
-    .eq("id", table_id)
-    .maybeSingle();
+  const tableQuery = applyNotDeleted(
+    supabase.from("tables").select("id,event_id,ticket_count,is_active,event:events(id,name)").eq("id", table_id)
+  );
+  const { data: table, error: tableError } = await tableQuery.maybeSingle();
 
   if (tableError || !table) {
     return NextResponse.json({ success: false, error: "Mesa no encontrada" }, { status: 404 });
@@ -58,18 +58,21 @@ export async function POST(req: NextRequest) {
 
   // Si no hay event_id en la mesa, intentar resolverlo desde el código del registro
   if (!effectiveEventId && codeValue) {
-    const { data: codeRow } = await supabase.from("codes").select("event_id").eq("code", codeValue).maybeSingle();
+    const codeQuery = applyNotDeleted(supabase.from("codes").select("event_id").eq("code", codeValue));
+    const { data: codeRow } = await codeQuery.maybeSingle();
     if (codeRow?.event_id) effectiveEventId = codeRow.event_id;
   }
   // Fallback: tomar el evento activo más cercano si sigue vacío
   if (!effectiveEventId) {
-    const { data: fallbackEvent } = await supabase
-      .from("events")
-      .select("id,starts_at,is_active")
-      .eq("is_active", true)
-      .order("starts_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const fallbackEventQuery = applyNotDeleted(
+      supabase
+        .from("events")
+        .select("id,starts_at,is_active")
+        .eq("is_active", true)
+        .order("starts_at", { ascending: true })
+        .limit(1)
+    );
+    const { data: fallbackEvent } = await fallbackEventQuery.maybeSingle();
     if (fallbackEvent?.id) effectiveEventId = fallbackEvent.id;
   }
 

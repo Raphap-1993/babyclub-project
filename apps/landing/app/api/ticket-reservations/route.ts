@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -48,11 +49,8 @@ export async function POST(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: eventRow, error: eventError } = await supabase
-    .from("events")
-    .select("id,is_active")
-    .eq("id", event_id)
-    .maybeSingle();
+  const eventQuery = applyNotDeleted(supabase.from("events").select("id,is_active").eq("id", event_id));
+  const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
 
   if (eventError || !eventRow) {
     return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });

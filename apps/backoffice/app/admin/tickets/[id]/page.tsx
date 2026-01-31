@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,29 +31,32 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("tickets")
-    .select("id,created_at,dni,full_name,email,phone,qr_token,event_id,code_id,promoter_id")
-    .eq("id", id)
-    .limit(1)
-    .maybeSingle();
+  const ticketQuery = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,created_at,dni,full_name,email,phone,qr_token,event_id,code_id,promoter_id")
+      .eq("id", id)
+      .limit(1)
+  );
+  const { data, error } = await ticketQuery.maybeSingle();
 
   if (error || !data) return { ticket: null, error: error?.message || "Ticket no encontrado" };
 
   const [eventRes, codeRes] = await Promise.all([
-    data.event_id ? supabase.from("events").select("id,name").eq("id", data.event_id).limit(1).maybeSingle() : Promise.resolve({ data: null }),
-    data.code_id ? supabase.from("codes").select("id,code,promoter_id").eq("id", data.code_id).limit(1).maybeSingle() : Promise.resolve({ data: null }),
+    data.event_id
+      ? applyNotDeleted(supabase.from("events").select("id,name").eq("id", data.event_id).limit(1)).maybeSingle()
+      : Promise.resolve({ data: null }),
+    data.code_id
+      ? applyNotDeleted(supabase.from("codes").select("id,code,promoter_id").eq("id", data.code_id).limit(1)).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const codeData = codeRes.data as any;
   const promoterId = data.promoter_id || codeData?.promoter_id || null;
   const promoterRes = promoterId
-    ? await supabase
-        .from("promoters")
-        .select("code,person:persons(first_name,last_name)")
-        .eq("id", promoterId)
-        .limit(1)
-        .maybeSingle()
+    ? await applyNotDeleted(
+        supabase.from("promoters").select("code,person:persons(first_name,last_name)").eq("id", promoterId).limit(1)
+      ).maybeSingle()
     : { data: null as any };
 
   const promoterData = (promoterRes as any)?.data;
@@ -66,18 +70,21 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
   let productName: string | null = null;
   let productItems: string[] | null = null;
   if (data.email || data.phone) {
-    const { data: resv } = await supabase
-      .from("table_reservations")
-      .select("codes,status,table:tables(name),product:table_products(name,items)")
-      .or(
-        [
-          data.email ? `email.eq.${data.email}` : "",
-          data.phone ? `phone.eq.${data.phone}` : "",
-        ]
-          .filter(Boolean)
-          .join(",")
-      )
-      .order("created_at", { ascending: false })
+    const resvQuery = applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select("codes,status,table:tables(name),product:table_products(name,items)")
+        .or(
+          [
+            data.email ? `email.eq.${data.email}` : "",
+            data.phone ? `phone.eq.${data.phone}` : "",
+          ]
+            .filter(Boolean)
+            .join(",")
+        )
+        .order("created_at", { ascending: false })
+    );
+    const { data: resv } = await resvQuery;
       .limit(1);
     const first = resv?.[0];
     tableCodes = first?.codes ? (first.codes as any[]).filter(Boolean) : [];

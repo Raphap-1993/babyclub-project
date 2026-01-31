@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -46,15 +47,17 @@ export async function GET(req: NextRequest) {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
-    .from("codes")
-    .select(
-      "id,code,type,event_id,promoter_id,is_active,max_uses,uses,expires_at,created_at,batch_id,event:events(name),promoter:promoters(code,person:persons(first_name,last_name))",
-      { count: "exact" },
-    )
-    .eq("event_id", event_id)
-    .order("created_at", { ascending: false })
-    .range(from, to);
+  let query = applyNotDeleted(
+    supabase
+      .from("codes")
+      .select(
+        "id,code,type,event_id,promoter_id,is_active,max_uses,uses,expires_at,created_at,batch_id,event:events(name),promoter:promoters(code,person:persons(first_name,last_name))",
+        { count: "exact" },
+      )
+      .eq("event_id", event_id)
+      .order("created_at", { ascending: false })
+      .range(from, to)
+  );
 
   if (type) query = query.eq("type", type);
   if (promoter_id) query = query.eq("promoter_id", promoter_id);

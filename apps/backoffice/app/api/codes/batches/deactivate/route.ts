@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -34,11 +35,9 @@ export async function POST(req: NextRequest) {
     global: { headers: { Authorization: authHeader } },
   });
 
-  const { data, error } = await supabase
-    .from("codes")
-    .update({ is_active: false, updated_at: new Date().toISOString() })
-    .eq("batch_id", batch_id)
-    .select("id");
+  const { data, error } = await applyNotDeleted(
+    supabase.from("codes").update({ is_active: false, updated_at: new Date().toISOString() }).eq("batch_id", batch_id).select("id")
+  );
 
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });

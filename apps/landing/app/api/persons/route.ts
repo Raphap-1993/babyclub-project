@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
+import { applyNotDeleted } from "shared/db/softDelete";
 import { parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -91,7 +92,8 @@ export async function GET(req: NextRequest) {
   let ticketEventId: string | null = null;
 
   if (code && (personRecord?.dni || personRecord?.document)) {
-    const { data: codeRow } = await supabase.from("codes").select("event_id").eq("code", code).maybeSingle();
+    const codeQuery = applyNotDeleted(supabase.from("codes").select("event_id").eq("code", code));
+    const { data: codeRow } = await codeQuery.maybeSingle();
     const eventId = codeRow?.event_id;
     if (eventId) {
       const ticketDocQuery = [
@@ -101,14 +103,16 @@ export async function GET(req: NextRequest) {
         .filter(Boolean)
         .join(",");
 
-      const { data: ticketRow } = await supabase
-        .from("tickets")
-        .select("id,promoter_id,event_id")
-        .eq("event_id", eventId)
-        .or(ticketDocQuery)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const ticketQuery = applyNotDeleted(
+        supabase
+          .from("tickets")
+          .select("id,promoter_id,event_id")
+          .eq("event_id", eventId)
+          .or(ticketDocQuery)
+          .order("created_at", { ascending: false })
+          .limit(1)
+      );
+      const { data: ticketRow } = await ticketQuery.maybeSingle();
       ticketPromoterId = (ticketRow as any)?.promoter_id ?? null;
       ticketId = (ticketRow as any)?.id ?? null;
       ticketEventId = (ticketRow as any)?.event_id ?? null;
@@ -124,13 +128,15 @@ export async function GET(req: NextRequest) {
       .filter(Boolean)
       .join(",");
 
-    const { data: latestTicket } = await supabase
-      .from("tickets")
-      .select("id,promoter_id,event_id")
-      .or(fallbackTicketQuery)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const latestTicketQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("id,promoter_id,event_id")
+        .or(fallbackTicketQuery)
+        .order("created_at", { ascending: false })
+        .limit(1)
+    );
+    const { data: latestTicket } = await latestTicketQuery.maybeSingle();
 
     if (latestTicket) {
       ticketPromoterId = (latestTicket as any)?.promoter_id ?? ticketPromoterId;

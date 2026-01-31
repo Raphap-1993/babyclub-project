@@ -4,6 +4,7 @@ import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { sendEmail } from "shared/email/resend";
 import { getEntryCutoffDisplay } from "shared/entryLimit";
 import { parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,13 +46,15 @@ export async function POST(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("tickets")
-    .select(
-      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location,entry_limit)"
-    )
-    .eq("id", ticketId)
-    .maybeSingle();
+  const ticketQuery = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select(
+        "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location,entry_limit)"
+      )
+      .eq("id", ticketId)
+  );
+  const { data, error } = await ticketQuery.maybeSingle();
 
   if (error || !data) {
     return NextResponse.json({ success: false, error: "Ticket no encontrado" }, { status: 404 });

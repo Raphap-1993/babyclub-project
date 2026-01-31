@@ -2,6 +2,7 @@ import TicketsClient from "./TicketsClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -37,14 +38,16 @@ async function getTickets(params: {
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
 
-  let query = supabase
-    .from("tickets")
-    .select(
-      "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)",
-      { count: "exact" }
-    )
-    .order("created_at", { ascending: false })
-    .range(start, end);
+  let query = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select(
+        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)",
+        { count: "exact" }
+      )
+      .order("created_at", { ascending: false })
+      .range(start, end)
+  );
 
   if (params.from) {
     const fromIso = `${params.from}T00:00:00`;
@@ -64,7 +67,9 @@ async function getTickets(params: {
   }
   if (params.promoter_id) {
     // Traemos los IDs de códigos asignados a ese promotor para filtrar también por code_id y evitar parsers raros en Supabase.
-    const { data: codesByPromoter } = await supabase.from("codes").select("id").eq("promoter_id", params.promoter_id);
+    const { data: codesByPromoter } = await applyNotDeleted(
+      supabase.from("codes").select("id").eq("promoter_id", params.promoter_id)
+    );
     const codeIdsForPromoter = (codesByPromoter || []).map((c: any) => c.id).filter(Boolean);
     const promoterFilters = [`promoter_id.eq.${params.promoter_id}`];
     if (codeIdsForPromoter.length > 0) {
@@ -100,13 +105,13 @@ async function getTickets(params: {
 
   const [eventsRes, codesRes, promotersRes] = await Promise.all([
     eventIds.length
-      ? supabase.from("events").select("id,name").in("id", eventIds)
+      ? applyNotDeleted(supabase.from("events").select("id,name").in("id", eventIds))
       : Promise.resolve({ data: [] as any[], error: null }),
     codeIds.length
-      ? supabase.from("codes").select("id,code").in("id", codeIds)
+      ? applyNotDeleted(supabase.from("codes").select("id,code").in("id", codeIds))
       : Promise.resolve({ data: [] as any[], error: null }),
     promoterIds.length
-      ? supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIds)
+      ? applyNotDeleted(supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIds))
       : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 

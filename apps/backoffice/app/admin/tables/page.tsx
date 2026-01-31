@@ -1,6 +1,7 @@
 import TablesClient from "./TablesClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,17 +24,18 @@ async function getTables(params: { page: number; pageSize: number }): Promise<{ 
   });
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
-  const { data, error, count } = await supabase
-    .from("tables")
-    .select("id,name,ticket_count,min_consumption,price,is_active,notes", { count: "exact" })
-    .order("created_at", { ascending: true })
-    .range(start, end);
+  const { data, error, count } = await applyNotDeleted(
+    supabase
+      .from("tables")
+      .select("id,name,ticket_count,min_consumption,price,is_active,notes", { count: "exact" })
+      .order("created_at", { ascending: true })
+      .range(start, end)
+  );
 
   const activeStatuses = ["pending", "approved", "confirmed", "paid"];
-  const { data: resData } = await supabase
-    .from("table_reservations")
-    .select("table_id,status")
-    .in("status", activeStatuses);
+  const { data: resData } = await applyNotDeleted(
+    supabase.from("table_reservations").select("table_id,status").in("status", activeStatuses)
+  );
   const reservedSet = new Set<string>((resData || []).map((r: any) => r.table_id).filter(Boolean));
 
   if (error || !data) return { tables: [], total: 0, error: error?.message || "No se pudieron cargar mesas" };

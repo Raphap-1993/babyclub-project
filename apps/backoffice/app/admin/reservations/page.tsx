@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import ReservationActions from "./components/ReservationActions";
 import CreateReservationButton from "./components/CreateReservationButton";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,10 +24,12 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await supabase
-    .from("table_reservations")
-    .select("id,full_name,email,phone,status,codes,ticket_quantity,table:tables(name,event:events(name)),event:event_id(name)")
-    .order("created_at", { ascending: false });
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("table_reservations")
+      .select("id,full_name,email,phone,status,codes,ticket_quantity,table:tables(name,event:events(name)),event:event_id(name)")
+      .order("created_at", { ascending: false })
+  );
   if (error || !data) return { reservations: [], error: error?.message || "No se pudieron cargar reservas" };
 
   const normalized: ReservationRow[] = (data as any[]).map((res) => {
