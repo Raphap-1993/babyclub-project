@@ -47,7 +47,7 @@ export async function getStaffContext(req: Request): Promise<StaffGuardResult> {
 
   const { data: staff, error: staffError } = await supabase
     .from("staff")
-    .select("id,is_active,role:staff_roles(code)")
+    .select("id,is_active,deleted_at,role:staff_roles(code)")
     .eq("auth_user_id", authData.user.id)
     .maybeSingle();
 
@@ -57,6 +57,9 @@ export async function getStaffContext(req: Request): Promise<StaffGuardResult> {
 
   if (staff.is_active === false) {
     return { ok: false, status: 403, error: "Usuario inactivo" };
+  }
+  if (staff.deleted_at) {
+    return { ok: false, status: 403, error: "Usuario archivado" };
   }
 
   return {
