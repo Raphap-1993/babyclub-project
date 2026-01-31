@@ -4,14 +4,33 @@ import { DateTime } from "luxon";
 import { EVENT_TZ } from "shared/datetime";
 import { getEntryCutoff } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { getClientIp, parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_SCAN_PER_MIN = parseRateLimitEnv(process.env.RATE_LIMIT_SCAN_PER_MIN, 120);
 
 export async function POST(req: NextRequest) {
   const guard = await requireStaffRole(req, ["door", "admin", "superadmin"]);
   if (!guard.ok) {
     return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+  const limiter = rateLimit(req, {
+    keyPrefix: "backoffice:scan:confirm",
+    limit: RATE_LIMIT_SCAN_PER_MIN,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    getKey: () => {
+      const ip = getClientIp(req);
+      const staffId = guard.context?.staffId;
+      return staffId ? `${ip}:${staffId}` : ip;
+    },
+  });
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { success: false, error: "rate_limited", retryAfterMs: limiter.resetMs },
+      { status: 429, headers: rateLimitHeaders(limiter) }
+    );
   }
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
