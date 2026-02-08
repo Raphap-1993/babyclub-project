@@ -4,6 +4,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:backoffice": "cd apps/backoffice && pnpm dev",
+    "dev:landing": "cd apps/landing && pnpm dev",
     "lint": "turbo run lint",
     "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
