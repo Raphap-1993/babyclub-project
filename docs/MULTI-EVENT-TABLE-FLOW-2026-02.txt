@@ -1,0 +1,52 @@
+graph TD
+    A["👤 User: Juan<br/>Email: juan@mail.com"] 
+    
+    A -->|registers| B["📅 Event A: CAC<br/>Feb 7, 14:00-20:00"]
+    B -->|creates reservation| C["🍽️ Mesa 1<br/>Capacity: 6"]
+    C -->|records| D["table_reservations<br/>id=res1<br/>event_id=A<br/>email=juan<br/>status=pending<br/>deleted_at=NULL"]
+    
+    B -->|16:00 Admin clicks| E["❌ CLOSE EVENT A"]
+    E -->|fires| F["POST /api/events/close<br/>id=A, reason='End of event'"]
+    
+    F -->|Step 1| G["✅ Disable codes<br/>150 codes: is_active=false"]
+    F -->|Step 2| H["✅ Archive reservations<br/>UPDATE WHERE event_id=A<br/>AND deleted_at IS NULL"]
+    H -->|sets| I["table_reservations res1<br/>deleted_at=2026-02-08T16:00Z<br/>status=archived"]
+    
+    F -->|Step 3| J["✅ Close event<br/>is_active=false<br/>closed_at=2026-02-08T16:00Z"]
+    
+    F -->|Step 4| K["📊 Log Success<br/>disabled_codes: 150<br/>archived_reservations: 42"]
+    
+    E -->|Response| L["{\n  success: true,\n  disabled_codes: 150,\n  archived_reservations: 42\n}"]
+    
+    M["⏳ NEXT DAY: 08:00"]
+    L -->|day later| M
+    
+    M -->|Juan registers| N["📅 Event B: Año Nuevo<br/>Feb 9, 12:00-22:00"]
+    N -->|creates NEW reservation| O["🍽️ Mesa 5<br/>Capacity: 10"]
+    O -->|queries| P["GET /api/tables?event_id=B"]
+    
+    P -->|queries| Q["SELECT * FROM table_reservations<br/>WHERE event_id=B<br/>AND deleted_at IS NULL"]
+    
+    Q -->|Result| R["✅ EMPTY<br/>mesa5 is available<br/>juan's old resa=archived<br/>Data isolated!"]
+    
+    R -->|fresh state| S["✅ Juan can reserve<br/>mesa5 in Event B<br/>No contamination"]
+    
+    style A fill:#fff9e6
+    style B fill:#e6f3ff
+    style C fill:#f0e6ff
+    style D fill:#fff0f5
+    style E fill:#ff6b6b
+    style F fill:#ff8c42
+    style G fill:#51cf66
+    style H fill:#51cf66
+    style I fill:#ffd700
+    style J fill:#51cf66
+    style K fill:#51cf66
+    style L fill:#90EE90
+    style M fill:#FFB6C1
+    style N fill:#e6f3ff
+    style O fill:#f0e6ff
+    style P fill:#fff0f5
+    style Q fill:#fff0f5
+    style R fill:#90EE90
+    style S fill:#90EE90
