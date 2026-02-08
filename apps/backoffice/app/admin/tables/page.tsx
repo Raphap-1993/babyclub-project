@@ -22,12 +22,24 @@ async function getTables(params: { page: number; pageSize: number }): Promise<{ 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  
+  // Get Baby Club organizer (only active organizer for now)
+  const { data: orgData } = await supabase
+    .from("organizers")
+    .select("id")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  
+  if (!orgData?.id) return { tables: [], total: 0, error: "No organizer found" };
+  
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
   const { data, error, count } = await applyNotDeleted(
     supabase
       .from("tables")
       .select("id,name,ticket_count,min_consumption,price,is_active,notes", { count: "exact" })
+      .eq("organizer_id", orgData.id)
       .order("created_at", { ascending: true })
       .range(start, end)
   );

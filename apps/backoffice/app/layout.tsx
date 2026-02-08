@@ -12,7 +12,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://panel.babyclubaccess.com"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"),
   title: {
     default: "BabyClub Access | Backoffice",
     template: "%s | BabyClub Access Backoffice",

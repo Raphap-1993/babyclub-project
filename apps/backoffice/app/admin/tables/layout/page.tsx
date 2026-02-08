@@ -5,20 +5,52 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 async function getInitialData() {
-  if (!supabaseUrl || !supabaseServiceKey) return { layout_url: null, tables: [] };
+  if (!supabaseUrl || !supabaseServiceKey) return { layout_url: null, tables: [], error: "Config missing" };
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  
+  // Get Baby Club organizer
+  const { data: orgData } = await supabase
+    .from("organizers")
+    .select("id")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  
+  if (!orgData?.id) return { layout_url: null, tables: [], error: "No organizer found" };
+  
+  // Get latest active event for this organizer
+  const { data: eventData } = await supabase
+    .from("events")
+    .select("id")
+    .eq("organizer_id", orgData.id)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  if (!eventData?.id) return { layout_url: null, tables: [], error: "No active event" };
+  
   const [{ data: layoutData }, { data: tablesData }] = await Promise.all([
-    supabase.from("layout_settings").select("layout_url").eq("id", 1).maybeSingle(),
+    supabase
+      .from("layout_settings")
+      .select("layout_url")
+      .eq("organizer_id", orgData.id)
+      .eq("event_id", eventData.id)
+      .maybeSingle(),
     supabase
       .from("tables")
-      .select("id,name,pos_x,pos_y,pos_w,pos_h")
+      .select("id,name,pos_x,pos_y,pos_w,pos_h,event_id")
+      .eq("organizer_id", orgData.id)
+      .eq("event_id", eventData.id)
       .order("created_at", { ascending: true }),
   ]);
   return {
     layout_url: layoutData?.layout_url || null,
     tables: tablesData || [],
+    event_id: eventData.id,
+    organizer_id: orgData.id,
   };
 }
 
