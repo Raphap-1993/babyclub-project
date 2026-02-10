@@ -382,7 +382,7 @@ async function sendReservationEmail({
           <td align="center">
             <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:680px;background:#0b0b0b;border-radius:24px;border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
               <tr>
-                <td style="padding:26px 32px 16px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(166,12,47,0.12));color:#ffffff;">
+                <td style="padding:26px 32px 16px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(233,30,99,0.12));color:#ffffff;">
                   <div style="text-transform:uppercase;font-size:12px;letter-spacing:0.28em;color:#f2f2f2;opacity:0.8;margin-bottom:6px;">Baby</div>
                   <h1 style="margin:0;font-size:26px;line-height:1.2;color:#ffffff;">Reserva confirmada</h1>
                   <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">Mesa ${tableRel?.name || ""} • ${eventLabel}${dateLabel ? ` • ${dateLabel}` : ""}</p>
@@ -397,7 +397,7 @@ async function sendReservationEmail({
                     <img src="${qrUrl}" alt="QR" width="210" height="210" style="border-radius:16px;border:8px solid #0f0f0f;background:#fff;" />
                   </div>
                   <div style="margin-bottom:16px;text-align:center;">
-                    <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#a60c2f,#b10e35);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket actualizado</a>
+                    <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket actualizado</a>
                   </div>
                   ${productRel?.name ? `<p style="font-size:14px;color:#f5f5f5;"><strong>Pack:</strong> ${productRel.name}</p>` : ""}
                   <div style="margin-top:12px;">

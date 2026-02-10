@@ -1,16 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Ban, Download, Plus, SearchCode } from "lucide-react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { SelectNative } from "@/components/ui/select-native";
-import { cn } from "@/lib/utils";
 
 type Option = { id: string; name: string };
 
@@ -279,258 +271,254 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
   }, [promoters, filters.type]);
 
   return (
-    <main className="relative overflow-hidden px-3 py-4 text-white sm:px-5 lg:px-8">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_16%_16%,rgba(166,12,47,0.10),transparent_32%),radial-gradient(circle_at_84%_0%,rgba(255,255,255,0.09),transparent_30%),radial-gradient(circle_at_50%_108%,rgba(255,255,255,0.06),transparent_42%)]" />
+    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Gestión</p>
+          <h1 className="text-3xl font-semibold">Códigos y lotes</h1>
+          {activeBatchId && (
+            <p className="mt-1 text-xs text-white/50">
+              Batch activo: <span className="font-mono">{activeBatchId}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowModal(true)}
+            className="rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)]"
+          >
+            Generar lote
+          </button>
+          <button
+            onClick={handleDeactivate}
+            disabled={deactivating || !activeBatchId}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              deactivating || !activeBatchId
+                ? "cursor-not-allowed border border-white/10 text-white/50"
+                : "border border-white/20 text-white hover:border-white"
+            }`}
+          >
+            {deactivating ? "Desactivando..." : "Desactivar lote"}
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting || !filters.event_id}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              exporting || !filters.event_id
+                ? "cursor-not-allowed border border-white/10 text-white/50"
+                : "border border-white/20 text-white hover:border-white"
+            }`}
+          >
+            {exporting ? "Exportando..." : "Export CSV"}
+          </button>
+        </div>
+      </div>
 
-      <div className="mx-auto w-full max-w-7xl space-y-2.5">
-        <Card className="border-[#2b2b2b] bg-[#111111]">
-          <CardHeader className="gap-2 pb-3 pt-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-0.5">
-                <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">
-                  Operaciones / Gestión de códigos
-                </CardDescription>
-                <CardTitle className="text-xl sm:text-2xl">Gestión de códigos</CardTitle>
-                {activeBatchId && (
-                  <p className="text-xs text-white/50">
-                    Lote activo: <span className="font-mono">{activeBatchId}</span>
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-                  Volver
-                </Link>
-                <Button size="sm" onClick={() => setShowModal(true)}>
-                  <Plus className="h-4 w-4" />
-                  Generar lote
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleDeactivate}
-                  disabled={deactivating || !activeBatchId}
-                >
-                  <Ban className="h-4 w-4" />
-                  {deactivating ? "Desactivando..." : "Desactivar lote"}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={handleExport} disabled={exporting || !filters.event_id}>
-                  <Download className="h-4 w-4" />
-                  {exporting ? "Exportando..." : "Export CSV"}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="border-t border-[#252525] p-3">
-            <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-12">
-              <div className="flex flex-col gap-1.5 sm:col-span-2 xl:col-span-3">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">Evento</label>
-                <SelectNative
-                  value={filters.event_id}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, event_id: e.target.value, page: 1 }))}
-                >
-                  <option value="">Selecciona evento</option>
-                  {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.name}
-                    </option>
-                  ))}
-                </SelectNative>
-              </div>
+      <section className="mb-4 grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:grid-cols-6">
+        <div className="flex flex-col gap-2 lg:col-span-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Evento</label>
+          <select
+            value={filters.event_id}
+            onChange={(e) => setFilters((prev) => ({ ...prev, event_id: e.target.value, page: 1 }))}
+            className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+          >
+            <option value="">Selecciona evento</option>
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-              <div className="flex flex-col gap-1.5 xl:col-span-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">Tipo</label>
-                <SelectNative
-                  value={filters.type}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value, page: 1 }))}
-                >
-                  {TYPE_OPTIONS.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </SelectNative>
-              </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Tipo</label>
+          <select
+            value={filters.type}
+            onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value, page: 1 }))}
+            className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+          >
+            {TYPE_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-              <div className="flex flex-col gap-1.5 xl:col-span-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">Promotor</label>
-                <SelectNative
-                  value={filters.promoter_id}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, promoter_id: e.target.value, page: 1 }))}
-                  disabled={!filters.type}
-                >
-                  <option value="">{filters.type ? "Selecciona promotor" : "No aplica"}</option>
-                  {filteredPromoters.map((pr) => (
-                    <option key={pr.id} value={pr.id}>
-                      {pr.name}
-                    </option>
-                  ))}
-                </SelectNative>
-              </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Promotor</label>
+          <select
+            value={filters.promoter_id}
+            onChange={(e) => setFilters((prev) => ({ ...prev, promoter_id: e.target.value, page: 1 }))}
+            disabled={!filters.type}
+            className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="">{filters.type ? "Selecciona promotor" : "No aplica"}</option>
+            {filteredPromoters.map((pr) => (
+              <option key={pr.id} value={pr.id}>
+                {pr.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-              <div className="flex flex-col gap-1.5 xl:col-span-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">Estado</label>
-                <SelectNative
-                  value={filters.status}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value as Filters["status"], page: 1 }))}
-                >
-                  {STATUS_OPTIONS.map((st) => (
-                    <option key={st.value} value={st.value}>
-                      {st.label}
-                    </option>
-                  ))}
-                </SelectNative>
-              </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Estado</label>
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value as Filters["status"], page: 1 }))}
+            className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+          >
+            {STATUS_OPTIONS.map((st) => (
+              <option key={st.value} value={st.value}>
+                {st.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-              <div className="flex flex-col gap-1.5 sm:col-span-2 xl:col-span-3">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">Lote</label>
-                <div className="relative">
-                  <SearchCode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                  <Input
-                    value={filters.batch_id}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, batch_id: e.target.value.trim(), page: 1 }))}
-                    placeholder="Filtrar por lote"
-                    className="pl-9"
-                  />
-                </div>
-              </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Batch ID</label>
+          <input
+            value={filters.batch_id}
+            onChange={(e) => setFilters((prev) => ({ ...prev, batch_id: e.target.value.trim(), page: 1 }))}
+            placeholder="Filtrar por batch"
+            className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+          />
+        </div>
 
-              <div className="flex flex-col gap-1.5 sm:col-span-2 xl:col-span-4">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">Rango de creación</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <DatePickerSimple
-                    value={filters.start_date}
-                    onChange={(next) => setFilters((prev) => ({ ...prev, start_date: next, page: 1 }))}
-                  />
-                  <DatePickerSimple
-                    value={filters.end_date}
-                    onChange={(next) => setFilters((prev) => ({ ...prev, end_date: next, page: 1 }))}
-                  />
-                </div>
-              </div>
-            </section>
-          </CardContent>
-        </Card>
-
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-sm text-white/70">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white/65">
-              Mostrando página {currentPage} de {totalPages} ({total} códigos)
-            </span>
-            {error && <span className="text-xs text-red-300">{error}</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs uppercase tracking-[0.12em] text-white/50">Filas</label>
-            <SelectNative
-              value={filters.pageSize}
-              onChange={(e) => setFilters((prev) => ({ ...prev, pageSize: Number(e.target.value), page: 1 }))}
-              className="h-8 min-w-[95px]"
-            >
-              {PAGE_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </SelectNative>
-            <div className="flex items-center gap-1">
-              <Button
-                onClick={() => setFilters((prev) => ({ ...prev, page: Math.max(1, currentPage - 1) }))}
-                disabled={currentPage <= 1}
-                variant="ghost"
-                size="sm"
-              >
-                Anterior
-              </Button>
-              <Button
-                onClick={() => setFilters((prev) => ({ ...prev, page: Math.min(totalPages, currentPage + 1) }))}
-                disabled={currentPage >= totalPages}
-                variant="ghost"
-                size="sm"
-              >
-                Siguiente
-              </Button>
-            </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Rango fecha (creación)</label>
+          <div className="grid grid-cols-2 gap-2">
+            <DatePickerSimple
+              value={filters.start_date}
+              onChange={(next) => setFilters((prev) => ({ ...prev, start_date: next, page: 1 }))}
+            />
+            <DatePickerSimple
+              value={filters.end_date}
+              onChange={(next) => setFilters((prev) => ({ ...prev, end_date: next, page: 1 }))}
+            />
           </div>
         </div>
-        
-        <div className="max-h-[58dvh] space-y-4 overflow-y-auto pr-1">
-          {loading && (
-            <div className="rounded-3xl border border-[#292929] bg-[#0c0c0c] p-6 text-center text-white/70 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-              Cargando códigos...
-            </div>
-          )}
-          {!loading && groupedCodes.length === 0 && (
-            <div className="rounded-3xl border border-[#292929] bg-[#0c0c0c] p-6 text-center text-white/70 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-              No hay códigos con los filtros actuales.
-            </div>
-          )}
+      </section>
 
-          {!loading &&
-            groupedCodes.map((group) => {
-              const sample = group.codes[0];
-              const expiredCount = group.codes.filter((c) => c.expires_at && new Date(c.expires_at) < new Date()).length;
-              const activeCount = group.codes.filter((c) => c.is_active && !(c.expires_at && new Date(c.expires_at) < new Date())).length;
-              const totalUses = group.codes.reduce((acc, c) => acc + (c.uses ?? 0), 0);
-              const totalMax = group.codes.reduce((acc, c) => acc + (c.max_uses ?? 1), 0);
-              const lotLabel = sample.promoter_name || sample.event_name || sample.promoter_code || "Lote";
-              return (
-                <div
-                  key={group.batchId}
-                  className="rounded-3xl border border-[#292929] bg-[#0c0c0c] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div
-                      className="flex cursor-pointer flex-col"
-                      onClick={() => {
-                        setExpanded((prev) => {
-                          const next = new Set(prev);
-                          next.has(group.batchId) ? next.delete(group.batchId) : next.add(group.batchId);
-                          return next;
-                        });
-                      }}
-                    >
-                      <p className="text-xs uppercase tracking-[0.15em] text-white/60">
-                        {group.batchId === "no-batch" ? "Sin batch" : "Lote"}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-lg font-semibold text-white">
-                          {lotLabel}
-                        </span>
-                        <span className="text-xs text-white/50">{expanded.has(group.batchId) ? "Contraer" : "Expandir"}</span>
-                      </div>
-                      <p className="text-xs text-white/50">
-                        {group.batchId !== "no-batch" && <span className="font-mono text-white/60">{group.batchId}</span>}
-                        {group.batchId !== "no-batch" && " · "}
-                        Evento: {sample.event_name || "—"} · Promotor: {sample.promoter_name || sample.promoter_code || "—"} ·
-                        Tipo: {sample.type || "—"}
-                      </p>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-white/70">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-white/10 px-3 py-1">Total: {total}</span>
+          <span className="rounded-full border border-white/10 px-3 py-1">Página {currentPage} / {totalPages}</span>
+          {error && <span className="rounded-full border border-red-500/40 px-3 py-1 text-red-200">{error}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs uppercase tracking-[0.12em] text-white/50">Filas</label>
+          <select
+            value={filters.pageSize}
+            onChange={(e) => setFilters((prev) => ({ ...prev, pageSize: Number(e.target.value), page: 1 }))}
+            className="rounded-xl border border-white/15 bg-[#0a0a0a] px-3 py-1 text-sm text-white outline-none focus:border-white"
+          >
+            {PAGE_SIZES.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setFilters((prev) => ({ ...prev, page: Math.max(1, currentPage - 1) }))}
+              disabled={currentPage <= 1}
+              className="rounded-full border border-white/15 px-3 py-1 text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ←
+            </button>
+            <button
+              onClick={() => setFilters((prev) => ({ ...prev, page: Math.min(totalPages, currentPage + 1) }))}
+              disabled={currentPage >= totalPages}
+              className="rounded-full border border-white/15 px-3 py-1 text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {loading && (
+          <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6 text-center text-white/70 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+            Cargando códigos...
+          </div>
+        )}
+        {!loading && groupedCodes.length === 0 && (
+          <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6 text-center text-white/70 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+            No hay códigos con los filtros actuales.
+          </div>
+        )}
+
+        {!loading &&
+          groupedCodes.map((group) => {
+            const sample = group.codes[0];
+            const expiredCount = group.codes.filter((c) => c.expires_at && new Date(c.expires_at) < new Date()).length;
+            const activeCount = group.codes.filter((c) => c.is_active && !(c.expires_at && new Date(c.expires_at) < new Date())).length;
+            const totalUses = group.codes.reduce((acc, c) => acc + (c.uses ?? 0), 0);
+            const totalMax = group.codes.reduce((acc, c) => acc + (c.max_uses ?? 1), 0);
+            const lotLabel = sample.promoter_name || sample.event_name || sample.promoter_code || "Lote";
+            return (
+              <div
+                key={group.batchId}
+                className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div
+                    className="flex cursor-pointer flex-col"
+                    onClick={() => {
+                      setExpanded((prev) => {
+                        const next = new Set(prev);
+                        next.has(group.batchId) ? next.delete(group.batchId) : next.add(group.batchId);
+                        return next;
+                      });
+                    }}
+                  >
+                    <p className="text-xs uppercase tracking-[0.15em] text-white/60">
+                      {group.batchId === "no-batch" ? "Sin batch" : "Lote"}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-lg font-semibold text-white">
+                        {lotLabel}
+                      </span>
+                      <span className="text-xs text-white/50">{expanded.has(group.batchId) ? "Contraer" : "Expandir"}</span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-white/70">
-                      <span className="rounded-full border border-[#292929] px-3 py-1">
-                        Activos {activeCount}/{group.codes.length}
-                      </span>
-                      <span className="rounded-full border border-[#292929] px-3 py-1">
-                        Expirados {expiredCount}/{group.codes.length}
-                      </span>
-                      <span className="rounded-full border border-[#292929] px-3 py-1">
-                        Usos {totalUses}/{totalMax}
-                      </span>
-                      {group.batchId !== "no-batch" && (
-                        <button
-                          onClick={() => handleDeleteBatch(group.batchId)}
-                          disabled={deleting === group.batchId}
-                          className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-200 transition hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deleting === group.batchId ? "Eliminando..." : "Eliminar lote"}
-                        </button>
-                      )}
-                    </div>
+                    <p className="text-xs text-white/50">
+                      {group.batchId !== "no-batch" && <span className="font-mono text-white/60">{group.batchId}</span>}
+                      {group.batchId !== "no-batch" && " · "}
+                      Evento: {sample.event_name || "—"} · Promotor: {sample.promoter_name || sample.promoter_code || "—"} ·
+                      Tipo: {sample.type || "—"}
+                    </p>
                   </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-white/70">
+                    <span className="rounded-full border border-white/10 px-3 py-1">
+                      Activos {activeCount}/{group.codes.length}
+                    </span>
+                    <span className="rounded-full border border-white/10 px-3 py-1">
+                      Expirados {expiredCount}/{group.codes.length}
+                    </span>
+                    <span className="rounded-full border border-white/10 px-3 py-1">
+                      Usos {totalUses}/{totalMax}
+                    </span>
+                    {group.batchId !== "no-batch" && (
+                      <button
+                        onClick={() => handleDeleteBatch(group.batchId)}
+                        disabled={deleting === group.batchId}
+                        className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-200 transition hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deleting === group.batchId ? "Eliminando..." : "Eliminar lote"}
+                      </button>
+                    )}
+                  </div>
+                </div>
 
                 {expanded.has(group.batchId) && (
-                  <div className="mt-4 overflow-x-auto rounded-2xl border border-[#232323] bg-black/20">
+                  <div className="mt-4 overflow-x-auto rounded-2xl border border-white/5 bg-black/20">
                     <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
-                      <thead className="bg-[#151515] text-xs uppercase tracking-[0.08em] text-white/60">
+                      <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
                         <tr>
                           <th className="w-[20%] px-4 py-3 text-left">Código</th>
                           <th className="w-[12%] px-4 py-3 text-left">Estado</th>
@@ -547,10 +535,10 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
                           const statusClass = expired
                             ? "bg-rose-500/20 text-rose-200"
                             : row.is_active
-                              ? "bg-[#a60c2f]/15 text-[#a60c2f]"
+                              ? "bg-[#e91e63]/15 text-[#e91e63]"
                               : "bg-white/5 text-white/70";
                           return (
-                            <tr key={row.id} className="hover:bg-[#151515]">
+                            <tr key={row.id} className="hover:bg-white/[0.02]">
                               <td className="truncate px-4 py-3 font-mono text-[13px] text-white" title={row.code}>
                                 {row.code}
                               </td>
@@ -569,7 +557,7 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
                                       setSelectedBatchId(row.batch_id || "");
                                       setFilters((prev) => ({ ...prev, batch_id: row.batch_id || "", page: 1 }));
                                     }}
-                                    className="rounded-full border border-[#2b2b2b] px-3 py-1 font-mono text-xs text-white/80 transition hover:border-white"
+                                    className="rounded-full border border-white/15 px-3 py-1 font-mono text-xs text-white/80 transition hover:border-white"
                                   >
                                     {row.batch_id.slice(0, 8)}…
                                   </button>
@@ -590,7 +578,7 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
       </div>
 
       {generated && (
-        <div className="mt-4 rounded-2xl border border-[#2b2b2b] bg-[#0c0c0c] p-4 text-sm text-white/80">
+        <div className="mt-4 rounded-2xl border border-white/15 bg-[#0c0c0c] p-4 text-sm text-white/80">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.15em] text-white/60">Lote generado</p>
@@ -608,7 +596,7 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
                   setFilters((prev) => ({ ...prev, batch_id: generated.batchId, page: 1 }));
                   setSelectedBatchId(generated.batchId);
                 }}
-                className="rounded-full border border-[#a60c2f]/50 px-3 py-1 text-xs font-semibold text-[#a60c2f] transition hover:border-[#a60c2f]"
+                className="rounded-full border border-[#e91e63]/50 px-3 py-1 text-xs font-semibold text-[#e91e63] transition hover:border-[#e91e63]"
               >
                 Ver lote
               </button>
@@ -616,7 +604,7 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
           </div>
           <div className="mt-3 grid gap-2 text-xs font-mono text-white/70 md:grid-cols-2 lg:grid-cols-3">
             {generated.codes.map((c) => (
-              <span key={c} className="rounded-xl border border-[#292929] bg-[#171717] px-3 py-2">
+              <span key={c} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2">
                 {c}
               </span>
             ))}
@@ -636,7 +624,6 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
           }}
         />
       )}
-      </div>
     </main>
   );
 }
@@ -736,87 +723,115 @@ function GenerateBatchModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <Card className="w-full max-w-3xl border-[#2b2b2b] bg-[#0b0b0b]">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">Nuevo lote</CardDescription>
-              <CardTitle className="mt-2 text-2xl">Generar códigos</CardTitle>
-              <p className="mt-1 text-xs text-white/55">Expiran automáticamente 1 día después del evento y son de 1 uso.</p>
-            </div>
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-              Cerrar
-            </Button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-3xl rounded-3xl border border-white/15 bg-[#0b0b0b] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Nuevo lote</p>
+            <h2 className="text-2xl font-semibold text-white">Generar códigos</h2>
+            <p className="text-xs text-white/50">Expiran automáticamente 1 día después del evento y son de 1 uso.</p>
           </div>
-        </CardHeader>
+          <button onClick={onClose} className="rounded-full border border-white/15 px-3 py-1 text-sm text-white">
+            Cerrar
+          </button>
+        </div>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs uppercase tracking-[0.15em] text-white/60">Evento</label>
-                <SelectNative value={eventId} onChange={(e) => setEventId(e.target.value)}>
-                  <option value="">Selecciona evento</option>
-                  {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.name}
-                    </option>
-                  ))}
-                </SelectNative>
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs uppercase tracking-[0.15em] text-white/60">Evento</label>
+              <select
+                value={eventId}
+                onChange={(e) => setEventId(e.target.value)}
+                className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+              >
+                <option value="">Selecciona evento</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs uppercase tracking-[0.15em] text-white/60">Promotor</label>
+              <select
+                value={promoterId}
+                onChange={(e) => setPromoterId(e.target.value)}
+                className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+              >
+                <option value="">Selecciona promotor</option>
+                {filteredPromoters.map((pr) => (
+                  <option key={pr.id} value={pr.id}>
+                    {pr.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs uppercase tracking-[0.15em] text-white/60">Cantidad</label>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs uppercase tracking-[0.15em] text-white/60">Notas</label>
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Contexto interno"
+                className="w-full rounded-2xl border border-white/15 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-white"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-red-300">{error}</p>}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold text-white transition hover:shadow-[0_12px_35px_rgba(233,30,99,0.35)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Generando..." : "Generar"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+            >
+              Cancelar
+            </button>
+          </div>
+
+          {batchId && generatedCodes.length > 0 && (
+            <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/40 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-white">Batch {batchId}</p>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(generatedCodes.join("\n"))}
+                  className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white transition hover:border-white"
+                >
+                  Copiar todo
+                </button>
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs uppercase tracking-[0.15em] text-white/60">Promotor</label>
-                <SelectNative value={promoterId} onChange={(e) => setPromoterId(e.target.value)}>
-                  <option value="">Selecciona promotor</option>
-                  {filteredPromoters.map((pr) => (
-                    <option key={pr.id} value={pr.id}>
-                      {pr.name}
-                    </option>
-                  ))}
-                </SelectNative>
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs uppercase tracking-[0.15em] text-white/60">Cantidad</label>
-                <Input type="number" min={1} max={200} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs uppercase tracking-[0.15em] text-white/60">Notas</label>
-                <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Contexto interno" />
+              <div className="grid gap-2 text-xs font-mono text-white/70 md:grid-cols-2">
+                {generatedCodes.map((c) => (
+                  <span key={c} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2">
+                    {c}
+                  </span>
+                ))}
               </div>
             </div>
-
-            {error && <Badge variant="danger">{error}</Badge>}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Generando..." : "Generar"}
-              </Button>
-              <Button type="button" variant="ghost" onClick={onClose}>
-                Cancelar
-              </Button>
-            </div>
-
-            {batchId && generatedCodes.length > 0 && (
-              <div className="mt-4 space-y-2 rounded-2xl border border-[#292929] bg-[#151515] p-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white">Batch {batchId}</p>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => copyToClipboard(generatedCodes.join("\n"))}>
-                    Copiar todo
-                  </Button>
-                </div>
-                <div className="grid gap-2 text-xs font-mono text-white/70 md:grid-cols-2">
-                  {generatedCodes.map((c) => (
-                    <span key={c} className="rounded-xl border border-[#292929] bg-[#171717] px-3 py-2">
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </form>
-        </CardContent>
-      </Card>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

@@ -7,6 +7,8 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function POST(req: NextRequest) {
+  console.log("[/api/tickets] Inicio de petición");
+  
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
   }
@@ -21,6 +23,12 @@ export async function POST(req: NextRequest) {
   } catch (_err) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
+
+  console.log("[/api/tickets] Datos recibidos:", {
+    code: body?.code,
+    document: body?.document,
+    nombre: body?.nombre
+  });
 
   const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
   const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
@@ -80,23 +88,6 @@ export async function POST(req: NextRequest) {
 
   const eventId = codeRow.event_id || "";
 
-  // Validar que el evento esté activo (no cerrado/inactivo)
-  if (eventId) {
-    const { data: eventRow, error: eventError } = await supabase
-      .from("events")
-      .select("id,is_active,closed_at")
-      .eq("id", eventId)
-      .maybeSingle();
-
-    if (eventError) {
-      return NextResponse.json({ success: false, error: eventError.message }, { status: 500 });
-    }
-
-    if (!eventRow || eventRow.is_active === false || eventRow.closed_at) {
-      return NextResponse.json({ success: false, error: "Evento cerrado o inactivo" }, { status: 400 });
-    }
-  }
-
   // Persona
   const personPayload = {
     dni: docType === "dni" ? dni : null,
@@ -152,37 +143,33 @@ export async function POST(req: NextRequest) {
   const full_name = `${first_name} ${last_name}`.trim();
   const qr_token = crypto.randomUUID();
 
-  // Si ya tiene ticket VÁLIDO (no deleted) para este evento, devolvemos el mismo QR/id
-  // Aplicamos applyNotDeleted para ignorar tickets marcados como eliminados
+  // Si ya tiene ticket ACTIVO (no borrado) para este evento, devolvemos el mismo QR/id
   const existingTicketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,qr_token,event_id,event:event_id(is_active,closed_at)")
+      .select("id,qr_token")
       .eq("event_id", eventId)
       .eq("person_id", person_id)
-      .limit(1)
   );
-  const { data: existingTicket, error: existingError } = await existingTicketQuery.maybeSingle();
+  const { data: existingTicket, error: existingError } = await existingTicketQuery
+    .limit(1)
+    .maybeSingle();
 
   if (existingError && existingError.code !== "PGRST116") {
     return NextResponse.json({ success: false, error: existingError.message }, { status: 500 });
   }
 
   if (existingTicket?.id && existingTicket.qr_token) {
-    const eventRel = Array.isArray((existingTicket as any).event)
-      ? (existingTicket as any).event?.[0]
-      : (existingTicket as any).event;
-    
-    if (eventRel && eventRel.is_active === true && !eventRel.closed_at) {
-      return NextResponse.json({
-        success: true,
-        existing: true,
-        ticketId: existingTicket.id,
-        qr: existingTicket.qr_token,
-      });
-    }
-    // Si el ticket es de un evento cerrado, permitimos crear uno nuevo (continuar flujo)
+    console.log("[/api/tickets] Ticket existente encontrado:", existingTicket.id);
+    return NextResponse.json({
+      success: true,
+      existing: true,
+      ticketId: existingTicket.id,
+      qr: existingTicket.qr_token,
+    });
   }
+
+  console.log("[/api/tickets] No hay ticket existente, creando nuevo...");
 
   const { data: ticketData, error: ticketError } = await supabase
     .from("tickets")
@@ -203,8 +190,16 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (ticketError) {
+    console.error("[/api/tickets] Error al insertar ticket:", ticketError);
     return NextResponse.json({ success: false, error: ticketError.message }, { status: 500 });
   }
+
+  console.log("[/api/tickets] Ticket creado exitosamente:", {
+    ticketId: ticketData?.id,
+    person_id,
+    event_id: eventId,
+    full_name
+  });
 
   // incrementar uses del código
   if (codeRow?.id) {
