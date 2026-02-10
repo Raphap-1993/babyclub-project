@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   let personRecord = data;
 
   // Si no existe en BD, intentamos API Perú
-  if (!personRecord) {
+  if (!personRecord && docType === "dni" && dni) {
     const apiToken = process.env.API_PERU_TOKEN;
     if (apiToken) {
       try {
@@ -65,13 +65,33 @@ export async function GET(req: NextRequest) {
         });
         const payload = await resp.json();
         if (resp.ok && payload?.data) {
-          personRecord = {
+          const apiData = payload.data;
+          const firstName = apiData.nombres || "";
+          const lastName = `${apiData.apellido_paterno || ""} ${apiData.apellido_materno || ""}`.trim();
+          
+          // Guardar en BD para evitar consultas futuras a API Perú
+          const { data: newPerson } = await supabase
+            .from("persons")
+            .insert({
+              doc_type: "dni",
+              document: dni,
+              dni,
+              first_name: firstName,
+              last_name: lastName,
+              email: null,
+              phone: null,
+              birthdate: apiData.fecha_nacimiento || apiData.fechaNacimiento || null,
+            })
+            .select("id,doc_type,document,dni,first_name,last_name,email,phone,birthdate")
+            .single();
+          
+          personRecord = newPerson || {
             id: null,
             doc_type: "dni",
             document: dni,
             dni,
-            first_name: payload.data.nombres || "",
-            last_name: `${payload.data.apellido_paterno || ""} ${payload.data.apellido_materno || ""}`.trim(),
+            first_name: firstName,
+            last_name: lastName,
             email: null,
             phone: null,
             birthdate: null,
@@ -106,9 +126,10 @@ export async function GET(req: NextRequest) {
       const ticketQuery = applyNotDeleted(
         supabase
           .from("tickets")
-          .select("id,promoter_id,event_id")
+          .select("id,promoter_id,event_id,status")
           .eq("event_id", eventId)
           .or(ticketDocQuery)
+          .neq("status", "cancelled")
           .order("created_at", { ascending: false })
           .limit(1)
       );
@@ -131,8 +152,9 @@ export async function GET(req: NextRequest) {
     const latestTicketQuery = applyNotDeleted(
       supabase
         .from("tickets")
-        .select("id,promoter_id,event_id")
+        .select("id,promoter_id,event_id,status")
         .or(fallbackTicketQuery)
+        .neq("status", "cancelled")
         .order("created_at", { ascending: false })
         .limit(1)
     );

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeDocument, type DocumentType } from "shared/document";
+import { generateReservationCodes } from "shared/friendlyCodes";
 
 type Supabase = SupabaseClient<any, "public", any>;
 
@@ -112,6 +113,7 @@ export async function createTicketForReservation(
     reuseCodes,
     docType,
     document,
+    promoterId,
   }: {
     eventId: string;
     tableName: string;
@@ -122,6 +124,7 @@ export async function createTicketForReservation(
     reuseCodes?: string[];
     docType?: DocumentType;
     document?: string | null;
+    promoterId?: string | null;
   }
 ): Promise<{ ticketId: string; code: string }> {
   const personId = await ensurePerson(supabase, { fullName, email, phone, dni, docType, document });
@@ -134,6 +137,7 @@ export async function createTicketForReservation(
       event_id: eventId,
       code_id: codeId,
       person_id: personId,
+      promoter_id: promoterId || null,
       qr_token,
       full_name: fullName || null,
       email: email || null,
@@ -169,3 +173,56 @@ export async function generateCourtesyCodes(
   if (error) throw new Error(error.message);
   return (data || []).map((row: any) => row.code).filter(Boolean);
 }
+
+/**
+ * Create individual friendly codes for a table reservation
+ * Each code is linked to the reservation and has a person_index
+ * Format: BC-{EVENT_PREFIX}-{TABLE}-{PERSON_INDEX}
+ * Example: BC-LOVE-M1-001, BC-LOVE-M1-002, etc.
+ */
+export async function createReservationCodes(
+  supabase: Supabase,
+  {
+    eventId,
+    eventPrefix,
+    tableName,
+    reservationId,
+    quantity,
+  }: {
+    eventId: string;
+    eventPrefix: string;
+    tableName: string;
+    reservationId: string;
+    quantity: number;
+  }
+): Promise<{ codes: string[]; codeIds: string[] }> {
+  if (quantity <= 0) return { codes: [], codeIds: [] };
+
+  // Generate friendly codes
+  const friendlyCodes = generateReservationCodes(eventPrefix, tableName, quantity);
+
+  // Insert codes into database with reservation tracking
+  const payload = friendlyCodes.map((code, index) => ({
+    code,
+    event_id: eventId,
+    table_reservation_id: reservationId,
+    person_index: index + 1,
+    type: "courtesy",
+    is_active: true,
+    max_uses: 1,
+    uses: 0,
+  }));
+
+  const { data, error } = await supabase
+    .from("codes")
+    .insert(payload)
+    .select("id,code");
+
+  if (error) throw new Error(`Error creating codes: ${error.message}`);
+
+  const codes = (data || []).map((row: any) => row.code);
+  const codeIds = (data || []).map((row: any) => row.id);
+
+  return { codes, codeIds };
+}
+

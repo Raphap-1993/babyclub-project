@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createTicketForReservation, generateCourtesyCodes } from "../../reservations/utils";
+import { createTicketForReservation, generateCourtesyCodes, createReservationCodes } from "../../reservations/utils";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb } from "shared/limaTime";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
@@ -69,6 +69,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "La mesa pertenece a otro evento" }, { status: 400 });
   }
   eventId = eventId || table.event_id || null;
+
+  // Fetch event data with event_prefix
+  let eventData: any = null;
+  if (eventId) {
+    const { data: evt } = await supabase
+      .from("events")
+      .select("id,name,event_prefix")
+      .eq("id", eventId)
+      .maybeSingle();
+    eventData = evt;
+  }
 
   // Validar producto pertenece a la mesa
   if (product_id) {
@@ -174,19 +185,9 @@ export async function POST(req: NextRequest) {
             null;
           const resolvedDocType = docSearchValid ? docTypeValue : ticketDocType;
           const resolvedDocument = docSearchValid ? documentValue : ticketDocument || "";
-          const initialCodes = new Set<string>(providedCodes);
-          const toGenerate = Math.max((table.ticket_count || 1) - initialCodes.size, codes_count - initialCodes.size);
-          const autoCodes =
-            toGenerate > 0
-              ? await generateCourtesyCodes(supabase, {
-              eventId,
-              tableName: table.name,
-              count: toGenerate,
-            })
-          : [];
-      const codes = Array.from(new Set([...initialCodes, ...autoCodes]));
-
-      const { data: reservation, error: resError } = await supabase
+          
+          // Create reservation first to get ID for codes
+          const { data: reservation, error: resError } = await supabase
             .from("table_reservations")
             .insert({
               table_id,
@@ -199,17 +200,34 @@ export async function POST(req: NextRequest) {
               document: resolvedDocument || null,
               voucher_url: voucher_url || null,
               status,
-              codes,
+              codes: [], // Will update after creating individual codes
               notes: notes || null,
               ticket_id: ticket.id,
-          created_by_staff_id,
-        })
-        .select("id")
-        .single();
+              created_by_staff_id,
+            })
+            .select("id")
+            .single();
 
       if (resError || !reservation?.id) {
         return NextResponse.json({ success: false, error: resError?.message || "No se pudo crear la reserva" }, { status: 500 });
       }
+
+      // Generate individual friendly codes
+      const eventPrefix = eventData?.event_prefix || "BC";
+      const quantity = table.ticket_count || 1;
+      const { codes } = await createReservationCodes(supabase, {
+        eventId: eventId!,
+        eventPrefix,
+        tableName: table.name,
+        reservationId: reservation.id,
+        quantity,
+      });
+
+      // Update reservation with codes array (backward compatibility)
+      await supabase
+        .from("table_reservations")
+        .update({ codes })
+        .eq("id", reservation.id);
 
       if (status === "approved" && contactEmail) {
         await sendReservationEmail({ supabase, reservationId: reservation.id, ticketId: ticket.id, email: contactEmail });
@@ -259,18 +277,7 @@ export async function POST(req: NextRequest) {
       reuseCodes: providedCodes,
     });
 
-    const initialCodes = new Set<string>([ticketResult.code, ...providedCodes]);
-    const toGenerate = Math.max(ticketCount - initialCodes.size, codes_count - (providedCodes.length || 0));
-    const extraCodes =
-      toGenerate > 0
-        ? await generateCourtesyCodes(supabase, {
-            eventId,
-            tableName: table.name,
-            count: toGenerate,
-          })
-        : [];
-    const codes = Array.from(new Set([...initialCodes, ...extraCodes])).filter(Boolean);
-
+    // Create reservation first
     const { data: reservation, error: resError } = await supabase
       .from("table_reservations")
       .insert({
@@ -284,7 +291,7 @@ export async function POST(req: NextRequest) {
         phone: phone || null,
         voucher_url: voucher_url || null,
         status,
-        codes,
+        codes: [], // Will update after creating individual codes
         notes: notes || null,
         ticket_id: ticketResult.ticketId,
         created_by_staff_id,
@@ -295,6 +302,23 @@ export async function POST(req: NextRequest) {
     if (resError || !reservation?.id) {
       return NextResponse.json({ success: false, error: resError?.message || "No se pudo crear la reserva" }, { status: 500 });
     }
+
+    // Generate individual friendly codes
+    const eventPrefix = eventData?.event_prefix || "BC";
+    const quantity = ticketCount;
+    const { codes } = await createReservationCodes(supabase, {
+      eventId,
+      eventPrefix,
+      tableName: table.name,
+      reservationId: reservation.id,
+      quantity,
+    });
+
+    // Update reservation with codes array (backward compatibility)
+    await supabase
+      .from("table_reservations")
+      .update({ codes })
+      .eq("id", reservation.id);
 
     if (status === "approved" && email) {
       await sendReservationEmail({ supabase, reservationId: reservation.id, ticketId: ticketResult.ticketId, email });

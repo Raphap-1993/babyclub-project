@@ -4,14 +4,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ManifestUploader from "./ManifestUploader";
-import DatePickerSimple from "@/components/ui/DatePickerSimple";
+import ModernDatePicker from "@repo/ui/components/modern-date-picker";
+import ModernTimePicker from "@repo/ui/components/modern-time-picker";
 import { EVENT_ZONE, toLimaPartsFromDb, toUTCISOFromLimaParts } from "shared/limaTime";
 import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { DateTime } from "luxon";
+import { supabaseClient } from "@/lib/supabaseClient";
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (!supabaseClient) return {};
+  const { data } = await supabaseClient.auth.getSession();
+  const token = data?.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 type EventFormProps = {
   mode: "create" | "edit";
   initialData?: Partial<EventRecord> | null;
+  organizers: { id: string; name: string; slug: string }[];
 };
 
 type EventRecord = {
@@ -25,6 +35,7 @@ type EventRecord = {
   cover_image?: string;
   is_active: boolean;
   code?: string;
+  organizer_id?: string;
 };
 
 type FormValues = {
@@ -37,6 +48,7 @@ type FormValues = {
   cover_image: string;
   is_active: boolean;
   code: string;
+  organizer_id: string;
 };
 
 const emptyForm: FormValues = {
@@ -49,9 +61,10 @@ const emptyForm: FormValues = {
   cover_image: "",
   is_active: true,
   code: "",
+  organizer_id: "",
 };
 
-export default function EventForm({ mode, initialData }: EventFormProps) {
+export default function EventForm({ mode, initialData, organizers }: EventFormProps) {
   const router = useRouter();
 
   const [form, setForm] = useState<FormValues>(() => ({
@@ -76,6 +89,8 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
   useEffect(() => {
     setErrors(validate(form));
   }, [form]);
+
+  // Código debe ser ingresado manualmente (no auto-fill)
 
   const isValid = useMemo(() => Object.keys(validate(form)).length === 0, [form]);
   const showReadyBadge = isValid && !isSubmitting;
@@ -110,13 +125,19 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
       cover_image: form.cover_image.trim(),
       is_active: Boolean(form.is_active),
       code: form.code.trim(),
+      organizer_id: form.organizer_id,
     };
 
     try {
       const endpoint = mode === "edit" ? "/api/events/update" : "/api/events/create";
+      const authHeaders = await getAuthHeaders();
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 
@@ -134,23 +155,27 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
   };
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">
-            {mode === "edit" ? "Edición" : "Crear"}
-          </p>
-          <h2 className="text-2xl font-semibold text-white">{header}</h2>
+    <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl">
+      <div className="p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-400 mb-1">
+              {mode === "edit" ? "EDICIÓN" : "CREAR"}
+            </p>
+            <h2 className="text-xl font-semibold text-white">{header}</h2>
+          </div>
+          {showReadyBadge && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/50 rounded-lg">
+              <div className="w-2 h-2 bg-green-400 rounded-full" />
+              <span className="text-sm font-medium text-green-300">Cambios listos</span>
+            </div>
+          )}
         </div>
-        {showReadyBadge && (
-          <span className="rounded-full bg-[#111111] px-3 py-1 text-[12px] font-semibold text-[#e91e63]">
-            Cambios listos
-          </span>
-        )}
-      </header>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid gap-4 lg:grid-cols-2">
+      <div className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid gap-4 lg:grid-cols-2">
           <Field
             label="Nombre"
             placeholder="BABY Deluxe"
@@ -165,9 +190,36 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
             value={form.location}
             onChange={(val) => updateField("location", val)}
           />
+
+          {/* Campo Organizador */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Organizador <span className="text-red-400">*</span>
+            </label>
+            <select
+              name="organizer_id"
+              value={form.organizer_id}
+              onChange={(e) => updateField("organizer_id", e.target.value)}
+              className={`w-full px-4 py-2.5 bg-slate-800 border ${
+                errors.organizer_id ? "border-red-500" : "border-slate-600"
+              } rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+              required
+            >
+              <option value="">-- Selecciona organizador --</option>
+              {organizers.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name}
+                </option>
+              ))}
+            </select>
+            {errors.organizer_id && (
+              <p className="text-xs text-red-400 mt-1">{errors.organizer_id}</p>
+            )}
+          </div>
+
           <Field
             label="Código del evento"
-            placeholder={codeSuggestion || "baby-deluxe-2025"}
+            placeholder={codeSuggestion || "baby-deluxe-0227"}
             value={form.code}
             onChange={(val) => {
               setCodeTouched(true);
@@ -175,6 +227,11 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
             }}
             error={errors.code}
           />
+          {!codeTouched && codeSuggestion && (
+            <p className="text-xs text-blue-400 -mt-1">
+              💡 Sugerencia: {codeSuggestion}
+            </p>
+          )}
           <Field
             label="Capacidad"
             type="number"
@@ -184,186 +241,113 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
             onChange={(val) => updateField("capacity", val)}
             error={errors.capacity}
           />
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-semibold text-white" htmlFor="manifest-url">
-              Manifiesto (imagen)
-            </label>
-            <input
-              id="manifest-url"
-              type="url"
-              value={form.header_image}
-              onChange={(e) => updateField("header_image", e.target.value)}
-              placeholder="https://..."
-              className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
-            />
-            <ManifestUploader
-              code={form.code || form.name}
-              onUploaded={(url) => updateField("header_image", url)}
-              initialUrl={form.header_image}
-            />
-            {form.header_image && (
-              <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] p-2">
-                <img src={form.header_image} alt="Manifiesto" className="h-40 w-full rounded-xl object-cover" />
-              </div>
-            )}
           </div>
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-semibold text-white" htmlFor="cover-url">
-              Cover (imagen cabecera)
-            </label>
-            <input
-              id="cover-url"
-              type="url"
-              value={form.cover_image}
-              onChange={(e) => updateField("cover_image", e.target.value)}
-              placeholder="https://..."
-              className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
-            />
-            <ManifestUploader
-              code={`${form.code || form.name}-cover`}
-              onUploaded={(url) => updateField("cover_image", url)}
-              initialUrl={form.cover_image}
-              label="Subir cover (imagen)"
-              inputId="cover-file"
-            />
-            {form.cover_image && (
-              <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] p-2">
-                <img src={form.cover_image} alt="Cover" className="h-40 w-full rounded-xl object-cover" />
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-white" htmlFor="starts-at">
-              Fecha y hora del evento (America/Lima)
-            </label>
-            <div className="grid gap-3 md:grid-cols-[1.1fr,1fr]">
-              <DatePickerSimple
-                value={dateTimeParts.datePart}
-                onChange={(next) => {
-                  const nextIso = toIsoFromParts12(next, dateTimeParts.hour12, dateTimeParts.minute, dateTimeParts.period);
-                  updateField("starts_at", nextIso);
-                }}
-                label={undefined}
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="grid grid-cols-3 gap-2">
-                  <select
-                    aria-label="Hora"
-                    value={dateTimeParts.hour12}
-                    onChange={(e) => {
-                      const nextIso = toIsoFromParts12(
-                        dateTimeParts.datePart,
-                        e.target.value,
-                        dateTimeParts.minute,
-                        dateTimeParts.period
-                      );
-                      updateField("starts_at", nextIso);
-                    }}
-                    className="w-full min-w-[68px] rounded-2xl border border-white/10 bg-[#0c0c0c] px-3 py-3 text-sm text-white outline-none transition focus:border-white"
-                  >
-                    {Array.from({ length: 12 }).map((_, idx) => {
-                      const h = ((idx + 1) % 13) || 1;
-                      return (
-                        <option key={h} value={String(h).padStart(2, "0")}>
-                          {String(h).padStart(2, "0")}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <select
-                    aria-label="Minutos"
-                    value={dateTimeParts.minute}
-                    onChange={(e) => {
-                      const nextIso = toIsoFromParts12(
-                        dateTimeParts.datePart,
-                        dateTimeParts.hour12,
-                        e.target.value,
-                        dateTimeParts.period
-                      );
-                      updateField("starts_at", nextIso);
-                    }}
-                    className="w-full min-w-[68px] rounded-2xl border border-white/10 bg-[#0c0c0c] px-3 py-3 text-sm text-white outline-none transition focus:border-white"
-                  >
-                    {["00", "15", "30", "45"].map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Periodo"
-                    value={dateTimeParts.period}
-                    onChange={(e) => {
-                      const nextIso = toIsoFromParts12(
-                        dateTimeParts.datePart,
-                        dateTimeParts.hour12,
-                        dateTimeParts.minute,
-                        e.target.value as "AM" | "PM"
-                      );
-                      updateField("starts_at", nextIso);
-                    }}
-                    className="w-full min-w-[68px] rounded-2xl border border-white/10 bg-[#0c0c0c] px-3 py-3 text-sm text-white outline-none transition focus:border-white"
-                  >
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nowIso = DateTime.now().setZone(EVENT_ZONE).toUTC().toISO();
-                    if (nowIso) updateField("starts_at", nowIso);
-                  }}
-                  className="rounded-2xl border border-white/10 bg-[#111] px-3 text-xs font-semibold text-white transition hover:border-white/30"
-                >
-                  Ahora
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    let base = DateTime.now().setZone(EVENT_ZONE);
-                    if (dateTimeParts.datePart) {
-                      const h24 = to24h(Number(dateTimeParts.hour12) || 12, dateTimeParts.period);
-                      const d = DateTime.fromFormat(dateTimeParts.datePart, "yyyy-MM-dd", { zone: EVENT_ZONE }).set({
-                        hour: h24,
-                        minute: Number(dateTimeParts.minute) || 0,
-                        second: 0,
-                        millisecond: 0,
-                      });
-                      if (d.isValid) base = d;
-                    }
-                    const iso = base.plus({ minutes: 30 }).toUTC().toISO();
-                    if (iso) updateField("starts_at", iso);
-                  }}
-                  className="rounded-2xl border border-white/10 bg-[#111] px-3 text-xs font-semibold text-white transition hover:border-white/30"
-                >
-                  +30m
-                </button>
-              </div>
-            </div>
-            <p className="text-xs text-white/60">Hora del evento (America/Lima). Se guarda en UTC en la BD.</p>
-            {errors.starts_at && <ErrorText message={errors.starts_at} />}
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-white" htmlFor="entry-limit">
-              Hora límite de ingreso (America/Lima)
-            </label>
-            <input
-              id="entry-limit"
-              type="time"
-              step={60}
-              value={form.entry_limit}
-              onChange={(e) => updateField("entry_limit", e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white outline-none transition focus:border-white"
-            />
-            <p className="text-xs text-white/60">
-              Si la hora es menor a la hora del evento, se asume día siguiente.
-            </p>
-            {errors.entry_limit && <ErrorText message={errors.entry_limit} />}
-          </div>
-        </div>
 
-        <div className="flex flex-wrap gap-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Fecha y hora del evento (America/Lima)
+              </label>
+              <div className="flex gap-2">
+                <div className="w-[40%]">
+                  <ModernDatePicker
+                    value={dateTimeParts.datePart || ""}
+                    onChange={(dateStr) => {
+                      const nextIso = toIsoFromParts12(dateStr, dateTimeParts.hour12, dateTimeParts.minute, dateTimeParts.period);
+                      updateField("starts_at", nextIso);
+                    }}
+                    placeholder="Seleccionar fecha"
+                  />
+                </div>
+                <div className="flex-1 flex gap-2">
+                  <ModernTimePicker
+                    value={dateTimeParts.hour12 && dateTimeParts.minute ? (() => {
+                      const h24 = to24h(Number(dateTimeParts.hour12), dateTimeParts.period);
+                      return `${h24.toString().padStart(2, '0')}:${dateTimeParts.minute}`;
+                    })() : ""}
+                    onChange={(timeStr) => {
+                      const [hour24, minute] = timeStr.split(':');
+                      const h24 = Number(hour24);
+                      const period = h24 >= 12 ? 'PM' : 'AM';
+                      const hour12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+                      const nextIso = toIsoFromParts12(
+                        dateTimeParts.datePart,
+                        String(hour12).padStart(2, '0'),
+                        minute,
+                        period
+                      );
+                      updateField("starts_at", nextIso);
+                    }}
+                    placeholder="Hora"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nowIso = DateTime.now().setZone(EVENT_ZONE).toUTC().toISO();
+                      if (nowIso) updateField("starts_at", nowIso);
+                    }}
+                    className="px-2 py-2 bg-slate-600 hover:bg-slate-500 border border-slate-500 rounded-lg text-xs font-medium text-white transition-colors whitespace-nowrap"
+                  >
+                    Ahora
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400">Se guarda en UTC en la BD.</p>
+              {errors.starts_at && <ErrorText message={errors.starts_at} />}
+            </div>
+            
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Hora límite de ingreso (America/Lima)
+              </label>
+              <ModernTimePicker
+                value={form.entry_limit}
+                onChange={(timeStr) => updateField("entry_limit", timeStr)}
+                placeholder="Hora límite"
+              />
+              <p className="text-xs text-slate-400">
+                Si es menor a la hora del evento, se asume día siguiente.
+              </p>
+              {errors.entry_limit && <ErrorText message={errors.entry_limit} />}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Manifiesto (imagen)
+              </label>
+              <ManifestUploader
+                code={form.code || form.name}
+                onUploaded={(url) => updateField("header_image", url)}
+                initialUrl={form.header_image}
+              />
+              {form.header_image && (
+                <div className="overflow-hidden rounded-lg border border-slate-600 bg-slate-700 p-2">
+                  <img src={form.header_image} alt="Manifiesto" className="h-32 w-full rounded-md object-cover" />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Cover (imagen cabecera)
+              </label>
+              <ManifestUploader
+                code={`${form.code || form.name}-cover`}
+                onUploaded={(url) => updateField("cover_image", url)}
+                initialUrl={form.cover_image}
+                label="Subir cover (imagen)"
+                inputId="cover-file"
+              />
+              {form.cover_image && (
+                <div className="overflow-hidden rounded-lg border border-slate-600 bg-slate-700 p-2">
+                  <img src={form.cover_image} alt="Cover" className="h-32 w-full rounded-md object-cover" />
+                </div>
+              )}
+            </div>
+          </div>
+
+<div className="flex items-center gap-4">
           <Checkbox
             label="Evento activo"
             checked={form.is_active}
@@ -372,23 +356,24 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
         </div>
 
         {serverError && (
-          <div className="rounded-2xl border border-[#2d0b0b] bg-[#1a0a0a] px-4 py-3 text-sm text-[#ff9a9a]">
-            {serverError}
+          <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
+            <p className="text-sm text-red-300">{serverError}</p>
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-6 py-2 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-70"
+            className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-400 hover:to-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Guardando..." : mode === "edit" ? "Guardar cambios" : "Crear evento"}
           </button>
-          <p className="text-xs text-[#f2f2f2]/60">Se guardará directamente en Supabase.</p>
+          <p className="text-sm text-slate-400">Se guardará directamente en Supabase.</p>
         </div>
       </form>
-    </section>
+    </div>
+  </div>
   );
 }
 
@@ -406,9 +391,10 @@ type FieldProps = {
 
 function Field({ label, value, onChange, placeholder, type = "text", required, min, step, error }: FieldProps) {
   return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm font-semibold text-white" htmlFor={label}>
+    <div className="space-y-1">
+      <label className="block text-sm font-medium text-slate-300" htmlFor={label}>
         {label}
+        {required && <span className="text-red-400 ml-1">*</span>}
       </label>
       <input
         id={label}
@@ -419,7 +405,7 @@ function Field({ label, value, onChange, placeholder, type = "text", required, m
         required={required}
         min={min}
         step={step}
-        className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
+        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-colors"
       />
       {error && <ErrorText message={error} />}
     </div>
@@ -434,20 +420,20 @@ type CheckboxProps = {
 
 function Checkbox({ label, checked, onChange }: CheckboxProps) {
   return (
-    <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white/90">
+    <label className="flex items-center gap-3 cursor-pointer">
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-5 w-5 rounded border border-white/20 bg-[#0c0c0c] accent-[#e91e63]"
+        className="w-4 h-4 text-blue-600 bg-slate-700 border border-slate-600 rounded focus:ring-blue-500/50 focus:ring-2"
       />
-      <span>{label}</span>
+      <span className="text-sm font-medium text-slate-300">{label}</span>
     </label>
   );
 }
 
 function ErrorText({ message }: { message: string }) {
-  return <p className="text-xs font-semibold text-[#ff9a9a]">{message}</p>;
+  return <p className="text-sm text-red-400">{message}</p>;
 }
 
 function toDateTimeParts12(iso: string): { datePart: string; hour12: string; minute: string; period: "AM" | "PM" } {
@@ -489,6 +475,7 @@ function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<Fo
     cover_image: initialData.cover_image ?? "",
     is_active: initialData.is_active ?? true,
     code: initialData.code ?? "",
+    organizer_id: initialData.organizer_id ?? "",
   };
 }
 
@@ -521,18 +508,32 @@ function validate(values: FormValues): Partial<Record<keyof FormValues, string>>
   const capacity = Number(values.capacity);
   if (!Number.isFinite(capacity) || capacity < 10) errors.capacity = "Capacidad mínima 10";
 
-  if (!values.code.trim()) errors.code = "Código requerido";
-  else if (values.code.length < 3) errors.code = "Código mínimo 3 caracteres";
+  // Código es obligatorio y debe tener mínimo 3 caracteres
+  if (!values.code || values.code.length < 3) {
+    errors.code = "Código requerido (mínimo 3 caracteres)";
+  }
+
+  // Organizador es obligatorio
+  if (!values.organizer_id) {
+    errors.organizer_id = "Debes seleccionar un organizador";
+  }
 
   return errors;
 }
 
 function slugify(input: string) {
-  return input
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
+  if (!input) return "";
+  const parts = input.split(/\s+/);
+  const slug = parts
+    .slice(0, 2) // Primeras 2 palabras
+    .map(w => w.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+    .join("-")
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
+    .slice(0, 20);
+  
+  // Agregar fecha si tenemos starts_at
+  return slug;
 }
+

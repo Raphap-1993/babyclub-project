@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
   const product_id = typeof body?.product_id === "string" ? body.product_id : null;
   const event_id_body = typeof body?.event_id === "string" ? body.event_id : null;
   const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
+  const promoter_id = typeof body?.promoter_id === "string" && body.promoter_id.trim() ? body.promoter_id.trim() : null;
 
   if (!table_id || !full_name || !voucher_url) {
     return NextResponse.json({ success: false, error: "table_id, full_name y voucher_url son requeridos" }, { status: 400 });
@@ -78,41 +79,81 @@ export async function POST(req: NextRequest) {
 
   const codesToGenerate = effectiveEventId ? Math.max((table.ticket_count || 1) - 1, 0) : 0; // solo generamos códigos si hay evento
 
-  const { data: reservation, error: resError } = await supabase
-    .from("table_reservations")
-    .insert({
-      table_id,
-       event_id: effectiveEventId,
-      product_id,
-      doc_type: docType,
-      document,
-      full_name,
-      email: email || null,
-      phone: phone || null,
-      voucher_url,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (resError) {
-    return NextResponse.json({ success: false, error: resError.message }, { status: 500 });
-  }
-
-  const reservationId = reservation?.id;
-
-  const eventName = Array.isArray((table as any)?.event)
+  // Generate friendly code for the reservation
+  // Primero intentar obtener el nombre del evento desde la relación de la mesa
+  let eventName = Array.isArray((table as any)?.event)
     ? (table as any)?.event?.[0]?.name
     : (table as any)?.event?.name;
-  const baseName = (eventName || table_id).replace(/[^a-zA-Z]/g, "").toLowerCase() || "mesa";
-  const friendlyBase = (baseName + "mesa").slice(0, 4);
+  
+  // Si no hay nombre del evento en la mesa, buscar directamente por event_id
+  if (!eventName && effectiveEventId) {
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("name")
+      .eq("id", effectiveEventId)
+      .maybeSingle();
+    eventName = eventData?.name;
+  }
+  
+  // Generar base del código desde el nombre del evento
+  const baseName = eventName 
+    ? eventName.replace(/[^a-zA-Z]/g, "").toLowerCase()
+    : "reserva"; // Fallback más amigable que el UUID
+  const friendlyBase = baseName.slice(0, 6).toUpperCase(); // Toma 6 caracteres para mayor reconocimiento
+  
+  let friendlyCode = "";
+  let reservationId = "";
+  let insertAttempts = 0;
+
+  // Retry logic for unique friendly_code generation
+  while (insertAttempts < 5) {
+    insertAttempts++;
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    friendlyCode = `${friendlyBase}${randomNum}`;
+
+    const { data: reservation, error: resError } = await supabase
+      .from("table_reservations")
+      .insert({
+        table_id,
+        event_id: effectiveEventId,
+        product_id,
+        doc_type: docType,
+        document,
+        full_name,
+        email: email || null,
+        phone: phone || null,
+        voucher_url,
+        status: "pending",
+        friendly_code: friendlyCode,
+        event_id: effectiveEventId,
+        product_id,
+        ticket_quantity: ticketCount,
+        promoter_id,
+      })
+      .select("id")
+      .single();
+
+    if (!resError) {
+      reservationId = reservation?.id;
+      break;
+    }
+
+    // If it's a unique constraint violation, retry with a new code
+    if (resError.code !== "23505" || insertAttempts >= 5) {
+      return NextResponse.json({ success: false, error: resError.message }, { status: 500 });
+    }
+  }
+
+  if (!reservationId) {
+    return NextResponse.json({ success: false, error: "Failed to create reservation after multiple attempts" }, { status: 500 });
+  }
 
   let codesList: string[] = [];
   if (codesToGenerate > 0 && effectiveEventId) {
     const buildCodes = () =>
-      Array.from({ length: codesToGenerate }, () => {
-        const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
-        const codeValue = `${friendlyBase}-${suffix}`;
+      Array.from({ length: codesToGenerate }, (_, idx) => {
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        const codeValue = `${friendlyBase}${randomNum}`;
         return {
           code: codeValue,
           event_id: effectiveEventId,
@@ -143,7 +184,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    reservationId,
+    reservationId: friendlyCode, // Return friendly code as reservationId for backward compatibility
+    friendlyCode,
     codes: codesList,
     eventId: effectiveEventId,
     ticketCount: ticketCount,

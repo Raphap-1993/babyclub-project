@@ -1,0 +1,14 @@
+# Ignorar reportes y resultados de tests
+playwright-report/
+test-results/
+test-results.json
+
+# Ignorar screenshots de tests
+screenshots/
+
+# Ignorar archivos de trace
+*.zip
+trace.zip
+
+# Ignorar cache de Playwright
+.cache/

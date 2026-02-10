@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createTicketForReservation } from "../utils";
-import { sendApprovalEmail, sendTicketEmail } from "../email";
+import { sendApprovalEmail, sendTicketEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,doc_type,document,codes,ticket_quantity,event_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,event:events(id,name,starts_at,location))"
+      "id,full_name,email,phone,doc_type,document,codes,ticket_quantity,event_id,ticket_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,event:events(id,name,starts_at,location))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
           phone: resolvedPhone,
           docType: resolvedDocType,
           document: resolvedDocument,
+          promoterId: (reservation as any).promoter_id || null,
           reuseCodes,
         });
         ticketResults.push(result);
@@ -161,6 +162,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ⚠️ DESHABILITADO: No enviar correos individuales por ticket (genera spam)
+      // El correo consolidado de aprobación incluye todos los códigos/tickets
+      // Ver AUDIT-RESERVATIONS-EMAILS-2026-02-09.md para detalles
+      /*
       let ticketEmailError: string | null = null;
       for (const ticketId of ticketIds) {
         try {
@@ -177,25 +182,88 @@ export async function POST(req: NextRequest) {
         emailSent = true;
         trace.push("emailSent:true");
       }
+      */
 
+      // NUEVO: Enviar UN SOLO correo consolidado con todos los tickets/códigos
       if (isTableReservation) {
         const codesForEmail = Array.from(new Set([...(codesList || []), ...ticketCodes].filter(Boolean)));
         const eventData = eventRel || eventDirectRel || null;
-        await sendApprovalEmail({
-          supabase,
-          id,
-          full_name: resolvedFullName,
-          email: resolvedEmail,
-          phone: resolvedPhone || null,
-          codes: codesForEmail,
-          tableName,
-          event: eventData,
-        });
+        
+        try {
+          await sendApprovalEmail({
+            supabase,
+            id,
+            full_name: resolvedFullName,
+            email: resolvedEmail,
+            phone: resolvedPhone || null,
+            codes: codesForEmail,
+            ticketIds, // ✅ Enviar IDs de tickets para generar links con QR
+            tableName,
+            event: eventData,
+          });
+          emailSent = true;
+          trace.push(`approvalEmailSent:tickets=${ticketIds.length},codes=${codesForEmail.length}`);
+        } catch (err: any) {
+          emailError = err?.message || "No se pudo enviar el correo de aprobación";
+          trace.push(`approvalEmailError:${emailError}`);
+        }
       }
     } catch (err: any) {
       emailError = err?.message || "No se pudo enviar el correo";
       trace.push(`error:${emailError}`);
       console.error("[reservations/update] approval error", { id, trace, err });
+    }
+  }
+
+  // Enviar email de cancelación si se rechaza la reserva
+  if (updateData.status === "rejected") {
+    // Invalidar todos los códigos asociados a esta reserva
+    if (codesList.length > 0) {
+      try {
+        await supabase
+          .from("codes")
+          .update({ is_active: false })
+          .in("code", codesList);
+        trace.push(`codes_deactivated:${codesList.length}`);
+      } catch (err: any) {
+        trace.push(`error_deactivating_codes:${err.message}`);
+        console.error("[reservations/update] error deactivating codes", { id, codes: codesList, err });
+      }
+    }
+
+    // Invalidar ticket asociado si existe
+    if ((reservation as any).ticket_id) {
+      try {
+        await supabase
+          .from("tickets")
+          .update({ is_active: false, status: "cancelled" })
+          .eq("id", (reservation as any).ticket_id);
+        trace.push(`ticket_cancelled:${(reservation as any).ticket_id}`);
+      } catch (err: any) {
+        trace.push(`error_cancelling_ticket:${err.message}`);
+        console.error("[reservations/update] error cancelling ticket", { id, ticketId: (reservation as any).ticket_id, err });
+      }
+    }
+
+    // Enviar email de cancelación
+    if (resolvedEmail) {
+      try {
+        const eventData = eventRel || eventDirectRel || null;
+        await sendCancellationEmail({
+          supabase,
+          id,
+          full_name: resolvedFullName,
+          email: resolvedEmail,
+          tableName,
+          event: eventData,
+        });
+        emailSent = true;
+        trace.push("cancellationEmailSent:true");
+      } catch (err: any) {
+        emailError = err?.message || "No se pudo enviar el correo de cancelación";
+        trace.push(`cancellationEmailError:${emailError}`);
+        console.error("[reservations/update] cancellation email error", { id, trace, err });
+      }
     }
   }
 

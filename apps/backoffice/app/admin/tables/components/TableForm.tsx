@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 type TableFormProps = {
   mode: "create" | "edit";
   initialData?: TableFormData | null;
+  eventId?: string;
 };
 
 type TableFormData = {
@@ -17,9 +18,10 @@ type TableFormData = {
   price?: number | null;
   notes?: string | null;
   is_active?: boolean | null;
+  event_id?: string;
 };
 
-export default function TableForm({ mode, initialData }: TableFormProps) {
+export default function TableForm({ mode, initialData, eventId }: TableFormProps) {
   const router = useRouter();
   const [form, setForm] = useState<TableFormData>(() => ({
     id: initialData?.id,
@@ -29,6 +31,7 @@ export default function TableForm({ mode, initialData }: TableFormProps) {
     price: initialData?.price ?? null,
     notes: initialData?.notes ?? "",
     is_active: initialData?.is_active ?? true,
+    event_id: eventId || initialData?.event_id,
   }));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,6 +43,10 @@ export default function TableForm({ mode, initialData }: TableFormProps) {
     setError(null);
     if (!form.name.trim()) {
       setError("Nombre es requerido");
+      return;
+    }
+    if (mode === "create" && !form.event_id) {
+      setError("Se requiere un evento activo");
       return;
     }
     setLoading(true);

@@ -5,6 +5,7 @@ import { EVENT_TZ } from "shared/datetime";
 import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { buildArchivePayload } from "shared/db/softDelete";
+import { generateEventCode, addSuffixIfNeeded } from "shared/friendlyCode";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -46,7 +47,31 @@ export async function POST(req: NextRequest) {
 
   if (eventId) {
     const archivePayload = buildArchivePayload(guard.context?.staffId);
-    const codeToUse = requestedCode as string;
+    
+    // Si no viene código, generar uno friendly automáticamente
+    let codeToUse = requestedCode as string;
+    if (!codeToUse && name && payload?.starts_at) {
+      codeToUse = generateEventCode(name, payload.starts_at);
+      
+      // Verificar si código ya existe y agregar sufijo si es necesario
+      let attempt = 1;
+      let finalCode = codeToUse;
+      while (attempt <= 5) {
+        const { data: existing } = await supabase
+          .from("codes")
+          .select("id")
+          .eq("code", finalCode)
+          .eq("type", "general")
+          .maybeSingle();
+        
+        if (!existing) break;
+        
+        attempt++;
+        finalCode = addSuffixIfNeeded(codeToUse, attempt);
+      }
+      codeToUse = finalCode;
+    }
+    
     const { data: rpcResult, error: rpcError } = await supabase.rpc("set_event_general_code", {
       p_event_id: eventId,
       p_code: codeToUse,
@@ -97,7 +122,10 @@ function buildEventPayload(body: any): {
 
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
-  if (!code) return { error: "code is required" };
+  const organizer_id = typeof body?.organizer_id === "string" ? body.organizer_id.trim() : "";
+  
+  if (!code) return { error: "Código es requerido" };
+  if (!organizer_id) return { error: "Organizador es requerido" };
 
   return {
     payload: {
@@ -108,9 +136,10 @@ function buildEventPayload(body: any): {
       capacity,
       header_image,
       is_active,
+      organizer_id,
     },
     capacity,
-    code,
+    code: code || undefined, // undefined si está vacío
     name,
     cover_image,
   };

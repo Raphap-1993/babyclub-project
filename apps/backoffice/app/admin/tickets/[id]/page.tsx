@@ -83,9 +83,9 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
             .join(",")
         )
         .order("created_at", { ascending: false })
-    );
+    )
+        .limit(1);
     const { data: resv } = await resvQuery;
-      .limit(1);
     const first = resv?.[0];
     tableCodes = first?.codes ? (first.codes as any[]).filter(Boolean) : [];
     const tableRel = Array.isArray(first?.table) ? first?.table?.[0] : first?.table;
@@ -124,17 +124,21 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const { ticket, error } = await getTicket(id);
   if (!ticket) {
     return (
-      <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Tickets / QR</p>
-            <h1 className="text-3xl font-semibold">Ticket no encontrado</h1>
-            <p className="text-sm text-white/60">ID: {id}</p>
-            {error && <p className="mt-2 text-xs text-[#ff9a9a]">Detalle: {error}</p>}
+      <main className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-rose-400/80">
+              🎫 Tickets / QR
+            </p>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              Ticket no encontrado
+            </h1>
+            <p className="text-sm text-slate-400">ID: {id}</p>
+            {error && <p className="mt-2 text-xs text-red-400">⚠️ Detalle: {error}</p>}
           </div>
           <Link
             href="/admin/tickets"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition-all hover:border-slate-500 hover:bg-slate-800"
           >
             ← Volver
           </Link>
@@ -144,49 +148,63 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Tickets / QR</p>
-          <h1 className="text-3xl font-semibold leading-tight">Detalle del ticket</h1>
-          <p className="text-sm text-white/60">Vista solo lectura para personal admin/staff.</p>
+    <main className="space-y-6">
+      {/* Header moderno */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-rose-400/80">
+            🎫 Tickets / QR
+          </p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            Detalle del ticket
+          </h1>
+          <p className="text-sm text-slate-400">Vista solo lectura para personal admin/staff.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link
             href="/admin/tickets"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition-all hover:border-slate-500 hover:bg-slate-800"
           >
             ← Volver
           </Link>
           <Link
             href={`/ticket/${encodeURIComponent(ticket.id)}`}
             target="_blank"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-[#e91e63] hover:text-[#e91e63]"
+            className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:from-rose-400 hover:to-pink-500 hover:scale-105"
           >
             Ver / descargar formato
           </Link>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        <div className="grid gap-8 lg:grid-cols-[280px,1fr]">
-          <div className="flex items-center justify-center rounded-2xl border border-white/10 bg-black/60 p-4">
+      {/* Contenedor principal moderno */}
+      <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-6 backdrop-blur-sm shadow-xl">
+        <div className="grid gap-8 lg:grid-cols-[300px,1fr]">
+          {/* QR Code Section */}
+          <div className="flex items-center justify-center rounded-xl border border-slate-600/50 bg-slate-900/50 p-6">
             {ticket.qr_token ? (
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(ticket.qr_token)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(ticket.qr_token)}`}
                 alt="QR"
-                className="h-56 w-56 max-w-full rounded-xl bg-white p-2 object-contain"
+                className="h-64 w-64 max-w-full rounded-lg bg-white p-3 object-contain shadow-lg"
               />
             ) : (
-              <p className="text-sm text-white/60">Sin QR</p>
+              <p className="text-sm text-slate-500">Sin QR</p>
             )}
           </div>
 
-          <dl className="grid min-w-0 gap-4 text-sm text-white/80 md:grid-cols-2">
+          {/* Información del ticket */}
+          <dl className="grid min-w-0 gap-4 text-sm md:grid-cols-2">
             <Info label="ID" value={ticket.id} mono />
             <Info
               label="Fecha de creación"
-              value={new Date(ticket.created_at).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" })}
+              value={new Date(ticket.created_at).toLocaleString("es-PE", { 
+                day: '2-digit',
+                month: '2-digit', 
+                year: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
             />
             <Info label="DNI" value={ticket.dni || "—"} />
             <Info label="Nombre completo" value={ticket.full_name || "—"} />
@@ -196,13 +214,15 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             <Info label="Código" value={ticket.code_value || "—"} />
             <Info label="Promotor" value={ticket.promoter_name || "—"} />
             <Info label="QR token" value={ticket.qr_token || "—"} mono />
+            
             {ticket.table_name && <Info label="Mesa" value={ticket.table_name} />}
+            
             {ticket.product_name && (
-              <div className="md:col-span-2 space-y-1">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Pack</p>
-                <p className="text-base font-semibold text-white">{ticket.product_name}</p>
+              <div className="md:col-span-2 space-y-2 rounded-lg bg-slate-700/30 border border-slate-600/30 p-4">
+                <p className="text-xs uppercase tracking-wider text-slate-400">📦 Pack</p>
+                <p className="text-base font-semibold text-slate-100">{ticket.product_name}</p>
                 {ticket.product_items && ticket.product_items.length > 0 && (
-                  <ul className="list-disc pl-5 text-sm text-white/70">
+                  <ul className="list-disc pl-5 text-sm text-slate-300 space-y-1">
                     {ticket.product_items.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
@@ -210,12 +230,13 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                 )}
               </div>
             )}
+            
             {ticket.table_codes.length > 0 && (
-              <div className="md:col-span-2 space-y-1">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Códigos de mesa</p>
+              <div className="md:col-span-2 space-y-2 rounded-lg bg-slate-700/30 border border-slate-600/30 p-4">
+                <p className="text-xs uppercase tracking-wider text-slate-400">🔖 Códigos de mesa</p>
                 <div className="flex flex-wrap gap-2">
                   {ticket.table_codes.map((c) => (
-                    <span key={c} className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white">
+                    <span key={c} className="rounded-lg bg-slate-600/50 border border-slate-500/30 px-3 py-1.5 text-xs font-semibold text-slate-200">
                       {c}
                     </span>
                   ))}
@@ -225,6 +246,13 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           </dl>
         </div>
       </div>
+
+      {/* Info adicional */}
+      <div className="rounded-lg bg-slate-800/20 border border-slate-700/30 p-3 backdrop-blur-sm">
+        <p className="text-xs text-slate-400">
+          💡 <strong>Tip:</strong> Puedes descargar este ticket en formato público usando el botón "Ver / descargar formato".
+        </p>
+      </div>
     </main>
   );
 }
@@ -232,8 +260,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="space-y-1 min-w-0 break-words">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className={`text-base font-semibold text-white break-words ${mono ? "font-mono break-all" : ""}`}>{value}</p>
+      <p className="text-xs uppercase tracking-wider text-slate-400">{label}</p>
+      <p className={`text-base font-semibold text-slate-100 break-words ${mono ? "font-mono break-all text-xs" : ""}`}>{value}</p>
     </div>
   );
 }

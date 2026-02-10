@@ -33,6 +33,7 @@
 | Archivo | Propósito | Leer cuando |
 |---------|-----------|------------|
 | [MIGRACION-EXITOSA-2026-02-08.md](MIGRACION-EXITOSA-2026-02-08.md) | Detalles de BD + código | Necesitas entender la impl |
+| [DB-INCONSISTENCIES-REPORT-2026-02-08.md](DB-INCONSISTENCIES-REPORT-2026-02-08.md) | Diagnóstico de problemas BD | Hay bugs de edición de códigos |
 | [docs/adr/2026-02-08-006-multi-organizer-layout.md](adr/2026-02-08-006-multi-organizer-layout.md) | Architecture Decision Record | Necesitas justificación |
 | [Migration script](../supabase/migrations/2026-02-08-add-organizer-id-final.sql) | SQL que se ejecutó | Entender el schema change |
 

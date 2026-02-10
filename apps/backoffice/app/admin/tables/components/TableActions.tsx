@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authedFetch } from "@/lib/authedFetch";
+import { Button } from "@repo/ui";
 
 export default function TableActions({ id, reserved }: { id: string; reserved?: boolean }) {
   const router = useRouter();
@@ -51,31 +52,38 @@ export default function TableActions({ id, reserved }: { id: string; reserved?: 
 
   return (
     <div className="flex justify-end gap-2">
-      <Link
-        href={`/admin/tables/${encodeURIComponent(id)}/edit`}
-        className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e91e63] hover:text-[#e91e63]"
-      >
-        Editar
+      <Link href={`/admin/tables/${encodeURIComponent(id)}/edit`}>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="border-slate-600 text-slate-300 hover:border-purple-500 hover:text-purple-400 hover:bg-purple-500/10"
+        >
+          Editar
+        </Button>
       </Link>
       {reserved && (
-        <button
+        <Button
           type="button"
           onClick={onRelease}
           disabled={pending}
-          className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e3b341] hover:text-[#e3b341] disabled:opacity-60"
+          variant="outline"
+          size="sm"
+          className="border-slate-600 text-slate-300 hover:border-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10 disabled:opacity-50"
         >
           Liberar
-        </button>
+        </Button>
       )}
-      <button
+      <Button
         type="button"
         onClick={onDelete}
         disabled={pending}
-        className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#ff5f5f] hover:text-[#ff5f5f] disabled:opacity-60"
+        variant="outline"
+        size="sm"
+        className="border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50"
       >
         Eliminar
-      </button>
-      {error && <span className="text-xs text-[#ff9a9a]">{error}</span>}
+      </Button>
+      {error && <span className="text-xs text-red-400">{error}</span>}
     </div>
   );
 }

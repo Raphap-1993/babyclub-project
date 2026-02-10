@@ -47,6 +47,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // Si ya hay sesión, redirigir al dashboard
   useEffect(() => {
@@ -61,6 +62,15 @@ export default function LoginPage() {
           const shouldGoDoor = await resolveDoorRedirect(data.session.user);
           router.replace(shouldGoDoor ? DOOR_LANDING : "/admin");
           return;
+        }
+        // Cargar logo desde brand_settings
+        const { data: brandData } = await supabaseClient
+          .from("brand_settings")
+          .select("logo_url")
+          .eq("id", 1)
+          .maybeSingle();
+        if (brandData?.logo_url) {
+          setLogoUrl(brandData.logo_url);
         }
       } catch (_err) {}
       setChecking(false);
@@ -101,7 +111,18 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-2">
           <div className="flex justify-center">
-            <span className="text-4xl font-black tracking-[0.2em]">BABY</span>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="BABY"
+                width={336}
+                height={96}
+                loading="eager"
+                className="h-[68px] w-auto object-contain"
+              />
+            ) : (
+              <span className="text-4xl font-black tracking-[0.2em]">BABY</span>
+            )}
           </div>
           <h1 className="text-3xl font-semibold">Ingresar</h1>
           <p className="text-sm text-white/60">Accede al backoffice con tus credenciales.</p>

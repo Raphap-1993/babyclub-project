@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
   }
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
+    console.error("Supabase config missing:", { supabaseUrl: !!supabaseUrl, supabaseServiceKey: !!supabaseServiceKey });
+    return NextResponse.json({ success: false, error: "Configuración de Supabase incompleta" }, { status: 500 });
   }
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -23,6 +24,9 @@ export async function POST(req: NextRequest) {
   if (!file || !(file instanceof File)) {
     return NextResponse.json({ success: false, error: "Archivo requerido" }, { status: 400 });
   }
+  
+  console.log("Uploading layout image:", { name: file.name, type: file.type, size: file.size });
+  
   const rawName = file.name || "layout";
   const cleaned = rawName
     .toLowerCase()
@@ -35,6 +39,8 @@ export async function POST(req: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
+  console.log("Uploading to Supabase Storage:", { bucket, path, contentType, size: buffer.length });
+
   const { error: uploadError } = await supabase.storage.from(bucket).upload(path, buffer, {
     contentType,
     cacheControl: "3600",
@@ -42,9 +48,20 @@ export async function POST(req: NextRequest) {
   });
 
   if (uploadError) {
-    return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+    console.error("Supabase upload error:", uploadError);
+    return NextResponse.json({ 
+      success: false, 
+      error: `Error de almacenamiento: ${uploadError.message}` 
+    }, { status: 500 });
   }
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  
+  if (!data.publicUrl) {
+    console.error("No public URL returned from Supabase");
+    return NextResponse.json({ success: false, error: "No se pudo obtener URL pública" }, { status: 500 });
+  }
+  
+  console.log("Upload successful:", data.publicUrl);
   return NextResponse.json({ success: true, url: data.publicUrl });
 }

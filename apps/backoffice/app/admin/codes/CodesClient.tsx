@@ -533,7 +533,7 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
                           const expired = row.expires_at ? new Date(row.expires_at) < new Date() : false;
                           const statusLabel = expired ? "Expirado" : row.is_active ? "Activo" : "Inactivo";
                           const statusClass = expired
-                            ? "bg-orange-500/20 text-orange-200"
+                            ? "bg-rose-500/20 text-rose-200"
                             : row.is_active
                               ? "bg-[#e91e63]/15 text-[#e91e63]"
                               : "bg-white/5 text-white/70";

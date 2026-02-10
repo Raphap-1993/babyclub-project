@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../utils';
 
 const Dialog = React.forwardRef<
@@ -8,6 +9,12 @@ const Dialog = React.forwardRef<
     onOpenChange?: (open: boolean) => void;
   }
 >(({ className, open, onOpenChange, children, ...props }, ref) => {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   React.useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -16,18 +23,18 @@ const Dialog = React.forwardRef<
     }
   }, [open]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  const dialog = (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/50"
+        className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm"
         onClick={() => onOpenChange?.(false)}
       />
       <div
         ref={ref}
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-gray-200 bg-white shadow-lg',
+          'fixed left-1/2 top-1/2 z-[9999] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl',
           className
         )}
         {...props}
@@ -36,6 +43,8 @@ const Dialog = React.forwardRef<
       </div>
     </>
   );
+
+  return createPortal(dialog, document.body);
 });
 
 Dialog.displayName = 'Dialog';
@@ -46,7 +55,7 @@ const DialogHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('border-b border-gray-200 px-6 py-4', className)}
+    className={cn('border-b border-slate-700/50 px-6 py-4', className)}
     {...props}
   />
 ));
@@ -59,7 +68,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h2
     ref={ref}
-    className={cn('text-lg font-semibold text-gray-900', className)}
+    className={cn('text-lg font-semibold text-slate-100', className)}
     {...props}
   />
 ));
@@ -70,7 +79,7 @@ const DialogContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('px-6 py-4', className)} {...props} />
+  <div ref={ref} className={cn('px-6 py-4 text-slate-200', className)} {...props} />
 ));
 
 DialogContent.displayName = 'DialogContent';
@@ -82,7 +91,7 @@ const DialogFooter = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'border-t border-gray-200 px-6 py-4 flex justify-end gap-2',
+      'border-t border-slate-700/50 px-6 py-4 flex justify-end gap-2',
       className
     )}
     {...props}
