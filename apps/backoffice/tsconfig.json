@@ -15,7 +15,8 @@
     "paths": {
       "@/*": ["./*"],
       "@repo/ui": ["../../packages/ui/src"],
-      "shared/*": ["../../packages/shared/*"]
+      "shared/*": ["../../packages/shared/*"],
+      "@repo/api-logic/*": ["../../packages/api-logic/*"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,

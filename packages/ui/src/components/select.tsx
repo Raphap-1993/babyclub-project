@@ -24,7 +24,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       <select
         ref={ref}
         className={cn(
-          'flex h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-base placeholder:text-gray-400 transition-colors focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
+          'flex h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 [color-scheme:light] placeholder:text-gray-400 transition-colors focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
           error && 'border-red-500 focus:ring-red-200',
           className
         )}

@@ -3,16 +3,18 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface SimpleLineChartProps {
-  data: Array<{ name: string; value: number; target?: number }>;
+  data: Array<any>;
+  lines?: Array<{ key: string; color: string }>;
+  xKey?: string;
   height?: number;
 }
 
-export function SimpleLineChart({ data, height = 300 }: SimpleLineChartProps) {
+export function SimpleLineChart({ data, lines, xKey = "name", height = 300 }: SimpleLineChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-        <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: "12px" }} />
+        <XAxis dataKey={xKey} stroke="#94a3b8" style={{ fontSize: "12px" }} />
         <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
         <Tooltip
           contentStyle={{
@@ -26,14 +28,28 @@ export function SimpleLineChart({ data, height = 300 }: SimpleLineChartProps) {
           labelStyle={{ color: "#ffffff", fontWeight: "600" }}
           itemStyle={{ color: "#e2e8f0" }}
         />
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke="#f97316"
-          strokeWidth={2}
-          dot={{ fill: "#f97316", r: 4 }}
-          activeDot={{ r: 6 }}
-        />
+        {lines && lines.length > 0
+          ? lines.map((l) => (
+              <Line
+                key={l.key}
+                type="monotone"
+                dataKey={l.key}
+                stroke={l.color}
+                strokeWidth={2}
+                dot={{ fill: l.color, r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            ))
+          : (
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="#f97316"
+                strokeWidth={2}
+                dot={{ fill: "#f97316", r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            )}
         {data[0]?.target !== undefined && (
           <Line
             type="monotone"

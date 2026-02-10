@@ -2,8 +2,6 @@ import EventsClient from "./EventsClientModern";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { QRStatsTable } from "./components/QRStatsTable";
-import { useEffect, useState } from "react";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -67,19 +65,10 @@ export default async function EventsPage({ searchParams }: { searchParams?: Prom
   const result = await getEvents({ page, pageSize });
   if (!result) return notFound();
 
-  const [qrStats, setQrStats] = useState<any[]>([]);
-  useEffect(() => {
-    fetch("/api/qr-summary-all")
-      .then((res) => res.json())
-      .then((data) => setQrStats(data.events || []));
-  }, []);
-
   return (
     <div>
       <h1>Eventos</h1>
       <EventsClient events={result.events} pagination={{ page, pageSize }} total={result.total} />
-      <h2>Resumen de QRs generados</h2>
-      <QRStatsTable events={qrStats} />
     </div>
   );
 }
