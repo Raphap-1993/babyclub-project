@@ -4,7 +4,8 @@ import { DateTime } from "luxon";
 import { EVENT_TZ } from "shared/datetime";
 import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
-import { applyNotDeleted, buildArchivePayload } from "shared/db/softDelete";
+import { buildArchivePayload } from "shared/db/softDelete";
+import { generateEventCode, addSuffixIfNeeded } from "shared/friendlyCode";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,25 +33,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { payload, error, capacity, code: requestedCode, name, cover_image, organizer_id } = buildEventPayload(body);
+  const { payload, error, capacity, code: requestedCode, name, cover_image } = buildEventPayload(body);
   if (error) {
     return NextResponse.json({ success: false, error }, { status: 400 });
   }
 
-  const resolvedOrganizerId = organizer_id || (await resolveDefaultOrganizerId(supabase));
-  if (!resolvedOrganizerId) {
-    return NextResponse.json({ success: false, error: "No hay organizador configurado" }, { status: 400 });
-  }
-
-  const organizerQuery = applyNotDeleted(supabase.from("organizers").select("id").eq("id", resolvedOrganizerId));
-  const { data: organizerRow, error: organizerError } = await organizerQuery.maybeSingle();
-  if (organizerError || !organizerRow) {
-    return NextResponse.json({ success: false, error: "Organizador inválido" }, { status: 400 });
-  }
-
-  const payloadToInsert = { ...payload, organizer_id: resolvedOrganizerId };
-
-  const { data, error: dbError } = await supabase.from("events").insert(payloadToInsert).select("id").single();
+  const { data, error: dbError } = await supabase.from("events").insert(payload).select("id").single();
   if (dbError) {
     return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
   }
@@ -59,7 +47,31 @@ export async function POST(req: NextRequest) {
 
   if (eventId) {
     const archivePayload = buildArchivePayload(guard.context?.staffId);
-    const codeToUse = requestedCode as string;
+    
+    // Si no viene código, generar uno friendly automáticamente
+    let codeToUse = requestedCode as string;
+    if (!codeToUse && name && payload?.starts_at) {
+      codeToUse = generateEventCode(name, payload.starts_at);
+      
+      // Verificar si código ya existe y agregar sufijo si es necesario
+      let attempt = 1;
+      let finalCode = codeToUse;
+      while (attempt <= 5) {
+        const { data: existing } = await supabase
+          .from("codes")
+          .select("id")
+          .eq("code", finalCode)
+          .eq("type", "general")
+          .maybeSingle();
+        
+        if (!existing) break;
+        
+        attempt++;
+        finalCode = addSuffixIfNeeded(codeToUse, attempt);
+      }
+      codeToUse = finalCode;
+    }
+    
     const { data: rpcResult, error: rpcError } = await supabase.rpc("set_event_general_code", {
       p_event_id: eventId,
       p_code: codeToUse,
@@ -90,7 +102,6 @@ function buildEventPayload(body: any): {
   code?: string;
   name?: string;
   cover_image?: string;
-  organizer_id?: string;
 } {
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const location = typeof body?.location === "string" ? body.location.trim() : "";
@@ -112,7 +123,9 @@ function buildEventPayload(body: any): {
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
   const organizer_id = typeof body?.organizer_id === "string" ? body.organizer_id.trim() : "";
-  if (!code) return { error: "code is required" };
+  
+  if (!code) return { error: "Código es requerido" };
+  if (!organizer_id) return { error: "Organizador es requerido" };
 
   return {
     payload: {
@@ -123,27 +136,13 @@ function buildEventPayload(body: any): {
       capacity,
       header_image,
       is_active,
+      organizer_id,
     },
     capacity,
-    code,
+    code: code || undefined, // undefined si está vacío
     name,
     cover_image,
-    organizer_id,
   };
-}
-
-async function resolveDefaultOrganizerId(supabase: any): Promise<string | null> {
-  const { data } = await applyNotDeleted(
-    supabase
-      .from("organizers")
-      .select("id,slug,sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true })
-      .limit(1)
-  ).maybeSingle();
-  if (!data?.id) return null;
-  return data.id;
 }
 
 async function upsertCover(supabase: any, eventId: string, coverUrl: string) {

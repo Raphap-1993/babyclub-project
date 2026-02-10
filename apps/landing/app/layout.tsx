@@ -43,14 +43,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="dns-prefetch" href="//wtwnhqbbcocpnqqsybln.supabase.co" />
-        <link rel="preconnect" href="https://wtwnhqbbcocpnqqsybln.supabase.co" crossOrigin="" />
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>
     </html>
   );
 }
-// Force rebuild 1770704103

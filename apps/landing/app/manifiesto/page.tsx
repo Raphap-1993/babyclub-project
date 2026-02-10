@@ -20,6 +20,22 @@ function ManifiestoContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Preload manifest image
+  useEffect(() => {
+    if (manifestUrl && !loading) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = manifestUrl;
+      link.fetchPriority = 'high';
+      document.head.appendChild(link);
+      return () => {
+        document.head.removeChild(link);
+      };
+    }
+  }, [manifestUrl, loading]);
+  const [logoUrl, setLogoUrl] = useState<string | null>(process.env.NEXT_PUBLIC_LOGO_URL || null);
+
   const onContinue = () => {
     if (error) {
       router.push("/");
@@ -33,7 +49,8 @@ function ManifiestoContent() {
     const load = async () => {
       try {
         const res = await fetch(`/api/manifiesto${code ? `?code=${encodeURIComponent(code)}` : ""}`, {
-          cache: "no-store",
+          cache: "force-cache",
+          next: { revalidate: 300 } as any, // 5 min cache
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -44,6 +61,11 @@ function ManifiestoContent() {
           return;
         }
         if (data?.url) setManifestUrl(data.url);
+        const brand = await fetch("/api/branding", {
+          cache: "force-cache",
+          next: { revalidate: 300 } as any // 5 min cache
+        }).then((r) => r.json()).catch(() => ({}));
+        if (brand?.logo_url) setLogoUrl(brand.logo_url);
       } catch (err: any) {
         setError(err?.message || "Error cargando manifiesto");
       } finally {
@@ -54,18 +76,19 @@ function ManifiestoContent() {
   }, [code]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-white">
-      <div className="w-full max-w-3xl space-y-6 text-center">
-        <div className="flex justify-center">
-          <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#111111]">
+    <main className="flex h-screen items-center justify-center bg-black px-4 py-4 sm:px-6 sm:py-6 text-white overflow-hidden">
+      <div className="flex flex-col items-center justify-center w-full max-w-2xl h-full gap-4">
+        <div className="flex justify-center items-center flex-1 w-full">
+          <div className="relative w-full h-full max-h-[calc(100vh-8rem)] overflow-hidden">
             {!loading && !error && (
               <Image
                 src={manifestUrl}
                 alt="Manifiesto BABY"
-                width={800}
-                height={1000}
-                className="h-full w-full object-cover"
+                fill
+                className="object-contain"
                 priority
+                fetchPriority="high"
+                unoptimized={manifestUrl.startsWith('http')}
               />
             )}
             {!loading && error && (
@@ -74,7 +97,7 @@ function ManifiestoContent() {
           </div>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center pb-2">
           <button
             onClick={onContinue}
             className="rounded-xl px-6 py-3 text-sm font-semibold uppercase tracking-wide btn-smoke transition"

@@ -10,20 +10,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ tables: [], error: "Missing Supabase config" }, { status: 500 });
   }
 
-  const requestUrl = (req as any)?.nextUrl instanceof URL ? (req as any).nextUrl : new URL(req.url);
-  const eventId = requestUrl.searchParams.get("event_id")?.trim() || "";
-
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  let tablesQuery = applyNotDeleted(
+  // Get filters from query params
+  const searchParams = req.nextUrl.searchParams;
+  const organizerId = searchParams.get('organizer_id') || process.env.NEXT_PUBLIC_ORGANIZER_ID;
+  const eventId = searchParams.get('event_id');
+
+  let query = applyNotDeleted(
     supabase
       .from("tables")
       .select(
         `
-      id,name,event_id,ticket_count,min_consumption,price,is_active,notes,pos_x,pos_y,pos_w,pos_h,
-      table_reservations(status,created_at,deleted_at,event_id),
+      id,name,event_id,organizer_id,ticket_count,min_consumption,price,is_active,notes,pos_x,pos_y,pos_w,pos_h,
+      event:events(id,name,starts_at,organizer_id),
+      table_reservations(status,created_at,deleted_at),
       products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order,deleted_at)
     `
       )
@@ -31,11 +34,17 @@ export async function GET(req: NextRequest) {
       .order("name", { ascending: true })
   );
 
-  if (eventId) {
-    tablesQuery = tablesQuery.eq("event_id", eventId);
+  // Filter by organizer if specified
+  if (organizerId) {
+    query = query.eq('organizer_id', organizerId);
   }
 
-  const { data, error } = await tablesQuery;
+  // Filter by event if specified
+  if (eventId) {
+    query = query.eq('event_id', eventId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ tables: [], error: error.message }, { status: 500 });
@@ -44,11 +53,7 @@ export async function GET(req: NextRequest) {
   const normalized =
     data?.map((t: any) => {
       const reservations: any[] = Array.isArray(t.table_reservations) ? t.table_reservations : [];
-      const activeReservations = reservations.filter((r) => {
-        if (r?.deleted_at) return false;
-        if (!eventId) return true;
-        return !r?.event_id || r.event_id === eventId;
-      });
+      const activeReservations = reservations.filter((r) => !r?.deleted_at);
       // Bloqueamos la mesa si existe alguna reserva activa (cualquier estado excepto rechazado/cancelado) reciente.
       const inactiveStatuses = new Set(["rejected", "cancelled", "canceled"]);
       const is_reserved = activeReservations.some((r) => {

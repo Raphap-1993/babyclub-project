@@ -3,8 +3,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 type TableFormProps = {
   mode: "create" | "edit";
@@ -115,7 +113,7 @@ export default function TableForm({ mode, initialData, eventId }: TableFormProps
           value={form.notes || ""}
           onChange={(e) => update("notes", e.target.value)}
           rows={3}
-          className="w-full rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#a60c2f]/50"
+          className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           placeholder="Opcional: ubicación, beneficios, etc."
         />
       </div>
@@ -125,19 +123,20 @@ export default function TableForm({ mode, initialData, eventId }: TableFormProps
           type="checkbox"
           checked={!!form.is_active}
           onChange={(e) => update("is_active", e.target.checked)}
-          className="h-5 w-5 rounded border border-white/20 bg-[#0c0c0c] accent-[#a60c2f]"
+          className="h-5 w-5 rounded border border-white/20 bg-[#0c0c0c] accent-[#e91e63]"
         />
         Activa
       </label>
 
-      {error && <p className="text-xs font-semibold text-[#fca5a5]">{error}</p>}
+      {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
       <div className="flex items-center gap-3">
-        <Button
+        <button
           type="submit"
           disabled={loading}
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-5 py-2 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-70"
         >
           {loading ? "Guardando..." : mode === "edit" ? "Guardar cambios" : "Crear mesa"}
-        </Button>
+        </button>
       </div>
     </form>
   );
@@ -163,13 +162,14 @@ function Field({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-semibold text-white">{label}</label>
-      <Input
+      <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         type={type}
         min={min}
         required={required}
+        className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
       />
     </div>
   );
