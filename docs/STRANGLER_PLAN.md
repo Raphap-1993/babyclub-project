@@ -35,7 +35,7 @@ V2 sera API-first, modular y con capa de dominio. Se comparte la misma BD Supaba
 - Tickets & QR
 - Door Scanning
 - Tables/Combos/Reservations
-- Payments (OpenPay) - aun no implementado en V1
+- Payments (Culqi) - aun no implementado en V1
 - Notifications (email)
 
 ## Orden de migracion (Strangler)
@@ -52,7 +52,7 @@ V2 sera API-first, modular y con capa de dominio. Se comparte la misma BD Supaba
    - `/v2/reservations` con estados consistentes y reglas de negocio claras
    - Landing/Backoffice V1 migran gradualmente
 
-4) Payments (OpenPay)
+4) Payments (Culqi)
    - Diseño robusto con idempotencia + webhook handler
 
 5) Notifications (Email)

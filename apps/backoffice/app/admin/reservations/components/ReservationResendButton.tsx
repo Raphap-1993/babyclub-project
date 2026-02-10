@@ -48,7 +48,7 @@ export default function ReservationResendButton({
       {(error || info) && (
         <span
           className={`absolute -top-5 right-0 max-w-[220px] text-right text-xs leading-tight ${
-            error ? "text-[#ff9a9a]" : "text-emerald-200"
+            error ? "text-[#fca5a5]" : "text-emerald-200"
           }`}
         >
           {error || info}

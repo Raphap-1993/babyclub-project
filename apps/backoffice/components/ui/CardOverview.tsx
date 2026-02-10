@@ -17,7 +17,7 @@ const cn = (...classes: Array<string | false | null | undefined>) =>
 const toneStyles: Record<Tone, string> = {
   default: "border-[#1c1c1c] bg-[#111111]",
   accent:
-    "border-[#e91e63]/60 bg-gradient-to-br from-[#1a0a12] via-[#0f0b0f] to-[#0a0a0a] shadow-[0_0_60px_-20px_#e91e63]",
+    "border-[#a60c2f]/60 bg-gradient-to-br from-[#1a0a12] via-[#0f0b0f] to-[#0a0a0a] shadow-[0_0_60px_-20px_#a60c2f]",
   muted: "border-[#1a1a1a] bg-[#0c0c0c]",
 };
 
@@ -32,7 +32,7 @@ export function CardOverview({
   return (
     <article
       className={cn(
-        "relative overflow-hidden rounded-2xl border p-5 text-white transition hover:-translate-y-0.5 hover:border-[#e91e63]/70 hover:shadow-[0_20px_60px_-40px_rgba(233,30,99,0.6)]",
+        "relative overflow-hidden rounded-2xl border p-5 text-white transition hover:-translate-y-0.5 hover:border-[#a60c2f]/70 hover:shadow-[0_20px_60px_-40px_rgba(166,12,47,0.6)]",
         toneStyles[tone]
       )}
     >
@@ -48,7 +48,7 @@ export function CardOverview({
           ) : null}
         </div>
         {icon ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#262626] bg-[#0b0b0b] text-[#e91e63]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#262626] bg-[#0b0b0b] text-[#a60c2f]">
             {icon}
           </div>
         ) : null}

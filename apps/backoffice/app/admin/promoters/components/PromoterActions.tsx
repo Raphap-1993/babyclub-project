@@ -1,14 +1,17 @@
-// apps/backoffice/app/admin/promoters/components/PromoterActions.tsx
 "use client";
 
 import Link from "next/link";
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Pencil, Trash2 } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
-type Props = { id: string };
+type Props = { id: string; compact?: boolean };
 
-export default function PromoterActions({ id }: Props) {
+export default function PromoterActions({ id, compact }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -33,22 +36,54 @@ export default function PromoterActions({ id }: Props) {
   };
 
   return (
-    <div className="flex justify-end gap-2">
-      <Link
-        href={`/admin/promoters/${encodeURIComponent(id)}/edit`}
-        className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e91e63] hover:text-[#e91e63]"
-      >
-        Editar
-      </Link>
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={pending}
-        className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#ff5f5f] hover:text-[#ff5f5f] disabled:opacity-60"
-      >
-        Eliminar
-      </button>
-      {error && <span className="text-xs text-[#ff9a9a]">{error}</span>}
-    </div>
+    <TooltipProvider>
+      <div className="flex justify-end gap-2">
+        {compact ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={`/admin/promoters/${encodeURIComponent(id)}/edit`}
+                className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
+                aria-label="Editar promotor"
+              >
+                <Pencil className="h-4 w-4" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Editar promotor</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Link
+            href={`/admin/promoters/${encodeURIComponent(id)}/edit`}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+          >
+            <Pencil className="h-4 w-4" />
+            Editar
+          </Link>
+        )}
+        {compact ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                onClick={onDelete}
+                disabled={pending}
+                variant="danger"
+                size="icon"
+                aria-label="Eliminar promotor"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Eliminar promotor</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Button type="button" onClick={onDelete} disabled={pending} variant="danger" size="sm">
+            <Trash2 className="h-4 w-4" />
+            Eliminar
+          </Button>
+        )}
+        {error && <span className="text-xs text-red-200">{error}</span>}
+      </div>
+    </TooltipProvider>
   );
 }

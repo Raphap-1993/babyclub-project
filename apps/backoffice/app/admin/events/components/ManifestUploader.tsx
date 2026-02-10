@@ -57,20 +57,20 @@ export default function ManifestUploader({ code, onUploaded, initialUrl, label, 
           accept="image/png,image/jpeg,image/webp"
           onChange={onChange}
           disabled={uploading}
-          className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white placeholder:text-white/40 outline-none transition focus:border-white disabled:opacity-60"
+          className="w-full rounded-2xl border border-[#292929] bg-[#0c0c0c] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white placeholder:text-white/40 outline-none transition focus:border-white disabled:opacity-60"
         />
         {initialUrl && (
           <a
             href={initialUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+            className="text-xs font-semibold text-[#a60c2f] underline-offset-4 hover:underline"
           >
             Ver actual
           </a>
         )}
       </div>
-      {error && <p className="text-xs text-[#ff9a9a]">{error}</p>}
+      {error && <p className="text-xs text-[#fca5a5]">{error}</p>}
       {uploading && <p className="text-xs text-white/60">Subiendo...</p>}
     </div>
   );

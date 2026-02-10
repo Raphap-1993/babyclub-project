@@ -3,6 +3,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Props = {
   mode: "create" | "edit";
@@ -129,7 +131,7 @@ export default function PromoterForm({ mode, initialData }: Props) {
           DNI
         </label>
         <div className="grid grid-cols-[1fr_auto] gap-2">
-          <input
+          <Input
             id="dni"
             value={form.dni}
             onChange={(e) => {
@@ -141,37 +143,37 @@ export default function PromoterForm({ mode, initialData }: Props) {
             placeholder="00000000"
             inputMode="numeric"
             maxLength={8}
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
             required
+            className="tracking-[0.12em]"
           />
-          <button
+          <Button
             type="button"
             onClick={handleLookup}
             disabled={lookupLoading}
-            className="rounded-2xl border border-white/10 bg-[#111] px-4 text-sm font-semibold text-white transition hover:border-white/30 disabled:opacity-60"
+            variant="ghost"
+            size="sm"
+            className="h-10 rounded-lg"
           >
             {lookupLoading ? "Buscando..." : "Buscar"}
-          </button>
+          </Button>
         </div>
         <p className="text-xs text-white/60">Consulta en BD y API Perú para rellenar automáticamente.</p>
-        {lookupInfo && <p className="text-xs font-semibold text-[#ff9a9a]">{lookupInfo}</p>}
+        {lookupInfo && <p className="text-xs font-semibold text-[#fca5a5]">{lookupInfo}</p>}
       </div>
 
       <div className="flex flex-col gap-2">
         <label className="text-sm font-semibold text-white">Nombre</label>
         <div className="grid gap-2 md:grid-cols-2">
-          <input
+          <Input
             value={form.first_name}
             onChange={(e) => updateField("first_name", e.target.value)}
             placeholder="Nombre"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
             required
           />
-          <input
+          <Input
             value={form.last_name}
             onChange={(e) => updateField("last_name", e.target.value)}
             placeholder="Apellido"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
             required
           />
         </div>
@@ -182,25 +184,23 @@ export default function PromoterForm({ mode, initialData }: Props) {
           <label className="text-sm font-semibold text-white" htmlFor="code">
             Código interno
           </label>
-          <input
+          <Input
             id="code"
             value={form.code}
             onChange={(e) => updateField("code", e.target.value)}
             placeholder="promotor-01"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-white" htmlFor="email">
             Email
           </label>
-          <input
+          <Input
             id="email"
             type="email"
             value={form.email}
             onChange={(e) => updateField("email", e.target.value)}
             placeholder="email@baby.club"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
       </div>
@@ -210,24 +210,22 @@ export default function PromoterForm({ mode, initialData }: Props) {
           <label className="text-sm font-semibold text-white" htmlFor="phone">
             Teléfono
           </label>
-          <input
+          <Input
             id="phone"
             value={form.phone}
             onChange={(e) => updateField("phone", e.target.value)}
             placeholder="+51 999 999 999"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-white" htmlFor="instagram">
             Instagram
           </label>
-          <input
+          <Input
             id="instagram"
             value={form.instagram || ""}
             onChange={(e) => updateField("instagram", e.target.value)}
             placeholder="@usuario"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
       </div>
@@ -237,12 +235,11 @@ export default function PromoterForm({ mode, initialData }: Props) {
           <label className="text-sm font-semibold text-white" htmlFor="tiktok">
             TikTok
           </label>
-          <input
+          <Input
             id="tiktok"
             value={form.tiktok || ""}
             onChange={(e) => updateField("tiktok", e.target.value)}
             placeholder="@usuario"
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
           />
         </div>
         <div className="flex flex-col gap-2">
@@ -255,7 +252,7 @@ export default function PromoterForm({ mode, initialData }: Props) {
             onChange={(e) => updateField("notes", e.target.value)}
             placeholder="Comentarios internos"
             rows={3}
-            className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white"
+            className="w-full rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#a60c2f]/50"
           />
         </div>
       </div>
@@ -265,20 +262,19 @@ export default function PromoterForm({ mode, initialData }: Props) {
           type="checkbox"
           checked={!!form.is_active}
           onChange={(e) => updateField("is_active", e.target.checked)}
-          className="h-5 w-5 rounded border border-white/20 bg-[#0c0c0c] accent-[#e91e63]"
+          className="h-5 w-5 rounded border border-white/20 bg-[#0c0c0c] accent-[#a60c2f]"
         />
         Activo
       </label>
 
-      {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
+      {error && <p className="text-xs font-semibold text-[#fca5a5]">{error}</p>}
       <div className="flex items-center gap-3">
-        <button
+        <Button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-5 py-2 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)] disabled:opacity-70"
         >
           {loading ? "Guardando..." : mode === "edit" ? "Guardar cambios" : "Crear promotor"}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import TableActions from "./components/TableActions";
-import { DataTable, Button } from "@repo/ui";
-import { ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
+import { CirclePlus, LayoutPanelTop } from "lucide-react";
+import TableActions from "./components/TableActions";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SelectNative } from "@/components/ui/select-native";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 type TableRow = {
   id: string;
@@ -22,139 +27,151 @@ export default function TablesClient({
   error,
   pagination,
   total,
-  organizerView = false,
 }: {
   tables: TableRow[];
   error: string | null;
   pagination: { page: number; pageSize: number };
   total: number;
-  organizerView?: boolean;
 }) {
   const { page, pageSize } = pagination;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
   const router = useRouter();
 
-  const columns: ColumnDef<TableRow>[] = [
-    {
-      accessorKey: "name",
-      header: "Nombre",
-      cell: ({ row }) => (
-        <div>
-          <div className="font-semibold text-slate-100">{row.original.name}</div>
-          {row.original.notes && (
-            <div className="text-xs text-slate-400 mt-0.5">{row.original.notes}</div>
-          )}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "ticket_count",
-      header: "Tickets",
-      cell: ({ row }) => (
-        <span className="text-slate-300">{row.original.ticket_count ?? "—"}</span>
-      ),
-    },
-    {
-      accessorKey: "min_consumption",
-      header: "Consumo mín",
-      cell: ({ row }) => (
-        <span className="text-slate-300">
-          {row.original.min_consumption != null ? `S/ ${row.original.min_consumption}` : "—"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "price",
-      header: "Precio",
-      cell: ({ row }) => (
-        <span className="text-slate-300">
-          {row.original.price != null ? `S/ ${row.original.price}` : "—"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "is_active",
-      header: "Estado",
-      cell: ({ row }) => (
-        <span
-          className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
-            row.original.is_active 
-              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-              : "bg-slate-700/50 text-slate-400"
-          }`}
-        >
-          {row.original.is_active ? "Activa" : "Inactiva"}
-        </span>
-      ),
-    },
-    {
-      id: "actions",
-      header: "Acciones",
-      cell: ({ row }) => <TableActions id={row.original.id} reserved={row.original.reserved} />,
-    },
-  ];
-
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8 sm:px-6 lg:px-10">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Inventario del Organizador
-          </p>
-          <h1 className="text-3xl font-bold text-white mt-1">Mesas del Local</h1>
-          <p className="text-sm text-slate-400 mt-2">
-            Gestiona las mesas físicas de tu local. Se reutilizan en todos los eventos.
-          </p>
+    <main className="relative overflow-hidden px-3 py-4 text-white sm:px-5 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_12%,rgba(166,12,47,0.11),transparent_30%),radial-gradient(circle_at_82%_0%,rgba(255,255,255,0.10),transparent_28%),radial-gradient(circle_at_45%_100%,rgba(255,255,255,0.06),transparent_45%)]" />
+
+      <div className="mx-auto w-full max-w-7xl space-y-2.5">
+        <Card className="border-[#2b2b2b] bg-[#111111]">
+          <CardHeader className="gap-2 pb-3 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">
+                  Operaciones / Mesas
+                </CardDescription>
+                <CardTitle className="text-xl sm:text-2xl">Mesas</CardTitle>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href="/admin/tables/layout" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                  <LayoutPanelTop className="h-4 w-4" />
+                  Plano
+                </Link>
+                <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                  Volver
+                </Link>
+                <Link href="/admin/tables/create" className={cn(buttonVariants({ size: "sm" }))}>
+                  <CirclePlus className="h-4 w-4" />
+                  Crear mesa
+                </Link>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="hidden overflow-hidden border-[#2b2b2b] lg:block">
+          <CardHeader className="border-b border-[#252525] py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Resultados</CardTitle>
+              </div>
+              <Badge>
+                Página {currentPage}/{totalPages}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table containerClassName="max-h-[58dvh] min-h-[280px]">
+              <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
+                <TableRow>
+                  <TableHead className="w-[30%]">Mesa</TableHead>
+                  <TableHead className="w-[10%]">Tickets</TableHead>
+                  <TableHead className="w-[14%]">Consumo mín.</TableHead>
+                  <TableHead className="w-[12%]">Precio</TableHead>
+                  <TableHead className="w-[10%]">Estado</TableHead>
+                  <TableHead className="w-[12%]">Reserva</TableHead>
+                  <TableHead className="w-[12%] text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tables.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-10 text-center text-white/55">
+                      {error ? `Error: ${error}` : "No hay mesas aún."}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {tables.map((table) => (
+                  <TableRow key={table.id}>
+                    <TableCell className="py-2.5">
+                      <div className="font-semibold text-white">{table.name}</div>
+                      {table.notes && <p className="line-clamp-1 text-[11px] text-white/55">{table.notes}</p>}
+                    </TableCell>
+                    <TableCell className="py-2.5 text-white/80">{table.ticket_count ?? "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/80">{table.min_consumption != null ? `S/ ${table.min_consumption}` : "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/80">{table.price != null ? `S/ ${table.price}` : "—"}</TableCell>
+                    <TableCell className="py-2.5">
+                      <Badge variant={table.is_active ? "success" : "default"}>{table.is_active ? "Activa" : "Inactiva"}</Badge>
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Badge variant={table.reserved ? "warning" : "default"}>{table.reserved ? "Reservada" : "Libre"}</Badge>
+                    </TableCell>
+                    <TableCell className="py-2.5 text-right">
+                      <TableActions id={table.id} reserved={table.reserved} compact />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <PaginationControls basePath="/admin/tables" page={currentPage} totalPages={totalPages} pageSize={pageSize} />
+
+        <div className="space-y-3 lg:hidden">
+          {tables.length === 0 && (
+            <Card>
+              <CardContent className="p-4 text-center text-sm text-white/65">
+                {error ? `Error: ${error}` : "No hay mesas aún."}
+              </CardContent>
+            </Card>
+          )}
+          {tables.map((table) => (
+            <Card key={table.id}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-base font-semibold">{table.name}</p>
+                    {table.notes && <p className="text-xs text-white/60">{table.notes}</p>}
+                  </div>
+                  <Badge variant={table.is_active ? "success" : "default"}>{table.is_active ? "Activa" : "Inactiva"}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <Info label="Tickets" value={table.ticket_count?.toString() || "—"} />
+                  <Info label="Consumo" value={table.min_consumption != null ? `S/ ${table.min_consumption}` : "—"} />
+                  <Info label="Precio" value={table.price != null ? `S/ ${table.price}` : "—"} />
+                  <Info label="Reserva" value={table.reserved ? "Reservada" : "Libre"} />
+                </div>
+                <div className="flex justify-end">
+                  <TableActions id={table.id} reserved={table.reserved} compact />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/admin/tables/layout">
-            <Button variant="outline" size="md" className="border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white">
-              📐 Diseñar Croquis
-            </Button>
-          </Link>
-          <Link href="/admin">
-            <Button variant="ghost" size="md" className="text-slate-300 hover:text-white hover:bg-slate-800">
-              ← Volver
-            </Button>
-          </Link>
-          <Link href="/admin/tables/create">
-            <Button variant="primary" size="md" className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-700 hover:to-pink-600 shadow-lg shadow-pink-500/30">
-              + Agregar Mesa
-            </Button>
-          </Link>
-        </div>
+
+        <PaginationControls basePath="/admin/tables" page={currentPage} totalPages={totalPages} pageSize={pageSize} isMobile />
       </div>
-
-      {/* Info Box */}
-      <div className="mb-6 rounded-xl border border-blue-700/40 bg-blue-900/20 p-4 backdrop-blur-sm">
-        <div className="flex items-start gap-3">
-          <span className="text-2xl">ℹ️</span>
-          <div className="flex-1">
-            <h3 className="font-semibold text-blue-300 mb-1">Mesas del Organizador</h3>
-            <p className="text-sm text-slate-300">
-              Estas mesas son el inventario físico de tu local. Se crean <strong>una sola vez</strong> y se reutilizan automáticamente en todos tus eventos.
-              Para activar/desactivar mesas por evento específico, usa el ícono ⚙️ desde la lista de eventos.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center">
-          <p className="text-red-400">Error: {error}</p>
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={tables}
-          emptyMessage="No hay mesas registradas. Crea tu primera mesa del local."
-          compact
-        />
-      )}
-
-      <PaginationControls basePath="/admin/tables" page={currentPage} totalPages={totalPages} pageSize={pageSize} />
     </main>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] uppercase tracking-[0.1em] text-white/50">{label}</p>
+      <p className="font-semibold text-white">{value}</p>
+    </div>
   );
 }
 
@@ -163,13 +180,17 @@ function PaginationControls({
   page,
   totalPages,
   pageSize,
+  isMobile,
 }: {
   basePath: string;
   page: number;
   totalPages: number;
   pageSize: number;
+  isMobile?: boolean;
 }) {
-  const options = [5, 10, 15, 20, 30];
+  const router = useRouter();
+  const options = [5, 10, 15, 20, 30, 50];
+
   const qs = (nextPage: number, size: number) => {
     const params = new URLSearchParams();
     params.set("page", String(nextPage));
@@ -178,48 +199,43 @@ function PaginationControls({
   };
 
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-4 px-1">
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-slate-400">Mostrar</span>
-        <select
-          defaultValue={pageSize}
-          onChange={(e) => {
-            const size = parseInt(e.target.value, 10);
-            window.location.href = qs(1, size);
-          }}
-          className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+    <div className={`${isMobile ? "flex lg:hidden" : "hidden lg:flex"} items-center justify-between gap-3`}>
+      <div className="flex items-center gap-2 text-sm text-white/70">
+        <span>Filas</span>
+        <SelectNative
+          value={String(pageSize)}
+          onChange={(e) => router.push(qs(1, Number(e.target.value)))}
+          className="h-8 min-w-[110px]"
         >
           {options.map((opt) => (
             <option key={opt} value={opt}>
-              {opt} por página
+              {opt} / página
             </option>
           ))}
-        </select>
+        </SelectNative>
       </div>
-      <div className="flex items-center gap-3">
-        <a
-          href={qs(Math.max(1, page - 1), pageSize)}
-          className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
-            page <= 1
-              ? "pointer-events-none border-slate-700 text-slate-600"
-              : "border-slate-600 text-slate-300 hover:border-slate-400 hover:bg-slate-800"
-          }`}
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => router.push(qs(Math.max(1, page - 1), pageSize))}
         >
-          ← Anterior
-        </a>
-        <span className="text-sm text-slate-400">
-          Página <span className="font-semibold text-slate-200">{page}</span> de <span className="font-semibold text-slate-200">{totalPages}</span>
+          Anterior
+        </Button>
+        <span className="text-xs text-white/60">
+          Página {page} de {totalPages}
         </span>
-        <a
-          href={qs(Math.min(totalPages, page + 1), pageSize)}
-          className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
-            page >= totalPages
-              ? "pointer-events-none border-slate-700 text-slate-600"
-              : "border-slate-600 text-slate-300 hover:border-slate-400 hover:bg-slate-800"
-          }`}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => router.push(qs(Math.min(totalPages, page + 1), pageSize))}
         >
-          Siguiente →
-        </a>
+          Siguiente
+        </Button>
       </div>
     </div>
   );

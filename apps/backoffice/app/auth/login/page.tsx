@@ -135,7 +135,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+              className="w-full rounded-xl border border-[#292929] bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none"
               placeholder="admin@baby.club"
             />
           </div>
@@ -146,11 +146,11 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+              className="w-full rounded-xl border border-[#292929] bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none"
               placeholder="••••••••"
             />
           </div>
-          {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
+          {error && <p className="text-xs font-semibold text-[#fca5a5]">{error}</p>}
           <button
             type="submit"
             disabled={loading}

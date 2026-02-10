@@ -3,48 +3,61 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import {
-  MetricCard,
-  ChartCard,
-  SimpleLineChart,
-  SimpleBarChart,
-  SimplePieChart,
-} from "@/components/dashboard";
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@repo/ui";
-import {
-  TrendingUp,
-  Users,
-  Ticket,
-  Calendar,
-  ArrowRight,
-  Banknote,
+  CalendarClock,
+  CalendarDays,
+  CreditCard,
   QrCode,
-  CheckCircle2,
-  Armchair,
-  Gift,
+  Sparkles,
+  Ticket,
+  TrendingUp,
+  UserCheck,
+  Users,
 } from "lucide-react";
+import { applyNotDeleted } from "shared/db/softDelete";
+import { formatLimaFromDb } from "shared/limaTime";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function getMetrics() {
+type DashboardMetrics = {
+  inscriptions24h: number;
+  ticketsOpen: number;
+  attendance: string;
+  activeEvents: number;
+  pendingReservations: number;
+  activePromoters: number;
+  recentReservations: Array<{
+    id: string;
+    full_name: string;
+    status: string;
+    event_name: string;
+    table_name: string;
+    created_at: string;
+  }>;
+};
+
+function resolveStatusVariant(status: string): "default" | "success" | "warning" | "danger" {
+  const normalized = status.toLowerCase();
+  if (normalized === "approved") return "success";
+  if (normalized === "rejected") return "danger";
+  return "warning";
+}
+
+async function getMetrics(): Promise<DashboardMetrics> {
   if (!supabaseUrl || !supabaseServiceKey) {
     return {
-      totalRevenue: 0,
-      totalTicketsSold: 0,
-      scannedTickets: 0,
-      scannedPercentage: 0,
-      availableTables: 0,
-      ticketsSoldLast24h: 0,
-      revenueGrowth: 0,
-      ticketsGrowth: 0,
-      scannedGrowth: 0,
-      salesByHour: [],
-      ticketsByEvent: [],
-      freeTickets: 0,
-      paidTickets: 0,
-      freeTicketsByEvent: [],
-      generalCodeByEvent: [],
-      promoterDistribution: [],
+      inscriptions24h: 0,
+      ticketsOpen: 0,
+      attendance: "0%",
+      activeEvents: 0,
+      pendingReservations: 0,
+      activePromoters: 0,
+      recentReservations: [],
     };
   }
 
@@ -53,427 +66,230 @@ async function getMetrics() {
   });
 
   const now = new Date();
-  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const last48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-  // 1. Ingresos totales del mes (payments succeeded)
-  const { data: paymentsData } = await supabase
-    .from("payments")
-    .select("amount")
-    .eq("status", "succeeded")
-    .gte("created_at", startOfMonth.toISOString());
+  const [inscRes, openRes, usedRes, totalRes, eventsRes, pendingRes, promotersRes, recentReservationsRes] =
+    await Promise.all([
+      applyNotDeleted(supabase.from("tickets").select("id", { head: true, count: "exact" }).gt("created_at", last24h)),
+      applyNotDeleted(supabase.from("tickets").select("id", { head: true, count: "exact" }).eq("used", false)),
+      applyNotDeleted(supabase.from("tickets").select("id", { head: true, count: "exact" }).eq("used", true)),
+      applyNotDeleted(supabase.from("tickets").select("id", { head: true, count: "exact" })),
+      applyNotDeleted(supabase.from("events").select("id", { head: true, count: "exact" }).eq("is_active", true)),
+      applyNotDeleted(
+        supabase
+          .from("table_reservations")
+          .select("id", { head: true, count: "exact" })
+          .in("status", ["pending", "approved", "confirmed", "paid"])
+      ),
+      applyNotDeleted(supabase.from("promoters").select("id", { head: true, count: "exact" }).eq("is_active", true)),
+      applyNotDeleted(
+        supabase
+          .from("table_reservations")
+          .select("id,full_name,status,created_at,event_id,table:tables(name,event:events(name)),event:event_id(name)")
+          .order("created_at", { ascending: false })
+          .limit(5)
+      ),
+    ]);
 
-  const totalRevenue = paymentsData?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+  const usedCount = usedRes.count ?? 0;
+  const totalCount = totalRes.count ?? 0;
+  const attendance = totalCount > 0 ? `${Math.round((usedCount / totalCount) * 100)}%` : "0%";
 
-  // 2. Total de tickets vendidos (con payment_status completed)
-  const { count: totalTicketsSold } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed");
+  const recentReservations = ((recentReservationsRes.data as any[]) || []).map((res) => {
+    const tableRel = Array.isArray(res.table) ? res.table[0] : res.table;
+    const eventFromTable = Array.isArray(tableRel?.event) ? tableRel?.event[0] : tableRel?.event;
+    const eventFallback = Array.isArray(res.event) ? res.event[0] : res.event;
 
-  // 3. Tickets escaneados (usados)
-  const { count: scannedTickets } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("used", true);
-
-  const totalTickets = totalTicketsSold ?? 0;
-  const scannedTicketsCount = scannedTickets ?? 0;
-  const scannedPercentage = totalTickets > 0 
-    ? Math.round((scannedTicketsCount / totalTickets) * 100) 
-    : 0;
-
-  // 4. Mesas disponibles (para próximo evento)
-  const { data: nextEvent } = await supabase
-    .from("events")
-    .select("id")
-    .gte("event_date", now.toISOString())
-    .order("event_date", { ascending: true })
-    .limit(1)
-    .single();
-
-  let availableTables = 0;
-  if (nextEvent) {
-    const { count: available } = await supabase
-      .from("tables")
-      .select("*", { head: true, count: "exact" })
-      .eq("event_id", nextEvent.id)
-      .eq("is_reserved", false);
-    availableTables = available ?? 0;
-  }
-
-  // Growth calculations (últimas 24h vs 24h previas)
-  const { count: ticketsLast24h } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed")
-    .gte("created_at", last24h.toISOString());
-
-  const { count: ticketsPrevious24h } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed")
-    .gte("created_at", last48h.toISOString())
-    .lt("created_at", last24h.toISOString());
-
-  const last24hCount = ticketsLast24h ?? 0;
-  const prev24hCount = ticketsPrevious24h ?? 0;
-  
-  const ticketsGrowth = prev24hCount > 0 
-    ? Math.round(((last24hCount - prev24hCount) / prev24hCount) * 100) 
-    : last24hCount > 0 ? 100 : 0;
-
-  // Ventas por hora (últimas 24h)
-  const { data: hourlyTickets } = await supabase
-    .from("tickets")
-    .select("created_at")
-    .eq("payment_status", "completed")
-    .gte("created_at", last24h.toISOString())
-    .order("created_at", { ascending: true });
-
-  const salesByHour: { name: string; value: number }[] = [];
-  const hourCounts: { [key: string]: number } = {};
-  
-  hourlyTickets?.forEach(ticket => {
-    const hour = new Date(ticket.created_at).getHours();
-    const hourKey = `${hour}:00`;
-    hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
+    return {
+      id: res.id,
+      full_name: res.full_name ?? "—",
+      status: res.status ?? "pending",
+      created_at: res.created_at ?? "",
+      table_name: tableRel?.name ?? "Entrada",
+      event_name: eventFromTable?.name ?? eventFallback?.name ?? "—",
+    };
   });
-
-  for (let i = 0; i < 24; i++) {
-    const hourKey = `${i}:00`;
-    salesByHour.push({ name: hourKey, value: hourCounts[hourKey] || 0 });
-  }
-
-  // Tickets por evento (próximos 5 eventos)
-  const { data: upcomingEvents } = await supabase
-    .from("events")
-    .select("id, title")
-    .gte("event_date", now.toISOString())
-    .order("event_date", { ascending: true })
-    .limit(5);
-
-  const ticketsByEvent: { name: string; value: number }[] = [];
-  
-  if (upcomingEvents) {
-    for (const event of upcomingEvents) {
-      const { count } = await supabase
-        .from("tickets")
-        .select("*", { head: true, count: "exact" })
-        .eq("event_id", event.id)
-        .eq("payment_status", "completed");
-      
-      ticketsByEvent.push({ 
-        name: event.title.substring(0, 20), 
-        value: count ?? 0
-      });
-    }
-  }
-
-  // Tickets FREE (códigos generales sin pago)
-  const { count: freeTicketsCount } = await supabase
-    .from("tickets")
-    .select("code_id, codes!inner(type)", { head: true, count: "exact" })
-    .eq("codes.type", "general")
-    .or("payment_status.is.null,payment_status.neq.completed");
-
-  const freeTickets = freeTicketsCount ?? 0;
-
-  // Tickets PAGADOS (con payment_status completed)
-  const { count: paidTicketsCount } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed");
-
-  const paidTickets = paidTicketsCount ?? 0;
-
-  // Tickets FREE por evento (próximos 5 eventos)
-  const freeTicketsByEvent: { name: string; value: number }[] = [];
-  
-  if (upcomingEvents) {
-    for (const event of upcomingEvents) {
-      const { count } = await supabase
-        .from("tickets")
-        .select("code_id, codes!inner(type)", { head: true, count: "exact" })
-        .eq("event_id", event.id)
-        .eq("codes.type", "general")
-        .or("payment_status.is.null,payment_status.neq.completed");
-      
-      freeTicketsByEvent.push({ 
-        name: event.title.substring(0, 20), 
-        value: count ?? 0
-      });
-    }
-  }
-
-  // Tickets con código general por evento (para gráfico circular)
-  const generalCodeByEvent: { name: string; value: number }[] = [];
-  
-  if (upcomingEvents) {
-    for (const event of upcomingEvents) {
-      const { count } = await supabase
-        .from("tickets")
-        .select("code_id, codes!inner(type)", { head: true, count: "exact" })
-        .eq("event_id", event.id)
-        .eq("codes.type", "general");
-      
-      if ((count ?? 0) > 0) {
-        generalCodeByEvent.push({ 
-          name: event.title.substring(0, 25), 
-          value: count ?? 0
-        });
-      }
-    }
-  }
-
-  // Distribución de tickets por promotor (top 5)
-  const { data: ticketsWithPromoter } = await supabase
-    .from("tickets")
-    .select("promoter_id, code:codes(promoter_id)")
-    .not("promoter_id", "is", null);
-
-  const promoterCounts: { [key: string]: number } = {};
-  
-  ticketsWithPromoter?.forEach(ticket => {
-    const promoterId = ticket.promoter_id;
-    if (promoterId) {
-      promoterCounts[promoterId] = (promoterCounts[promoterId] || 0) + 1;
-    }
-  });
-
-  // Obtener nombres de los promotores
-  const topPromoterIds = Object.entries(promoterCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([id]) => id);
-
-  const promoterDistribution: { name: string; value: number }[] = [];
-
-  if (topPromoterIds.length > 0) {
-    const { data: promotersData } = await supabase
-      .from("promoters")
-      .select("id, code, person:persons(first_name, last_name)")
-      .in("id", topPromoterIds);
-
-    promotersData?.forEach(promoter => {
-      const personRel = Array.isArray(promoter.person) ? promoter.person[0] : promoter.person;
-      const name = personRel 
-        ? `${personRel.first_name} ${personRel.last_name}`.trim() 
-        : promoter.code || 'Sin nombre';
-      
-      promoterDistribution.push({
-        name: name.substring(0, 20),
-        value: promoterCounts[promoter.id] || 0
-      });
-    });
-
-    // Ordenar por valor descendente
-    promoterDistribution.sort((a, b) => b.value - a.value);
-  }
 
   return {
-    totalRevenue: totalRevenue / 100, // Culqi usa céntimos
-    totalTicketsSold: totalTickets,
-    scannedTickets: scannedTicketsCount,
-    scannedPercentage,
-    availableTables,
-    ticketsSoldLast24h: last24hCount,
-    revenueGrowth: 0, // Calcular si necesario
-    ticketsGrowth,
-    scannedGrowth: 0, // Calcular si necesario
-    salesByHour: salesByHour.filter(h => h.value > 0).slice(-12), // Últimas 12 horas con actividad
-    ticketsByEvent,
-    freeTickets,
-    paidTickets,
-    freeTicketsByEvent,
-    generalCodeByEvent,
-    promoterDistribution,
+    inscriptions24h: inscRes.count ?? 0,
+    ticketsOpen: openRes.count ?? 0,
+    attendance,
+    activeEvents: eventsRes.count ?? 0,
+    pendingReservations: pendingRes.count ?? 0,
+    activePromoters: promotersRes.count ?? 0,
+    recentReservations,
   };
 }
 
 export default async function AdminDashboard() {
   const metrics = await getMetrics();
 
-  const quickActions = [
-    { label: "Crear Evento", href: "/admin/events/create", icon: Calendar },
-    { label: "Escaneo QR", href: "/admin/tickets", icon: QrCode },
-    { label: "Ver Mesas", href: "/admin/tables", icon: Armchair },
-    { label: "Reportes", href: "/admin/ingresos", icon: TrendingUp },
+  const stats = [
+    {
+      title: "Registros 24h",
+      value: String(metrics.inscriptions24h),
+      icon: <TrendingUp className="h-4 w-4 text-white/65" />,
+      tone: "text-white",
+    },
+    {
+      title: "Tickets abiertos",
+      value: String(metrics.ticketsOpen),
+      icon: <Ticket className="h-4 w-4 text-white/65" />,
+      tone: "text-white",
+    },
+    {
+      title: "Asistencia",
+      value: metrics.attendance,
+      icon: <UserCheck className="h-4 w-4 text-[#ff9fb1]" />,
+      tone: "text-[#ffd9e1]",
+    },
+    {
+      title: "Eventos activos",
+      value: String(metrics.activeEvents),
+      icon: <CalendarDays className="h-4 w-4 text-white/65" />,
+      tone: "text-white",
+    },
+    {
+      title: "Reservas activas",
+      value: String(metrics.pendingReservations),
+      icon: <CalendarClock className="h-4 w-4 text-white/65" />,
+      tone: "text-white",
+    },
+    {
+      title: "Promotores activos",
+      value: String(metrics.activePromoters),
+      icon: <Users className="h-4 w-4 text-white/65" />,
+      tone: "text-white",
+    },
   ];
 
-  // Determinar qué mostrar basado en datos existentes
-  const hasActivity = metrics.salesByHour.length > 0 || metrics.ticketsByEvent.length > 0 || metrics.promoterDistribution.length > 0 || metrics.freeTicketsByEvent.length > 0 || metrics.generalCodeByEvent.length > 0;
-  const hasSales = metrics.totalTicketsSold > 0;
+  const quickActions = [
+    { label: "Crear evento", href: "/admin/events/create", icon: CalendarDays },
+    { label: "Crear reserva", href: "/admin/reservations", icon: CreditCard },
+    { label: "Escanear QR", href: "/admin/scan", icon: QrCode },
+    { label: "Tickets", href: "/admin/tickets", icon: Ticket },
+  ];
 
   return (
-    <main className="space-y-4">
-      {/* Header compacto */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-slate-400">Métricas en tiempo real</p>
-        </div>
-        {/* Quick Actions inline */}
-        <div className="flex gap-2">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Link key={action.href} href={action.href}>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="border-rose-500/30 bg-slate-800/80 hover:bg-rose-500/20 text-white hover:text-white hover:border-rose-500/50 transition-all"
-                >
-                  <Icon className="h-4 w-4 mr-2 text-rose-400" />
-                  <span className="text-slate-100">{action.label}</span>
-                </Button>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
+    <main className="relative overflow-hidden px-3 py-4 text-white sm:px-5 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_14%_15%,rgba(166,12,47,0.09),transparent_32%),radial-gradient(circle_at_84%_0%,rgba(255,255,255,0.04),transparent_30%),radial-gradient(circle_at_50%_106%,rgba(255,255,255,0.04),transparent_42%)]" />
 
-      {/* Metric Cards compactas */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          title="Ingresos"
-          value={`S/ ${metrics.totalRevenue.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-          description="Este mes"
-          icon={<Banknote className="text-green-400" />}
-        />
-        <MetricCard
-          title="Pagados"
-          value={(metrics.paidTickets || 0).toLocaleString()}
-          description={`Free: ${metrics.freeTickets || 0}`}
-          icon={<Ticket className="text-blue-400" />}
-          trend={metrics.ticketsGrowth !== 0 ? { 
-            value: Math.abs(metrics.ticketsGrowth), 
-            direction: metrics.ticketsGrowth > 0 ? "up" : "down", 
-            label: `${metrics.ticketsGrowth > 0 ? "+" : ""}${metrics.ticketsGrowth}%` 
-          } : undefined}
-        />
-        <MetricCard
-          title="Asistencia"
-          value={`${metrics.scannedPercentage || 0}%`}
-          description={`${metrics.scannedTickets || 0} escaneados`}
-          icon={<CheckCircle2 className="text-emerald-400" />}
-        />
-        <MetricCard
-          title="Mesas"
-          value={(metrics.availableTables || 0).toLocaleString()}
-          description="Disponibles"
-          icon={<Armchair className="text-purple-400" />}
-        />
-      </div>
-
-      {/* Solo mostrar gráficos si hay datos */}
-      {hasActivity && (
-        <div className="space-y-4">
-          {/* Gráficos de barras compactos en una fila */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Ventas por hora - solo si hay datos */}
-            {metrics.salesByHour.length > 0 && (
-              <ChartCard title="Ventas por Hora" description="Últimas 24h">
-                <SimpleLineChart data={metrics.salesByHour} height={160} />
-              </ChartCard>
-            )}
-
-            {/* Tickets por evento - solo si hay datos */}
-            {metrics.ticketsByEvent.length > 0 && (
-              <ChartCard title="Tickets Vendidos" description="Por evento">
-                <SimpleBarChart data={metrics.ticketsByEvent} height={160} />
-              </ChartCard>
-            )}
-
-            {/* Tickets FREE por evento - solo si hay datos */}
-            {metrics.freeTicketsByEvent.length > 0 && (
-              <ChartCard title="Tickets Free" description="Por evento">
-                <SimpleBarChart data={metrics.freeTicketsByEvent} height={160} />
-              </ChartCard>
-            )}
-          </div>
-
-          {/* Gráficos circulares grandes */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Distribución por promotor - solo si hay datos */}
-            {metrics.promoterDistribution.length > 0 && (
-              <ChartCard title="Top Promotores" description="Distribución de tickets por promotor">
-                <div className="p-4">
-                  <SimplePieChart data={metrics.promoterDistribution} height={320} />
-                </div>
-              </ChartCard>
-            )}
-
-            {/* Tickets con código general por evento - solo si hay datos */}
-            {metrics.generalCodeByEvent.length > 0 && (
-              <ChartCard title="Código General por Evento" description="Distribución de tickets gratuitos">
-                <div className="p-4">
-                  <SimplePieChart data={metrics.generalCodeByEvent} height={320} />
-                </div>
-              </ChartCard>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Si hay ventas, mostrar desglose compacto de asistencia */}
-      {hasSales && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="border-0 bg-gradient-to-br from-slate-800 to-slate-900 col-span-3">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-8">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-emerald-400">{metrics.scannedPercentage || 0}%</div>
-                    <div className="text-xs text-slate-400 mt-1">Asistencia</div>
-                  </div>
-                  <div className="h-12 w-px bg-slate-700" />
-                  <div className="flex gap-6">
-                    <div>
-                      <div className="text-2xl font-bold text-white">{metrics.scannedTickets || 0}</div>
-                      <div className="text-xs text-slate-400">Escaneados</div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-slate-400">{(metrics.totalTicketsSold || 0) - (metrics.scannedTickets || 0)}</div>
-                      <div className="text-xs text-slate-400">Pendientes</div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-blue-400">{metrics.totalTicketsSold || 0}</div>
-                      <div className="text-xs text-slate-400">Total</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex-1 ml-8">
-                  <div className="h-4 w-full rounded-full bg-slate-700 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all"
-                      style={{ width: `${metrics.scannedPercentage || 0}%` }}
-                    />
-                  </div>
-                </div>
+      <div className="mx-auto w-full max-w-7xl space-y-3">
+        <Card className="border-[#2b2b2b] bg-[#111111]">
+          <CardHeader className="gap-2 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">
+                  Overview / BabyClub
+                </CardDescription>
+                <CardTitle className="mt-1 text-2xl">Operations Dashboard</CardTitle>
+                <p className="mt-1 text-xs text-white/60">Visión central de operación, venta y validación de tickets en tiempo real.</p>
               </div>
+              <div className="flex items-center gap-2">
+                <Link href="/admin/events/create" className={cn(buttonVariants({ size: "sm" }))}>
+                  <Sparkles className="h-4 w-4" />
+                  Nuevo evento
+                </Link>
+                <Link href="/admin/reservations" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                  Ver reservas
+                </Link>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          {stats.map((item) => (
+            <Card key={item.title}>
+              <CardContent className="flex items-center justify-between p-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-white/55">{item.title}</p>
+                  <p className={cn("mt-0.5 text-xl font-semibold", item.tone)}>{item.value}</p>
+                </div>
+                {item.icon}
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+
+        <section className="grid gap-3 xl:grid-cols-[1.4fr_1fr]">
+          <Card className="overflow-hidden border-[#2b2b2b]">
+            <CardHeader className="pb-2 pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base">Últimas reservas</CardTitle>
+                </div>
+                <Link href="/admin/reservations" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                  Ver todo
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[28%]">Cliente</TableHead>
+                    <TableHead className="w-[22%]">Evento</TableHead>
+                    <TableHead className="w-[18%]">Mesa</TableHead>
+                    <TableHead className="w-[14%]">Estado</TableHead>
+                    <TableHead className="w-[18%]">Hora</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {metrics.recentReservations.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-10 text-center text-white/55">
+                        Sin reservas recientes.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {metrics.recentReservations.map((reservation) => (
+                    <TableRow key={reservation.id}>
+                      <TableCell className="py-2.5 font-semibold text-white">{reservation.full_name}</TableCell>
+                      <TableCell className="py-2.5 text-white/80">{reservation.event_name}</TableCell>
+                      <TableCell className="py-2.5 text-white/75">{reservation.table_name}</TableCell>
+                      <TableCell className="py-2.5">
+                        <Badge variant={resolveStatusVariant(reservation.status)}>{reservation.status}</Badge>
+                      </TableCell>
+                      <TableCell className="py-2.5 text-white/70">{safeFormat(reservation.created_at)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
-        </div>
-      )}
 
-      {/* Si no hay actividad, mostrar estado vacío compacto */}
-      {!hasActivity && !hasSales && (
-        <Card className="border-0 bg-gradient-to-br from-slate-800 to-slate-900">
-          <CardContent className="p-8 text-center">
-            <Calendar className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-white mb-1">Sin actividad reciente</h3>
-            <p className="text-sm text-slate-400 mb-4">Crea tu primer evento para comenzar</p>
-            <Link href="/admin/events/create">
-              <Button className="bg-rose-500 hover:bg-rose-600">
-                <Calendar className="h-4 w-4 mr-2" />
-                Crear Evento
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      )}
+          <Card className="border-[#2b2b2b]">
+            <CardHeader className="pb-2 pt-3">
+              <CardTitle className="text-base">Accesos rápidos</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className="flex items-center justify-between rounded-xl border border-[#252525] bg-[#141414] px-3 py-2 text-sm text-white/88 transition-all duration-200 ease-out hover:-translate-y-[1px] hover:translate-x-[2px] hover:border-[#a60c2f]/35 hover:bg-[#a60c2f]/10 hover:text-[#ffe9ee]"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <action.icon className="h-4 w-4 text-white/70" />
+                    {action.label}
+                  </span>
+                  <span className="text-white/45">→</span>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      </div>
     </main>
   );
+}
+
+function safeFormat(value?: string | null) {
+  if (!value) return "—";
+  try {
+    return formatLimaFromDb(value);
+  } catch (_err) {
+    return "—";
+  }
 }

@@ -34,7 +34,7 @@ V2 sera una API modular dentro del mismo monorepo, manteniendo la BD actual en S
    - Mesas, productos, reservas con voucher
    - Estados consistentes
 
-7) Payments (OpenPay)
+7) Payments (Culqi)
    - Idempotencia, webhooks, reconciliacion
 
 8) Notifications (Email)
@@ -46,7 +46,7 @@ V2 sera una API modular dentro del mismo monorepo, manteniendo la BD actual en S
 - Codigo generico (general): ticket free con warning de hora limite
 - Codigo invitado/promotor: sin warning ni hora limite
 - Registro con DNI: buscar en persons; si no existe usar PeruAPI
-- Reservas con mesas/combos y pago OpenPay (pendiente en V1)
+- Reservas con mesas/combos y pago Culqi (pendiente en V1)
 - Validacion en puerta desde web/PWA (sin app nativa)
 
 ## Principios de diseno
@@ -62,7 +62,7 @@ V2 sera una API modular dentro del mismo monorepo, manteniendo la BD actual en S
 - POST `/v2/scan` -> RPC transaccional `scan_ticket()` en Supabase
 - POST `/v2/tickets` -> crea ticket (idempotency-key obligatorio)
 - POST `/v2/reservations` -> reserva mesa + combos
-- POST `/v2/payments/*` -> OpenPay (futuro)
+- POST `/v2/payments/*` -> Culqi (futuro)
 - POST `/v2/notifications/tickets/:id/email` -> envio controlado
 
 ## Datos (Supabase)
