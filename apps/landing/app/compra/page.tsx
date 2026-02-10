@@ -1,4 +1,5 @@
 /* Compra de mesas/tickets con upload de voucher */
+// force vercel redeploy - 2026-02-10
 "use client";
 
 import { useEffect, useState } from "react";
