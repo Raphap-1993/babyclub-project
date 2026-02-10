@@ -1,0 +1,20 @@
+{
+  "name": "@babyclub/e2e-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-End tests para BabyClub Landing",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report playwright-report",
+    "test:codegen": "playwright codegen localhost:3001",
+    "test:install": "playwright install --with-deps"
+  },
+  "keywords": [
+    "e2e",
+    "playwright",
+    "testing"
+  ]
+}

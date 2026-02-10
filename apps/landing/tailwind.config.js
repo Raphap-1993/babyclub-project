@@ -7,6 +7,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
         purple: {
           50: '#f3e5f5',
           100: '#e1bee7',

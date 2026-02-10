@@ -1,7 +1,8 @@
-import { ComingSoon } from "../components/ComingSoon";
+import { redirect } from 'next/navigation';
 
 export const dynamic = "force-dynamic";
 
 export default function MesasReservasPage() {
-  return <ComingSoon title="Mesas y Reservas" description="Gestión unificada de mesas y reservas disponible pronto." />;
+  // Redirigir a la página moderna de reservas
+  redirect('/admin/reservations');
 }

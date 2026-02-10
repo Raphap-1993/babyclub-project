@@ -86,6 +86,8 @@ export default function CompraPage() {
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
   const [ticketVoucherUrl, setTicketVoucherUrl] = useState<string>("");
   const [ticketQuantity, setTicketQuantity] = useState<1 | 2>(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [ticketIsDragging, setTicketIsDragging] = useState(false);
   const defaultCode = process.env.NEXT_PUBLIC_DEFAULT_CODE || "public";
   const dniErrorTicket =
     ticketForm.document && !validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) ? "Documento inválido" : "";
@@ -155,25 +157,42 @@ export default function CompraPage() {
     setUploading(false);
   };
 
+  const organizerId = process.env.NEXT_PUBLIC_ORGANIZER_ID;
+
+  // Cargar mesas filtradas por organizador solamente (NO por evento)
+  // Las mesas pueden no tener event_id asignado y estar disponibles para todos los eventos del organizador
   useEffect(() => {
-    fetch("/api/tables", { cache: "no-store" })
+    if (!organizerId) {
+      setTables([]);
+      return;
+    }
+    
+    fetch(`/api/tables?organizer_id=${organizerId}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
-        setTables(data?.tables || []);
-        const firstAvailable = data?.tables?.find((t: any) => !t.is_reserved) || data?.tables?.[0];
-        setSelected(firstAvailable?.id || "");
-        const firstProduct = firstAvailable?.products?.find((p: any) => p.is_active !== false);
-        setSelectedProduct(firstProduct?.id || "");
-        const eventRel = Array.isArray((firstAvailable as any)?.event) ? (firstAvailable as any)?.event?.[0] : (firstAvailable as any)?.event;
-        const evId = firstAvailable?.event_id || eventRel?.id || "";
-        if (evId) setSelectedEventId(evId);
+        const tables = data?.tables || [];
+        setTables(tables);
+        
+        // Seleccionar primera mesa disponible
+        const firstAvailable = tables.find((t: any) => !t.is_reserved) || tables[0];
+        if (firstAvailable) {
+          setSelected(firstAvailable.id);
+          const firstProduct = firstAvailable.products?.find((p: any) => p.is_active !== false);
+          setSelectedProduct(firstProduct?.id || "");
+        }
       })
       .catch(() => setTables([]));
-    fetch("/api/layout")
+  }, [organizerId]);
+
+  // Cargar layout del organizador (NO depende del evento, es del organizador)
+  useEffect(() => {
+    if (!organizerId) return;
+    
+    fetch(`/api/layout?organizer_id=${organizerId}`)
       .then((res) => res.json())
       .then((data) => setLayoutUrl(data?.layout_url || null))
-      .catch(() => null);
-  }, []);
+      .catch(() => setLayoutUrl(null));
+  }, [organizerId]);
 
   useEffect(() => {
     fetch("/api/events", { cache: "no-store" })
@@ -203,6 +222,24 @@ export default function CompraPage() {
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    await handleFileUpload(file);
+  };
+
+  const handleFileUpload = async (file: File) => {
+    // Validar tipo y tamaño
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/jpg'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!validTypes.includes(file.type)) {
+      setModalError("Solo se permiten imágenes JPG, PNG o WEBP");
+      return;
+    }
+
+    if (file.size > maxSize) {
+      setModalError("La imagen no debe superar 5MB");
+      return;
+    }
+
     setUploading(true);
     setError(null);
     setModalError(null);
@@ -224,27 +261,94 @@ export default function CompraPage() {
     }
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await handleFileUpload(file);
+    }
+  };
+
+  const handleTicketFileUpload = async (file: File) => {
+    // Validar tipo y tamaño
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/jpg'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!validTypes.includes(file.type)) {
+      setTicketModalError("Solo se permiten imágenes JPG, PNG o WEBP");
+      return;
+    }
+
+    if (file.size > maxSize) {
+      setTicketModalError("La imagen no debe superar 5MB");
+      return;
+    }
+
+    setTicketUploading(true);
+    setTicketModalError(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("tableName", "ticket");
+    try {
+      const res = await fetch("/api/uploads/voucher", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        setTicketModalError(data?.error || "No se pudo subir el voucher");
+      } else {
+        setTicketVoucherUrl(data.url);
+      }
+    } catch (err: any) {
+      setTicketModalError(err?.message || "Error al subir voucher");
+    } finally {
+      setTicketUploading(false);
+    }
+  };
+
+  const handleTicketDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTicketIsDragging(true);
+  };
+
+  const handleTicketDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTicketIsDragging(false);
+  };
+
+  const handleTicketDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTicketIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await handleTicketFileUpload(file);
+    }
+  };
+
   const lookupPerson = async (document: string, target: "ticket" | "mesa", docType: DocumentType = "dni") => {
     try {
+      // /api/persons ya hace el lookup en BD primero y solo consulta RENIEC si no existe
+      // Esto evita consumir el token de API Perú innecesariamente
       const res = await fetch(`/api/persons?document=${encodeURIComponent(document)}&doc_type=${docType}`);
       const data = await res.json().catch(() => ({}));
-      let person = res.ok ? data?.person : null;
-      const fallbackEmail = person?.email || "";
-      const fallbackPhone = person?.phone || "";
-      const hasNames = Boolean(person?.first_name || person?.last_name);
-
-      if ((!person || !hasNames) && docType === "dni") {
-        const reniecRes = await fetch(`/api/reniec?dni=${encodeURIComponent(document)}`);
-        const reniecData = await reniecRes.json().catch(() => ({}));
-        if (reniecRes.ok) {
-          person = {
-            first_name: reniecData?.nombres || "",
-            last_name: `${reniecData?.apellidoPaterno || ""} ${reniecData?.apellidoMaterno || ""}`.trim(),
-            email: fallbackEmail,
-            phone: fallbackPhone,
-          };
-        }
-      }
+      const person = res.ok ? data?.person : null;
 
       if (!person) return;
 
@@ -655,20 +759,20 @@ export default function CompraPage() {
                 required
               />
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field
-                label="Apellido paterno"
-                value={ticketForm.apellido_paterno}
-                onChange={(v) => setTicketForm((p) => ({ ...p, apellido_paterno: v }))}
-                required
-              />
-              <Field
-                label="Apellido materno"
-                value={ticketForm.apellido_materno}
-                onChange={(v) => setTicketForm((p) => ({ ...p, apellido_materno: v }))}
-                required
-              />
-            </div>
+            <Field
+              label="Apellidos"
+              value={[ticketForm.apellido_paterno, ticketForm.apellido_materno].filter(Boolean).join(' ')}
+              onChange={(v) => {
+                const parts = v.trim().split(/\s+/);
+                setTicketForm((p) => ({
+                  ...p,
+                  apellido_paterno: parts[0] || '',
+                  apellido_materno: parts.slice(1).join(' ') || '',
+                }));
+              }}
+              placeholder="Apellido paterno y materno"
+              required
+            />
             <div className="grid gap-3 md:grid-cols-[1.3fr,0.7fr]">
               <Field label="Email" value={ticketForm.email} onChange={(v) => setTicketForm((p) => ({ ...p, email: v }))} type="email" />
               <Field label="Teléfono" value={ticketForm.phone} onChange={(v) => setTicketForm((p) => ({ ...p, phone: v }))} placeholder="+51 999 999 999" />
@@ -813,7 +917,7 @@ export default function CompraPage() {
                   </div>
                 )}
 
-                <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
+                <div className="grid gap-3 md:grid-cols-[0.5fr,1fr,1.5fr]">
                   <label className="block space-y-2 text-sm font-semibold text-white">
                     Tipo doc
                     <select
@@ -842,20 +946,21 @@ export default function CompraPage() {
                   />
                   <Field label="Nombres" value={form.nombre} onChange={(v) => setForm((p) => ({ ...p, nombre: v }))} required />
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Field
-                    label="Apellido paterno"
-                    value={form.apellido_paterno}
-                    onChange={(v) => setForm((p) => ({ ...p, apellido_paterno: v }))}
-                    required
-                  />
-                  <Field
-                    label="Apellido materno"
-                    value={form.apellido_materno}
-                    onChange={(v) => setForm((p) => ({ ...p, apellido_materno: v }))}
-                    required
-                  />
-                </div>
+
+                <Field
+                  label="Apellidos (paterno y materno)"
+                  value={[form.apellido_paterno, form.apellido_materno].filter(Boolean).join(' ')}
+                  onChange={(v) => {
+                    const parts = v.trim().split(/\s+/);
+                    setForm((p) => ({
+                      ...p,
+                      apellido_paterno: parts[0] || '',
+                      apellido_materno: parts.slice(1).join(' ') || '',
+                    }));
+                  }}
+                  placeholder="Ej: García López"
+                  required
+                />
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <Field label="Email" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} type="email" />
@@ -961,23 +1066,78 @@ export default function CompraPage() {
 
             <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
               <label className="text-sm font-semibold text-white">Comprobante de pago</label>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={onFileChange}
-                disabled={uploading || reservationDone}
-                className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
-              />
-              <div className="flex items-center gap-2 text-xs text-white/60">
-                {uploading ? "Subiendo comprobante..." : "Formatos: JPG, PNG, WEBP. Máx 5MB."}
+              
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
+                  isDragging
+                    ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                    : uploading || reservationDone
+                    ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
+                    : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  onChange={onFileChange}
+                  disabled={uploading || reservationDone}
+                  className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                  id="voucher-upload"
+                />
+                <label
+                  htmlFor="voucher-upload"
+                  className={`flex flex-col items-center justify-center gap-3 px-6 py-8 ${
+                    uploading || reservationDone ? "cursor-not-allowed" : "cursor-pointer"
+                  }`}
+                >
+                  {uploading ? (
+                    <>
+                      <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                      <p className="text-sm font-semibold text-white">Subiendo comprobante...</p>
+                    </>
+                  ) : form.voucher_url ? (
+                    <>
+                      <svg className="h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <p className="text-sm font-semibold text-emerald-400">Comprobante subido</p>
+                      <p className="text-xs text-white/60">Haz clic o arrastra para reemplazar</p>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-12 w-12 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
+                      </svg>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-white">
+                          {isDragging ? "Suelta la imagen aquí" : "Arrastra tu comprobante o haz clic"}
+                        </p>
+                        <p className="mt-1 text-xs text-white/60">JPG, PNG, WEBP • Máx 5MB</p>
+                      </div>
+                    </>
+                  )}
+                </label>
               </div>
+
               {form.voucher_url && (
                 <a
                   href={form.voucher_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
                 >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
                   Ver comprobante subido
                 </a>
               )}
@@ -1093,44 +1253,81 @@ export default function CompraPage() {
 
             <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
               <label className="text-sm font-semibold text-white">Comprobante de pago</label>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setTicketUploading(true);
-                  setTicketModalError(null);
-                  const fd = new FormData();
-                  fd.append("file", file);
-                  fd.append("tableName", "ticket");
-                  try {
-                    const res = await fetch("/api/uploads/voucher", { method: "POST", body: fd });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok || !data?.success) {
-                      setTicketModalError(data?.error || "No se pudo subir el voucher");
-                    } else {
-                      setTicketVoucherUrl(data.url);
-                    }
-                  } catch (err: any) {
-                    setTicketModalError(err?.message || "Error al subir voucher");
-                  } finally {
-                    setTicketUploading(false);
-                  }
-                }}
-                disabled={ticketUploading}
-                className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
-              />
-              <div className="flex items-center gap-2 text-xs text-white/60">
-                {ticketUploading ? "Subiendo comprobante..." : "Formatos: JPG, PNG, WEBP. Máx 5MB."}
+              
+              <div
+                onDragOver={handleTicketDragOver}
+                onDragLeave={handleTicketDragLeave}
+                onDrop={handleTicketDrop}
+                className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
+                  ticketIsDragging
+                    ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                    : ticketUploading
+                    ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
+                    : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) await handleTicketFileUpload(file);
+                  }}
+                  disabled={ticketUploading}
+                  className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                  id="ticket-voucher-upload"
+                />
+                <label
+                  htmlFor="ticket-voucher-upload"
+                  className={`flex flex-col items-center justify-center gap-3 px-6 py-8 ${
+                    ticketUploading ? "cursor-not-allowed" : "cursor-pointer"
+                  }`}
+                >
+                  {ticketUploading ? (
+                    <>
+                      <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                      <p className="text-sm font-semibold text-white">Subiendo comprobante...</p>
+                    </>
+                  ) : ticketVoucherUrl ? (
+                    <>
+                      <svg className="h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <p className="text-sm font-semibold text-emerald-400">Comprobante subido</p>
+                      <p className="text-xs text-white/60">Haz clic o arrastra para reemplazar</p>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-12 w-12 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
+                      </svg>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-white">
+                          {ticketIsDragging ? "Suelta la imagen aquí" : "Arrastra tu comprobante o haz clic"}
+                        </p>
+                        <p className="mt-1 text-xs text-white/60">JPG, PNG, WEBP • Máx 5MB</p>
+                      </div>
+                    </>
+                  )}
+                </label>
               </div>
+
               {ticketVoucherUrl && (
                 <a
                   href={ticketVoucherUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
                 >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
                   Ver comprobante subido
                 </a>
               )}
@@ -1165,19 +1362,36 @@ export default function CompraPage() {
 
       {showTicketConfirmation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
-          <div className="w-full max-w-lg space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+          <div className="w-full max-w-lg space-y-5 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Reserva recibida</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500/80">✓ Reserva recibida</p>
               <h3 className="text-2xl font-semibold">Validaremos tu pago</h3>
               <p className="text-sm text-white/70">
                 Revisaremos tu comprobante y te confirmaremos por correo con tu entrada y QR.
               </p>
-              {ticketReservationId && (
-                <p className="text-xs text-white/60">
-                  Código de reserva: <span className="font-mono text-white">{ticketReservationId}</span>
-                </p>
-              )}
             </div>
+            
+            {ticketReservationId && (
+              <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-white/80">Código de reserva</p>
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-black/40 px-4 py-3">
+                  <span className="font-mono text-lg font-bold text-white tracking-wider">{ticketReservationId}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(ticketReservationId);
+                    }}
+                    className="rounded-lg bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 transition"
+                  >
+                    Copiar
+                  </button>
+                </div>
+                <p className="text-xs text-white/60">
+                  Guarda este código para consultar el estado de tu entrada.
+                </p>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <button
                 type="button"
@@ -1185,7 +1399,7 @@ export default function CompraPage() {
                   setShowTicketConfirmation(false);
                   clearTicketInputs();
                 }}
-                className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
+                className="rounded-full px-5 py-2.5 text-sm font-semibold btn-smoke transition"
               >
                 Entendido
               </button>
@@ -1196,19 +1410,36 @@ export default function CompraPage() {
 
       {showReservationConfirmation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
-          <div className="w-full max-w-lg space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+          <div className="w-full max-w-lg space-y-5 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Reserva recibida</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500/80">✓ Reserva recibida</p>
               <h3 className="text-2xl font-semibold">Validaremos tu reserva de mesa</h3>
               <p className="text-sm text-white/70">
                 Revisaremos tu comprobante y te confirmaremos por correo con el estado de la reserva y los códigos.
               </p>
-              {mesaReservationId && (
-                <p className="text-xs text-white/60">
-                  Código de reserva: <span className="font-mono text-white">{mesaReservationId}</span>
-                </p>
-              )}
             </div>
+            
+            {mesaReservationId && (
+              <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-white/80">Código de reserva</p>
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-black/40 px-4 py-3">
+                  <span className="font-mono text-lg font-bold text-white tracking-wider">{mesaReservationId}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(mesaReservationId);
+                    }}
+                    className="rounded-lg bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 transition"
+                  >
+                    Copiar
+                  </button>
+                </div>
+                <p className="text-xs text-white/60">
+                  Guarda este código para consultar el estado de tu reserva.
+                </p>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <button
                 type="button"
@@ -1216,7 +1447,7 @@ export default function CompraPage() {
                   setShowReservationConfirmation(false);
                   clearMesaInputs();
                 }}
-                className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
+                className="rounded-full px-5 py-2.5 text-sm font-semibold btn-smoke transition"
               >
                 Entendido
               </button>

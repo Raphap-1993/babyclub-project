@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { EmailSender } from "./EmailSender";
+import { TicketDownloader } from "./TicketDownloader";
 import Link from "next/link";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { getEntryCutoffDisplay } from "shared/entryLimit";
@@ -86,17 +87,23 @@ async function getTicket(id: string): Promise<TicketView | null> {
     product_items: null,
   };
 
-  // Enlazar a una reserva por email/teléfono para mostrar mesa y pack
-  if (normalized.email || normalized.phone) {
-    const { data: resv } = await supabase
-      .from("table_reservations")
-      .select("table:tables(name),product:table_products(name,items)")
-      .or(`email.eq.${normalized.email || ""},phone.eq.${normalized.phone || ""}`)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (resv && resv[0]) {
-      const tableRel = Array.isArray(resv[0].table) ? resv[0].table[0] : (resv[0] as any).table;
-      const prodRel = Array.isArray(resv[0].product) ? resv[0].product[0] : (resv[0] as any).product;
+  // Enlazar a una reserva SOLO si este ticket está explícitamente vinculado a ella
+  // Verificar si existe tabla/producto directamente en el ticket (para tickets de reserva)
+  const { data: ticketReservation } = await supabase
+    .from("tickets")
+    .select("table_id,product_id,table:tables(name),product:table_products(name,items)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (ticketReservation) {
+    const tableRel = Array.isArray(ticketReservation.table) 
+      ? ticketReservation.table[0] 
+      : (ticketReservation as any).table;
+    const prodRel = Array.isArray(ticketReservation.product) 
+      ? ticketReservation.product[0] 
+      : (ticketReservation as any).product;
+    
+    if (tableRel || prodRel) {
       normalized.table_name = tableRel?.name || null;
       normalized.product_name = prodRel?.name || null;
       normalized.product_items = prodRel?.items || null;
@@ -173,29 +180,34 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-4 py-10 text-white">
       <div className="w-full max-w-xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">BABY</p>
             <h1 className="text-3xl font-semibold">Entrada generada</h1>
           </div>
-          <Link
-            href={`/registro?code=${encodeURIComponent(ticket.code.code)}`}
-            className="rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
-          >
-            Volver al registro
-          </Link>
+          <div className="flex items-center gap-3">
+            <TicketDownloader ticketId={ticket.id} />
+            <Link
+              href={`/registro?code=${encodeURIComponent(ticket.code.code)}`}
+              className="rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+            >
+              Volver al registro
+            </Link>
+          </div>
         </div>
 
-        <VerticalTicket
-          ticket={ticket}
-          promoterName={promoterName}
-          extraCodes={extraCodes}
-          warnings={warnings}
-          showAdditionalInfo={showAdditionalInfo}
-          eventDateLabel={eventDateLabel}
-          eventTimeLabel={eventTimeLabel}
-          eventDateTime={eventDateTime}
-        />
+        <div id="ticket-content">
+          <VerticalTicket
+            ticket={ticket}
+            promoterName={promoterName}
+            extraCodes={extraCodes}
+            warnings={warnings}
+            showAdditionalInfo={showAdditionalInfo}
+            eventDateLabel={eventDateLabel}
+            eventTimeLabel={eventTimeLabel}
+            eventDateTime={eventDateTime}
+          />
+        </div>
 
         <EmailSender ticketId={ticket.id} defaultEmail={ticket.email} />
       </div>

@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
 
   const eventRes = await fetch(
-    `${supabaseUrl}/rest/v1/events?select=header_image,id&id=eq.${encodeURIComponent(eventId)}&limit=1`,
+    `${supabaseUrl}/rest/v1/events?select=header_image,id,name,starts_at,location&id=eq.${encodeURIComponent(eventId)}&limit=1`,
     { headers }
   );
   if (!eventRes.ok) {
@@ -47,6 +47,9 @@ export async function GET(req: NextRequest) {
   }
   const eventData = await eventRes.json().catch(() => []);
   const url = eventData?.[0]?.header_image;
+  const eventName = eventData?.[0]?.name;
+  const eventStartsAt = eventData?.[0]?.starts_at;
+  const eventLocation = eventData?.[0]?.location;
 
   let cover_url: string | null = null;
   const coverRes = await fetch(
@@ -60,5 +63,11 @@ export async function GET(req: NextRequest) {
     cover_url = coverData?.[0]?.value_text || null;
   }
 
-  return NextResponse.json({ url: url || "/manifiesto.png", cover_url });
+  return NextResponse.json({ 
+    url: url || "/manifiesto.png", 
+    cover_url,
+    event_name: eventName,
+    event_starts_at: eventStartsAt,
+    event_location: eventLocation,
+  });
 }

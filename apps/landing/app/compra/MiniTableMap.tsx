@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 type Table = {
   id: string;
@@ -25,16 +26,21 @@ export default function MiniTableMap({
   layoutUrl: string | null;
 }) {
   return (
-    <div
-      className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-black aspect-[3/4] min-h-[320px] md:min-h-[480px]"
-      style={{
-        backgroundImage: layoutUrl ? `url(${layoutUrl})` : undefined,
-        backgroundSize: "contain",
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "center",
-      }}
-    >
-      <div className="absolute inset-0">
+    <div className="relative w-full overflow-hidden rounded-xl border border-white/20 bg-[#0a0a0a] aspect-[3/4] min-h-[320px] md:min-h-[480px] shadow-[inset_0_2px_20px_rgba(0,0,0,0.6)]">
+      {layoutUrl && (
+        <div className="absolute inset-0">
+          <Image
+            src={layoutUrl}
+            alt="Plano del local"
+            fill
+            priority
+            className="object-contain opacity-80"
+            sizes="(max-width: 768px) 100vw, 50vw"
+            quality={90}
+          />
+        </div>
+      )}
+      <div className="absolute inset-0 z-10">
         {tables.map((t) => {
           const match = t.name.match(/(\d+)/);
           const label = match ? `M${match[1]}` : t.name;
@@ -49,12 +55,12 @@ export default function MiniTableMap({
               type="button"
               onClick={() => !isReserved && onSelect(t.id)}
               disabled={isReserved}
-              className={`absolute flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border text-[11px] font-semibold ${
+              className={`absolute flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 text-[13px] font-bold transition-all duration-200 ${
                 isReserved
-                  ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
+                  ? "border-white/10 bg-black/60 text-white/30 cursor-not-allowed backdrop-blur-sm"
                   : selectedId === t.id
-                  ? "border-[#e91e63] bg-[#e91e63]/15 text-white shadow-[0_10px_25px_rgba(233,30,99,0.3)]"
-                  : "border-[#f2f2f2]/40 bg-white/10 text-[#f2f2f2]"
+                  ? "border-[#e91e63] bg-[#e91e63]/25 text-white shadow-[0_0_25px_rgba(233,30,99,0.5),inset_0_2px_10px_rgba(233,30,99,0.3)] scale-105 z-10"
+                  : "border-white/30 bg-black/50 text-white/90 hover:border-white/50 hover:bg-black/70 hover:scale-105 backdrop-blur-sm shadow-[0_4px_15px_rgba(0,0,0,0.5)]"
               }`}
               style={{
                 left: `${posX}%`,
@@ -63,7 +69,7 @@ export default function MiniTableMap({
                 height: `clamp(40px, ${posH}%, 100px)`,
               }}
             >
-              <span className="leading-none">{label}</span>
+              <span className="leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{label}</span>
             </button>
           );
         })}

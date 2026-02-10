@@ -7,6 +7,8 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function POST(req: NextRequest) {
+  console.log("[/api/tickets] Inicio de petición");
+  
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
   }
@@ -21,6 +23,12 @@ export async function POST(req: NextRequest) {
   } catch (_err) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
+
+  console.log("[/api/tickets] Datos recibidos:", {
+    code: body?.code,
+    document: body?.document,
+    nombre: body?.nombre
+  });
 
   const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
   const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
@@ -135,12 +143,15 @@ export async function POST(req: NextRequest) {
   const full_name = `${first_name} ${last_name}`.trim();
   const qr_token = crypto.randomUUID();
 
-  // Si ya tiene ticket para este evento, devolvemos el mismo QR/id
-  const { data: existingTicket, error: existingError } = await supabase
-    .from("tickets")
-    .select("id,qr_token")
-    .eq("event_id", eventId)
-    .eq("person_id", person_id)
+  // Si ya tiene ticket ACTIVO (no borrado) para este evento, devolvemos el mismo QR/id
+  const existingTicketQuery = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,qr_token")
+      .eq("event_id", eventId)
+      .eq("person_id", person_id)
+  );
+  const { data: existingTicket, error: existingError } = await existingTicketQuery
     .limit(1)
     .maybeSingle();
 
@@ -149,6 +160,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (existingTicket?.id && existingTicket.qr_token) {
+    console.log("[/api/tickets] Ticket existente encontrado:", existingTicket.id);
     return NextResponse.json({
       success: true,
       existing: true,
@@ -156,6 +168,8 @@ export async function POST(req: NextRequest) {
       qr: existingTicket.qr_token,
     });
   }
+
+  console.log("[/api/tickets] No hay ticket existente, creando nuevo...");
 
   const { data: ticketData, error: ticketError } = await supabase
     .from("tickets")
@@ -176,8 +190,16 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (ticketError) {
+    console.error("[/api/tickets] Error al insertar ticket:", ticketError);
     return NextResponse.json({ success: false, error: ticketError.message }, { status: 500 });
   }
+
+  console.log("[/api/tickets] Ticket creado exitosamente:", {
+    ticketId: ticketData?.id,
+    person_id,
+    event_id: eventId,
+    full_name
+  });
 
   // incrementar uses del código
   if (codeRow?.id) {

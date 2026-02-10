@@ -1,4 +1,4 @@
-import TicketsClient from "./TicketsClient";
+import ModernTicketsClient from "./ModernTicketsClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
@@ -185,7 +185,7 @@ export default async function TicketsPage({ searchParams }: { searchParams?: Sea
   if (!tickets && error) return notFound();
 
   return (
-    <TicketsClient
+    <ModernTicketsClient
       initialTickets={tickets || []}
       error={error || null}
       filters={{ from, to, q, promoter_id, page, pageSize, total }}

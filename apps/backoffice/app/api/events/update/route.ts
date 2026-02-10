@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { EVENT_TZ } from "shared/datetime";
 import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { generateEventCode, addSuffixIfNeeded } from "shared/friendlyCode";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -42,11 +43,10 @@ export async function POST(req: NextRequest) {
   }
 
   const eventId = data?.id ?? id;
-
-  const codeToUse = code as string;
+  
   const { data: rpcResult, error: rpcError } = await supabase.rpc("set_event_general_code", {
     p_event_id: eventId,
-    p_code: codeToUse,
+    p_code: code,
     p_capacity: capacity,
   });
   if (rpcError || !rpcResult) {
@@ -94,7 +94,10 @@ function buildEventPayload(body: any): {
 
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
-  if (!code) return { id, error: "code is required" };
+  const organizer_id = typeof body?.organizer_id === "string" ? body.organizer_id.trim() : "";
+  
+  if (!code) return { id, error: "Código es requerido" };
+  if (!organizer_id) return { id, error: "Organizador es requerido" };
 
   return {
     id,
@@ -106,8 +109,9 @@ function buildEventPayload(body: any): {
       capacity,
       header_image,
       is_active,
+      organizer_id,
     },
-    code,
+    code: code || undefined,
     name,
     capacity,
     cover_image,

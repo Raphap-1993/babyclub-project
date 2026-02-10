@@ -1,7 +1,5 @@
-import Link from "next/link";
+import ModernReservationsClient from "./ModernReservationsClient";
 import { createClient } from "@supabase/supabase-js";
-import ReservationActions from "./components/ReservationActions";
-import CreateReservationButton from "./components/CreateReservationButton";
 import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -9,6 +7,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 type ReservationRow = {
   id: string;
+  friendly_code?: string | null;
   full_name: string;
   email: string | null;
   phone: string | null;
@@ -17,211 +16,152 @@ type ReservationRow = {
   ticket_quantity: number | null;
   table_name: string;
   event_name: string;
+  organizer_name: string;
+  organizer_id: string;
+  created_at?: string;
 };
 
 async function getReservations(): Promise<{ reservations: ReservationRow[]; error?: string }> {
-  if (!supabaseUrl || !supabaseServiceKey) return { reservations: [], error: "Falta configuración de Supabase" };
+  try {
+    if (!supabaseUrl || !supabaseServiceKey) return { reservations: [], error: "Falta configuración de Supabase" };
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    
+    const { data, error } = await applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select(`
+          id,
+          friendly_code,
+          full_name,
+          email,
+          phone,
+          status,
+          codes,
+          ticket_quantity,
+          created_at,
+          table_id,
+          event_id
+        `)
+        .order("created_at", { ascending: false })
+    );
+    
+    if (error) {
+      console.error("Error fetching reservations:", error);
+      return { reservations: [], error: error?.message || "No se pudieron cargar reservas" };
+    }
+    
+    if (!data || data.length === 0) {
+      return { reservations: [] };
+    }
+
+    // Obtener tablas, eventos y organizadores por separado
+    const tableIds = [...new Set(data.map((r: any) => r.table_id).filter(Boolean))];
+    const eventIds = [...new Set(data.map((r: any) => r.event_id).filter(Boolean))];
+    
+    const { data: tables } = tableIds.length > 0 
+      ? await supabase.from("tables").select("id, name").in("id", tableIds)
+      : { data: [] };
+      
+    const { data: events } = eventIds.length > 0
+      ? await supabase.from("events").select("id, name, organizer_id").in("id", eventIds)
+      : { data: [] };
+      
+    const organizerIds = [...new Set(events?.map((e: any) => e.organizer_id).filter(Boolean) || [])];
+    
+    const { data: organizers } = organizerIds.length > 0
+      ? await supabase.from("organizers").select("id, name").in("id", organizerIds)
+      : { data: [] };
+
+    // Crear mapas para búsqueda rápida
+    const tableMap = new Map(tables?.map((t: any) => [t.id, t]) || []);
+    const eventMap = new Map(events?.map((e: any) => [e.id, e]) || []);
+    const organizerMap = new Map(organizers?.map((o: any) => [o.id, o]) || []);
+
+    const normalized: ReservationRow[] = (data as any[]).map((res) => {
+      const table = tableMap.get(res.table_id);
+      const event = eventMap.get(res.event_id);
+      const organizer = event?.organizer_id ? organizerMap.get(event.organizer_id) : null;
+      
+      return {
+        id: res.id,
+        friendly_code: res.friendly_code ?? null,
+        full_name: res.full_name ?? "",
+        email: res.email ?? null,
+        phone: res.phone ?? null,
+        status: res.status ?? "",
+        codes: res.codes ?? null,
+        ticket_quantity: typeof res.ticket_quantity === "number" ? res.ticket_quantity : null,
+        table_name: table?.name ?? "Entrada",
+        event_name: event?.name ?? "—",
+        organizer_name: organizer?.name ?? "Sin organizador",
+        organizer_id: organizer?.id ?? "",
+        created_at: res.created_at ?? undefined,
+      };
+    });
+
+    return { reservations: normalized };
+  } catch (err: any) {
+    console.error("Unexpected error in getReservations:", err);
+    return { reservations: [], error: `Error inesperado: ${err.message}` };
+  }
+}
+
+async function getOrganizers(): Promise<{ id: string; name: string }[]> {
+  if (!supabaseUrl || !supabaseServiceKey) return [];
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await applyNotDeleted(
+  
+  const { data } = await applyNotDeleted(
     supabase
-      .from("table_reservations")
-      .select("id,full_name,email,phone,status,codes,ticket_quantity,table:tables(name,event:events(name)),event:event_id(name)")
-      .order("created_at", { ascending: false })
+      .from("organizers")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name", { ascending: true })
   );
-  if (error || !data) return { reservations: [], error: error?.message || "No se pudieron cargar reservas" };
-
-  const normalized: ReservationRow[] = (data as any[]).map((res) => {
-    const tableRel = Array.isArray(res.table) ? res.table[0] : res.table;
-    const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
-    const eventFallback = Array.isArray(res.event) ? res.event[0] : res.event;
-    return {
-      id: res.id,
-      full_name: res.full_name ?? "",
-      email: res.email ?? null,
-      phone: res.phone ?? null,
-      status: res.status ?? "",
-      codes: res.codes ?? null,
-      ticket_quantity: typeof res.ticket_quantity === "number" ? res.ticket_quantity : null,
-      table_name: tableRel?.name ?? "Entrada",
-      event_name: eventRel?.name ?? eventFallback?.name ?? "—",
-    };
-  });
-
-  return { reservations: normalized };
+  
+  return data || [];
 }
 
 export const dynamic = "force-dynamic";
 
 export default async function ReservationsPage() {
   const { reservations, error } = await getReservations();
+  const organizers = await getOrganizers();
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Reservas</p>
-          <h1 className="text-3xl font-semibold">Reservas</h1>
-          <p className="mt-2 text-xs text-white/60">Al guardar se notificará por email al cliente si hay correo y estado aprobado.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <CreateReservationButton />
-          <Link
-            href="/admin"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            ← Volver
-          </Link>
-          <Link
-            href="/admin/reservations"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            Refrescar
-          </Link>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Header consistente */}
+      <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-b border-slate-700">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                📋 Reservas de Mesas
+              </h1>
+              <p className="text-sm text-slate-400 mt-1">
+                Gestiona las reservas de mesas por evento y organizador
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
-        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
-          <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
-            <tr>
-              <th className="w-[14%] px-3 py-3 text-left">Mesa</th>
-              <th className="w-[18%] px-3 py-3 text-left">Evento</th>
-              <th className="w-[30%] px-3 py-3 text-left">Contacto</th>
-              <th className="w-[8%] px-3 py-3 text-left">Entradas</th>
-              <th className="w-[12%] px-3 py-3 text-left">Estado</th>
-              <th className="w-[18%] px-3 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {reservations.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-white/60">
-                  {error ? `Error: ${error}` : "No hay reservas aún."}
-                </td>
-              </tr>
-            )}
-            {reservations.map((res) => (
-              <tr key={res.id} className="hover:bg-white/[0.02]">
-                <td className="px-3 py-3 font-semibold text-white">{res.table_name || "—"}</td>
-                <td className="px-3 py-3 text-white/80">{res.event_name || "—"}</td>
-                <td className="min-w-0 px-3 py-3 text-white/80">
-                  <div className="break-words font-semibold text-white">{res.full_name}</div>
-                  {res.email && <div className="break-words text-xs text-white/60">{res.email}</div>}
-                  {res.phone && <div className="text-xs text-white/60">{res.phone}</div>}
-                </td>
-                <td className="px-3 py-3 text-white/80">{res.ticket_quantity ?? 1}</td>
-                <td className="px-3 py-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                      res.status === "approved"
-                        ? "bg-emerald-500/20 text-emerald-300"
-                        : res.status === "rejected"
-                          ? "bg-[#ff5f5f]/20 text-[#ff9a9a]"
-                          : "bg-white/5 text-white/70"
-                    }`}
-                  >
-                    {res.status}
-                  </span>
-                </td>
-                <td className="px-3 py-3 text-right">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Link
-                      href={`/admin/reservations/${encodeURIComponent(res.id)}`}
-                      className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-[#e91e63] hover:text-[#e91e63]"
-                    >
-                      Ver
-                    </Link>
-                    <ReservationActions id={res.id} status={res.status} />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mb-4 lg:hidden">
-        <CreateReservationButton />
-      </div>
-
-      <div className="space-y-3 lg:hidden">
-        {reservations.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
-            {error ? `Error: ${error}` : "No hay reservas aún."}
+      {/* Contenido */}
+      <div className="p-6">
+        {error && (
+          <div className="mb-4 bg-red-900/30 border border-red-700 text-red-200 p-4 rounded-lg">
+            <strong>Error:</strong> {error}
           </div>
         )}
-        {reservations.map((res) => (
-          <div
-            key={res.id}
-            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-base font-semibold text-white">{res.table_name || "—"}</p>
-                <p className="text-xs uppercase tracking-[0.15em] text-white/50">{res.event_name || "—"}</p>
-                <p className="text-sm text-white/80">{res.full_name}</p>
-              </div>
-              <span
-                className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                  res.status === "approved"
-                    ? "bg-emerald-500/20 text-emerald-300"
-                    : res.status === "rejected"
-                      ? "bg-[#ff5f5f]/20 text-[#ff9a9a]"
-                      : "bg-white/5 text-white/70"
-                }`}
-              >
-                {res.status}
-              </span>
-            </div>
-
-            <div className="mt-3 space-y-3 text-sm text-white/80">
-              <Info
-                label="Contacto"
-                value={[res.email, res.phone].filter(Boolean).join(" · ") || "—"}
-              />
-              <Info label="Entradas" value={`${res.ticket_quantity ?? 1}`} />
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Códigos</p>
-                {res.codes && res.codes.length > 0 ? (
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {res.codes.map((code) => (
-                      <span
-                        key={code}
-                        className="rounded-full border border-white/10 bg-[#111111] px-3 py-1 text-xs font-semibold text-white"
-                      >
-                        {code}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm font-semibold text-white">—</p>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2">
-              <Link
-                href={`/admin/reservations/${encodeURIComponent(res.id)}`}
-                className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/40"
-              >
-                Ver detalle
-              </Link>
-              <ReservationActions id={res.id} status={res.status} />
-            </div>
-          </div>
-        ))}
+        
+        <ModernReservationsClient 
+          initialReservations={reservations} 
+          organizers={organizers}
+        />
       </div>
-    </main>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className="font-semibold text-white">{value}</p>
     </div>
   );
 }

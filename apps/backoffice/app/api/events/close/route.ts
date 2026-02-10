@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
   // Archivar todas las reservaciones activas
   const { error: reservationsError } = await supabase
     .from("table_reservations")
-    .update({ deleted_at: closedAt, status: "archived" })
+    .update({ deleted_at: closedAt })
     .eq("event_id", id)
     .is("deleted_at", null);
   

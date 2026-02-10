@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,doc_type,document,status,codes,ticket_id,event_id,table:tables(id,name,event_id,event:events(id,name,starts_at,location)),event:event_id(id,name,starts_at,location)"
+      "id,full_name,email,phone,doc_type,document,status,codes,ticket_id,event_id,promoter_id,table:tables(id,name,event_id,event:events(id,name,starts_at,location)),event:event_id(id,name,starts_at,location)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
           phone: (reservation as any).phone || null,
           docType: (reservation as any).doc_type || "dni",
           document: (reservation as any).document || "",
+          promoterId: (reservation as any).promoter_id || null,
           reuseCodes: codesList,
         });
         ticketId = createdTicketId;
@@ -162,6 +163,7 @@ export async function POST(req: NextRequest) {
         email,
         phone: (reservation as any).phone || null,
         codes: codesForEmail,
+        ticketIds: ticketId ? [ticketId] : undefined, // ✅ Incluir ticketId si existe
         tableName,
         event: eventData,
       });

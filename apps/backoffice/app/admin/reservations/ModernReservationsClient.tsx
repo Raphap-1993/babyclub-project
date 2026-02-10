@@ -1,0 +1,626 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { ColumnDef } from "@tanstack/react-table";
+import { DataTable, StatusBadge, Button, ModernDatePicker } from "@repo/ui";
+import { authedFetch } from "@/lib/authedFetch";
+import { ExternalLink, Calendar, Users, Mail, Phone, QrCode, Search, Filter, ChevronDown, Eye, Send, XCircle, CheckCircle } from "lucide-react";
+import CreateReservationModal from "./components/CreateReservationModal";
+import ViewReservationModal from "./components/ViewReservationModal";
+
+type ReservationRow = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  codes: string[] | null;
+  ticket_quantity: number | null;
+  table_name: string;
+  event_name: string;
+  organizer_name: string;
+  organizer_id: string;
+  created_at?: string;
+};
+
+// Componente de búsqueda y filtros expandido
+function SearchAndDateFilters({
+  searchQuery,
+  onSearchChange,
+  statusFilter,
+  onStatusChange,
+  organizerFilter,
+  onOrganizerChange,
+  organizers,
+  fromDate,
+  onFromDateChange,
+  toDate,
+  onToDateChange,
+  onApplyFilters,
+  onClearFilters,
+  hasActiveFilters,
+}: {
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  statusFilter: string;
+  onStatusChange: (value: string) => void;
+  organizerFilter: string;
+  onOrganizerChange: (value: string) => void;
+  organizers: { id: string; name: string }[];
+  fromDate: string;
+  onFromDateChange: (value: string) => void;
+  toDate: string;
+  onToDateChange: (value: string) => void;
+  onApplyFilters: () => void;
+  onClearFilters: () => void;
+  hasActiveFilters: boolean;
+}) {
+  return (
+    <div className="space-y-3 mb-4">
+      {/* Filtros compactos en 2 filas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+        <ModernDatePicker 
+          value={fromDate} 
+          onChange={onFromDateChange} 
+          placeholder="Desde" 
+        />
+        
+        <ModernDatePicker 
+          value={toDate} 
+          onChange={onToDateChange} 
+          placeholder="Hasta" 
+        />
+
+        <div className="relative">
+          <select
+            value={organizerFilter}
+            onChange={(e) => onOrganizerChange(e.target.value)}
+            className="w-full pl-3 pr-9 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm appearance-none cursor-pointer"
+          >
+            <option value="all">Todos los organizadores</option>
+            {organizers.map((org) => (
+              <option key={org.id} value={org.id}>{org.name}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+        </div>
+        
+        <div className="relative">
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusChange(e.target.value)}
+            className="w-full pl-3 pr-9 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm appearance-none cursor-pointer"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="pending">🟡 Pendiente</option>
+            <option value="confirmed">✅ Confirmada</option>
+            <option value="cancelled">❌ Cancelada</option>
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+        </div>
+      </div>
+      
+      {/* Segunda fila: Búsqueda y acciones */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, email o teléfono..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm"
+          />
+        </div>
+        
+        <button
+          onClick={onApplyFilters}
+          className="inline-flex items-center gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:from-rose-400 hover:to-pink-500"
+        >
+          <Filter className="h-4 w-4" />
+          Filtrar
+        </button>
+        
+        {hasActiveFilters && (
+          <button
+            onClick={onClearFilters}
+            className="inline-flex items-center gap-1.5 border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-200 rounded-lg transition-all hover:border-slate-500 hover:bg-slate-800"
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Definición de columnas simplificadas (sin columnas redundantes)
+const createColumns = (
+  onViewReservation: (id: string) => void,
+  onApproveReservation: (id: string) => void,
+  onResendEmail: (id: string) => void,
+  onCancelReservation: (id: string) => void,
+  openMenuId: string | null,
+  setOpenMenuId: (id: string | null) => void
+): ColumnDef<ReservationRow>[] => [
+  {
+    accessorKey: "full_name",
+    header: "Cliente",
+    cell: ({ row }) => {
+      const reservation = row.original;
+      return (
+        <div className="min-w-0">
+          <div className="font-medium text-slate-100 truncate">
+            {reservation.full_name}
+          </div>
+          {reservation.email && (
+            <div className="text-xs text-slate-400 truncate flex items-center gap-1">
+              <Mail className="h-3 w-3" />
+              {reservation.email}
+            </div>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "phone",
+    header: "Teléfono",
+    cell: ({ row }) => {
+      const reservation = row.original;
+      return reservation.phone ? (
+        <div className="text-xs text-slate-300 flex items-center gap-1">
+          <Phone className="h-3 w-3 text-slate-500" />
+          {reservation.phone}
+        </div>
+      ) : (
+        <span className="text-slate-500 text-xs">—</span>
+      );
+    },
+  },
+  {
+    accessorKey: "event_info",
+    header: "Evento & Mesa",
+    cell: ({ row }) => {
+      const reservation = row.original;
+      return (
+        <div className="text-xs">
+          <div className="font-medium text-slate-200 truncate">
+            {reservation.event_name}
+          </div>
+          <div className="text-slate-400 flex items-center gap-1">
+            <Users className="h-3 w-3" />
+            {reservation.table_name}
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "codes",
+    header: "Entradas",
+    cell: ({ row }) => {
+      const reservation = row.original;
+      const codesCount = reservation.codes?.length || 0;
+      return (
+        <div className="text-center">
+          {codesCount > 0 ? (
+            <span className="inline-flex items-center gap-1 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full">
+              <QrCode className="h-3 w-3" />
+              <span>{codesCount}</span>
+            </span>
+          ) : (
+            <span className="text-slate-500 text-xs">—</span>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "status",
+    header: "Estado",
+    cell: ({ getValue }) => {
+      const status = getValue() as string;
+      const getStatusConfig = (status: string) => {
+        switch (status?.toLowerCase()) {
+          case "confirmed":
+            return { variant: "success" as const, label: "✅ Confirmada" };
+          case "pending":
+            return { variant: "warning" as const, label: "🟡 Pendiente" };
+          case "cancelled":
+            return { variant: "danger" as const, label: "❌ Cancelada" };
+          default:
+            return { variant: "default" as const, label: status || "—" };
+        }
+      };
+      
+      const config = getStatusConfig(status);
+      return <StatusBadge variant={config.variant}>{config.label}</StatusBadge>;
+    },
+  },
+  {
+    id: "actions",
+    header: "Acciones",
+    cell: ({ row }) => {
+      const reservation = row.original;
+      
+      return (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewReservation(reservation.id);
+            }}
+            title="Ver detalles"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition-colors"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onApproveReservation(reservation.id);
+            }}
+            disabled={reservation.status === "approved" || reservation.status === "rejected"}
+            title="Aprobar reserva"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <CheckCircle className="h-3.5 w-3.5" />
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onResendEmail(reservation.id);
+            }}
+            disabled={reservation.status !== "approved"}
+            title="Reenviar correo"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-green-500/20 hover:bg-green-500/30 text-green-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Send className="h-3.5 w-3.5" />
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancelReservation(reservation.id);
+            }}
+            disabled={reservation.status === "rejected"}
+            title="Anular reserva"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <XCircle className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      );
+    },
+  },
+];
+
+interface ModernReservationsClientProps {
+  initialReservations: ReservationRow[];
+  organizers: { id: string; name: string }[];
+}
+
+export default function ModernReservationsClient({ initialReservations, organizers }: ModernReservationsClientProps) {
+  const [reservations, setReservations] = useState<ReservationRow[]>(initialReservations);
+  const [filteredReservations, setFilteredReservations] = useState<ReservationRow[]>(initialReservations);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [organizerFilter, setOrganizerFilter] = useState<string>("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [tempSearchQuery, setTempSearchQuery] = useState("");
+  const [tempStatusFilter, setTempStatusFilter] = useState<string>("all");
+  const [tempOrganizerFilter, setTempOrganizerFilter] = useState<string>("all");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewReservationId, setViewReservationId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Verificar si hay filtros activos
+  const hasActiveFilters = Boolean(searchQuery || statusFilter !== "all" || organizerFilter !== "all" || fromDate || toDate);
+
+  // Recargar datos después de crear reserva
+  const handleReservationCreated = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(window.location.href);
+      if (response.ok) {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error("Error reloading:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Aprobar reserva
+  const handleApproveReservation = async (id: string) => {
+    if (!confirm("✅ ¿Aprobar esta reserva y enviar email de confirmación?")) return;
+    
+    try {
+      const res = await authedFetch("/api/reservations/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id, status: "approved" }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        if (data.emailError) {
+          alert(`✅ Reserva aprobada, pero hubo un error al enviar el correo: ${data.emailError}`);
+        } else if (data.emailSent) {
+          alert("✅ Reserva aprobada y correo enviado exitosamente");
+        } else {
+          alert("✅ Reserva aprobada");
+        }
+        window.location.reload();
+      } else {
+        alert(`❌ Error al aprobar reserva: ${data.error || "Error desconocido"}`);
+        console.error("Error:", data);
+      }
+    } catch (err: any) {
+      alert(`❌ Error al aprobar reserva: ${err.message}`);
+      console.error("Error:", err);
+    }
+  };
+
+  // Reenviar correo
+  const handleResendEmail = async (id: string) => {
+    if (!confirm("¿Reenviar correo de confirmación?")) return;
+    
+    try {
+      const res = await authedFetch(`/api/admin/reservations/${id}/resend`, { 
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (res.ok) {
+        alert("✅ Correo reenviado exitosamente");
+      } else {
+        const data = await res.json();
+        alert(`❌ Error al reenviar correo: ${data.error || "Error desconocido"}`);
+        console.error("Error:", data);
+      }
+    } catch (err: any) {
+      alert(`❌ Error al reenviar correo: ${err.message}`);
+      console.error("Error:", err);
+    }
+  };
+
+  // Anular reserva
+  const handleCancelReservation = async (id: string) => {
+    if (!confirm("⚠️ ¿Estás seguro de anular esta reserva? Se enviará un email al cliente notificándole la cancelación.")) return;
+    
+    try {
+      const res = await authedFetch("/api/reservations/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id, status: "rejected" }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        if (data.emailError) {
+          alert(`✅ Reserva anulada, pero hubo un error al enviar el correo: ${data.emailError}`);
+        } else if (data.emailSent) {
+          alert("✅ Reserva anulada y correo de notificación enviado");
+        } else {
+          alert("✅ Reserva anulada");
+        }
+        window.location.reload();
+      } else {
+        alert(`❌ Error al anular reserva: ${data.error || "Error desconocido"}`);
+        console.error("Error:", data);
+      }
+    } catch (err: any) {
+      alert(`❌ Error al anular reserva: ${err.message}`);
+      console.error("Error:", err);
+    }
+  };
+
+  // Aplicar filtros
+  const applyFilters = () => {
+    setSearchQuery(tempSearchQuery);
+    setStatusFilter(tempStatusFilter);
+    setOrganizerFilter(tempOrganizerFilter);
+    // fromDate y toDate ya se actualizan directamente
+  };
+
+  // Limpiar filtros
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setOrganizerFilter("all");
+    setFromDate("");
+    setToDate("");
+    setTempSearchQuery("");
+    setTempStatusFilter("all");
+    setTempOrganizerFilter("all");
+  };
+
+  // Filtrar reservas
+  useEffect(() => {
+    let filtered = reservations;
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(reservation => 
+        reservation.full_name?.toLowerCase().includes(query) ||
+        reservation.email?.toLowerCase().includes(query) ||
+        reservation.phone?.includes(query) ||
+        reservation.event_name?.toLowerCase().includes(query) ||
+        reservation.table_name?.toLowerCase().includes(query) ||
+        reservation.organizer_name?.toLowerCase().includes(query)
+      );
+    }
+    
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(reservation => 
+        reservation.status?.toLowerCase() === statusFilter
+      );
+    }
+    
+    if (organizerFilter !== "all") {
+      filtered = filtered.filter(reservation => 
+        reservation.organizer_id === organizerFilter
+      );
+    }
+
+    // Filtrar por fechas si están definidas
+    if (fromDate) {
+      filtered = filtered.filter(reservation => {
+        if (!reservation.created_at) return false;
+        const reservationDate = new Date(reservation.created_at).toISOString().split('T')[0];
+        return reservationDate >= fromDate;
+      });
+    }
+
+    if (toDate) {
+      filtered = filtered.filter(reservation => {
+        if (!reservation.created_at) return false;
+        const reservationDate = new Date(reservation.created_at).toISOString().split('T')[0];
+        return reservationDate <= toDate;
+      });
+    }
+    
+    setFilteredReservations(filtered);
+  }, [reservations, searchQuery, statusFilter, organizerFilter, fromDate, toDate]);
+
+  const columns = React.useMemo(
+    () => createColumns(
+      (id: string) => setViewReservationId(id),
+      handleApproveReservation,
+      handleResendEmail,
+      handleCancelReservation,
+      openMenuId,
+      setOpenMenuId
+    ),
+    [openMenuId]
+  );
+
+  return (
+    <main className="space-y-3">
+      {/* Stats compactas */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-2 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">📊</span>
+            <div>
+              <p className="text-xs text-slate-400">Total</p>
+              <p className="text-base font-bold text-white">{reservations.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-2 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">🔍</span>
+            <div>
+              <p className="text-xs text-slate-400">Filtradas</p>
+              <p className="text-base font-bold text-blue-400">{filteredReservations.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-2 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">✅</span>
+            <div>
+              <p className="text-xs text-slate-400">Confirmadas</p>
+              <p className="text-base font-bold text-green-400">
+                {reservations.filter(r => r.status?.toLowerCase() === "confirmed").length}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-2 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">🟡</span>
+            <div>
+              <p className="text-xs text-slate-400">Pendientes</p>
+              <p className="text-base font-bold text-yellow-400">
+                {reservations.filter(r => r.status?.toLowerCase() === "pending").length}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-2 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">🎫</span>
+            <div>
+              <p className="text-xs text-slate-400">Códigos</p>
+              <p className="text-base font-bold text-rose-400">
+                {reservations.reduce((sum, r) => sum + (r.codes?.length || 0), 0)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Botón crear reserva */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="inline-flex items-center justify-center gap-2 w-full bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:from-blue-400 hover:to-blue-500"
+      >
+        <Calendar className="h-4 w-4" />
+        Nueva Reserva Manual
+      </button>
+
+      {/* Sistema de filtros con fechas */}
+      <SearchAndDateFilters
+        searchQuery={tempSearchQuery}
+        onSearchChange={setTempSearchQuery}
+        statusFilter={tempStatusFilter}
+        onStatusChange={setTempStatusFilter}
+        organizerFilter={tempOrganizerFilter}
+        onOrganizerChange={setTempOrganizerFilter}
+        organizers={organizers}
+        fromDate={fromDate}
+        onFromDateChange={setFromDate}
+        toDate={toDate}
+        onToDateChange={setToDate}
+        onApplyFilters={applyFilters}
+        onClearFilters={clearFilters}
+        hasActiveFilters={hasActiveFilters}
+      />
+
+      {/* Tabla optimizada */}
+      <DataTable
+        columns={columns}
+        data={filteredReservations}
+        compact={true}
+        maxHeight="calc(100vh - 360px)"
+        enableSorting={true}
+        enableVirtualization={filteredReservations.length > 50}
+        emptyMessage="🔍 No se encontraron reservas con los filtros aplicados"
+      />
+
+      {/* Modal de creación */}
+      <CreateReservationModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleReservationCreated}
+        organizers={organizers}
+      />
+
+      {/* Modal de visualización */}
+      <ViewReservationModal
+        reservationId={viewReservationId || ""}
+        isOpen={!!viewReservationId}
+        onClose={() => setViewReservationId(null)}
+        onUpdate={() => window.location.reload()}
+      />
+    </main>
+  );
+}

@@ -5,4 +5,4 @@ export {
   formatTime,
   debounce,
   generateQRCode,
-} from '@repo/ui';
+} from '@repo/ui/utils';

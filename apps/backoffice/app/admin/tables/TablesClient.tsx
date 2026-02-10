@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import TableActions from "./components/TableActions";
+import { DataTable, Button } from "@repo/ui";
+import { ColumnDef } from "@tanstack/react-table";
+import { useRouter } from "next/navigation";
 
 type TableRow = {
   id: string;
@@ -19,142 +22,139 @@ export default function TablesClient({
   error,
   pagination,
   total,
+  organizerView = false,
 }: {
   tables: TableRow[];
   error: string | null;
   pagination: { page: number; pageSize: number };
   total: number;
+  organizerView?: boolean;
 }) {
   const { page, pageSize } = pagination;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
+  const router = useRouter();
+
+  const columns: ColumnDef<TableRow>[] = [
+    {
+      accessorKey: "name",
+      header: "Nombre",
+      cell: ({ row }) => (
+        <div>
+          <div className="font-semibold text-slate-100">{row.original.name}</div>
+          {row.original.notes && (
+            <div className="text-xs text-slate-400 mt-0.5">{row.original.notes}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "ticket_count",
+      header: "Tickets",
+      cell: ({ row }) => (
+        <span className="text-slate-300">{row.original.ticket_count ?? "—"}</span>
+      ),
+    },
+    {
+      accessorKey: "min_consumption",
+      header: "Consumo mín",
+      cell: ({ row }) => (
+        <span className="text-slate-300">
+          {row.original.min_consumption != null ? `S/ ${row.original.min_consumption}` : "—"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "price",
+      header: "Precio",
+      cell: ({ row }) => (
+        <span className="text-slate-300">
+          {row.original.price != null ? `S/ ${row.original.price}` : "—"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "is_active",
+      header: "Estado",
+      cell: ({ row }) => (
+        <span
+          className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
+            row.original.is_active 
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+              : "bg-slate-700/50 text-slate-400"
+          }`}
+        >
+          {row.original.is_active ? "Activa" : "Inactiva"}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Acciones",
+      cell: ({ row }) => <TableActions id={row.original.id} reserved={row.original.reserved} />,
+    },
+  ];
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8 sm:px-6 lg:px-10">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Mesas</p>
-          <h1 className="text-3xl font-semibold">Listado de mesas</h1>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Inventario del Organizador
+          </p>
+          <h1 className="text-3xl font-bold text-white mt-1">Mesas del Local</h1>
+          <p className="text-sm text-slate-400 mt-2">
+            Gestiona las mesas físicas de tu local. Se reutilizan en todos los eventos.
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href="/admin/tables/layout"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            Plano de mesas
+          <Link href="/admin/tables/layout">
+            <Button variant="outline" size="md" className="border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white">
+              📐 Diseñar Croquis
+            </Button>
           </Link>
-          <Link
-            href="/admin"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            ← Volver
+          <Link href="/admin">
+            <Button variant="ghost" size="md" className="text-slate-300 hover:text-white hover:bg-slate-800">
+              ← Volver
+            </Button>
           </Link>
-          <Link
-            href="/admin/tables/create"
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-5 py-2 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)]"
-          >
-            Crear mesa
+          <Link href="/admin/tables/create">
+            <Button variant="primary" size="md" className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-700 hover:to-pink-600 shadow-lg shadow-pink-500/30">
+              + Agregar Mesa
+            </Button>
           </Link>
         </div>
       </div>
 
-      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
-        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
-          <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
-            <tr>
-              <th className="w-[32%] px-4 py-3 text-left">Nombre</th>
-              <th className="w-[14%] px-4 py-3 text-left">Tickets</th>
-              <th className="w-[16%] px-4 py-3 text-left">Consumo mín</th>
-              <th className="w-[14%] px-4 py-3 text-left">Precio</th>
-              <th className="w-[12%] px-4 py-3 text-left">Estado</th>
-              <th className="w-[12%] px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {tables.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-white/60">
-                  {error ? `Error: ${error}` : "No hay mesas aún."}
-                </td>
-              </tr>
-            )}
-            {tables.map((table) => (
-              <tr key={table.id} className="hover:bg-white/[0.02]">
-                <td className="px-4 py-3 font-semibold text-white">
-                  <div className="break-words">{table.name}</div>
-                  {table.notes && <div className="break-words text-xs text-white/60">{table.notes}</div>}
-                </td>
-                <td className="px-4 py-3 text-white/80">{table.ticket_count ?? "—"}</td>
-                <td className="px-4 py-3 text-white/80">{table.min_consumption != null ? `S/ ${table.min_consumption}` : "—"}</td>
-                <td className="px-4 py-3 text-white/80">{table.price != null ? `S/ ${table.price}` : "—"}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                      table.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
-                    }`}
-                  >
-                    {table.is_active ? "Activa" : "Inactiva"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <TableActions id={table.id} reserved={table.reserved} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Info Box */}
+      <div className="mb-6 rounded-xl border border-blue-700/40 bg-blue-900/20 p-4 backdrop-blur-sm">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">ℹ️</span>
+          <div className="flex-1">
+            <h3 className="font-semibold text-blue-300 mb-1">Mesas del Organizador</h3>
+            <p className="text-sm text-slate-300">
+              Estas mesas son el inventario físico de tu local. Se crean <strong>una sola vez</strong> y se reutilizan automáticamente en todos tus eventos.
+              Para activar/desactivar mesas por evento específico, usa el ícono ⚙️ desde la lista de eventos.
+            </p>
+          </div>
+        </div>
       </div>
+
+      {error ? (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center">
+          <p className="text-red-400">Error: {error}</p>
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={tables}
+          emptyMessage="No hay mesas registradas. Crea tu primera mesa del local."
+          compact
+        />
+      )}
 
       <PaginationControls basePath="/admin/tables" page={currentPage} totalPages={totalPages} pageSize={pageSize} />
-
-      <div className="space-y-3 lg:hidden">
-        {tables.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
-            {error ? `Error: ${error}` : "No hay mesas aún."}
-          </div>
-        )}
-        {tables.map((table) => (
-          <div
-            key={table.id}
-            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-base font-semibold text-white">{table.name}</p>
-                {table.notes && <p className="text-sm text-white/70">{table.notes}</p>}
-              </div>
-              <span
-                className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                  table.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
-                }`}
-              >
-                {table.is_active ? "Activa" : "Inactiva"}
-              </span>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
-              <Info label="Tickets" value={table.ticket_count?.toString() || "—"} />
-              <Info label="Consumo mín" value={table.min_consumption != null ? `S/ ${table.min_consumption}` : "—"} />
-              <Info label="Precio" value={table.price != null ? `S/ ${table.price}` : "—"} />
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2">
-              <TableActions id={table.id} reserved={table.reserved} />
-            </div>
-          </div>
-        ))}
-      </div>
-      <PaginationControls basePath="/admin/tables" page={currentPage} totalPages={totalPages} pageSize={pageSize} isMobile />
     </main>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className="font-semibold text-white">{value}</p>
-    </div>
   );
 }
 
@@ -163,13 +163,11 @@ function PaginationControls({
   page,
   totalPages,
   pageSize,
-  isMobile,
 }: {
   basePath: string;
   page: number;
   totalPages: number;
   pageSize: number;
-  isMobile?: boolean;
 }) {
   const options = [5, 10, 15, 20, 30];
   const qs = (nextPage: number, size: number) => {
@@ -180,20 +178,16 @@ function PaginationControls({
   };
 
   return (
-    <div
-      className={`mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-white/80 ${
-        isMobile ? "flex lg:hidden" : "hidden lg:flex"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-white/60">Ver</span>
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-4 px-1">
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-slate-400">Mostrar</span>
         <select
           defaultValue={pageSize}
           onChange={(e) => {
             const size = parseInt(e.target.value, 10);
             window.location.href = qs(1, size);
           }}
-          className="rounded-lg border border-white/15 bg-[#0c0c0c] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+          className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
         >
           {options.map((opt) => (
             <option key={opt} value={opt}>
@@ -202,22 +196,26 @@ function PaginationControls({
           ))}
         </select>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <a
           href={qs(Math.max(1, page - 1), pageSize)}
-          className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
-            page <= 1 ? "pointer-events-none text-white/30" : "text-white hover:border-white"
+          className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+            page <= 1
+              ? "pointer-events-none border-slate-700 text-slate-600"
+              : "border-slate-600 text-slate-300 hover:border-slate-400 hover:bg-slate-800"
           }`}
         >
           ← Anterior
         </a>
-        <span className="text-white/60">
-          Página {page} de {totalPages}
+        <span className="text-sm text-slate-400">
+          Página <span className="font-semibold text-slate-200">{page}</span> de <span className="font-semibold text-slate-200">{totalPages}</span>
         </span>
         <a
           href={qs(Math.min(totalPages, page + 1), pageSize)}
-          className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
-            page >= totalPages ? "pointer-events-none text-white/30" : "text-white hover:border-white"
+          className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+            page >= totalPages
+              ? "pointer-events-none border-slate-700 text-slate-600"
+              : "border-slate-600 text-slate-300 hover:border-slate-400 hover:bg-slate-800"
           }`}
         >
           Siguiente →
