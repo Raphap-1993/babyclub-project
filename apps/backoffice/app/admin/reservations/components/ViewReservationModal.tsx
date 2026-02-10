@@ -15,6 +15,7 @@ interface ReservationDetail {
   voucher_url: string | null;
   status: string;
   codes: string[] | null;
+  friendly_code?: string | null; // ✅ Código amigable de reserva
   created_at: string;
   table_name: string;
   event_name: string;
