@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { CirclePlus, Search } from "lucide-react";
 import PromoterActions from "./components/PromoterActions";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { SelectNative } from "@/components/ui/select-native";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 type PromoterRow = {
   id: string;
@@ -31,154 +40,153 @@ export default function PromotersClient({
   const { page, pageSize, q } = pagination;
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const currentPage = Math.min(page, totalPages);
+  const router = useRouter();
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Promotores</p>
-          <h1 className="text-3xl font-semibold">Listado de promotores</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            ← Volver
-          </Link>
-          <Link
-            href="/admin/promoters/create"
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-5 py-2 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_38px_rgba(233,30,99,0.45)]"
-          >
-            Crear promotor
-          </Link>
-        </div>
-      </div>
+    <main className="relative overflow-hidden px-3 py-4 text-white sm:px-5 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(166,12,47,0.10),transparent_30%),radial-gradient(circle_at_82%_0%,rgba(255,255,255,0.08),transparent_28%),radial-gradient(circle_at_50%_100%,rgba(255,255,255,0.05),transparent_45%)]" />
 
-      <form className="mb-6 flex flex-wrap items-end gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-        <label className="flex-1 min-w-[220px] space-y-2 text-sm font-semibold text-white">
-          Buscar
-          <input
-            type="text"
-            name="q"
-            defaultValue={q}
-            placeholder="Nombre, DNI o código"
-            className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
-          />
-        </label>
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="rounded-xl bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(233,30,99,0.35)] transition hover:shadow-[0_12px_32px_rgba(233,30,99,0.45)]"
-          >
-            Filtrar
-          </button>
-          {q && (
-            <Link
-              href="/admin/promoters"
-              className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:border-white"
-            >
-              Limpiar
-            </Link>
+      <div className="mx-auto w-full max-w-7xl space-y-2.5">
+        <Card className="border-[#2b2b2b] bg-[#111111]">
+          <CardHeader className="gap-2 pb-3 pt-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">
+                  Operaciones / Promotores
+                </CardDescription>
+                <CardTitle className="text-xl sm:text-2xl">Promotores</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                  Volver
+                </Link>
+                <Link href="/admin/promoters/create" className={cn(buttonVariants({ size: "sm" }))}>
+                  <CirclePlus className="h-4 w-4" />
+                  Crear promotor
+                </Link>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="border-t border-[#252525] p-3">
+            <form action="/admin/promoters" method="get" className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-12">
+              <label className="sm:col-span-2 xl:col-span-8">
+                <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.12em] text-white/55">Buscar</span>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+                  <Input name="q" defaultValue={q} placeholder="Nombre, DNI o código" className="pl-9" />
+                </div>
+              </label>
+              <div className="flex items-end gap-2 xl:col-span-2">
+                <Button type="submit" size="sm">
+                  <Search className="h-4 w-4" />
+                  Buscar
+                </Button>
+                <Link href="/admin/promoters" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                  Limpiar
+                </Link>
+              </div>
+              <div className="flex items-end justify-end text-xs text-white/60 xl:col-span-2">
+                {total} resultado{total === 1 ? "" : "s"}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="hidden overflow-hidden border-[#2b2b2b] lg:block">
+          <CardHeader className="border-b border-[#252525] py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Resultados</CardTitle>
+              </div>
+              <Badge>
+                Página {currentPage}/{totalPages}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table containerClassName="max-h-[58dvh] min-h-[280px]">
+              <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
+                <TableRow>
+                  <TableHead className="w-[28%]">Nombre</TableHead>
+                  <TableHead className="w-[14%]">DNI</TableHead>
+                  <TableHead className="w-[24%]">Email</TableHead>
+                  <TableHead className="w-[14%]">Código</TableHead>
+                  <TableHead className="w-[10%]">Estado</TableHead>
+                  <TableHead className="w-[10%] text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {promoters.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-10 text-center text-sm text-white/55">
+                      {error ? `Error: ${error}` : "No hay promotores aún."}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {promoters.map((promoter) => (
+                  <TableRow key={promoter.id}>
+                    <TableCell className="py-2.5 font-semibold text-white">
+                      {promoter.person.first_name} {promoter.person.last_name}
+                    </TableCell>
+                    <TableCell className="py-2.5 text-white/80">{promoter.person.dni || "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/80">{promoter.person.email || "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/80">{promoter.code || "—"}</TableCell>
+                    <TableCell className="py-2.5">
+                      <Badge variant={promoter.is_active ? "success" : "default"}>{promoter.is_active ? "Activo" : "Inactivo"}</Badge>
+                    </TableCell>
+                    <TableCell className="py-2.5 text-right">
+                      <PromoterActions id={promoter.id} compact />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <PaginationControls basePath="/admin/promoters" page={currentPage} totalPages={totalPages} pageSize={pageSize} q={q} />
+
+        <div className="space-y-3 lg:hidden">
+          {promoters.length === 0 && (
+            <Card>
+              <CardContent className="p-4 text-center text-sm text-white/65">
+                {error ? `Error: ${error}` : "No hay promotores aún."}
+              </CardContent>
+            </Card>
           )}
+          {promoters.map((promoter) => (
+            <Card key={promoter.id}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-base font-semibold">
+                      {promoter.person.first_name} {promoter.person.last_name}
+                    </p>
+                    <p className="text-sm text-white/70">{promoter.person.email || "—"}</p>
+                  </div>
+                  <Badge variant={promoter.is_active ? "success" : "default"}>{promoter.is_active ? "Activo" : "Inactivo"}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <Info label="DNI" value={promoter.person.dni || "—"} />
+                  <Info label="Código" value={promoter.code || "—"} />
+                </div>
+                <div className="flex justify-end">
+                  <PromoterActions id={promoter.id} compact />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </form>
 
-      <div className="hidden overflow-x-auto rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
-        <table className="min-w-full table-fixed divide-y divide-white/10 text-sm">
-          <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
-            <tr>
-              <th className="w-[30%] px-4 py-3 text-left">Nombre</th>
-              <th className="w-[14%] px-4 py-3 text-left">DNI</th>
-              <th className="w-[30%] px-4 py-3 text-left">Email</th>
-              <th className="w-[12%] px-4 py-3 text-left">Estado</th>
-              <th className="w-[14%] px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-            <tbody className="divide-y divide-white/5">
-            {promoters.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-white/60">
-                  {error ? `Error: ${error}` : "No hay promotores aún."}
-                </td>
-              </tr>
-            )}
-            {promoters.map((promoter) => (
-              <tr key={promoter.id} className="hover:bg-white/[0.02]">
-                <td className="px-4 py-3 font-semibold text-white">
-                  {promoter.person.first_name} {promoter.person.last_name}
-                </td>
-                <td className="px-4 py-3 text-white/80">{promoter.person.dni || "—"}</td>
-                <td className="px-4 py-3 text-white/80 break-words">{promoter.person.email || "—"}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                      promoter.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
-                    }`}
-              >
-                {promoter.is_active ? "Activo" : "Inactivo"}
-              </span>
-            </td>
-            <td className="px-4 py-3 text-right">
-              <div className="flex justify-end gap-2">
-                <PromoterActions id={promoter.id} />
-              </div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+        <PaginationControls
+          basePath="/admin/promoters"
+          page={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          q={q}
+          isMobile
+        />
       </div>
-
-      <PaginationControls basePath="/admin/promoters" page={currentPage} totalPages={totalPages} pageSize={pageSize} q={q} />
-
-      <div className="space-y-3 lg:hidden">
-        {promoters.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
-            {error ? `Error: ${error}` : "No hay promotores aún."}
-          </div>
-        )}
-        {promoters.map((promoter) => (
-          <div
-            key={promoter.id}
-            className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-base font-semibold text-white">
-                  {promoter.person.first_name} {promoter.person.last_name}
-                </p>
-                <p className="text-sm text-white/70">{promoter.person.email || "—"}</p>
-              </div>
-              <span
-                className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-                  promoter.is_active ? "bg-[#e91e63]/15 text-[#e91e63]" : "bg-white/5 text-white/70"
-                }`}
-              >
-                {promoter.is_active ? "Activo" : "Inactivo"}
-              </span>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-white/80">
-              <Info label="DNI" value={promoter.person.dni || "—"} />
-              <Info label="Email" value={promoter.person.email || "—"} />
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2">
-              <PromoterActions id={promoter.id} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <PaginationControls
-        basePath="/admin/promoters"
-        page={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        q={q}
-        isMobile
-      />
     </main>
   );
 }
@@ -186,7 +194,7 @@ export default function PromotersClient({
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</p>
+      <p className="text-[11px] uppercase tracking-[0.1em] text-white/50">{label}</p>
       <p className="font-semibold text-white">{value}</p>
     </div>
   );
@@ -207,7 +215,9 @@ function PaginationControls({
   q: string;
   isMobile?: boolean;
 }) {
-  const options = [5, 10, 15, 20, 30];
+  const router = useRouter();
+  const options = [5, 10, 15, 20, 30, 50];
+
   const qs = (nextPage: number, size: number) => {
     const params = new URLSearchParams();
     params.set("page", String(nextPage));
@@ -217,48 +227,43 @@ function PaginationControls({
   };
 
   return (
-    <div
-      className={`mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-white/80 ${
-        isMobile ? "flex lg:hidden" : "hidden lg:flex"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-white/60">Ver</span>
-        <select
-          value={pageSize}
-          onChange={(e) => {
-            const size = parseInt(e.target.value, 10);
-            window.location.href = qs(1, size);
-          }}
-          className="rounded-lg border border-white/15 bg-[#0c0c0c] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+    <div className={`${isMobile ? "flex lg:hidden" : "hidden lg:flex"} items-center justify-between gap-3`}>
+      <div className="flex items-center gap-2 text-sm text-white/70">
+        <span>Filas</span>
+        <SelectNative
+          value={String(pageSize)}
+          onChange={(e) => router.push(qs(1, Number(e.target.value)))}
+          className="h-8 min-w-[110px]"
         >
           {options.map((opt) => (
             <option key={opt} value={opt}>
-              {opt} por página
+              {opt} / página
             </option>
           ))}
-        </select>
+        </SelectNative>
       </div>
       <div className="flex items-center gap-2">
-        <a
-          href={qs(Math.max(1, page - 1), pageSize)}
-          className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
-            page <= 1 ? "pointer-events-none text-white/30" : "text-white hover:border-white"
-          }`}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => router.push(qs(Math.max(1, page - 1), pageSize))}
         >
-          ← Anterior
-        </a>
-        <span className="text-white/60">
+          Anterior
+        </Button>
+        <span className="text-xs text-white/60">
           Página {page} de {totalPages}
         </span>
-        <a
-          href={qs(Math.min(totalPages, page + 1), pageSize)}
-          className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
-            page >= totalPages ? "pointer-events-none text-white/30" : "text-white hover:border-white"
-          }`}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => router.push(qs(Math.min(totalPages, page + 1), pageSize))}
         >
-          Siguiente →
-        </a>
+          Siguiente
+        </Button>
       </div>
     </div>
   );

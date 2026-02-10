@@ -2,6 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import ProductManager from "./ProductManager";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { Box, Table2 } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -50,30 +54,39 @@ export default async function TableProductsPage() {
   const { tables, error } = await getData();
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Mesas</p>
-          <h1 className="text-3xl font-semibold">Productos de mesa</h1>
-          <p className="text-sm text-white/60">Configura packs de consumo asociados a cada mesa.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            ← Volver
-          </Link>
-          <Link
-            href="/admin/tables"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            Mesas
-          </Link>
-        </div>
-      </div>
+    <main className="relative overflow-hidden px-3 py-4 text-white sm:px-5 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_16%_16%,rgba(166,12,47,0.10),transparent_32%),radial-gradient(circle_at_84%_0%,rgba(255,255,255,0.09),transparent_30%),radial-gradient(circle_at_50%_108%,rgba(255,255,255,0.06),transparent_42%)]" />
 
-      <ProductManager tables={tables} error={error} />
+      <div className="mx-auto w-full max-w-7xl space-y-3">
+        <Card className="border-[#2b2b2b] bg-[#111111]">
+          <CardHeader className="gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">
+                  Operaciones / Productos de mesa
+                </CardDescription>
+                <CardTitle className="mt-2 text-3xl">Table Product Manager</CardTitle>
+                <p className="mt-2 text-sm text-white/60">Configura combos, precios y orden operativo de venta por mesa.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                  Volver
+                </Link>
+                <Link href="/admin/tables" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                  <Table2 className="h-4 w-4" />
+                  Mesas
+                </Link>
+                <Link href="/admin/tables/layout" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                  <Box className="h-4 w-4" />
+                  Plano
+                </Link>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <ProductManager tables={tables} error={error} />
+      </div>
     </main>
   );
 }

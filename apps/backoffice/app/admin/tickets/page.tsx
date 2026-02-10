@@ -26,6 +26,7 @@ async function getTickets(params: {
   to?: string;
   q?: string;
   promoter_id?: string;
+  organizer_id?: string;
   page: number;
   pageSize: number;
 }): Promise<{ tickets: TicketRow[]; total: number; error?: string }> {
@@ -76,6 +77,19 @@ async function getTickets(params: {
       promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
     }
     query = query.or(promoterFilters.join(","));
+  }
+  if (params.organizer_id) {
+    const { data: organizerEvents, error: organizerEventsError } = await applyNotDeleted(
+      supabase.from("events").select("id").eq("organizer_id", params.organizer_id)
+    );
+    if (organizerEventsError) {
+      return { tickets: [], total: 0, error: organizerEventsError.message };
+    }
+    const organizerEventIds = (organizerEvents || []).map((e: any) => e.id).filter(Boolean);
+    if (organizerEventIds.length === 0) {
+      return { tickets: [], total: 0 };
+    }
+    query = query.in("event_id", organizerEventIds);
   }
 
   const { data, error, count } = await query;
@@ -157,10 +171,11 @@ export default async function TicketsPage({ searchParams }: { searchParams?: Sea
   const to = (params?.to as string) || "";
   const q = (params?.q as string) || "";
   const promoter_id = (params?.promoter_id as string) || "";
+  const organizer_id = (params?.organizer_id as string) || "";
   const page = Math.max(1, parseInt((params?.page as string) || "1", 10) || 1);
   const pageSize = Math.min(100, Math.max(5, parseInt((params?.pageSize as string) || "10", 10) || 10));
 
-  const { tickets, total, error } = await getTickets({ from, to, q, promoter_id, page, pageSize });
+  const { tickets, total, error } = await getTickets({ from, to, q, promoter_id, organizer_id, page, pageSize });
   const supabaseForFilters =
     supabaseUrl && supabaseServiceKey
       ? createClient(supabaseUrl, supabaseServiceKey, {
@@ -181,6 +196,22 @@ export default async function TicketsPage({ searchParams }: { searchParams?: Sea
       const full = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
       return { id: p.id as string, label: full || p.code || "" };
     }) ?? [];
+  const { data: organizerOptions } =
+    supabaseForFilters
+      ? await applyNotDeleted(
+          supabaseForFilters
+            .from("organizers")
+            .select("id,name")
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true })
+            .order("name", { ascending: true })
+        )
+      : { data: [] as any[] };
+  const organizerFilters =
+    (organizerOptions || []).map((org: any) => ({
+      id: org.id as string,
+      label: org.name as string,
+    })) ?? [];
 
   if (!tickets && error) return notFound();
 
@@ -188,8 +219,9 @@ export default async function TicketsPage({ searchParams }: { searchParams?: Sea
     <ModernTicketsClient
       initialTickets={tickets || []}
       error={error || null}
-      filters={{ from, to, q, promoter_id, page, pageSize, total }}
+      filters={{ from, to, q, promoter_id, organizer_id, page, pageSize, total }}
       promoterOptions={promoterFilters}
+      organizerOptions={organizerFilters}
     />
   );
 }

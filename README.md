@@ -1,135 +1,75 @@
-# Turborepo starter
+# BabyClub Monorepo
 
-This Turborepo starter is maintained by the Turborepo core team.
+Monorepo de BabyClub para:
+- landing publica (`apps/landing`)
+- backoffice administrativo (`apps/backoffice`)
+- utilidades compartidas (`packages/shared`)
+- base de datos Supabase (`supabase/`)
 
-## Using this example
+## Estado actual (2026-02)
+- Deploy: Vercel
+- DB/Auth/Storage: Supabase
+- Flujo de pagos online (Culqi): **pendiente de habilitacion** por accesos/API
+- Release operativo actual: flujo sin modulo de pagos online
 
-Run the following command:
+## Apps
+- `apps/landing`: web publica (registro, tickets, reservas, APIs publicas)
+- `apps/backoffice`: panel interno (eventos, codigos, scan, reservas, usuarios)
+- `apps/api`: servicio auxiliar legacy
 
-```sh
-npx create-turbo@latest
+## Requisitos
+- Node >= 18
+- pnpm 9
+
+## Instalar y correr
+```bash
+pnpm install
+pnpm dev
 ```
 
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+Desarrollo por app:
+```bash
+pnpm dev:landing
+pnpm dev:backoffice
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+## Scripts principales
+```bash
+pnpm test
+pnpm lint
+pnpm build
+pnpm typecheck:landing
+pnpm smoke:local
+pnpm db:check:backoffice
 ```
 
-### Develop
+## Variables de entorno clave
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ENABLE_CULQI_PAYMENTS` (`true|false`)
 
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+Para el release actual sin pagos online:
+```bash
+ENABLE_CULQI_PAYMENTS=false
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+## Lanzamiento de evento (sin pagos online)
+Checklist operativo:
+- `docs/EVENT-LAUNCH-CHECKLIST-2026-02.md`
+- Setup local completo:
+  - `docs/LOCAL-SETUP-2026-02.md`
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+Smoke de APIs publicas:
+```bash
+bash scripts/smoke-public-api.sh "https://babyclubaccess.com" "CODIGO_DE_PRUEBA"
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+## Documentacion de arquitectura
+- `AGENTS.md`
+- `docs/AUDIT-2026-02.md`
+- `docs/ARCHITECTURE_V2.md`
+- `docs/STRANGLER_PLAN.md`
+- `docs/CULQI-INTEGRATION-2026-02.md`
+- `docs/DB-GOVERNANCE-2026-02.md`
+- `docs/HITOS-2026-02.md`
+- `docs/adr/`

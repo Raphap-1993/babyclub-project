@@ -59,7 +59,7 @@ export default function LogoUploader({ initialUrl }: Props) {
           accept="image/png,image/jpeg,image/webp, image/svg+xml"
           onChange={onFileChange}
           disabled={loading}
-          className="w-full rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+          className="w-full rounded-2xl border border-[#292929] bg-[#0c0c0c] px-4 py-3 text-sm text-white file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
         />
       </div>
 
@@ -69,7 +69,7 @@ export default function LogoUploader({ initialUrl }: Props) {
         </div>
       )}
 
-      {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
+      {error && <p className="text-xs font-semibold text-[#fca5a5]">{error}</p>}
     </div>
   );
 }

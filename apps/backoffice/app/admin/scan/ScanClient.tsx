@@ -5,6 +5,7 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { DateTime } from "luxon";
 import { getEntryCutoffDisplay } from "shared/entryLimit";
 import { authedFetch } from "@/lib/authedFetch";
+import { AdminHeader, AdminPage } from "@/components/admin/PageScaffold";
 
 type Option = { id: string; name: string; starts_at: string; entry_limit?: string | null };
 
@@ -176,24 +177,22 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   }
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Control de ingreso</p>
-          <h1 className="text-3xl font-semibold">Escanear QR</h1>
-          <p className="text-sm text-white/60">Usa la cámara del dispositivo para validar códigos en puerta.</p>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminHeader
+        kicker="Control de ingreso"
+        title="Escanear QR"
+        description="Usa la cámara del dispositivo para validar códigos en puerta."
+      />
 
       <div
-        className={`grid gap-3 ${simpleMode ? "" : "md:grid-cols-2"} rounded-3xl border border-white/10 bg-[#0c0c0c] p-3 shadow-[0_20px_80px_rgba(0,0,0,0.45)] mb-3`}
+        className={`grid gap-3 ${simpleMode ? "" : "md:grid-cols-2"} rounded-3xl border border-[#292929] bg-[#0c0c0c] p-3 shadow-[0_20px_80px_rgba(0,0,0,0.45)] mb-3`}
       >
         <div className="space-y-2">
           <label className="block text-sm font-semibold text-white">Evento</label>
           <select
             value={eventId}
             onChange={(e) => setEventId(e.target.value)}
-            className="w-full rounded-2xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
+            className="w-full rounded-2xl border border-[#292929] bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
           >
             <option value="">Selecciona evento</option>
             {events.map((ev) => (
@@ -204,7 +203,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
           </select>
           {entryLimitLabel && (
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">
-              <span className="rounded-full border border-white/15 px-3 py-1 text-white/80">
+              <span className="rounded-full border border-[#2b2b2b] px-3 py-1 text-white/80">
                 Límite ingreso: {entryLimitLabel}
               </span>
               {entryStatus && (
@@ -230,7 +229,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                 value={manual}
                 onChange={(e) => setManual(e.target.value)}
                 placeholder="Pega o escribe el código"
-                className="w-full rounded-2xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
+                className="w-full rounded-2xl border border-[#292929] bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
               />
               <button
                 onClick={() => {
@@ -247,7 +246,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
             {message && <p className="text-sm text-white/80">{message}</p>}
             {lastResult && (
               <div
-                className="rounded-2xl border border-white/15 bg-black/30 p-3 text-sm text-white/80 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+                className="rounded-2xl border border-[#2b2b2b] bg-[#171717] p-3 text-sm text-white/80 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
               >
                 <p className="text-xs uppercase tracking-[0.12em] text-white/50">Último resultado</p>
                 <div className="mt-1 flex items-center justify-between gap-2">
@@ -293,17 +292,17 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       </div>
 
       <div className={`grid gap-4 ${simpleMode ? "" : "md:grid-cols-[2fr,1fr]"}`}>
-        <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+        <div className="rounded-3xl border border-[#292929] bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-white">Cámara</p>
             <button
               onClick={() => (scanning ? stopScanner() : startScanner())}
-              className={`rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white transition hover:border-white ${simpleMode ? "w-full justify-center text-center" : ""}`}
+              className={`rounded-full border border-[#2b2b2b] px-6 py-3 text-sm font-semibold text-white transition hover:border-white ${simpleMode ? "w-full justify-center text-center" : ""}`}
             >
               {scanning ? "Detener" : "Iniciar escaneo"}
             </button>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+          <div className="overflow-hidden rounded-2xl border border-[#292929] bg-black">
             {!ready && !scanning && (
               <div className="flex h-[320px] items-center justify-center text-sm text-white/60">
                 Selecciona evento y pulsa “Iniciar escaneo”.
@@ -314,12 +313,12 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         </div>
 
         {!simpleMode && (
-          <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+          <div className="rounded-3xl border border-[#292929] bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
             <p className="mb-3 text-sm font-semibold text-white">Últimos escaneos</p>
             <div className="space-y-2 text-sm text-white/80">
               {logs.length === 0 && <p className="text-white/50">Sin lecturas aún.</p>}
               {logs.map((l) => (
-                <div key={`${l.ts}-${l.value}`} className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
+                <div key={`${l.ts}-${l.value}`} className="rounded-2xl border border-[#292929] bg-[#171717] px-3 py-2">
                   <div className="flex items-center justify-between text-xs text-white/60">
                     <span>{new Date(l.ts).toLocaleTimeString()}</span>
                     <span className={l.color}>{l.result}</span>
@@ -334,8 +333,8 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center sm:py-6">
-          <div className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b0b0b] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.65)] sm:p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center sm:py-6">
+          <div className="w-full max-w-lg rounded-3xl border border-[#2b2b2b] bg-[#0b0b0b] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.65)] sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.15em] text-white/50">Resultado del scan</p>
@@ -372,7 +371,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   Ingreso registrado. {getConfirmHint(modal)}
                 </div>
               )}
-              <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white/80">
+              <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3 text-sm text-white/80">
                 <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Detalle del scan</p>
                 <div className="mt-2 grid gap-2 text-[13px] text-white">
                   <div className="text-white/80">Evento: {getEventName(events, eventId)}</div>
@@ -401,7 +400,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                 </div>
               </div>
               {modal.person && (
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white/80">
+                <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3 text-sm text-white/80">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Datos del cliente</p>
                   <div className="mt-2 grid gap-2 text-[13px] text-white">
                     <div className="font-semibold">{modal.person.full_name || "—"}</div>
@@ -413,7 +412,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
               )}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {modal.match_type === "code" && typeof modal.uses === "number" && (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3">
                     <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Usos</p>
                     <p className="text-white">
                       {modal.uses}/{modal.max_uses ?? "∞"}
@@ -421,13 +420,13 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   </div>
                 )}
                 {modal.ticket_id && (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3">
                     <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Ticket ID</p>
                     <p className="truncate font-mono text-white">{modal.ticket_id}</p>
                   </div>
                 )}
                 {modal.expired_at && (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3">
                     <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">
                       {modal.reason === "entry_cutoff" ? "Límite ingreso" : "Expira"}
                     </p>
@@ -525,7 +524,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
           </div>
         </div>
       )}
-    </main>
+    </AdminPage>
   );
 }
 

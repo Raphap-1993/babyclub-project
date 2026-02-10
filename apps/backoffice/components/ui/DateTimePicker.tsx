@@ -69,14 +69,14 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
           id={`dt-${label}`}
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-[#0c0c0c] px-4 py-3 text-left text-sm text-white outline-none transition focus:border-white"
+          className="flex w-full items-center justify-between rounded-2xl border border-[#292929] bg-[#0c0c0c] px-4 py-3 text-left text-sm text-white outline-none transition focus:border-white"
         >
           <span className={value ? "text-white" : "text-white/50"}>{displayLabel}</span>
           <span aria-hidden className="text-white/60">⏷</span>
         </button>
 
         {open && (
-          <div className="absolute z-30 mt-2 w-full max-h-[520px] overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.55)]">
+          <div className="absolute z-30 mt-2 w-full max-h-[520px] overflow-y-auto rounded-2xl border border-[#292929] bg-[#0c0c0c] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.55)]">
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <button
@@ -86,7 +86,7 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                       (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
                     )
                   }
-                  className="h-9 w-9 rounded-xl border border-white/10 text-white/70 transition hover:border-white/40"
+                  className="h-9 w-9 rounded-xl border border-[#292929] text-white/70 transition hover:border-white/40"
                 >
                   ‹
                 </button>
@@ -100,7 +100,7 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                       (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
                     )
                   }
-                  className="h-9 w-9 rounded-xl border border-white/10 text-white/70 transition hover:border-white/40"
+                  className="h-9 w-9 rounded-xl border border-[#292929] text-white/70 transition hover:border-white/40"
                 >
                   ›
                 </button>
@@ -125,8 +125,8 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                         !day
                           ? "border-transparent"
                           : isSelected
-                            ? "border-[#e91e63]/70 bg-[#e91e63]/15 text-white shadow-[0_12px_26px_rgba(233,30,99,0.25)]"
-                            : "border-white/10 bg-[#0a0a0a] text-white/90 hover:border-white/30"
+                            ? "border-[#a60c2f]/70 bg-[#a60c2f]/15 text-white shadow-[0_12px_26px_rgba(166,12,47,0.30)]"
+                            : "border-[#292929] bg-[#0a0a0a] text-white/90 hover:border-white/30"
                       }`}
                     >
                       {day ?? ""}
@@ -135,7 +135,7 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                 })}
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-3">
+              <div className="rounded-2xl border border-[#292929] bg-[#0a0a0a] p-3">
                 <div className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.1em] text-white/60">
                   <span>Hora (24h)</span>
                   <span className="rounded-full bg-white/5 px-3 py-1 text-[11px] text-white/80">
@@ -154,8 +154,8 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                           onClick={() => selectTime(h, parseInt(time.split(":")[1] || "0", 10))}
                           className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
                             isSelected
-                              ? "border border-[#e91e63]/70 bg-[#e91e63]/15 text-white shadow-[0_8px_18px_rgba(233,30,99,0.22)]"
-                              : "border border-white/10 bg-[#0c0c0c] text-white/80 hover:border-white/30"
+                              ? "border border-[#a60c2f]/70 bg-[#a60c2f]/15 text-white shadow-[0_8px_18px_rgba(166,12,47,0.28)]"
+                              : "border border-[#292929] bg-[#0c0c0c] text-white/80 hover:border-white/30"
                           }`}
                         >
                           {label}:00
@@ -175,8 +175,8 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                           onClick={() => selectTime(currentHour, m)}
                           className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
                             isSelected
-                              ? "border border-[#e91e63]/70 bg-[#e91e63]/15 text-white shadow-[0_8px_18px_rgba(233,30,99,0.22)]"
-                              : "border border-white/10 bg-[#0c0c0c] text-white/80 hover:border-white/30"
+                              ? "border border-[#a60c2f]/70 bg-[#a60c2f]/15 text-white shadow-[0_8px_18px_rgba(166,12,47,0.28)]"
+                              : "border border-[#292929] bg-[#0c0c0c] text-white/80 hover:border-white/30"
                           }`}
                         >
                           :{m.toString().padStart(2, "0")}
@@ -191,7 +191,7 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-white/40"
+                  className="rounded-xl border border-[#292929] px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-white/40"
                 >
                   Cerrar
                 </button>
@@ -204,7 +204,7 @@ export default function DateTimePicker({ label, value, onChange, required }: Dat
                     }
                     setOpen(false);
                   }}
-                  className="rounded-xl bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-3 py-2 text-xs font-semibold text-white shadow-[0_12px_30px_rgba(233,30,99,0.35)] transition hover:shadow-[0_14px_34px_rgba(233,30,99,0.45)]"
+                  className="rounded-xl bg-gradient-to-r from-[#a60c2f] to-[#6f0c25] px-3 py-2 text-xs font-semibold text-white shadow-[0_12px_30px_rgba(166,12,47,0.42)] transition hover:shadow-[0_14px_34px_rgba(166,12,47,0.5)]"
                 >
                   Guardar
                 </button>

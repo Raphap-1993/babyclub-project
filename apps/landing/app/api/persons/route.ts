@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   let personRecord = data;
 
   // Si no existe en BD, intentamos API Perú
-  if (!personRecord && docType === "dni" && dni) {
+  if (!personRecord) {
     const apiToken = process.env.API_PERU_TOKEN;
     if (apiToken) {
       try {
@@ -65,33 +65,13 @@ export async function GET(req: NextRequest) {
         });
         const payload = await resp.json();
         if (resp.ok && payload?.data) {
-          const apiData = payload.data;
-          const firstName = apiData.nombres || "";
-          const lastName = `${apiData.apellido_paterno || ""} ${apiData.apellido_materno || ""}`.trim();
-          
-          // Guardar en BD para evitar consultas futuras a API Perú
-          const { data: newPerson } = await supabase
-            .from("persons")
-            .insert({
-              doc_type: "dni",
-              document: dni,
-              dni,
-              first_name: firstName,
-              last_name: lastName,
-              email: null,
-              phone: null,
-              birthdate: apiData.fecha_nacimiento || apiData.fechaNacimiento || null,
-            })
-            .select("id,doc_type,document,dni,first_name,last_name,email,phone,birthdate")
-            .single();
-          
-          personRecord = newPerson || {
+          personRecord = {
             id: null,
             doc_type: "dni",
             document: dni,
             dni,
-            first_name: firstName,
-            last_name: lastName,
+            first_name: payload.data.nombres || "",
+            last_name: `${payload.data.apellido_paterno || ""} ${payload.data.apellido_materno || ""}`.trim(),
             email: null,
             phone: null,
             birthdate: null,
@@ -126,10 +106,9 @@ export async function GET(req: NextRequest) {
       const ticketQuery = applyNotDeleted(
         supabase
           .from("tickets")
-          .select("id,promoter_id,event_id,status")
+          .select("id,promoter_id,event_id")
           .eq("event_id", eventId)
           .or(ticketDocQuery)
-          .neq("status", "cancelled")
           .order("created_at", { ascending: false })
           .limit(1)
       );
@@ -140,7 +119,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Fallback: si no se pasó code o no se encontró ticket con el evento del code, busca el último ticket por documento/dni
+  // Fallback: si no se pasó code o no se encontró ticket con el evento del code, busca el último ticket ACTIVO por documento/dni
+  // IMPORTANTE: Solo retornar tickets de eventos activos (no cerrados/inactivos)
   if (!ticketId && (personRecord?.document || personRecord?.dni)) {
     const fallbackTicketQuery = [
       personRecord.document ? `document.ilike.${(personRecord.document as string).toLowerCase()}` : "",
@@ -152,18 +132,28 @@ export async function GET(req: NextRequest) {
     const latestTicketQuery = applyNotDeleted(
       supabase
         .from("tickets")
-        .select("id,promoter_id,event_id,status")
+        .select("id,promoter_id,event_id,event:event_id(is_active,closed_at)")
         .or(fallbackTicketQuery)
-        .neq("status", "cancelled")
         .order("created_at", { ascending: false })
-        .limit(1)
+        .limit(10) // Aumentamos limit para buscar el primer ticket de evento activo
     );
-    const { data: latestTicket } = await latestTicketQuery.maybeSingle();
+    const { data: latestTickets } = await latestTicketQuery;
 
-    if (latestTicket) {
-      ticketPromoterId = (latestTicket as any)?.promoter_id ?? ticketPromoterId;
-      ticketId = (latestTicket as any)?.id ?? ticketId;
-      ticketEventId = (latestTicket as any)?.event_id ?? ticketEventId;
+    // Buscar el primer ticket cuyo evento esté activo
+    if (latestTickets && latestTickets.length > 0) {
+      for (const ticket of latestTickets) {
+        const eventRel = Array.isArray((ticket as any).event) 
+          ? (ticket as any).event?.[0] 
+          : (ticket as any).event;
+        
+        // Solo usar ticket si su evento sigue activo (not closed/inactive)
+        if (eventRel && eventRel.is_active === true && !eventRel.closed_at) {
+          ticketPromoterId = (ticket as any)?.promoter_id ?? ticketPromoterId;
+          ticketId = (ticket as any)?.id ?? ticketId;
+          ticketEventId = (ticket as any)?.event_id ?? ticketEventId;
+          break; // Encontramos un ticket válido, salimos
+        }
+      }
     }
   }
 

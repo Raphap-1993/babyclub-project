@@ -4,21 +4,20 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "dev:backoffice": "cd apps/backoffice && pnpm dev",
-    "dev:landing": "cd apps/landing && pnpm dev",
+    "dev:landing": "pnpm --filter landing dev",
+    "dev:backoffice": "pnpm --filter backoffice dev",
+    "dev:apps": "turbo run dev --filter=landing --filter=backoffice",
     "lint": "turbo run lint",
     "test": "vitest run",
-    "test:e2e": "playwright test --config=tests/e2e/playwright.config.ts",
-    "test:e2e:ui": "playwright test --config=tests/e2e/playwright.config.ts --ui",
-    "test:e2e:headed": "playwright test --config=tests/e2e/playwright.config.ts --headed",
-    "test:e2e:debug": "playwright test --config=tests/e2e/playwright.config.ts --debug",
-    "test:e2e:report": "playwright show-report tests/e2e/playwright-report",
-    "test:e2e:codegen": "playwright codegen localhost:3001",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "check-types": "turbo run check-types",
+    "typecheck:landing": "pnpm exec tsc --noEmit -p apps/landing/tsconfig.json",
+    "typecheck:backoffice": "pnpm exec tsc --noEmit -p apps/backoffice/tsconfig.json",
+    "db:check:landing": "node scripts/check-db-schema.js --env apps/landing/.env.local",
+    "db:check:backoffice": "node scripts/check-db-schema.js --env apps/backoffice/.env.local",
+    "smoke:local": "bash scripts/smoke-public-api.sh \"http://localhost:3000\" \"${CODE:-}\""
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0",
     "@types/luxon": "^3.7.1",
     "@types/node": "^22.15.3",
     "@types/react": "^19.0.0",
@@ -33,15 +32,9 @@
     "vitest": "^2.1.4"
   },
   "dependencies": {
-    "@radix-ui/react-alert-dialog": "^1.0.5",
-    "@radix-ui/react-dialog": "^1.1.1",
-    "@radix-ui/react-tooltip": "^1.0.7",
     "@supabase/supabase-js": "^2.86.0",
-    "@types/react-datepicker": "^7.0.0",
     "@zxing/browser": "^0.1.4",
     "luxon": "^3.7.2",
-    "react-datepicker": "^9.1.0",
-    "recharts": "^3.7.0",
     "resend": "^6.6.0"
   },
   "packageManager": "pnpm@9.0.0",

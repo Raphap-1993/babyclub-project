@@ -4,6 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 import EventForm from "../../components/EventForm";
 import Link from "next/link";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { AdminHeader, AdminPage } from "@/components/admin/PageScaffold";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -12,6 +15,7 @@ type EventRow = {
   id: string;
   name: string;
   location: string;
+  organizer_id?: string | null;
   capacity: number;
   header_image: string;
   cover_image?: string;
@@ -19,7 +23,6 @@ type EventRow = {
   starts_at: string;
   entry_limit?: string | null;
   code?: string;
-  organizer_id?: string;
 };
 
 async function getEvent(id: string): Promise<EventRow | null> {
@@ -30,7 +33,10 @@ async function getEvent(id: string): Promise<EventRow | null> {
   });
 
   const eventQuery = applyNotDeleted(
-    supabase.from("events").select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active,organizer_id").eq("id", id)
+    supabase
+      .from("events")
+      .select("id,name,location,organizer_id,starts_at,entry_limit,capacity,header_image,is_active")
+      .eq("id", id)
   );
   const { data, error } = await eventQuery.maybeSingle();
 
@@ -54,71 +60,39 @@ async function getEvent(id: string): Promise<EventRow | null> {
   return { ...(data as EventRow), code, cover_image };
 }
 
-async function getOrganizers() {
-  if (!supabaseUrl || !supabaseServiceKey) return [];
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data } = await supabase
-    .from("organizers")
-    .select("id,name,slug")
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: true });
-  return data || [];
-}
-
 export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [event, organizers] = await Promise.all([getEvent(id), getOrganizers()]);
-  if (!event || organizers.length === 0) {
+  const event = await getEvent(id);
+  if (!event) {
     return (
-      <div className="min-h-screen bg-slate-950 p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-400 mb-1">EDITAR</p>
-              <h1 className="text-2xl font-semibold text-white">Evento no encontrado</h1>
-            </div>
-            <Link
-              href="/admin/events"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white transition-colors"
-            >
-              ← Volver
+      <AdminPage>
+        <AdminHeader
+          kicker="Operaciones / Eventos"
+          title="Evento no encontrado"
+          actions={
+            <Link href="/admin/events" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              Volver
             </Link>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
-            <div className="text-slate-400 mb-4">
-              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-white mb-2">No se pudo encontrar el evento</h3>
-            <p className="text-slate-400">El evento que intentas editar no existe o ha sido eliminado.</p>
-          </div>
-        </div>
-      </div>
+          }
+        />
+      </AdminPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-400 mb-1">EDITAR</p>
-            <h1 className="text-2xl font-semibold text-white">Editar evento</h1>
-          </div>
-          <Link
-            href="/admin/events"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white transition-colors"
-          >
-            ← Volver
+    <AdminPage>
+      <AdminHeader
+        kicker="Operaciones / Eventos"
+        title="Editar evento"
+        description="Actualiza los datos del evento y su configuración operativa."
+        actions={
+          <Link href="/admin/events" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            Volver
           </Link>
-        </div>
-        <EventForm mode="edit" initialData={event} organizers={organizers} />
-      </div>
-    </div>
+        }
+      />
+      <EventForm mode="edit" initialData={event} />
+    </AdminPage>
   );
 }
 

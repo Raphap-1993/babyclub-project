@@ -3,8 +3,16 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Download, Search } from "lucide-react";
 import TicketActions from "./components/TicketActions";
 import DatePickerSimple from "@/components/ui/DatePickerSimple";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { SelectNative } from "@/components/ui/select-native";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 type TicketRow = {
   id: string;
@@ -23,38 +31,52 @@ export default function TicketsClient({
   error,
   filters,
   promoterOptions,
+  organizerOptions,
 }: {
   initialTickets: TicketRow[];
   error: string | null;
-  filters: { from: string; to: string; q: string; promoter_id: string; page: number; pageSize: number; total: number };
+  filters: {
+    from: string;
+    to: string;
+    q: string;
+    promoter_id: string;
+    organizer_id: string;
+    page: number;
+    pageSize: number;
+    total: number;
+  };
   promoterOptions: Array<{ id: string; label: string }>;
+  organizerOptions: Array<{ id: string; label: string }>;
 }) {
-  const { from, to, q, promoter_id, page, pageSize, total } = filters;
+  const { from, to, q, promoter_id, organizer_id, page, pageSize, total } = filters;
   const [fromDate, setFromDate] = useState(from);
   const [toDate, setToDate] = useState(to);
   const [searchValue, setSearchValue] = useState(q);
   const [promoterId, setPromoterId] = useState(promoter_id);
+  const [organizerId, setOrganizerId] = useState(organizer_id);
   const router = useRouter();
   const pathname = usePathname();
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const currentPage = Math.min(page, totalPages);
+
   const exportHref = useMemo(() => {
     const params = new URLSearchParams();
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
     if (searchValue) params.set("q", searchValue);
     if (promoterId) params.set("promoter_id", promoterId);
+    if (organizerId) params.set("organizer_id", organizerId);
     return `/api/admin/tickets/export?${params.toString()}`;
-  }, [fromDate, toDate, searchValue, promoterId]);
+  }, [fromDate, toDate, searchValue, promoterId, organizerId]);
 
-  // Rehidrata los filtros cuando cambian los searchParams
   useEffect(() => {
     setFromDate(from);
     setToDate(to);
     setSearchValue(q);
     setPromoterId(promoter_id);
-  }, [from, to, q, promoter_id]);
+    setOrganizerId(organizer_id);
+  }, [from, to, q, promoter_id, organizer_id]);
 
   const buildQuery = (params: Record<string, string | number | undefined>) => {
     const search = new URLSearchParams();
@@ -62,6 +84,7 @@ export default function TicketsClient({
     if (params.to) search.set("to", String(params.to));
     if (params.q) search.set("q", String(params.q));
     if (params.promoter_id) search.set("promoter_id", String(params.promoter_id));
+    if (params.organizer_id) search.set("organizer_id", String(params.organizer_id));
     if (params.page) search.set("page", String(params.page));
     if (params.pageSize) search.set("pageSize", String(params.pageSize));
     return `${pathname}?${search.toString()}`;
@@ -75,6 +98,7 @@ export default function TicketsClient({
         to: toDate || undefined,
         q: searchValue || undefined,
         promoter_id: promoterId || undefined,
+        organizer_id: organizerId || undefined,
         page: 1,
         pageSize,
       })
@@ -82,176 +106,188 @@ export default function TicketsClient({
   };
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mx-auto w-full max-w-6xl min-w-0 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0 space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Tickets / QR</p>
-            <h1 className="text-3xl font-semibold leading-tight">Listado de tickets</h1>
-            <p className="text-sm text-white/60">Filtra por fecha, busca por datos de contacto o acota por promotor.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin"
-              className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-            >
-              ← Volver
-            </Link>
-          </div>
-        </div>
+    <main className="relative overflow-hidden px-3 py-4 text-white sm:px-5 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_16%_16%,rgba(166,12,47,0.08),transparent_32%),radial-gradient(circle_at_84%_0%,rgba(255,255,255,0.04),transparent_30%),radial-gradient(circle_at_50%_108%,rgba(255,255,255,0.04),transparent_42%)]" />
 
-        <form
-          className="grid gap-3 rounded-3xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.45)] md:grid-cols-2 xl:grid-cols-[repeat(12,minmax(0,1fr))]"
-          onSubmit={handleSubmit}
-        >
-          <label className="space-y-2 text-sm font-semibold text-white md:col-span-1 xl:col-span-2">
-            Desde
-            <DatePickerSimple value={fromDate} onChange={setFromDate} name="from" />
-          </label>
-          <label className="space-y-2 text-sm font-semibold text-white md:col-span-1 xl:col-span-2">
-            Hasta
-            <DatePickerSimple value={toDate} onChange={setToDate} name="to" />
-          </label>
-          <label className="space-y-2 text-sm font-semibold text-white md:col-span-2 xl:col-span-5">
-            Búsqueda
-            <input
-              type="text"
-              name="q"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="DNI, nombre o email"
-              className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
-            />
-          </label>
-          <label className="space-y-2 text-sm font-semibold text-white md:col-span-2 xl:col-span-3">
-            Promotor
-            <select
-              name="promoter_id"
-              value={promoterId}
-              onChange={(e) => setPromoterId(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-[#111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
-            >
-              <option value="">Todos</option>
-              {promoterOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="md:col-span-2 xl:col-span-12 flex flex-wrap items-center justify-between gap-3 pt-1 xl:items-end">
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                className="rounded-xl bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(233,30,99,0.35)] transition hover:shadow-[0_12px_32px_rgba(233,30,99,0.45)]"
-              >
-                Filtrar
-              </button>
-              {(from || to || q || promoterId) && (
-                <Link
-                  href="/admin/tickets"
-                  className="inline-flex items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:border-white"
-                >
-                  Limpiar
+      <div className="mx-auto w-full max-w-7xl space-y-2.5">
+        <Card className="border-[#2b2b2b] bg-[#111111]">
+          <CardHeader className="gap-2 pb-3 pt-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">
+                  Operaciones / Tickets / QR
+                </CardDescription>
+                <CardTitle className="text-xl sm:text-2xl">Tickets / QR</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                  Volver
                 </Link>
-              )}
+                <a href={exportHref} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                  <Download className="h-4 w-4" />
+                  Exportar CSV
+                </a>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-white/80">
-              <a
-                href={exportHref}
-                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white transition hover:border-white/40 hover:bg-white/[0.06]"
-              >
-                Exportar CSV
-              </a>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
-                {total} resultado{total === 1 ? "" : "s"}
-              </span>
-            </div>
-          </div>
-        </form>
+          </CardHeader>
+          <CardContent className="border-t border-[#252525] p-3">
+            <form className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-12" onSubmit={handleSubmit}>
+              <label className="space-y-1.5 xl:col-span-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Desde</span>
+                <DatePickerSimple value={fromDate} onChange={setFromDate} name="from" />
+              </label>
+              <label className="space-y-1.5 xl:col-span-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Hasta</span>
+                <DatePickerSimple value={toDate} onChange={setToDate} name="to" />
+              </label>
+              <label className="space-y-1.5 sm:col-span-2 xl:col-span-5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Búsqueda</span>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                  <Input
+                    type="text"
+                    name="q"
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    placeholder="DNI, nombre o email"
+                    className="pl-9"
+                  />
+                </div>
+              </label>
+              <label className="space-y-1.5 sm:col-span-2 xl:col-span-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Promotor</span>
+                <SelectNative name="promoter_id" value={promoterId} onChange={(e) => setPromoterId(e.target.value)}>
+                  <option value="">Todos</option>
+                  {promoterOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </SelectNative>
+              </label>
+              <label className="space-y-1.5 sm:col-span-2 xl:col-span-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Organizador</span>
+                <SelectNative name="organizer_id" value={organizerId} onChange={(e) => setOrganizerId(e.target.value)}>
+                  <option value="">Todos</option>
+                  {organizerOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </SelectNative>
+              </label>
+              <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2 xl:col-span-12">
+                <div className="text-xs text-white/60">
+                  {total} resultado{total === 1 ? "" : "s"}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="submit" size="sm">
+                    <Search className="h-4 w-4" />
+                    Buscar
+                  </Button>
+                  <Link href="/admin/tickets" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                    Limpiar
+                  </Link>
+                </div>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
 
-        <div className="hidden overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0c] shadow-[0_20px_80px_rgba(0,0,0,0.45)] lg:block">
-          <table className="w-full table-auto divide-y divide-white/10 text-sm">
-            <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.08em] text-white/60">
-              <tr>
-                <th className="w-[18%] px-4 py-3 text-left">Evento</th>
-                <th className="w-[12%] px-4 py-3 text-left">DNI</th>
-                <th className="w-[24%] px-4 py-3 text-left">Nombre</th>
-                <th className="w-[14%] px-4 py-3 text-left">Teléfono</th>
-                <th className="w-[12%] px-4 py-3 text-left">Código</th>
-                <th className="w-[14%] px-4 py-3 text-left">Promotor</th>
-                <th className="w-[6%] px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {initialTickets.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-white/60">
-                    {error ? `Error: ${error}` : "No hay tickets en este rango."}
-                  </td>
-                </tr>
-              )}
-              {initialTickets.map((t) => (
-                <tr key={t.id} className="hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 align-top font-semibold text-white break-words">{t.event_name || "—"}</td>
-                  <td className="px-4 py-3 align-top font-mono text-white/90 break-words">{t.dni || "—"}</td>
-                  <td className="px-4 py-3 align-top text-white/90 break-words">{t.full_name || "—"}</td>
-                  <td className="px-4 py-3 align-top text-white/80 break-words">{t.phone || "—"}</td>
-                  <td className="px-4 py-3 align-top text-white/80 break-words">{t.code_value || "—"}</td>
-                  <td className="px-4 py-3 align-top text-white/80 break-words">{t.promoter_name || "—"}</td>
-                  <td className="px-4 py-3 align-top text-right">
-                    <TicketActions id={t.id} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Card className="hidden overflow-hidden border-[#2b2b2b] lg:block">
+          <CardHeader className="border-b border-[#252525] py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Resultados</CardTitle>
+              </div>
+              <Badge>
+                Página {currentPage}/{totalPages}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table containerClassName="max-h-[58dvh] min-h-[280px]">
+              <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
+                <TableRow>
+                  <TableHead className="w-[18%]">Evento</TableHead>
+                  <TableHead className="w-[12%]">DNI</TableHead>
+                  <TableHead className="w-[24%]">Nombre</TableHead>
+                  <TableHead className="w-[13%]">Teléfono</TableHead>
+                  <TableHead className="w-[12%]">Código</TableHead>
+                  <TableHead className="w-[13%]">Promotor</TableHead>
+                  <TableHead className="w-[8%] text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {initialTickets.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-10 text-center text-white/55">
+                      {error ? `Error: ${error}` : "No hay tickets en este rango."}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {initialTickets.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="py-2.5 font-semibold text-white">{item.event_name || "—"}</TableCell>
+                    <TableCell className="py-2.5 font-mono text-white/85">{item.dni || "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/90">{item.full_name || "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/75">{item.phone || "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/75">{item.code_value || "—"}</TableCell>
+                    <TableCell className="py-2.5 text-white/75">{item.promoter_name || "—"}</TableCell>
+                    <TableCell className="py-2.5 text-right">
+                      <TicketActions id={item.id} compact />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
         <PaginationControls
           basePath="/admin/tickets"
           page={currentPage}
           totalPages={totalPages}
           pageSize={pageSize}
-          filters={{ from, to, q, promoter_id: promoterId }}
+          filters={{ from, to, q, promoter_id: promoterId, organizer_id: organizerId }}
         />
 
         <div className="space-y-3 lg:hidden">
           {initialTickets.length === 0 && (
-            <div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 text-center text-white/70">
-              {error ? `Error: ${error}` : "No hay tickets en este rango."}
-            </div>
+            <Card>
+              <CardContent className="p-4 text-center text-sm text-white/65">
+                {error ? `Error: ${error}` : "No hay tickets en este rango."}
+              </CardContent>
+            </Card>
           )}
-          {initialTickets.map((t) => (
-            <div
-              key={t.id}
-              className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-1">
-                  <p className="truncate text-base font-semibold text-white">{t.full_name || "Sin nombre"}</p>
-                  <p className="text-sm font-mono text-white/80">{t.dni || "—"}</p>
+          {initialTickets.map((item) => (
+            <Card key={item.id}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <p className="truncate text-base font-semibold">{item.full_name || "Sin nombre"}</p>
+                    <p className="text-sm font-mono text-white/70">{item.dni || "—"}</p>
+                  </div>
+                  <TicketActions id={item.id} compact />
                 </div>
-              </div>
-              <div className="mt-3 space-y-1 text-sm text-white/80">
-                <Info label="Evento" value={t.event_name || "—"} />
-                <Info label="Email" value={t.email || "—"} />
-                <Info label="Teléfono" value={t.phone || "—"} />
-                <Info label="Código" value={t.code_value || "—"} />
-                <Info label="Promotor" value={t.promoter_name || "—"} />
-              </div>
-              <div className="mt-3 flex justify-end">
-                <TicketActions id={t.id} compact />
-              </div>
-            </div>
+                <div className="space-y-1 text-sm text-white/75">
+                  <Info label="Evento" value={item.event_name || "—"} />
+                  <Info label="Email" value={item.email || "—"} />
+                  <Info label="Teléfono" value={item.phone || "—"} />
+                  <Info label="Código" value={item.code_value || "—"} />
+                  <Info label="Promotor" value={item.promoter_name || "—"} />
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
+
         <PaginationControls
           basePath="/admin/tickets"
           page={currentPage}
           totalPages={totalPages}
           pageSize={pageSize}
-          filters={{ from, to, q, promoter_id: promoterId }}
+          filters={{ from, to, q, promoter_id: promoterId, organizer_id: organizerId }}
           isMobile
         />
       </div>
@@ -261,9 +297,9 @@ export default function TicketsClient({
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <p className="text-sm text-white/80">
+    <p className="text-sm text-white/75">
       <span className="text-white/50">{label}: </span>
-      <span className="font-semibold text-white break-words">{value}</span>
+      <span className="font-semibold text-white">{value}</span>
     </p>
   );
 }
@@ -280,65 +316,62 @@ function PaginationControls({
   page: number;
   totalPages: number;
   pageSize: number;
-  filters: { from: string; to: string; q: string; promoter_id: string };
+  filters: { from: string; to: string; q: string; promoter_id: string; organizer_id: string };
   isMobile?: boolean;
 }) {
   const router = useRouter();
-  const options = [5, 10, 15, 20, 30];
+  const options = [5, 10, 15, 20, 30, 50];
+
   const qs = (nextPage: number, size: number) => {
     const params = new URLSearchParams();
     if (filters.from) params.set("from", filters.from);
     if (filters.to) params.set("to", filters.to);
     if (filters.q) params.set("q", filters.q);
     if (filters.promoter_id) params.set("promoter_id", filters.promoter_id);
+    if (filters.organizer_id) params.set("organizer_id", filters.organizer_id);
     params.set("page", String(nextPage));
     params.set("pageSize", String(size));
     return `${basePath}?${params.toString()}`;
   };
 
   return (
-    <div
-      className={`mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-white/80 ${
-        isMobile ? "flex lg:hidden" : "hidden lg:flex"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-white/60">Ver</span>
-        <select
-          value={pageSize}
-          onChange={(e) => {
-            const size = parseInt(e.target.value, 10);
-            router.push(qs(1, size));
-          }}
-          className="rounded-lg border border-white/15 bg-[#0c0c0c] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+    <div className={`${isMobile ? "flex lg:hidden" : "hidden lg:flex"} items-center justify-between gap-3`}>
+      <div className="flex items-center gap-2 text-sm text-white/70">
+        <span>Filas</span>
+        <SelectNative
+          value={String(pageSize)}
+          onChange={(e) => router.push(qs(1, Number(e.target.value)))}
+          className="h-8 min-w-[110px]"
         >
           {options.map((opt) => (
             <option key={opt} value={opt}>
-              {opt} por página
+              {opt} / página
             </option>
           ))}
-        </select>
+        </SelectNative>
       </div>
       <div className="flex items-center gap-2">
-        <Link
-          href={qs(Math.max(1, page - 1), pageSize)}
-          className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
-            page <= 1 ? "pointer-events-none text-white/30" : "text-white hover:border-white"
-          }`}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => router.push(qs(Math.max(1, page - 1), pageSize))}
         >
-          ← Anterior
-        </Link>
-        <span className="text-white/60">
+          Anterior
+        </Button>
+        <span className="text-xs text-white/60">
           Página {page} de {totalPages}
         </span>
-        <Link
-          href={qs(Math.min(totalPages, page + 1), pageSize)}
-          className={`rounded-full border border-white/15 px-3 py-1 text-xs font-semibold ${
-            page >= totalPages ? "pointer-events-none text-white/30" : "text-white hover:border-white"
-          }`}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => router.push(qs(Math.min(totalPages, page + 1), pageSize))}
         >
-          Siguiente →
-        </Link>
+          Siguiente
+        </Button>
       </div>
     </div>
   );

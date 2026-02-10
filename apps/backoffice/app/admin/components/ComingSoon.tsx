@@ -1,3 +1,5 @@
+import { AdminHeader, AdminPage, AdminPanel } from "@/components/admin/PageScaffold";
+
 type ComingSoonProps = {
   title: string;
   description?: string;
@@ -5,14 +7,22 @@ type ComingSoonProps = {
 
 export function ComingSoon({ title, description }: ComingSoonProps) {
   return (
-    <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-[#0c0c0c] px-6 py-10 text-center text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
-      <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-        Módulo en desarrollo
-      </span>
-      <h1 className="text-2xl font-semibold">{title}</h1>
-      <p className="max-w-xl text-sm text-white/70">
-        {description || "Estamos terminando esta sección. Pronto podrás gestionarla desde aquí."}
-      </p>
-    </div>
+    <AdminPage maxWidth="6xl">
+      <AdminHeader
+        kicker="Módulo"
+        title={title}
+        description={description || "Estamos terminando esta sección. Pronto podrás gestionarla desde aquí."}
+      />
+      <AdminPanel contentClassName="px-6 py-10">
+        <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center text-white">
+          <span className="rounded-full border border-[#2b2b2b] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+            Módulo en desarrollo
+          </span>
+          <p className="max-w-xl text-sm text-white/70">
+            Estamos unificando el nuevo diseño y los componentes de experiencia para este módulo.
+          </p>
+        </div>
+      </AdminPanel>
+    </AdminPage>
   );
 }

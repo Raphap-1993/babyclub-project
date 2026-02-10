@@ -22,9 +22,17 @@ export async function GET(req: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const organizerId = req.nextUrl.searchParams.get("organizer_id")?.trim() || "";
+
+  let eventsQuery = applyNotDeleted(
+    supabase.from("events").select("id,name,starts_at,is_active,organizer_id").order("starts_at", { ascending: true })
+  );
+  if (organizerId) {
+    eventsQuery = eventsQuery.eq("organizer_id", organizerId);
+  }
 
   const [eventsRes, tablesRes, productsRes, reservationsRes] = await Promise.all([
-    applyNotDeleted(supabase.from("events").select("id,name,starts_at,is_active").order("starts_at", { ascending: true })),
+    eventsQuery,
     applyNotDeleted(
       supabase.from("tables").select("id,name,event_id,ticket_count,min_consumption,price,is_active").order("created_at", { ascending: true })
     ),
@@ -45,10 +53,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ events: [], tables: [], products: [], reservations: [], error: error.message }, { status: 500 });
   }
 
+  const eventRows = eventsRes.data || [];
+  const eventIds = new Set(eventRows.map((e: any) => e.id));
+  const tableRows = (tablesRes.data || []).filter((t: any) => !organizerId || (t.event_id && eventIds.has(t.event_id)));
+  const tableIds = new Set(tableRows.map((t: any) => t.id));
+  const productRows = (productsRes.data || []).filter((p: any) => !organizerId || tableIds.has(p.table_id));
+  const reservationRows = (reservationsRes.data || []).filter((r: any) => !organizerId || tableIds.has(r.table_id));
+
   return NextResponse.json({
-    events: eventsRes.data || [],
-    tables: tablesRes.data || [],
-    products: productsRes.data || [],
-    reservations: reservationsRes.data || [],
+    events: eventRows,
+    tables: tableRows,
+    products: productRows,
+    reservations: reservationRows,
   });
 }

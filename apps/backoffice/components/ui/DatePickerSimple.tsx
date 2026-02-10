@@ -104,7 +104,7 @@ export default function DatePickerSimple({
       <select
         value={val}
         onChange={(e) => onSel(e.target.value)}
-        className="w-full rounded-xl border border-white/10 bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-white"
+        className="w-full rounded-xl border border-[#292929] bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-white"
       >
         <option value="">—</option>
         {normalized.map((opt) => (
@@ -124,7 +124,7 @@ export default function DatePickerSimple({
           type="button"
           disabled={disabled}
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-left text-base text-white transition hover:border-white/30 focus:border-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-between rounded-xl border border-[#292929] bg-[#0f0f0f] px-4 py-3 text-left text-base text-white transition hover:border-white/30 focus:border-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className={value ? "text-white" : "text-white/40"}>{displayValue}</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-white/60">
@@ -138,7 +138,7 @@ export default function DatePickerSimple({
           <button
             type="button"
             onClick={clear}
-            className="rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/70 transition hover:border-white"
+            className="rounded-xl border border-[#2b2b2b] px-3 py-2 text-xs font-semibold text-white/70 transition hover:border-white"
           >
             Limpiar
           </button>
@@ -146,7 +146,7 @@ export default function DatePickerSimple({
       </div>
       {open && (
         <div className="relative z-10">
-          <div className="mt-2 grid gap-3 rounded-2xl border border-white/10 bg-[#0c0c0c] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.4)] md:grid-cols-3">
+          <div className="mt-2 grid gap-3 rounded-2xl border border-[#292929] bg-[#0c0c0c] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.4)] md:grid-cols-3">
             <Select value={day} onChange={(v) => { setDay(v); updateValue(year, month, v); }} options={days} />
             <Select
               value={month}

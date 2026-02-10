@@ -70,7 +70,7 @@ export default function ReservationEditor({ id, initial }: Props) {
   };
 
   return (
-    <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0c0c0c] p-4">
+    <div className="space-y-3 rounded-2xl border border-[#292929] bg-[#0c0c0c] p-4">
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/50">Editar y aprobar</p>
@@ -81,7 +81,7 @@ export default function ReservationEditor({ id, initial }: Props) {
             status === "approved"
               ? "bg-emerald-500/20 text-emerald-300"
               : status === "rejected"
-                ? "bg-[#ff5f5f]/20 text-[#ff9a9a]"
+                ? "bg-[#ef4444]/20 text-[#fca5a5]"
                 : "bg-white/5 text-white/70"
           }`}
         >
@@ -90,7 +90,7 @@ export default function ReservationEditor({ id, initial }: Props) {
       </div>
       {(error || message) && (
         <div className="space-y-1">
-          {error && <p className="text-xs text-[#ff9a9a]">{error}</p>}
+          {error && <p className="text-xs text-[#fca5a5]">{error}</p>}
           {message && <p className="text-xs text-emerald-200">{message}</p>}
         </div>
       )}
@@ -100,7 +100,7 @@ export default function ReservationEditor({ id, initial }: Props) {
         <input
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+          className="w-full rounded-xl border border-[#292929] bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
           placeholder="Nombre del contacto"
         />
       </div>
@@ -111,7 +111,7 @@ export default function ReservationEditor({ id, initial }: Props) {
           <select
             value={docType}
             onChange={(e) => setDocType(e.target.value as DocumentType)}
-            className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+            className="w-full rounded-xl border border-[#292929] bg-[#111111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
           >
             {DOCUMENT_TYPES.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -126,7 +126,7 @@ export default function ReservationEditor({ id, initial }: Props) {
             value={document}
             onChange={(e) => setDocument(e.target.value)}
             inputMode={docType === "dni" || docType === "ruc" ? "numeric" : "text"}
-            className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+            className="w-full rounded-xl border border-[#292929] bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
             placeholder={docType === "dni" ? "00000000" : "Documento"}
           />
         </div>
@@ -136,7 +136,7 @@ export default function ReservationEditor({ id, initial }: Props) {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+            className="w-full rounded-xl border border-[#292929] bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
             placeholder="correo@ejemplo.com"
           />
         </div>
@@ -145,7 +145,7 @@ export default function ReservationEditor({ id, initial }: Props) {
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+            className="w-full rounded-xl border border-[#292929] bg-[#111111] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
             placeholder="+51 999 999 999"
           />
         </div>
@@ -156,7 +156,7 @@ export default function ReservationEditor({ id, initial }: Props) {
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as any)}
-          className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+          className="w-full rounded-xl border border-[#292929] bg-[#111111] px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
         >
           <option value="pending">pending</option>
           <option value="approved">approved</option>
@@ -169,7 +169,7 @@ export default function ReservationEditor({ id, initial }: Props) {
           type="button"
           disabled={pending || !dirty}
           onClick={onSave}
-          className="rounded-full bg-gradient-to-r from-[#b5003c] to-[#e91e63] px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-[0_10px_30px_rgba(185,0,60,0.4)] transition hover:shadow-[0_12px_34px_rgba(185,0,60,0.45)] disabled:opacity-60"
+          className="rounded-full bg-gradient-to-r from-[#b5003c] to-[#a60c2f] px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-[0_10px_30px_rgba(185,0,60,0.4)] transition hover:shadow-[0_12px_34px_rgba(185,0,60,0.45)] disabled:opacity-60"
         >
           {pending ? "Guardando..." : "Guardar y notificar"}
         </button>

@@ -4,7 +4,7 @@ import { DateTime } from "luxon";
 import { EVENT_TZ } from "shared/datetime";
 import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
-import { generateEventCode, addSuffixIfNeeded } from "shared/friendlyCode";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,21 +32,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { payload, error, id, code, name, capacity, cover_image } = buildEventPayload(body);
+  const { payload, error, id, code, name, capacity, cover_image, organizer_id } = buildEventPayload(body);
   if (error || !id) {
     return NextResponse.json({ success: false, error: error || "id is required" }, { status: 400 });
   }
 
-  const { data, error: dbError } = await supabase.from("events").update(payload).eq("id", id).select("id").single();
+  const existingEventQuery = applyNotDeleted(supabase.from("events").select("id,organizer_id").eq("id", id));
+  const { data: existingEvent, error: existingEventError } = await existingEventQuery.maybeSingle();
+  if (existingEventError || !existingEvent) {
+    return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
+  }
+
+  const resolvedOrganizerId =
+    organizer_id || (typeof existingEvent.organizer_id === "string" ? existingEvent.organizer_id : "") || (await resolveDefaultOrganizerId(supabase));
+  if (!resolvedOrganizerId) {
+    return NextResponse.json({ success: false, error: "No hay organizador configurado" }, { status: 400 });
+  }
+
+  const organizerQuery = applyNotDeleted(supabase.from("organizers").select("id").eq("id", resolvedOrganizerId));
+  const { data: organizerRow, error: organizerError } = await organizerQuery.maybeSingle();
+  if (organizerError || !organizerRow) {
+    return NextResponse.json({ success: false, error: "Organizador inválido" }, { status: 400 });
+  }
+
+  const payloadToUpdate = { ...payload, organizer_id: resolvedOrganizerId };
+
+  const { data, error: dbError } = await supabase.from("events").update(payloadToUpdate).eq("id", id).select("id").single();
   if (dbError) {
     return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
   }
 
   const eventId = data?.id ?? id;
-  
+
+  const codeToUse = code as string;
   const { data: rpcResult, error: rpcError } = await supabase.rpc("set_event_general_code", {
     p_event_id: eventId,
-    p_code: code,
+    p_code: codeToUse,
     p_capacity: capacity,
   });
   if (rpcError || !rpcResult) {
@@ -73,6 +94,7 @@ function buildEventPayload(body: any): {
   name?: string;
   capacity?: number;
   cover_image?: string;
+  organizer_id?: string;
 } {
   const id = typeof body?.id === "string" ? body.id : undefined;
   const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -95,9 +117,7 @@ function buildEventPayload(body: any): {
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
   const organizer_id = typeof body?.organizer_id === "string" ? body.organizer_id.trim() : "";
-  
-  if (!code) return { id, error: "Código es requerido" };
-  if (!organizer_id) return { id, error: "Organizador es requerido" };
+  if (!code) return { id, error: "code is required" };
 
   return {
     id,
@@ -109,13 +129,26 @@ function buildEventPayload(body: any): {
       capacity,
       header_image,
       is_active,
-      organizer_id,
     },
-    code: code || undefined,
+    code,
     name,
     capacity,
     cover_image,
+    organizer_id,
   };
+}
+
+async function resolveDefaultOrganizerId(supabase: any): Promise<string | null> {
+  const { data } = await applyNotDeleted(
+    supabase
+      .from("organizers")
+      .select("id")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(1)
+  ).maybeSingle();
+  return data?.id || null;
 }
 
 async function upsertCover(supabase: any, eventId: string, coverUrl: string) {

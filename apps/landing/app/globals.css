@@ -87,6 +87,13 @@ a {
   box-shadow: 0 20px 46px rgba(181, 0, 60, 0.36);
 }
 
+.progress-attention-red {
+  background: linear-gradient(120deg, rgba(181, 0, 60, 0.9), rgba(181, 0, 60, 0), rgba(181, 0, 60, 0.9));
+  background-size: 300% 300%;
+  box-shadow: 0 0 12px rgba(181, 0, 60, 0.55), 0 0 26px rgba(181, 0, 60, 0.28);
+  animation: babyclubGlow 5s ease-in-out infinite;
+}
+
 @keyframes babyclubGlow {
   0% {
     background-position: 0% 50%;

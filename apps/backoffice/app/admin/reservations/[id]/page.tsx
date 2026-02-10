@@ -5,6 +5,9 @@ import ReservationActions from "../components/ReservationActions";
 import ReservationResendButton from "../components/ReservationResendButton";
 import ReservationEditor from "../components/ReservationEditor";
 import { formatLimaFromDb } from "shared/limaTime";
+import { AdminHeader, AdminPage, AdminPanel } from "@/components/admin/PageScaffold";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -141,47 +144,42 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
   const { reservation, error } = await getReservation(id);
   if (!reservation) {
     return (
-      <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-3xl space-y-4 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Reservas</p>
-          <h1 className="text-3xl font-semibold">Reserva no encontrada</h1>
-          <p className="text-sm text-white/70">{error || "La reserva no existe o no está disponible en este entorno."}</p>
-          <div className="mt-4 flex justify-center gap-3">
-            <Link
-              href="/admin/reservations"
-              className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-            >
-              ← Volver a reservas
+      <AdminPage maxWidth="6xl">
+        <AdminHeader
+          kicker="Operaciones / Reservas"
+          title="Reserva no encontrada"
+          description={error || "La reserva no existe o no está disponible en este entorno."}
+          actions={
+            <Link href="/admin/reservations" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              Volver a reservas
             </Link>
-          </div>
-        </div>
-      </main>
+          }
+        />
+      </AdminPage>
     );
   }
   const eventData = reservation.table?.event || reservation.event_fallback || null;
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-10">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Reservas</p>
-          <h1 className="text-3xl font-semibold">Detalle de reserva</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin/reservations"
-            className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-          >
-            ← Volver
-          </Link>
-          <ReservationResendButton id={reservation.id} email={reservation.email} status={reservation.status} />
-          <ReservationActions id={reservation.id} status={reservation.status} />
-        </div>
-      </div>
+    <AdminPage>
+      <AdminHeader
+        kicker="Operaciones / Reservas"
+        title="Detalle de reserva"
+        description="Revisión y operación detallada de una reserva específica."
+        actions={
+          <>
+            <Link href="/admin/reservations" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              Volver
+            </Link>
+            <ReservationResendButton id={reservation.id} email={reservation.email} status={reservation.status} />
+            <ReservationActions id={reservation.id} status={reservation.status} />
+          </>
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
         <section className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6">
+          <AdminPanel contentClassName="p-6">
             <h2 className="mb-4 text-lg font-semibold">Datos</h2>
             <Info label="Mesa" value={reservation.table?.name || "Entrada"} />
             <Info label="Evento" value={eventData?.name || "—"} />
@@ -208,11 +206,11 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
                     href={reservation.voucher_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                    className="text-sm font-semibold text-[#a60c2f] underline-offset-4 hover:underline"
                   >
                     Ver voucher
                   </a>
-                  <div className="overflow-hidden rounded-xl border border-white/10 bg-black/60 p-2">
+                  <div className="overflow-hidden rounded-xl border border-[#292929] bg-[#121212] p-2">
                     <img
                       src={reservation.voucher_url}
                       alt="Voucher"
@@ -224,7 +222,7 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
                 <p className="text-sm text-white/70">—</p>
               )}
             </div>
-          </div>
+          </AdminPanel>
 
           <ReservationEditor
             id={reservation.id}
@@ -239,12 +237,12 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
           />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6">
+        <AdminPanel contentClassName="p-6">
           <h2 className="mb-4 text-lg font-semibold">Códigos generados</h2>
           {reservation.codes && reservation.codes.length > 0 ? (
             <div className="space-y-2">
               {reservation.codes.map((c) => (
-                <div key={c} className="rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 font-mono text-sm">
+                <div key={c} className="rounded-2xl border border-[#292929] bg-[#0a0a0a] px-4 py-3 font-mono text-sm">
                   {c}
                 </div>
               ))}
@@ -252,9 +250,9 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
           ) : (
             <p className="text-sm text-white/70">No hay códigos.</p>
           )}
-        </section>
+        </AdminPanel>
       </div>
-    </main>
+    </AdminPage>
   );
 }
 

@@ -87,8 +87,8 @@ export default function EditUserModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-3xl border border-white/15 bg-[#0b0b0b] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-[#2b2b2b] bg-[#0b0b0b] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)]">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-xl font-semibold text-white">Editar usuario</h3>
           <button
@@ -112,7 +112,7 @@ export default function EditUserModal({
                 name="role_code"
                 value={form.role_code}
                 onChange={handleChange}
-                className="w-full rounded-2xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
+                className="w-full rounded-2xl border border-[#292929] bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
               >
                 {roles.map((r) => (
                   <option key={r.code} value={r.code}>
@@ -131,7 +131,7 @@ export default function EditUserModal({
             <button
               type="submit"
               disabled={saving}
-              className="rounded-2xl bg-gradient-to-r from-[#e91e63] to-[#ff77b6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(233,30,99,0.35)] transition hover:shadow-[0_12px_32px_rgba(233,30,99,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-gradient-to-r from-[#a60c2f] to-[#6f0c25] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(166,12,47,0.35)] transition hover:shadow-[0_12px_32px_rgba(166,12,47,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Guardando..." : "Guardar cambios"}
             </button>
@@ -159,7 +159,7 @@ function Field({ label, name, value, onChange, type = "text", required }: { labe
         onChange={onChange}
         type={type}
         required={required}
-        className="w-full rounded-2xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
+        className="w-full rounded-2xl border border-[#292929] bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
       />
     </label>
   );

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import PromoterForm from "../../components/PromoterForm";
+import { AdminHeader, AdminPage, AdminPanel } from "@/components/admin/PageScaffold";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -57,23 +60,20 @@ export default async function EditPromoterPage({ params }: { params: Promise<{ i
   if (!promoter) return notFound();
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-10">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f2f2f2]/60">Promotores</p>
-          <h1 className="text-3xl font-semibold">Editar promotor</h1>
-        </div>
-        <Link
-          href="/admin/promoters"
-          className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
-        >
-          ← Volver
-        </Link>
-      </div>
-
-      <div className="rounded-3xl border border-white/10 bg-[#0c0c0c] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+    <AdminPage>
+      <AdminHeader
+        kicker="Operaciones / Promotores"
+        title="Editar promotor"
+        description="Actualiza datos de contacto y configuración comercial."
+        actions={
+          <Link href="/admin/promoters" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            Volver
+          </Link>
+        }
+      />
+      <AdminPanel contentClassName="p-6">
         <PromoterForm mode="edit" initialData={promoter} />
-      </div>
-    </main>
+      </AdminPanel>
+    </AdminPage>
   );
 }

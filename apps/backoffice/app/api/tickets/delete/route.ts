@@ -30,9 +30,10 @@ export async function archiveTicket(req: Request) {
   });
 
   // Obtener info básica antes de borrar (para liberar reservas asociadas por email/teléfono)
+  // Incluir event_id para filtrar reservas solo del evento del ticket
   const { data: ticketRow, error: fetchError } = await supabase
     .from("tickets")
-    .select("id,email,phone")
+    .select("id,event_id,email,phone")
     .eq("id", id)
     .maybeSingle();
 
@@ -50,17 +51,20 @@ export async function archiveTicket(req: Request) {
     const activeStatuses = ["pending", "approved", "confirmed", "paid"];
     const email = ticketRow.email || null;
     const phone = ticketRow.phone || null;
+    const eventId = (ticketRow as any).event_id as string | null;
 
-    // Liberar reservas con mismo email/teléfono
+    // Liberar reservas con mismo email/teléfono PERO SOLO DEL MISMO EVENTO
+    // Esto evita rechazar reservas del usuario en otros eventos
     const filters = [
       email ? `email.eq.${email}` : "",
       phone ? `phone.eq.${phone}` : "",
     ].filter(Boolean);
 
-    if (filters.length > 0) {
+    if (filters.length > 0 && eventId) {
       await supabase
         .from("table_reservations")
         .update({ status: "rejected" })
+        .eq("event_id", eventId)
         .or(filters.join(","))
         .in("status", activeStatuses);
     }
