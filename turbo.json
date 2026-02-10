@@ -30,5 +30,3 @@
   },
   "globalDependencies": ["package.json", "pnpm-lock.yaml"]
 }
-  }
-}
