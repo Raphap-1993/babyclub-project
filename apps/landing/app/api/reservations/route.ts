@@ -125,6 +125,8 @@ export async function POST(req: NextRequest) {
         voucher_url,
         status: "pending",
         friendly_code: friendlyCode,
+        event_id: effectiveEventId,
+        product_id,
         ticket_quantity: ticketCount,
         promoter_id,
       })
