@@ -18,7 +18,8 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "shared/*": ["../../packages/shared/*"]
+      "shared/*": ["../../packages/shared/*"],
+      "@repo/api-logic/*": ["../../packages/api-logic/*"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,

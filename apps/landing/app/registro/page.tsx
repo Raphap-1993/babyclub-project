@@ -73,10 +73,23 @@ function findTableForSlot(label: string, tables: TableInfo[]) {
 
 const formatCurrency = (value?: number | null) => {
   if (value == null) return "—";
-  return `S/ ${value}`;
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return "—";
+  return `S/ ${numeric.toLocaleString("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 };
 
 const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
+
+function getActiveProductsForTable(table?: TableInfo | null) {
+  return (table?.products || [])
+    .filter((p) => p.is_active !== false)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+}
+
+function getDisplayPriceForTable(table?: TableInfo | null) {
+  const firstProductWithPrice = getActiveProductsForTable(table).find((p) => p.price != null);
+  return firstProductWithPrice?.price ?? table?.price ?? table?.min_consumption ?? null;
+}
 
 const LOCAL_MAP_ASSET = "/maps/venue-plan.png";
 const ENABLE_MAP_ZOOM = process.env.NEXT_PUBLIC_MAP_ENABLE_ZOOM !== "false";
@@ -392,14 +405,25 @@ function RegistroContent() {
     [tables]
   );
 
-  const products = useMemo(
-    () => (tableInfo?.products || []).filter((p: any) => p.is_active !== false).sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)),
-    [tableInfo]
-  );
-  const selectedProductInfo = products.find((p: any) => p.id === selectedProduct) || products[0] || null;
+  const products = useMemo(() => getActiveProductsForTable(tableInfo), [tableInfo]);
+  const selectedProductInfo = products.find((p) => p.id === selectedProduct) || products[0] || null;
 
   const totalPrice = selectedProductInfo?.price ?? tableInfo?.price ?? tableInfo?.min_consumption ?? null;
   const totalLabel = totalPrice != null ? formatCurrency(totalPrice) : null;
+
+  useEffect(() => {
+    if (!selectedTable) {
+      if (selectedProduct) setSelectedProduct("");
+      return;
+    }
+    if (products.length === 0) {
+      if (selectedProduct) setSelectedProduct("");
+      return;
+    }
+    if (!products.some((p) => p.id === selectedProduct)) {
+      setSelectedProduct(products[0]?.id || "");
+    }
+  }, [selectedTable, products, selectedProduct]);
 
   const aforoWidth = Math.max(0, Math.min(aforo, 100));
   const reservationDocError =
@@ -572,11 +596,6 @@ function RegistroContent() {
                   loading: reniecLoading || personLoading,
                 }}
               />
-              {form.doc_type === "dni" && (
-                <p className="-mt-2 text-xs text-white/50">
-                  💡 Presiona la lupa 🔍 o Enter para buscar tus datos automáticamente
-                </p>
-              )}
               <Field
                 label="Nombre"
                 value={form.nombre}
@@ -783,7 +802,7 @@ function RegistroContent() {
                                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#e91e63]">
                                         <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                                       </svg>
-                                      <span className="text-white font-semibold">{formatCurrency(tableInfo?.price)}</span>
+                                      <span className="text-white font-semibold">{totalLabel || formatCurrency(getDisplayPriceForTable(tableInfo))}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -830,7 +849,7 @@ function RegistroContent() {
                                     >
                                       <div>{t.name}</div>
                                       {!reserved && (
-                                        <div className="text-[9px] text-white/50 mt-0.5">{formatCurrency(t.price)}</div>
+                                        <div className="text-[9px] text-white/50 mt-0.5">{formatCurrency(getDisplayPriceForTable(t))}</div>
                                       )}
                                     </button>
                                   );
@@ -881,7 +900,7 @@ function RegistroContent() {
                                             )}
                                             <p className="text-xs font-semibold text-white">{p.name}</p>
                                           </div>
-                                          <p className="text-xs font-bold text-white whitespace-nowrap">{p.price != null ? `S/${p.price}` : "Incluido"}</p>
+                                          <p className="text-xs font-bold text-white whitespace-nowrap">{p.price != null ? formatCurrency(p.price) : "Incluido"}</p>
                                         </div>
                                         {Array.isArray(p.items) && p.items.length > 0 && (
                                           <ul className="space-y-0.5 text-[10px] text-white/70">
@@ -945,7 +964,7 @@ function RegistroContent() {
                               </div>
                               <div className="text-right">
                                 <p className="text-[9px] text-white/50 mb-0.5">Total</p>
-                                <p className="text-base font-bold text-[#e91e63]">{formatCurrency(tableInfo?.price)}</p>
+                                <p className="text-base font-bold text-[#e91e63]">{totalLabel || "—"}</p>
                               </div>
                             </div>
                           </CardContent>

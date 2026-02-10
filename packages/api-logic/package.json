@@ -1,0 +1,7 @@
+{
+  "name": "@repo/api-logic",
+  "version": "0.1.0",
+  "main": "qr-summary.ts",
+  "types": "qr-summary.ts",
+  "private": true
+}

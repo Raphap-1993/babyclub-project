@@ -5,22 +5,20 @@ import { createClient } from "@supabase/supabase-js";
 import {
   MetricCard,
   ChartCard,
-  SimpleLineChart,
   SimpleBarChart,
   SimplePieChart,
 } from "@/components/dashboard";
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@repo/ui";
+import TicketsSummaryCard from "@/components/dashboard/TicketsSummaryCard";
+import PromotersSummaryCard from "@/components/dashboard/PromotersSummaryCard";
+import { Button, Card, CardContent } from "@repo/ui";
 import {
   TrendingUp,
-  Users,
   Ticket,
   Calendar,
-  ArrowRight,
   Banknote,
   QrCode,
   CheckCircle2,
   Armchair,
-  Gift,
 } from "lucide-react";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -44,7 +42,6 @@ async function getMetrics() {
       paidTickets: 0,
       freeTicketsByEvent: [],
       generalCodeByEvent: [],
-      promoterDistribution: [],
     };
   }
 
@@ -227,51 +224,6 @@ async function getMetrics() {
     }
   }
 
-  // Distribución de tickets por promotor (top 5)
-  const { data: ticketsWithPromoter } = await supabase
-    .from("tickets")
-    .select("promoter_id, code:codes(promoter_id)")
-    .not("promoter_id", "is", null);
-
-  const promoterCounts: { [key: string]: number } = {};
-  
-  ticketsWithPromoter?.forEach(ticket => {
-    const promoterId = ticket.promoter_id;
-    if (promoterId) {
-      promoterCounts[promoterId] = (promoterCounts[promoterId] || 0) + 1;
-    }
-  });
-
-  // Obtener nombres de los promotores
-  const topPromoterIds = Object.entries(promoterCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([id]) => id);
-
-  const promoterDistribution: { name: string; value: number }[] = [];
-
-  if (topPromoterIds.length > 0) {
-    const { data: promotersData } = await supabase
-      .from("promoters")
-      .select("id, code, person:persons(first_name, last_name)")
-      .in("id", topPromoterIds);
-
-    promotersData?.forEach(promoter => {
-      const personRel = Array.isArray(promoter.person) ? promoter.person[0] : promoter.person;
-      const name = personRel 
-        ? `${personRel.first_name} ${personRel.last_name}`.trim() 
-        : promoter.code || 'Sin nombre';
-      
-      promoterDistribution.push({
-        name: name.substring(0, 20),
-        value: promoterCounts[promoter.id] || 0
-      });
-    });
-
-    // Ordenar por valor descendente
-    promoterDistribution.sort((a, b) => b.value - a.value);
-  }
-
   return {
     totalRevenue: totalRevenue / 100, // Culqi usa céntimos
     totalTicketsSold: totalTickets,
@@ -288,7 +240,6 @@ async function getMetrics() {
     paidTickets,
     freeTicketsByEvent,
     generalCodeByEvent,
-    promoterDistribution,
   };
 }
 
@@ -303,7 +254,7 @@ export default async function AdminDashboard() {
   ];
 
   // Determinar qué mostrar basado en datos existentes
-  const hasActivity = metrics.salesByHour.length > 0 || metrics.ticketsByEvent.length > 0 || metrics.promoterDistribution.length > 0 || metrics.freeTicketsByEvent.length > 0 || metrics.generalCodeByEvent.length > 0;
+  const hasActivity = metrics.salesByHour.length > 0 || metrics.ticketsByEvent.length > 0 || metrics.freeTicketsByEvent.length > 0 || metrics.generalCodeByEvent.length > 0;
   const hasSales = metrics.totalTicketsSold > 0;
 
   return (
@@ -333,6 +284,9 @@ export default async function AdminDashboard() {
           })}
         </div>
       </div>
+
+      {/* Card resumen de tickets generados por evento */}
+      <TicketsSummaryCard />
 
       {/* Metric Cards compactas */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -367,53 +321,26 @@ export default async function AdminDashboard() {
         />
       </div>
 
+      {/* Card grande: promotores por evento (selector + barras) */}
+      <PromotersSummaryCard />
+
       {/* Solo mostrar gráficos si hay datos */}
       {hasActivity && (
         <div className="space-y-4">
-          {/* Gráficos de barras compactos en una fila */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Ventas por hora - solo si hay datos */}
-            {metrics.salesByHour.length > 0 && (
-              <ChartCard title="Ventas por Hora" description="Últimas 24h">
-                <SimpleLineChart data={metrics.salesByHour} height={160} />
-              </ChartCard>
-            )}
 
-            {/* Tickets por evento - solo si hay datos */}
-            {metrics.ticketsByEvent.length > 0 && (
-              <ChartCard title="Tickets Vendidos" description="Por evento">
-                <SimpleBarChart data={metrics.ticketsByEvent} height={160} />
-              </ChartCard>
-            )}
+          {/* Tickets por evento (barras) */}
+          {metrics.ticketsByEvent.length > 0 && (
+            <ChartCard title="Tickets generados por evento" description="Cantidad total de tickets por evento">
+              <SimpleBarChart data={metrics.ticketsByEvent} height={220} />
+            </ChartCard>
+          )}
 
-            {/* Tickets FREE por evento - solo si hay datos */}
-            {metrics.freeTicketsByEvent.length > 0 && (
-              <ChartCard title="Tickets Free" description="Por evento">
-                <SimpleBarChart data={metrics.freeTicketsByEvent} height={160} />
-              </ChartCard>
-            )}
-          </div>
-
-          {/* Gráficos circulares grandes */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Distribución por promotor - solo si hay datos */}
-            {metrics.promoterDistribution.length > 0 && (
-              <ChartCard title="Top Promotores" description="Distribución de tickets por promotor">
-                <div className="p-4">
-                  <SimplePieChart data={metrics.promoterDistribution} height={320} />
-                </div>
-              </ChartCard>
-            )}
-
-            {/* Tickets con código general por evento - solo si hay datos */}
-            {metrics.generalCodeByEvent.length > 0 && (
-              <ChartCard title="Código General por Evento" description="Distribución de tickets gratuitos">
-                <div className="p-4">
-                  <SimplePieChart data={metrics.generalCodeByEvent} height={320} />
-                </div>
-              </ChartCard>
-            )}
-          </div>
+          {/* Tickets con código general por evento */}
+          {metrics.generalCodeByEvent.length > 0 && (
+            <ChartCard title="Codigo general por evento" description="Distribucion de tickets gratuitos">
+              <SimplePieChart data={metrics.generalCodeByEvent} height={260} />
+            </ChartCard>
+          )}
         </div>
       )}
 
