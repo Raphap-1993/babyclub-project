@@ -16,9 +16,8 @@
       "outputs": []
     }
   },
-  "globalDependencies": ["package.json", "pnpm-lock.yaml"]
-}
-  },
+
+  "globalDependencies": ["package.json", "pnpm-lock.yaml"],
   "env": [
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
