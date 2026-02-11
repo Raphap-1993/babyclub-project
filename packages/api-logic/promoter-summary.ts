@@ -24,7 +24,13 @@ type EventRow = {
 type TicketRow = {
   event_id: string | null;
   promoter_id: string | null;
-  code: { promoter_id: string | null } | { promoter_id: string | null }[] | null;
+  code_id: string | null;
+};
+
+type CodeRow = {
+  id: string;
+  promoter_id: string | null;
+  is_active: boolean | null;
 };
 
 type PromoterRow = {
@@ -58,14 +64,14 @@ export async function getPromoterSummaryAll({
 }): Promise<PromoterSummary[]> {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const nowIso = new Date().toISOString();
+  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: eventsRaw, error: eventsError } = await supabase
     .from("events")
     .select("id,name,starts_at,is_active,force_closed,deleted_at")
     .is("deleted_at", null)
     .eq("is_active", true)
     .or("force_closed.is.null,force_closed.eq.false")
-    .gte("starts_at", nowIso)
+    .gte("starts_at", cutoffIso)
     .order("starts_at", { ascending: true });
 
   if (eventsError || !eventsRaw) {
@@ -80,9 +86,33 @@ export async function getPromoterSummaryAll({
   const eventIds = events.map((event) => event.id);
   const { data: ticketsRaw, error: ticketsError } = await supabase
     .from("tickets")
-    .select("event_id,promoter_id,code:codes(promoter_id)")
+    .select("event_id,promoter_id,code_id")
     .is("deleted_at", null)
+    .eq("is_active", true)
     .in("event_id", eventIds);
+
+  const codeIds = Array.from(
+    new Set(
+      ((ticketsRaw as TicketRow[] | null) || [])
+        .map((ticket) => ticket.code_id)
+        .filter(Boolean) as string[]
+    )
+  );
+
+  let codeMap = new Map<string, CodeRow>();
+  let codesErrorMessage: string | undefined;
+  if (codeIds.length > 0) {
+    const { data: codesRaw, error: codesError } = await supabase
+      .from("codes")
+      .select("id,promoter_id,is_active")
+      .is("deleted_at", null)
+      .in("id", codeIds);
+    if (codesError) {
+      codesErrorMessage = codesError.message;
+    } else {
+      codeMap = new Map(((codesRaw || []) as CodeRow[]).map((code) => [code.id, code]));
+    }
+  }
 
   const byEvent: Record<string, Record<string, number>> = {};
   const promoterIds = new Set<string>();
@@ -91,7 +121,11 @@ export async function getPromoterSummaryAll({
     const eventId = ticket.event_id;
     if (!eventId) return;
 
-    const code = Array.isArray(ticket.code) ? ticket.code[0] : ticket.code;
+    const code = ticket.code_id ? codeMap.get(ticket.code_id) : null;
+    if (code && code.is_active === false) {
+      return;
+    }
+
     const promoterId = ticket.promoter_id || code?.promoter_id || DIRECT_PROMOTER_ID;
     if (promoterId !== DIRECT_PROMOTER_ID) {
       promoterIds.add(promoterId);
@@ -141,7 +175,7 @@ export async function getPromoterSummaryAll({
       date: event.starts_at || "",
       total_tickets: totalTickets,
       promoters,
-      error: ticketsError ? ticketsError.message : undefined,
+      error: ticketsError?.message || codesErrorMessage,
     };
   });
 }

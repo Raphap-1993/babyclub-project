@@ -31,34 +31,100 @@ export async function GET(req: NextRequest) {
     eventsQuery = eventsQuery.eq("organizer_id", organizerId);
   }
 
-  const [eventsRes, tablesRes, productsRes, reservationsRes] = await Promise.all([
-    eventsQuery,
-    applyNotDeleted(
-      supabase.from("tables").select("id,name,event_id,ticket_count,min_consumption,price,is_active").order("created_at", { ascending: true })
-    ),
-    applyNotDeleted(
-      supabase.from("table_products").select("id,table_id,name,price,tickets_included,is_active").order("sort_order", { ascending: true })
-    ),
-    applyNotDeleted(
-      supabase
-        .from("table_reservations")
-        .select("id,table_id,status,full_name")
-        .in("status", ACTIVE_RES_STATUSES)
-        .order("created_at", { ascending: false })
-    ),
+  if (!organizerId) {
+    const [eventsRes, tablesRes, productsRes, reservationsRes] = await Promise.all([
+      eventsQuery,
+      applyNotDeleted(
+        supabase.from("tables").select("id,name,event_id,ticket_count,min_consumption,price,is_active").order("created_at", { ascending: true })
+      ),
+      applyNotDeleted(
+        supabase.from("table_products").select("id,table_id,name,price,tickets_included,is_active").order("sort_order", { ascending: true })
+      ),
+      applyNotDeleted(
+        supabase
+          .from("table_reservations")
+          .select("id,table_id,status,full_name")
+          .in("status", ACTIVE_RES_STATUSES)
+          .order("created_at", { ascending: false })
+      ),
+    ]);
+
+    const error = eventsRes.error || tablesRes.error || productsRes.error || reservationsRes.error;
+    if (error) {
+      return NextResponse.json({ events: [], tables: [], products: [], reservations: [], error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      events: eventsRes.data || [],
+      tables: tablesRes.data || [],
+      products: productsRes.data || [],
+      reservations: reservationsRes.data || [],
+    });
+  }
+
+  const eventsRes = await eventsQuery;
+  if (eventsRes.error) {
+    return NextResponse.json({ events: [], tables: [], products: [], reservations: [], error: eventsRes.error.message }, { status: 500 });
+  }
+
+  const eventRows = eventsRes.data || [];
+  const eventIds = eventRows.map((event: any) => event.id).filter(Boolean);
+
+  let tablesQuery = applyNotDeleted(
+    supabase.from("tables").select("id,name,event_id,ticket_count,min_consumption,price,is_active").order("created_at", { ascending: true })
+  );
+
+  if (organizerId) {
+    if (eventIds.length === 0) {
+      return NextResponse.json({ events: eventRows, tables: [], products: [], reservations: [] });
+    }
+    tablesQuery = tablesQuery.in("event_id", eventIds);
+  }
+
+  const tablesRes = await tablesQuery;
+  if (tablesRes.error) {
+    return NextResponse.json({ events: [], tables: [], products: [], reservations: [], error: tablesRes.error.message }, { status: 500 });
+  }
+
+  const tableRows = tablesRes.data || [];
+  const tableIds = tableRows.map((table: any) => table.id).filter(Boolean);
+
+  let productRows: any[] = [];
+  let reservationRows: any[] = [];
+
+  if (organizerId && tableIds.length === 0) {
+    return NextResponse.json({ events: eventRows, tables: tableRows, products: [], reservations: [] });
+  }
+
+  const [productsRes, reservationsRes] = await Promise.all([
+    tableIds.length > 0
+      ? applyNotDeleted(
+          supabase
+            .from("table_products")
+            .select("id,table_id,name,price,tickets_included,is_active")
+            .in("table_id", tableIds)
+            .order("sort_order", { ascending: true })
+        )
+      : Promise.resolve({ data: [], error: null } as any),
+    tableIds.length > 0
+      ? applyNotDeleted(
+          supabase
+            .from("table_reservations")
+            .select("id,table_id,status,full_name")
+            .in("table_id", tableIds)
+            .in("status", ACTIVE_RES_STATUSES)
+            .order("created_at", { ascending: false })
+        )
+      : Promise.resolve({ data: [], error: null } as any),
   ]);
 
-  const error = eventsRes.error || tablesRes.error || productsRes.error || reservationsRes.error;
+  const error = productsRes.error || reservationsRes.error;
   if (error) {
     return NextResponse.json({ events: [], tables: [], products: [], reservations: [], error: error.message }, { status: 500 });
   }
 
-  const eventRows = eventsRes.data || [];
-  const eventIds = new Set(eventRows.map((e: any) => e.id));
-  const tableRows = (tablesRes.data || []).filter((t: any) => !organizerId || (t.event_id && eventIds.has(t.event_id)));
-  const tableIds = new Set(tableRows.map((t: any) => t.id));
-  const productRows = (productsRes.data || []).filter((p: any) => !organizerId || tableIds.has(p.table_id));
-  const reservationRows = (reservationsRes.data || []).filter((r: any) => !organizerId || tableIds.has(r.table_id));
+  productRows = productsRes.data || [];
+  reservationRows = reservationsRes.data || [];
 
   return NextResponse.json({
     events: eventRows,

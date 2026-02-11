@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
-import { sendEmail } from "shared/email/resend";
-import { formatLimaFromDb } from "shared/limaTime";
+import { applyNotDeleted } from "shared/db/softDelete";
+import { createTicketForReservation } from "../../../../reservations/utils";
+import { sendApprovalEmail } from "../../../../reservations/email";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const APPROVED_STATUSES = new Set(["approved", "confirmed", "paid"]);
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((value) => (value ? String(value).trim() : "")).filter(Boolean)));
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireStaffRole(req);
@@ -18,102 +24,188 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params;
-
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: reservation } = await supabase
-    .from("table_reservations")
-    .select(
-      `
-      id,
-      full_name,
-      email,
-      codes,
-      table:tables(name,event:events(name,starts_at,location)),
-      ticket:tickets(id,qr_token)
-      `
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const reservationQuery = applyNotDeleted(
+    supabase
+      .from("table_reservations")
+      .select(
+        `
+        id,
+        table_id,
+        product_id,
+        full_name,
+        email,
+        phone,
+        doc_type,
+        document,
+        status,
+        codes,
+        ticket_id,
+        ticket_quantity,
+        event_id,
+        promoter_id,
+        table:tables(id,name,event_id,event:events(id,name,starts_at,location))
+        `
+      )
+      .eq("id", id)
+  );
+  const { data: reservation, error: reservationError } = await reservationQuery.maybeSingle();
+  if (reservationError || !reservation) {
+    return NextResponse.json(
+      { success: false, error: reservationError?.message || "Reserva no encontrada" },
+      { status: 404 }
+    );
+  }
 
-  if (!reservation || !reservation.email) {
-    return NextResponse.json({ success: false, error: "Reserva no encontrada o sin email" }, { status: 404 });
+  const status = String((reservation as any).status || "").toLowerCase();
+  if (!APPROVED_STATUSES.has(status)) {
+    return NextResponse.json(
+      { success: false, error: "Solo puedes reenviar correos para reservas aprobadas" },
+      { status: 400 }
+    );
+  }
+
+  const email = typeof (reservation as any).email === "string" ? (reservation as any).email.trim() : "";
+  if (!email) {
+    return NextResponse.json({ success: false, error: "Reserva sin correo de contacto" }, { status: 400 });
   }
 
   const tableRel = Array.isArray((reservation as any).table) ? (reservation as any).table?.[0] : (reservation as any).table;
   const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
-  const ticketRel = Array.isArray((reservation as any).ticket) ? (reservation as any).ticket?.[0] : (reservation as any).ticket;
+  const eventData = eventRel || null;
+  const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || null;
+  const tableName = tableRel?.name || "Entrada";
+  const ticketQuantity =
+    typeof (reservation as any).ticket_quantity === "number" && (reservation as any).ticket_quantity > 0
+      ? Math.floor((reservation as any).ticket_quantity)
+      : 1;
 
-  const codes = Array.isArray(reservation.codes) ? reservation.codes : [];
-  const qrToken = ticketRel?.qr_token || ticketRel?.id;
-  
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
-  const ticketUrl = `${appUrl}/ticket/${ticketRel?.id}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(
-    qrToken || ticketRel?.id || ""
-  )}`;
+  const reservationCodes = Array.isArray((reservation as any).codes)
+    ? (reservation as any).codes.map((c: any) => String(c || "").trim()).filter(Boolean)
+    : [];
 
-  const eventLabel = eventRel?.name || "Evento";
-  const dateLabel = eventRel?.starts_at ? formatLimaFromDb(eventRel.starts_at) : "";
+  const [codesByReservation, codesByLegacyList] = await Promise.all([
+    supabase
+      .from("codes")
+      .select("id,code")
+      .eq("table_reservation_id", id)
+      .is("deleted_at", null)
+      .eq("is_active", true),
+    reservationCodes.length > 0
+      ? supabase.from("codes").select("id,code").in("code", reservationCodes).is("deleted_at", null).eq("is_active", true)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
-  const codesHtml =
-    codes.length > 0
-      ? codes
-          .map(
-            (c: string) =>
-              `<div style="margin-bottom:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0f0f0f;font-family:'Inter','Helvetica Neue',Arial,sans-serif;color:#f5f5f5;font-weight:700;">${c}</div>`
-          )
-          .join("")
-      : `<p style="color:#cfcfcf;font-size:14px;">Sin códigos de mesa.</p>`;
+  const resolvedCodeRows = [...(codesByReservation.data || []), ...(codesByLegacyList.data || [])];
+  const resolvedCodes = uniqueStrings([
+    ...resolvedCodeRows.map((row: any) => row.code),
+    ...reservationCodes,
+  ]);
+  const codeIds = uniqueStrings(resolvedCodeRows.map((row: any) => row.id));
 
-  const html = `
-  <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
-    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#050505;padding:24px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:680px;background:#0b0b0b;border-radius:24px;border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
-            <tr>
-              <td style="padding:26px 32px 16px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(233,30,99,0.12));color:#ffffff;">
-                <div style="text-transform:uppercase;font-size:12px;letter-spacing:0.28em;color:#f2f2f2;opacity:0.8;margin-bottom:6px;">Baby</div>
-                <h1 style="margin:0;font-size:26px;line-height:1.2;color:#ffffff;">Reserva confirmada</h1>
-                <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">Mesa ${tableRel?.name || ""} • ${eventLabel}${dateLabel ? ` • ${dateLabel}` : ""}</p>
-                ${eventRel?.location ? `<p style="margin:4px 0 0;font-size:13px;color:#c8c8c8;">${eventRel.location}</p>` : ""}
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:22px 32px 26px;">
-                <p style="margin:0 0 12px;font-size:15px;color:#f5f5f5;">Hola ${reservation.full_name || "invitadx"},</p>
-                <p style="margin:0 0 14px;font-size:14px;color:#d7d7d7;line-height:1.6;">Adjuntamos tu QR y los códigos de mesa asociados a tu pack.</p>
-                <div style="text-align:center;margin-bottom:16px;">
-                  <img src="${qrUrl}" alt="QR" width="210" height="210" style="border-radius:16px;border:8px solid #0f0f0f;background:#fff;" />
-                </div>
-                <div style="margin-bottom:16px;text-align:center;">
-                  <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket actualizado</a>
-                </div>
-                <div style="margin-top:12px;">
-                  <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#bcbcbc;">Códigos de mesa</p>
-                  ${codesHtml}
-                </div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </div>`;
+  const existingTicketIds = uniqueStrings([(reservation as any).ticket_id || null]);
+  const { data: ticketsByReservation } = await supabase
+    .from("tickets")
+    .select("id")
+    .eq("table_reservation_id", id)
+    .is("deleted_at", null)
+    .eq("is_active", true);
+  existingTicketIds.push(...uniqueStrings((ticketsByReservation || []).map((row: any) => row.id)));
+  if (codeIds.length > 0) {
+    const { data: ticketsByCodes } = await supabase
+      .from("tickets")
+      .select("id")
+      .in("code_id", codeIds)
+      .is("deleted_at", null)
+      .eq("is_active", true);
+    existingTicketIds.push(...uniqueStrings((ticketsByCodes || []).map((row: any) => row.id)));
+  }
+
+  const ticketIds = uniqueStrings(existingTicketIds);
+  const createdTicketIds: string[] = [];
+  const createdTicketCodes: string[] = [];
+
+  if (ticketIds.length === 0) {
+    if (!eventId) {
+      return NextResponse.json(
+        { success: false, error: "No se encontró evento para regenerar los tickets de esta reserva" },
+        { status: 400 }
+      );
+    }
+
+    for (let i = 0; i < ticketQuantity; i++) {
+      const reuseCodes = resolvedCodes[i] ? [resolvedCodes[i]] : [];
+      const ticketResult = await createTicketForReservation(supabase, {
+        eventId,
+        tableName,
+        fullName: (reservation as any).full_name || "Invitado reserva",
+        email: email || null,
+        phone: (reservation as any).phone || null,
+        docType: (reservation as any).doc_type || "dni",
+        document: (reservation as any).document || "",
+        promoterId: (reservation as any).promoter_id || null,
+        reuseCodes,
+        codeType: tableRel?.id ? "table" : "courtesy",
+        tableId: (reservation as any).table_id || tableRel?.id || null,
+        productId: (reservation as any).product_id || null,
+        tableReservationId: id,
+      });
+      createdTicketIds.push(ticketResult.ticketId);
+      if (ticketResult.code) {
+        createdTicketCodes.push(ticketResult.code);
+      }
+    }
+  }
+
+  const finalTicketIds = uniqueStrings([...ticketIds, ...createdTicketIds]);
+  const finalCodes = uniqueStrings([...resolvedCodes, ...createdTicketCodes]);
+  if (finalTicketIds.length === 0) {
+    return NextResponse.json(
+      { success: false, error: "No se pudo encontrar ni generar tickets para reenviar el correo" },
+      { status: 500 }
+    );
+  }
+
+  const reservationPatch: Record<string, any> = {};
+  if (!(reservation as any).ticket_id) {
+    reservationPatch.ticket_id = finalTicketIds[0];
+  }
+  if (finalCodes.length > 0) {
+    reservationPatch.codes = finalCodes;
+  }
+  if (Object.keys(reservationPatch).length > 0) {
+    const { error: reservationPatchError } = await supabase
+      .from("table_reservations")
+      .update(reservationPatch)
+      .eq("id", id);
+    if (reservationPatchError) {
+      return NextResponse.json({ success: false, error: reservationPatchError.message }, { status: 500 });
+    }
+  }
 
   try {
-    await sendEmail({
-      to: reservation.email,
-      subject: `BABY - Reserva confirmada (${tableRel?.name || "Mesa"})`,
-      html,
-      text: `Reserva confirmada - Mesa ${tableRel?.name || ""}\n\nTicket: ${ticketUrl}`,
+    await sendApprovalEmail({
+      supabase,
+      id,
+      full_name: (reservation as any).full_name || "",
+      email,
+      phone: (reservation as any).phone || null,
+      codes: finalCodes,
+      ticketIds: finalTicketIds,
+      tableName,
+      event: eventData,
     });
-
-    return NextResponse.json({ success: true, message: "Correo reenviado" });
+    return NextResponse.json({
+      success: true,
+      message: "Correo reenviado",
+      ticketIds: finalTicketIds,
+      codesCount: finalCodes.length,
+      ticketsCreated: createdTicketIds.length,
+    });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message || "No se pudo reenviar el correo" }, { status: 500 });
   }
 }

@@ -19,9 +19,9 @@ export function QRStatsTable({ events }: { events: any[] }) {
             <td>{ev.name}</td>
             <td>{ev.date}</td>
             <td>{ev.total_qr}</td>
-            <td>{ev.by_type.entrada || 0}</td>
-            <td>{ev.by_type.mesa || 0}</td>
-            <td>{ev.by_type.cortesia || 0}</td>
+            <td>{ev.by_type.general || ev.by_type.entrada || 0}</td>
+            <td>{ev.by_type.table || ev.by_type.mesa || 0}</td>
+            <td>{ev.by_type.courtesy || ev.by_type.cortesia || 0}</td>
           </tr>
         ))}
       </tbody>

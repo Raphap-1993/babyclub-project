@@ -34,7 +34,7 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
   const ticketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,created_at,dni,full_name,email,phone,qr_token,event_id,code_id,promoter_id")
+      .select("id,created_at,dni,full_name,email,phone,qr_token,event_id,code_id,promoter_id,table_reservation_id")
       .eq("id", id)
       .limit(1)
   );
@@ -47,7 +47,9 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
       ? applyNotDeleted(supabase.from("events").select("id,name").eq("id", data.event_id).limit(1)).maybeSingle()
       : Promise.resolve({ data: null }),
     data.code_id
-      ? applyNotDeleted(supabase.from("codes").select("id,code,promoter_id").eq("id", data.code_id).limit(1)).maybeSingle()
+      ? applyNotDeleted(
+          supabase.from("codes").select("id,code,promoter_id,table_reservation_id").eq("id", data.code_id).limit(1)
+        ).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -64,13 +66,30 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
   const promoterName =
     [promoterPerson?.first_name, promoterPerson?.last_name].filter(Boolean).join(" ").trim() || promoterData?.code || null;
 
-  // Buscar códigos asociados a una reserva de mesa del mismo email/teléfono
+  // Buscar códigos de mesa priorizando la relación directa ticket -> reserva
   let tableCodes: string[] = [];
   let tableName: string | null = null;
   let productName: string | null = null;
   let productItems: string[] | null = null;
-  if (data.email || data.phone) {
-    const resvQuery = applyNotDeleted(
+  const tableReservationId = (data as any).table_reservation_id || codeData?.table_reservation_id || null;
+  if (tableReservationId) {
+    const resvByIdQuery = applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select("codes,table:tables(name),product:table_products(name,items)")
+        .eq("id", tableReservationId)
+        .limit(1)
+    );
+    const { data: first } = await resvByIdQuery.maybeSingle();
+    tableCodes = first?.codes ? (first.codes as any[]).filter(Boolean) : [];
+    const tableRel = Array.isArray(first?.table) ? first?.table?.[0] : first?.table;
+    const prodRel = Array.isArray(first?.product) ? first?.product?.[0] : first?.product;
+    tableName = tableRel?.name || null;
+    productName = prodRel?.name || null;
+    productItems = prodRel?.items || null;
+  } else if (data.email || data.phone) {
+    // Fallback legacy: registros antiguos sin table_reservation_id.
+    const resvByContactQuery = applyNotDeleted(
       supabase
         .from("table_reservations")
         .select("codes,status,table:tables(name),product:table_products(name,items)")
@@ -83,9 +102,9 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
             .join(",")
         )
         .order("created_at", { ascending: false })
-    )
-        .limit(1);
-    const { data: resv } = await resvQuery;
+        .limit(1)
+    );
+    const { data: resv } = await resvByContactQuery;
     const first = resv?.[0];
     tableCodes = first?.codes ? (first.codes as any[]).filter(Boolean) : [];
     const tableRel = Array.isArray(first?.table) ? first?.table?.[0] : first?.table;

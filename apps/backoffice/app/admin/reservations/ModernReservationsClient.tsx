@@ -8,6 +8,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { ExternalLink, Calendar, Users, Mail, Phone, QrCode, Search, Filter, ChevronDown, Eye, Send, XCircle, CheckCircle } from "lucide-react";
 import CreateReservationModal from "./components/CreateReservationModal";
 import ViewReservationModal from "./components/ViewReservationModal";
+import * as AlertDialog from "@radix-ui/react-alert-dialog";
 
 type ReservationRow = {
   id: string;
@@ -94,8 +95,8 @@ function SearchAndDateFilters({
           >
             <option value="all">Todos los estados</option>
             <option value="pending">🟡 Pendiente</option>
-            <option value="confirmed">✅ Confirmada</option>
-            <option value="cancelled">❌ Cancelada</option>
+            <option value="approved">✅ Aprobada</option>
+            <option value="rejected">❌ Rechazada</option>
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
         </div>
@@ -224,12 +225,14 @@ const createColumns = (
       const status = getValue() as string;
       const getStatusConfig = (status: string) => {
         switch (status?.toLowerCase()) {
+          case "approved":
           case "confirmed":
-            return { variant: "success" as const, label: "✅ Confirmada" };
+            return { variant: "success" as const, label: "✅ Aprobada" };
           case "pending":
             return { variant: "warning" as const, label: "🟡 Pendiente" };
+          case "rejected":
           case "cancelled":
-            return { variant: "danger" as const, label: "❌ Cancelada" };
+            return { variant: "danger" as const, label: "❌ Rechazada" };
           default:
             return { variant: "default" as const, label: status || "—" };
         }
@@ -287,7 +290,7 @@ const createColumns = (
               e.stopPropagation();
               onCancelReservation(reservation.id);
             }}
-            disabled={reservation.status === "rejected"}
+            disabled={["rejected", "cancelled"].includes((reservation.status || "").toLowerCase())}
             title="Anular reserva"
             className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
@@ -319,6 +322,8 @@ export default function ModernReservationsClient({ initialReservations, organize
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewReservationId, setViewReservationId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [cancelReservationId, setCancelReservationId] = useState<string | null>(null);
+  const [cancelPending, setCancelPending] = useState(false);
 
   // Verificar si hay filtros activos
   const hasActiveFilters = Boolean(searchQuery || statusFilter !== "all" || organizerFilter !== "all" || fromDate || toDate);
@@ -398,21 +403,26 @@ export default function ModernReservationsClient({ initialReservations, organize
   };
 
   // Anular reserva
-  const handleCancelReservation = async (id: string) => {
-    if (!confirm("⚠️ ¿Estás seguro de anular esta reserva? Se enviará un email al cliente notificándole la cancelación.")) return;
-    
+  const handleCancelReservation = (id: string) => {
+    setCancelReservationId(id);
+  };
+
+  const confirmCancelReservation = async () => {
+    if (!cancelReservationId) return;
+    setCancelPending(true);
     try {
       const res = await authedFetch("/api/reservations/update", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id, status: "rejected" }),
+        body: JSON.stringify({ id: cancelReservationId, status: "rejected" }),
       });
       
       const data = await res.json();
       
       if (res.ok && data.success) {
+        setCancelReservationId(null);
         if (data.emailError) {
           alert(`✅ Reserva anulada, pero hubo un error al enviar el correo: ${data.emailError}`);
         } else if (data.emailSent) {
@@ -422,12 +432,17 @@ export default function ModernReservationsClient({ initialReservations, organize
         }
         window.location.reload();
       } else {
-        alert(`❌ Error al anular reserva: ${data.error || "Error desconocido"}`);
+        const details = Array.isArray(data?.cancellationErrors) ? data.cancellationErrors.join(" | ") : "";
+        alert(
+          `❌ Error al anular reserva: ${data.error || "Error desconocido"}${details ? `\n\nDetalle técnico: ${details}` : ""}`
+        );
         console.error("Error:", data);
       }
     } catch (err: any) {
       alert(`❌ Error al anular reserva: ${err.message}`);
       console.error("Error:", err);
+    } finally {
+      setCancelPending(false);
     }
   };
 
@@ -468,9 +483,16 @@ export default function ModernReservationsClient({ initialReservations, organize
     }
     
     if (statusFilter !== "all") {
-      filtered = filtered.filter(reservation => 
-        reservation.status?.toLowerCase() === statusFilter
-      );
+      filtered = filtered.filter((reservation) => {
+        const normalized = reservation.status?.toLowerCase() || "";
+        if (statusFilter === "approved") {
+          return normalized === "approved" || normalized === "confirmed";
+        }
+        if (statusFilter === "rejected") {
+          return normalized === "rejected" || normalized === "cancelled";
+        }
+        return normalized === statusFilter;
+      });
     }
     
     if (organizerFilter !== "all") {
@@ -538,8 +560,13 @@ export default function ModernReservationsClient({ initialReservations, organize
             <span className="text-base">✅</span>
             <div>
               <p className="text-xs text-slate-400">Confirmadas</p>
-              <p className="text-base font-bold text-green-400">
-                {reservations.filter(r => r.status?.toLowerCase() === "confirmed").length}
+                <p className="text-base font-bold text-green-400">
+                {
+                  reservations.filter((r) => {
+                    const normalized = r.status?.toLowerCase();
+                    return normalized === "approved" || normalized === "confirmed";
+                  }).length
+                }
               </p>
             </div>
           </div>
@@ -605,6 +632,46 @@ export default function ModernReservationsClient({ initialReservations, organize
         enableVirtualization={filteredReservations.length > 50}
         emptyMessage="🔍 No se encontraron reservas con los filtros aplicados"
       />
+
+      <AlertDialog.Root
+        open={Boolean(cancelReservationId)}
+        onOpenChange={(open) => {
+          if (!open && !cancelPending) setCancelReservationId(null);
+        }}
+      >
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+          <AlertDialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] rounded-lg border border-slate-700 bg-slate-900 p-6 shadow-xl">
+            <AlertDialog.Title className="text-lg font-semibold text-white">
+              ¿Anular reserva?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="mt-3 text-sm text-slate-300">
+              Se enviará un correo de cancelación al cliente.
+              <br />
+              <br />
+              También se invalidarán los códigos de mesa y se cancelarán los tickets vinculados a esta reserva, por lo que dejarán de verse como activos en Tickets/QR.
+            </AlertDialog.Description>
+
+            <div className="mt-6 flex gap-3 justify-end">
+              <AlertDialog.Cancel asChild>
+                <button
+                  disabled={cancelPending}
+                  className="px-4 py-2 rounded-lg border border-slate-600 text-sm font-medium text-slate-200 transition-all hover:border-slate-500 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              </AlertDialog.Cancel>
+              <button
+                onClick={confirmCancelReservation}
+                disabled={cancelPending}
+                className="px-4 py-2 rounded-lg bg-red-600 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"
+              >
+                {cancelPending ? "Anulando..." : "Sí, anular"}
+              </button>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
 
       {/* Modal de creación */}
       <CreateReservationModal

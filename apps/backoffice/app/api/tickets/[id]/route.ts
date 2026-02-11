@@ -41,8 +41,9 @@ export async function GET(
           event_id,
           code_id,
           promoter_id,
+          table_reservation_id,
           event:events(name),
-          code:codes(code,promoter_id),
+          code:codes(id,code,promoter_id,table_reservation_id),
           promoter:promoters(code,person:persons(first_name,last_name))
         `)
         .eq("id", id)
@@ -73,12 +74,38 @@ export async function GET(
       promoterRel?.code ||
       null;
 
-    // No buscar mesa/producto - los tickets gratuitos NO tienen mesa/producto
-    // Solo los tickets de reservas aprobadas tienen esta info
-    const tableCodes: string[] = [];
-    const tableName: string | null = null;
-    const productName: string | null = null;
-    const productItems: string[] | null = null;
+    const tableReservationId = (data as any).table_reservation_id || codeRel?.table_reservation_id || null;
+    let tableCodes: string[] = [];
+    let tableName: string | null = null;
+    let productName: string | null = null;
+    let productItems: string[] | null = null;
+
+    if (tableReservationId) {
+      const reservationQuery = applyNotDeleted(
+        supabase
+          .from("table_reservations")
+          .select("codes,table:tables(name),product:table_products(name,items)")
+          .eq("id", tableReservationId)
+          .limit(1)
+      );
+      const { data: reservationRow } = await reservationQuery.maybeSingle();
+      if (reservationRow) {
+        tableCodes = Array.isArray((reservationRow as any).codes)
+          ? ((reservationRow as any).codes as any[]).map((value) => String(value || "").trim()).filter(Boolean)
+          : [];
+
+        const tableRel = Array.isArray((reservationRow as any).table)
+          ? (reservationRow as any).table[0]
+          : (reservationRow as any).table;
+        const productRel = Array.isArray((reservationRow as any).product)
+          ? (reservationRow as any).product[0]
+          : (reservationRow as any).product;
+
+        tableName = tableRel?.name || null;
+        productName = productRel?.name || null;
+        productItems = Array.isArray(productRel?.items) ? productRel.items : null;
+      }
+    }
 
     const ticket = {
       id: data.id,

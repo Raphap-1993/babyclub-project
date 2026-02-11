@@ -86,6 +86,21 @@ export async function POST(req: NextRequest) {
   let ticketId: string | null = (reservation as any).ticket_id || null;
   let ticketCode: string | null = null;
 
+  if (!ticketId) {
+    const { data: ticketByReservation } = await supabase
+      .from("tickets")
+      .select("id")
+      .eq("table_reservation_id", id)
+      .is("deleted_at", null)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ticketByReservation?.id) {
+      ticketId = ticketByReservation.id;
+    }
+  }
+
   if (!ticketId && codesList.length > 0) {
     const { data: codeRows } = await supabase.from("codes").select("id,code").in("code", codesList);
     const codeIds = (codeRows || []).map((row: any) => row.id).filter(Boolean);
@@ -128,6 +143,10 @@ export async function POST(req: NextRequest) {
           document: (reservation as any).document || "",
           promoterId: (reservation as any).promoter_id || null,
           reuseCodes: codesList,
+          codeType: "table",
+          tableId: tableRel?.id || null,
+          productId: null,
+          tableReservationId: id,
         });
         ticketId = createdTicketId;
         ticketCode = code;

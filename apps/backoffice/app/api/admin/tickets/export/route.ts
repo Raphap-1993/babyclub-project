@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       .select("id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)", {
         count: "exact",
       })
+      .eq("is_active", true)
       .order("created_at", { ascending: false })
       // límite para evitar respuestas gigantes y respetar el tope de PostgREST
       .limit(5000)
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
     promoterLabel = personName || promoterRows?.code || promoter_id;
 
     const { data: codesByPromoter } = await applyNotDeleted(
-      supabase.from("codes").select("id").eq("promoter_id", promoter_id)
+      supabase.from("codes").select("id").eq("promoter_id", promoter_id).eq("is_active", true)
     );
     const codeIdsForPromoter = (codesByPromoter || []).map((c: any) => c.id).filter(Boolean);
     const promoterFilters = [`promoter_id.eq.${promoter_id}`];

@@ -95,23 +95,29 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
   const handleCancelReservation = async () => {
     if (!reservation || actionLoading) return;
     
-    if (!confirm("⚠️ ¿Estás seguro de anular esta reserva? Esta acción no se puede deshacer.")) return;
+    if (!confirm("⚠️ ¿Estás seguro de anular esta reserva? Se invalidarán sus códigos/tickets y se notificará por correo.")) return;
     
     setActionLoading(true);
     try {
-      const res = await authedFetch(`/api/admin/reservations/${reservationId}`, {
-        method: "PATCH",
+      const res = await authedFetch(`/api/reservations/update`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "rejected" }),
+        body: JSON.stringify({ id: reservationId, status: "rejected" }),
       });
+      const data = await res.json().catch(() => ({} as any));
       
-      if (res.ok) {
-        alert("✅ Reserva anulada");
+      if (res.ok && data?.success) {
+        if (data?.emailError) {
+          alert(`✅ Reserva anulada, pero hubo un problema al enviar el correo: ${data.emailError}`);
+        } else if (data?.emailSent) {
+          alert("✅ Reserva anulada y correo de notificación enviado");
+        } else {
+          alert("✅ Reserva anulada");
+        }
         onUpdate?.();
         onClose();
       } else {
-        const data = await res.json();
-        alert(`❌ Error: ${data.error || "No se pudo anular la reserva"}`);
+        alert(`❌ Error: ${data?.error || "No se pudo anular la reserva"}`);
       }
     } catch (err: any) {
       alert(`❌ Error: ${err.message}`);
