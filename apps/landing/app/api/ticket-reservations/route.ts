@@ -59,18 +59,6 @@ export async function POST(req: NextRequest) {
   if (pricingPhaseRaw && pricingPhaseRaw !== "early_bird" && pricingPhaseRaw !== "all_night") {
     return NextResponse.json({ success: false, error: "pricing_phase inválido" }, { status: 400 });
   }
-  if (requestedTicketSalePhase !== activeTicketSalePhase) {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          activeTicketSalePhase === "early_bird"
-            ? "Ahora solo está habilitado Early Bird. All Night sigue bloqueado."
-            : "Early Bird ya terminó. Ahora solo está habilitado All Night.",
-      },
-      { status: 400 }
-    );
-  }
   if (!voucher_url) {
     return NextResponse.json({ success: false, error: "voucher_url es requerido" }, { status: 400 });
   }
@@ -119,7 +107,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     reservationId: reservation?.id,
-    pricing_phase: activeTicketSalePhase,
-    amount: TICKET_PRICES[activeTicketSalePhase][ticket_quantity as 1 | 2],
+    pricing_phase: requestedTicketSalePhase,
+    amount: TICKET_PRICES[requestedTicketSalePhase][ticket_quantity as 1 | 2],
   });
 }

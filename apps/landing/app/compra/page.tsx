@@ -88,6 +88,9 @@ export default function CompraPage() {
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
   const [ticketVoucherUrl, setTicketVoucherUrl] = useState<string>("");
   const [ticketQuantity, setTicketQuantity] = useState<1 | 2>(1);
+  const [ticketPricingSelection, setTicketPricingSelection] = useState<TicketSalePhase>(
+    (process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird").toLowerCase() === "all_night" ? "all_night" : "early_bird"
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [ticketIsDragging, setTicketIsDragging] = useState(false);
   const defaultCode = process.env.NEXT_PUBLIC_DEFAULT_CODE || "public";
@@ -150,6 +153,7 @@ export default function CompraPage() {
     setTicketModalError(null);
     setTicketUploading(false);
     setTicketQuantity(1);
+    setTicketPricingSelection((process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird").toLowerCase() === "all_night" ? "all_night" : "early_bird");
   };
 
   const clearMesaInputs = () => {
@@ -382,10 +386,6 @@ export default function CompraPage() {
     }
   };
 
-  const ticketPricingPhaseEnv = (process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird").toLowerCase();
-  const ticketSalePhase: TicketSalePhase = ticketPricingPhaseEnv === "all_night" ? "all_night" : "early_bird";
-  const earlyBirdEndsLabel = process.env.NEXT_PUBLIC_EARLY_BIRD_ENDS_LABEL || "13 feb, 11:59 p. m.";
-  const isEarlyBirdActive = ticketSalePhase === "early_bird";
   const earlyBirdPriceSingle = 15;
   const earlyBirdPriceDouble = 25;
   const allNightPriceSingle = 20;
@@ -393,14 +393,18 @@ export default function CompraPage() {
 
   // header text tweak
   const headerSubtitle = "Genera tu entrada o reserva tu mesa con voucher (Yape/Plin) y obtén los QR.";
-  const ticketPrice = isEarlyBirdActive
+  const ticketPrice = ticketPricingSelection === "early_bird"
     ? ticketQuantity === 1
       ? earlyBirdPriceSingle
       : earlyBirdPriceDouble
     : ticketQuantity === 1
       ? allNightPriceSingle
       : allNightPriceDouble;
-  const ticketSaleLabel = isEarlyBirdActive ? "EARLY BABY" : "ALL NIGHT";
+  const ticketSaleLabel = ticketPricingSelection === "early_bird" ? "EARLY BABY" : "ALL NIGHT";
+  const isEarlySoloSelected = ticketPricingSelection === "early_bird" && ticketQuantity === 1;
+  const isEarlyDuoSelected = ticketPricingSelection === "early_bird" && ticketQuantity === 2;
+  const isAllNightSoloSelected = ticketPricingSelection === "all_night" && ticketQuantity === 1;
+  const isAllNightDuoSelected = ticketPricingSelection === "all_night" && ticketQuantity === 2;
   const ticketFullName = buildFullName(ticketForm.nombre, ticketForm.apellido_paterno, ticketForm.apellido_materno);
   const mesaFullName = buildFullName(form.nombre, form.apellido_paterno, form.apellido_materno);
   const ticketNameComplete = Boolean(
@@ -598,7 +602,7 @@ export default function CompraPage() {
         telefono: ticketForm.phone,
         voucher_url: ticketVoucherUrl,
         ticket_quantity: ticketQuantity,
-        pricing_phase: ticketSalePhase,
+        pricing_phase: ticketPricingSelection,
       };
       const res = await fetch("/api/ticket-reservations", {
         method: "POST",
@@ -700,103 +704,86 @@ export default function CompraPage() {
         {mode === "ticket" && (
           <form onSubmit={onSubmitTicket} className="space-y-4 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
             <div className="space-y-3">
-              <div
-                className={`rounded-xl border px-3 py-2 text-xs ${
-                  isEarlyBirdActive
-                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-                    : "border-[#e91e63]/50 bg-[#e91e63]/10 text-[#ffd3e5]"
-                }`}
-              >
-                {isEarlyBirdActive ? (
-                  <span>
-                    EARLY BIRD activo. Termina: <strong>{earlyBirdEndsLabel}</strong>.
-                  </span>
-                ) : (
-                  <span>
-                    EARLY BIRD finalizado. Ahora está activo <strong>ALL NIGHT</strong>.
-                  </span>
-                )}
-              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <label
-                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
-                    isEarlyBirdActive
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                    isEarlySoloSelected
                       ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
-                      : "border-white/10 bg-[#0a0a0a] text-white/45"
+                      : "border-white/10 bg-[#0a0a0a] text-white"
                   }`}
                 >
                   <input
                     type="radio"
                     name="ticketQty"
-                    checked={isEarlyBirdActive && ticketQuantity === 1}
-                    onChange={() => setTicketQuantity(1)}
-                    disabled={!isEarlyBirdActive}
+                    checked={isEarlySoloSelected}
+                    onChange={() => {
+                      setTicketPricingSelection("early_bird");
+                      setTicketQuantity(1);
+                    }}
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>1 QR EARLY BABY - S/ {earlyBirdPriceSingle}</span>
-                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/70" : "text-white/35"}`}>
-                    Incluye 1 trago de cortesía
-                  </span>
+                  <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
                 </label>
                 <label
-                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
-                    isEarlyBirdActive
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                    isEarlyDuoSelected
                       ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
-                      : "border-white/10 bg-[#0a0a0a] text-white/45"
+                      : "border-white/10 bg-[#0a0a0a] text-white"
                   }`}
                 >
                   <input
                     type="radio"
                     name="ticketQty"
-                    checked={isEarlyBirdActive && ticketQuantity === 2}
-                    onChange={() => setTicketQuantity(2)}
-                    disabled={!isEarlyBirdActive}
+                    checked={isEarlyDuoSelected}
+                    onChange={() => {
+                      setTicketPricingSelection("early_bird");
+                      setTicketQuantity(2);
+                    }}
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>2 QR EARLY BABY - S/ {earlyBirdPriceDouble}</span>
-                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/70" : "text-white/35"}`}>
-                    Incluye 2 tragos de cortesía
-                  </span>
+                  <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
                 </label>
                 <label
-                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
-                    isEarlyBirdActive
-                      ? "border-white/10 bg-[#0a0a0a] text-white/45"
-                      : "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                    isAllNightSoloSelected
+                      ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                      : "border-white/10 bg-[#0a0a0a] text-white"
                   }`}
                 >
                   <input
                     type="radio"
                     name="ticketQty"
-                    checked={!isEarlyBirdActive && ticketQuantity === 1}
-                    onChange={() => setTicketQuantity(1)}
-                    disabled={isEarlyBirdActive}
+                    checked={isAllNightSoloSelected}
+                    onChange={() => {
+                      setTicketPricingSelection("all_night");
+                      setTicketQuantity(1);
+                    }}
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>1 QR ALL NIGHT - S/ {allNightPriceSingle}</span>
-                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/35" : "text-white/70"}`}>
-                    {isEarlyBirdActive ? "Bloqueado hasta fin de Early Bird" : "Incluye 1 trago de cortesía"}
-                  </span>
+                  <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
                 </label>
                 <label
-                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
-                    isEarlyBirdActive
-                      ? "border-white/10 bg-[#0a0a0a] text-white/45"
-                      : "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                    isAllNightDuoSelected
+                      ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                      : "border-white/10 bg-[#0a0a0a] text-white"
                   }`}
                 >
                   <input
                     type="radio"
                     name="ticketQty"
-                    checked={!isEarlyBirdActive && ticketQuantity === 2}
-                    onChange={() => setTicketQuantity(2)}
-                    disabled={isEarlyBirdActive}
+                    checked={isAllNightDuoSelected}
+                    onChange={() => {
+                      setTicketPricingSelection("all_night");
+                      setTicketQuantity(2);
+                    }}
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>2 QR ALL NIGHT - S/ {allNightPriceDouble}</span>
-                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/35" : "text-white/70"}`}>
-                    {isEarlyBirdActive ? "Bloqueado hasta fin de Early Bird" : "Incluye 2 tragos de cortesía"}
-                  </span>
+                  <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
                 </label>
               </div>
             </div>
