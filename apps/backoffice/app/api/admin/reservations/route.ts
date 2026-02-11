@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createTicketForReservation, generateCourtesyCodes, createReservationCodes } from "../../reservations/utils";
+import { createTicketForReservation, createReservationCodes } from "../../reservations/utils";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb } from "shared/limaTime";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
@@ -212,6 +212,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: resError?.message || "No se pudo crear la reserva" }, { status: 500 });
       }
 
+      const { error: linkExistingTicketError } = await supabase
+        .from("tickets")
+        .update({
+          table_reservation_id: reservation.id,
+          table_id,
+          product_id: product_id || null,
+        })
+        .eq("id", ticket.id);
+      if (linkExistingTicketError) {
+        return NextResponse.json({ success: false, error: linkExistingTicketError.message }, { status: 500 });
+      }
+
       // Generate individual friendly codes
       const eventPrefix = eventData?.event_prefix || "BC";
       const quantity = table.ticket_count || 1;
@@ -275,6 +287,9 @@ export async function POST(req: NextRequest) {
       docType,
       document,
       reuseCodes: providedCodes,
+      codeType: "table",
+      tableId: table_id,
+      productId: product_id || null,
     });
 
     // Create reservation first
@@ -301,6 +316,14 @@ export async function POST(req: NextRequest) {
 
     if (resError || !reservation?.id) {
       return NextResponse.json({ success: false, error: resError?.message || "No se pudo crear la reserva" }, { status: 500 });
+    }
+
+    const { error: linkNewTicketError } = await supabase
+      .from("tickets")
+      .update({ table_reservation_id: reservation.id })
+      .eq("id", ticketResult.ticketId);
+    if (linkNewTicketError) {
+      return NextResponse.json({ success: false, error: linkNewTicketError.message }, { status: 500 });
     }
 
     // Generate individual friendly codes

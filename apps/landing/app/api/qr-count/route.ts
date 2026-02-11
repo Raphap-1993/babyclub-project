@@ -25,6 +25,8 @@ export async function GET(request: Request) {
   const { count, error } = await supabase
     .from("tickets")
     .select("id", { count: "exact", head: true })
+    .eq("is_active", true)
+    .is("deleted_at", null)
     .eq("event_id", eventId);
 
   if (error) {

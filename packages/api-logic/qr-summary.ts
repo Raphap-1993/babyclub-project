@@ -20,7 +20,14 @@ type EventRow = {
 
 type TicketWithCodeRow = {
   event_id: string | null;
-  code: { type: string | null } | { type: string | null }[] | null;
+  code_id: string | null;
+};
+
+type CodeRow = {
+  id: string;
+  type: string | null;
+  table_reservation_id: string | null;
+  is_active: boolean | null;
 };
 
 export async function getQrSummaryAll({
@@ -32,14 +39,14 @@ export async function getQrSummaryAll({
 }): Promise<QRSummary[]> {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const nowIso = new Date().toISOString();
+  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: eventsRaw, error: eventsError } = await supabase
     .from("events")
     .select("id,name,starts_at,is_active,force_closed,deleted_at")
     .is("deleted_at", null)
     .eq("is_active", true)
     .or("force_closed.is.null,force_closed.eq.false")
-    .gte("starts_at", nowIso)
+    .gte("starts_at", cutoffIso)
     .order("starts_at", { ascending: true });
 
   if (eventsError || !eventsRaw) {
@@ -54,9 +61,30 @@ export async function getQrSummaryAll({
   const eventIds = events.map(event => event.id);
   const { data: ticketsRaw, error: ticketsError } = await supabase
     .from("tickets")
-    .select("event_id,code:codes(type)")
+    .select("event_id,code_id")
     .is("deleted_at", null)
+    .eq("is_active", true)
     .in("event_id", eventIds);
+
+  const codeIds = Array.from(
+    new Set(((ticketsRaw as TicketWithCodeRow[] | null) || []).map((ticket) => ticket.code_id).filter(Boolean) as string[])
+  );
+
+  let codeMap = new Map<string, CodeRow>();
+  let codesErrorMessage: string | undefined;
+
+  if (codeIds.length > 0) {
+    const { data: codesRaw, error: codesError } = await supabase
+      .from("codes")
+      .select("id,type,table_reservation_id,is_active")
+      .is("deleted_at", null)
+      .in("id", codeIds);
+    if (codesError) {
+      codesErrorMessage = codesError.message;
+    } else {
+      codeMap = new Map(((codesRaw || []) as CodeRow[]).map((code) => [code.id, code]));
+    }
+  }
 
   const byEvent: Record<string, { by_type: Record<string, number>; total_qr: number }> = {};
 
@@ -64,8 +92,12 @@ export async function getQrSummaryAll({
     const eid = row.event_id;
     if (!eid) return;
 
-    const codeRow = Array.isArray(row.code) ? row.code[0] : row.code;
-    const type = codeRow?.type || "desconocido";
+    const codeRow = row.code_id ? codeMap.get(row.code_id) : null;
+    if (codeRow && codeRow.is_active === false) {
+      return;
+    }
+
+    const type = codeRow?.table_reservation_id ? "table" : codeRow?.type || "desconocido";
 
     if (!byEvent[eid]) {
       byEvent[eid] = { by_type: {}, total_qr: 0 };
@@ -81,6 +113,6 @@ export async function getQrSummaryAll({
     date: event.starts_at || "",
     total_qr: byEvent[event.id]?.total_qr || 0,
     by_type: byEvent[event.id]?.by_type || {},
-    error: ticketsError ? ticketsError.message : undefined,
+    error: ticketsError?.message || codesErrorMessage,
   }));
 }

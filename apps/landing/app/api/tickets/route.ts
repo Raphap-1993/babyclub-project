@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
   const codeQuery = applyNotDeleted(
     supabase
       .from("codes")
-      .select("id,code,event_id,promoter_id,is_active,max_uses,uses,expires_at")
+      .select("id,code,event_id,promoter_id,is_active,max_uses,uses,expires_at,table_reservation_id,type")
       .eq("code", codeValue)
   );
   const { data: codeRow, error: codeError } = await codeQuery.maybeSingle();
@@ -86,7 +86,52 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código sin cupos" }, { status: 400 });
   }
 
-  const eventId = codeRow.event_id || "";
+  let reservationContext: {
+    id: string;
+    table_id: string | null;
+    product_id: string | null;
+    event_id: string | null;
+    status: string | null;
+  } | null = null;
+
+  if ((codeRow as any).table_reservation_id) {
+    const reservationQuery = applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select("id,event_id,table_id,product_id,status")
+        .eq("id", (codeRow as any).table_reservation_id)
+    );
+    const { data: reservationRow, error: reservationError } = await reservationQuery.maybeSingle();
+
+    if (reservationError) {
+      return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
+    }
+    if (!reservationRow) {
+      return NextResponse.json({ success: false, error: "Código de mesa sin reserva válida" }, { status: 400 });
+    }
+
+    reservationContext = {
+      id: (reservationRow as any).id,
+      table_id: (reservationRow as any).table_id || null,
+      product_id: (reservationRow as any).product_id || null,
+      event_id: (reservationRow as any).event_id || null,
+      status: (reservationRow as any).status || null,
+    };
+
+    const reservationStatus = String(reservationContext.status || "").toLowerCase();
+    const activeReservationStatuses = new Set(["approved", "confirmed", "paid"]);
+    if (reservationStatus && !activeReservationStatuses.has(reservationStatus)) {
+      return NextResponse.json(
+        { success: false, error: "Tu reserva de mesa aún no está aprobada para generar este QR" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const eventId = codeRow.event_id || reservationContext?.event_id || "";
+  if (!eventId) {
+    return NextResponse.json({ success: false, error: "Código sin evento asociado" }, { status: 400 });
+  }
 
   // Persona
   const personPayload = {
@@ -185,6 +230,9 @@ export async function POST(req: NextRequest) {
       full_name,
       email: email || null,
       phone: phone || null,
+      table_id: reservationContext?.table_id || null,
+      product_id: reservationContext?.product_id || null,
+      table_reservation_id: reservationContext?.id || (codeRow as any).table_reservation_id || null,
     })
     .select("id")
     .single();

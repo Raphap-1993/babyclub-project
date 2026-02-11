@@ -38,6 +38,8 @@ type EventOption = {
   is_active?: boolean | null;
 };
 
+type TicketSalePhase = "early_bird" | "all_night";
+
 export default function CompraPage() {
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -380,12 +382,25 @@ export default function CompraPage() {
     }
   };
 
-  const ticketPriceSingle = 20;
-  const ticketPriceDouble = 35;
+  const ticketPricingPhaseEnv = (process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird").toLowerCase();
+  const ticketSalePhase: TicketSalePhase = ticketPricingPhaseEnv === "all_night" ? "all_night" : "early_bird";
+  const earlyBirdEndsLabel = process.env.NEXT_PUBLIC_EARLY_BIRD_ENDS_LABEL || "13 feb, 11:59 p. m.";
+  const isEarlyBirdActive = ticketSalePhase === "early_bird";
+  const earlyBirdPriceSingle = 15;
+  const earlyBirdPriceDouble = 25;
+  const allNightPriceSingle = 20;
+  const allNightPriceDouble = 35;
 
   // header text tweak
   const headerSubtitle = "Genera tu entrada o reserva tu mesa con voucher (Yape/Plin) y obtén los QR.";
-  const ticketPrice = ticketQuantity === 1 ? ticketPriceSingle : ticketPriceDouble;
+  const ticketPrice = isEarlyBirdActive
+    ? ticketQuantity === 1
+      ? earlyBirdPriceSingle
+      : earlyBirdPriceDouble
+    : ticketQuantity === 1
+      ? allNightPriceSingle
+      : allNightPriceDouble;
+  const ticketSaleLabel = isEarlyBirdActive ? "EARLY BABY" : "ALL NIGHT";
   const ticketFullName = buildFullName(ticketForm.nombre, ticketForm.apellido_paterno, ticketForm.apellido_materno);
   const mesaFullName = buildFullName(form.nombre, form.apellido_paterno, form.apellido_materno);
   const ticketNameComplete = Boolean(
@@ -583,6 +598,7 @@ export default function CompraPage() {
         telefono: ticketForm.phone,
         voucher_url: ticketVoucherUrl,
         ticket_quantity: ticketQuantity,
+        pricing_phase: ticketSalePhase,
       };
       const res = await fetch("/api/ticket-reservations", {
         method: "POST",
@@ -683,29 +699,106 @@ export default function CompraPage() {
 
         {mode === "ticket" && (
           <form onSubmit={onSubmitTicket} className="space-y-4 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
-                <input
-                  type="radio"
-                  name="ticketQty"
-                  checked={ticketQuantity === 1}
-                  onChange={() => setTicketQuantity(1)}
-                  className="h-4 w-4 accent-[#e91e63]"
-                />
-                <span>1 QR ALL NIGHT – S/ {ticketPriceSingle}</span>
-                <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
-              </label>
-              <label className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white">
-                <input
-                  type="radio"
-                  name="ticketQty"
-                  checked={ticketQuantity === 2}
-                  onChange={() => setTicketQuantity(2)}
-                  className="h-4 w-4 accent-[#e91e63]"
-                />
-                <span>2 QR ALL NIGHT – S/ {ticketPriceDouble}</span>
-                <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
-              </label>
+            <div className="space-y-3">
+              <div
+                className={`rounded-xl border px-3 py-2 text-xs ${
+                  isEarlyBirdActive
+                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                    : "border-[#e91e63]/50 bg-[#e91e63]/10 text-[#ffd3e5]"
+                }`}
+              >
+                {isEarlyBirdActive ? (
+                  <span>
+                    EARLY BIRD activo. Termina: <strong>{earlyBirdEndsLabel}</strong>.
+                  </span>
+                ) : (
+                  <span>
+                    EARLY BIRD finalizado. Ahora está activo <strong>ALL NIGHT</strong>.
+                  </span>
+                )}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    isEarlyBirdActive
+                      ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                      : "border-white/10 bg-[#0a0a0a] text-white/45"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="ticketQty"
+                    checked={isEarlyBirdActive && ticketQuantity === 1}
+                    onChange={() => setTicketQuantity(1)}
+                    disabled={!isEarlyBirdActive}
+                    className="h-4 w-4 accent-[#e91e63]"
+                  />
+                  <span>1 QR EARLY BABY - S/ {earlyBirdPriceSingle}</span>
+                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/70" : "text-white/35"}`}>
+                    Incluye 1 trago de cortesía
+                  </span>
+                </label>
+                <label
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    isEarlyBirdActive
+                      ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                      : "border-white/10 bg-[#0a0a0a] text-white/45"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="ticketQty"
+                    checked={isEarlyBirdActive && ticketQuantity === 2}
+                    onChange={() => setTicketQuantity(2)}
+                    disabled={!isEarlyBirdActive}
+                    className="h-4 w-4 accent-[#e91e63]"
+                  />
+                  <span>2 QR EARLY BABY - S/ {earlyBirdPriceDouble}</span>
+                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/70" : "text-white/35"}`}>
+                    Incluye 2 tragos de cortesía
+                  </span>
+                </label>
+                <label
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    isEarlyBirdActive
+                      ? "border-white/10 bg-[#0a0a0a] text-white/45"
+                      : "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="ticketQty"
+                    checked={!isEarlyBirdActive && ticketQuantity === 1}
+                    onChange={() => setTicketQuantity(1)}
+                    disabled={isEarlyBirdActive}
+                    className="h-4 w-4 accent-[#e91e63]"
+                  />
+                  <span>1 QR ALL NIGHT - S/ {allNightPriceSingle}</span>
+                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/35" : "text-white/70"}`}>
+                    {isEarlyBirdActive ? "Bloqueado hasta fin de Early Bird" : "Incluye 1 trago de cortesía"}
+                  </span>
+                </label>
+                <label
+                  className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    isEarlyBirdActive
+                      ? "border-white/10 bg-[#0a0a0a] text-white/45"
+                      : "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="ticketQty"
+                    checked={!isEarlyBirdActive && ticketQuantity === 2}
+                    onChange={() => setTicketQuantity(2)}
+                    disabled={isEarlyBirdActive}
+                    className="h-4 w-4 accent-[#e91e63]"
+                  />
+                  <span>2 QR ALL NIGHT - S/ {allNightPriceDouble}</span>
+                  <span className={`text-xs font-normal ${isEarlyBirdActive ? "text-white/35" : "text-white/70"}`}>
+                    {isEarlyBirdActive ? "Bloqueado hasta fin de Early Bird" : "Incluye 2 tragos de cortesía"}
+                  </span>
+                </label>
+              </div>
             </div>
             {ticketEventOptions.length > 0 && (
               <div className="space-y-2">
@@ -780,7 +873,7 @@ export default function CompraPage() {
             {ticketError && <p className="text-xs font-semibold text-[#ff9a9a]">{ticketError}</p>}
             {ticketReservationId && (
               <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-white">
-                Reserva enviada. Te confirmaremos por correo tras validar el pago.
+                Solicitud enviada. El equipo BABY validará tu pago y recibirás la confirmación en tu bandeja de correo.
               </div>
             )}
             <button
@@ -1221,6 +1314,12 @@ export default function CompraPage() {
                 </div>
               )}
               <div className="flex items-center justify-between">
+                <span>Modalidad</span>
+                <span className="font-semibold text-white">
+                  {ticketSaleLabel} • {ticketQuantity === 1 ? "SOLO" : "DUO"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span>Nombre</span>
                 <span className="font-semibold text-white">{ticketFullName || "—"}</span>
               </div>
@@ -1336,7 +1435,8 @@ export default function CompraPage() {
             {ticketModalError && <p className="text-xs font-semibold text-[#ff9a9a]">{ticketModalError}</p>}
 
             <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
-              Validaremos el pago manualmente. Te confirmaremos por correo tu entrada en los próximos minutos.
+              Recibimos tu solicitud de compra. El equipo BABY validará el pago y te enviaremos la confirmación a tu
+              bandeja de correo.
             </div>
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1364,10 +1464,12 @@ export default function CompraPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
           <div className="w-full max-w-lg space-y-5 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500/80">✓ Reserva recibida</p>
-              <h3 className="text-2xl font-semibold">Validaremos tu pago</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500/80">
+                ✓ Solicitud recibida
+              </p>
+              <h3 className="text-2xl font-semibold">Revisaremos tu solicitud de compra</h3>
               <p className="text-sm text-white/70">
-                Revisaremos tu comprobante y te confirmaremos por correo con tu entrada y QR.
+                El equipo BABY validará tu comprobante y te confirmaremos por correo en tu bandeja con tu entrada y QR.
               </p>
             </div>
             
@@ -1387,7 +1489,7 @@ export default function CompraPage() {
                   </button>
                 </div>
                 <p className="text-xs text-white/60">
-                  Guarda este código para consultar el estado de tu entrada.
+                  Guarda este código para consultar el estado de tu solicitud.
                 </p>
               </div>
             )}

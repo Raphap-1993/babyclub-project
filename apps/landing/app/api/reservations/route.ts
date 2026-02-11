@@ -6,6 +6,13 @@ import { applyNotDeleted } from "shared/db/softDelete";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+function isCodesTypeCheckError(error: any): boolean {
+  if (!error) return false;
+  const message = String(error?.message || "");
+  const details = String(error?.details || "");
+  return error?.code === "23514" && /codes_type_check/i.test(`${message} ${details}`);
+}
+
 export async function POST(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
@@ -148,15 +155,17 @@ export async function POST(req: NextRequest) {
 
   let codesList: string[] = [];
   if (codesToGenerate > 0 && effectiveEventId) {
-    const buildCodes = () =>
+    const buildCodes = (typeValue: "table" | "courtesy") =>
       Array.from({ length: codesToGenerate }, (_, idx) => {
         const randomNum = Math.floor(1000 + Math.random() * 9000);
         const codeValue = `${friendlyBase}${randomNum}`;
         return {
           code: codeValue,
           event_id: effectiveEventId,
-          type: "courtesy",
+          type: typeValue,
           promoter_id: null,
+          table_reservation_id: reservationId,
+          person_index: idx + 1,
           is_active: true,
           max_uses: 1,
           uses: 0,
@@ -165,17 +174,25 @@ export async function POST(req: NextRequest) {
       });
 
     let attempts = 0;
+    let codeType: "table" | "courtesy" = "table";
     while (attempts < 5) {
       attempts++;
-      const codesToInsert = buildCodes();
+      const codesToInsert = buildCodes(codeType);
       const { data: codes, error: codeError } = await supabase.from("codes").insert(codesToInsert).select("code");
       if (!codeError) {
         codesList = codes?.map((c: any) => c.code) || [];
         await supabase.from("table_reservations").update({ codes: codesList }).eq("id", reservationId);
         break;
       }
+      if (codeType === "table" && isCodesTypeCheckError(codeError)) {
+        codeType = "courtesy";
+        continue;
+      }
       if (codeError.code !== "23505" || attempts >= 5) {
-        return NextResponse.json({ success: false, error: codeError.message }, { status: 500 });
+        const readableError = isCodesTypeCheckError(codeError)
+          ? "No se pudo generar los códigos de reserva en este ambiente. Actualiza migraciones de BD."
+          : codeError.message;
+        return NextResponse.json({ success: false, error: readableError }, { status: 500 });
       }
     }
   }

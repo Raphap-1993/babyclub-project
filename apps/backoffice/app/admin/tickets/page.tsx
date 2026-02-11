@@ -17,6 +17,7 @@ type TicketRow = {
   event_name: string | null;
   code_value: string | null;
   promoter_name: string | null;
+  table_name: string | null;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -42,9 +43,10 @@ async function getTickets(params: {
     supabase
       .from("tickets")
       .select(
-        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)",
+        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,promoter_id,table_reservation_id)",
         { count: "exact" }
       )
+      .eq("is_active", true)
       .order("created_at", { ascending: false })
       .range(start, end)
   );
@@ -68,7 +70,7 @@ async function getTickets(params: {
   if (params.promoter_id) {
     // Traemos los IDs de códigos asignados a ese promotor para filtrar también por code_id y evitar parsers raros en Supabase.
     const { data: codesByPromoter } = await applyNotDeleted(
-      supabase.from("codes").select("id").eq("promoter_id", params.promoter_id)
+      supabase.from("codes").select("id").eq("promoter_id", params.promoter_id).eq("is_active", true)
     );
     const codeIdsForPromoter = (codesByPromoter || []).map((c: any) => c.id).filter(Boolean);
     const promoterFilters = [`promoter_id.eq.${params.promoter_id}`];
@@ -102,8 +104,18 @@ async function getTickets(params: {
         .filter(Boolean)
     )
   );
+  const reservationIds = Array.from(
+    new Set(
+      (data as any[])
+        .map((t) => {
+          const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+          return (t as any).table_reservation_id || codeRel?.table_reservation_id || null;
+        })
+        .filter(Boolean)
+    )
+  );
 
-  const [eventsRes, codesRes, promotersRes] = await Promise.all([
+  const [eventsRes, codesRes, promotersRes, reservationsRes] = await Promise.all([
     eventIds.length
       ? applyNotDeleted(supabase.from("events").select("id,name").in("id", eventIds))
       : Promise.resolve({ data: [] as any[], error: null }),
@@ -112,6 +124,9 @@ async function getTickets(params: {
       : Promise.resolve({ data: [] as any[], error: null }),
     promoterIds.length
       ? applyNotDeleted(supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIds))
+      : Promise.resolve({ data: [] as any[], error: null }),
+    reservationIds.length
+      ? applyNotDeleted(supabase.from("table_reservations").select("id,table:tables(name)").in("id", reservationIds))
       : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 
@@ -124,6 +139,11 @@ async function getTickets(params: {
     const personRel = Array.isArray(p.person) ? p.person[0] : p.person;
     const full = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
     promoterMap.set(p.id, full || p.code || "");
+  });
+  const reservationTableMap = new Map<string, string | null>();
+  (reservationsRes.data || []).forEach((reservation: any) => {
+    const tableRel = Array.isArray(reservation.table) ? reservation.table[0] : reservation.table;
+    reservationTableMap.set(reservation.id, tableRel?.name || null);
   });
 
   const normalized: TicketRow[] = (data as any[]).map((t) => ({
@@ -143,6 +163,12 @@ async function getTickets(params: {
       const promoterId = t.promoter_id || codeRel?.promoter_id || null;
       if (!promoterId) return null;
       return promoterMap.get(promoterId) ?? null;
+    })(),
+    table_name: (() => {
+      const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+      const reservationId = (t as any).table_reservation_id || codeRel?.table_reservation_id || null;
+      if (!reservationId) return null;
+      return reservationTableMap.get(reservationId) ?? null;
     })(),
   }));
 

@@ -5,12 +5,15 @@ import { TicketDownloader } from "./TicketDownloader";
 import Link from "next/link";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { getEntryCutoffDisplay } from "shared/entryLimit";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 type TicketView = {
   id: string;
+  event_id: string | null;
+  table_reservation_id: string | null;
   qr_token: string;
   full_name: string | null;
   doc_type: string | null;
@@ -18,7 +21,13 @@ type TicketView = {
   dni: string | null;
   email: string | null;
   phone: string | null;
-  code: { code: string; type?: string | null; expires_at?: string | null; promoter_id?: string | null };
+  code: {
+    code: string;
+    type?: string | null;
+    expires_at?: string | null;
+    promoter_id?: string | null;
+    table_reservation_id?: string | null;
+  };
   event: { name: string; location: string | null; starts_at: string; entry_limit?: string | null };
   promoter?: { code: string | null; person?: { first_name: string; last_name: string } | null } | null;
   reservation_codes?: string[] | null;
@@ -36,7 +45,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,location,starts_at,entry_limit),promoter:promoters(code,person:persons(first_name,last_name))"
+      "id,event_id,table_reservation_id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,location,starts_at,entry_limit),promoter:promoters(code,person:persons(first_name,last_name))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -54,6 +63,8 @@ async function getTicket(id: string): Promise<TicketView | null> {
 
   const normalized: TicketView = {
     id: data.id as string,
+    event_id: (data as any).event_id ?? null,
+    table_reservation_id: (data as any).table_reservation_id ?? codeRel?.table_reservation_id ?? null,
     qr_token: data.qr_token as string,
     full_name: (data as any).full_name ?? null,
     doc_type: (data as any).doc_type ?? ((data as any).document || (data as any).dni ? "dni" : null),
@@ -66,6 +77,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
       type: codeRel?.type ?? null,
       expires_at: codeRel?.expires_at ?? null,
       promoter_id: codeRel?.promoter_id ?? null,
+      table_reservation_id: (data as any).table_reservation_id ?? codeRel?.table_reservation_id ?? null,
     },
     event: {
       name: eventRel?.name ?? "",
@@ -110,6 +122,40 @@ async function getTicket(id: string): Promise<TicketView | null> {
     }
   }
 
+  // Fallback determinístico para tickets antiguos sin table_id/product_id:
+  // resolver mesa/producto/códigos directamente desde table_reservation_id.
+  if (normalized.table_reservation_id) {
+    const reservationQuery = applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select("codes,table:tables(name),product:table_products(name,items)")
+        .eq("id", normalized.table_reservation_id)
+        .limit(1)
+    );
+    const { data: reservationRow } = await reservationQuery.maybeSingle();
+    if (reservationRow) {
+      if (!normalized.table_name) {
+        const tableRel = Array.isArray((reservationRow as any).table)
+          ? (reservationRow as any).table[0]
+          : (reservationRow as any).table;
+        normalized.table_name = tableRel?.name || null;
+      }
+      if (!normalized.product_name) {
+        const productRel = Array.isArray((reservationRow as any).product)
+          ? (reservationRow as any).product[0]
+          : (reservationRow as any).product;
+        normalized.product_name = productRel?.name || null;
+        normalized.product_items = Array.isArray(productRel?.items) ? productRel.items : null;
+      }
+      const codesFromReservation = Array.isArray((reservationRow as any).codes)
+        ? ((reservationRow as any).codes as any[]).map((value) => String(value || "").trim()).filter(Boolean)
+        : [];
+      if (!normalized.reservation_codes || normalized.reservation_codes.length === 0) {
+        normalized.reservation_codes = codesFromReservation;
+      }
+    }
+  }
+
   return normalized;
 }
 
@@ -119,15 +165,42 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  if (Array.isArray(ticket.reservation_codes) && ticket.reservation_codes.length > 0) {
+    return Array.from(new Set(ticket.reservation_codes.map((code) => String(code || "").trim()).filter(Boolean)));
+  }
+
+  if (ticket.table_reservation_id) {
+    const reservationByIdQuery = applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select("codes,status")
+        .eq("id", ticket.table_reservation_id)
+        .limit(1)
+    );
+    const { data: reservationById } = await reservationByIdQuery.maybeSingle();
+    const status = String((reservationById as any)?.status || "").toLowerCase();
+    const activeStatuses = new Set(["approved", "confirmed", "paid"]);
+    if (reservationById && activeStatuses.has(status) && Array.isArray((reservationById as any).codes)) {
+      return ((reservationById as any).codes as any[]).map((code) => String(code || "").trim()).filter(Boolean);
+    }
+  }
+
   const email = ticket.email;
   const phone = ticket.phone;
+  const filters = [email ? `email.eq.${email}` : "", phone ? `phone.eq.${phone}` : ""].filter(Boolean);
+  if (filters.length === 0) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("table_reservations")
-    .select("codes,status,created_at")
-    .or(`email.eq.${email || ""},phone.eq.${phone || ""}`)
+    .select("codes,status,created_at,event_id")
+    .or(filters.join(","))
     .order("created_at", { ascending: false })
     .limit(5);
+  if (ticket.event_id) {
+    query = query.eq("event_id", ticket.event_id);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) return [];
   const activeStatuses = new Set(["approved", "confirmed", "paid"]);
@@ -152,7 +225,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   const extraCodes = await getReservationCodesFor(ticket);
   const codeType = (ticket.code.type || "").toLowerCase();
   const isPromoterCode = Boolean(ticket.code.promoter_id || ticket.promoter?.code);
-  const hasTableContext = Boolean(ticket.table_name || ticket.product_name);
+  const hasTableContext = Boolean(ticket.table_name || ticket.product_name || ticket.table_reservation_id);
   const showAdditionalInfo = codeType === "general" || codeType === "free";
   const expiresAt = ticket.code.expires_at ? new Date(ticket.code.expires_at) : null;
   const expiresLabel = expiresAt ? formatLimaFromDb(expiresAt.toISOString()) : null;
@@ -287,6 +360,7 @@ function VerticalTicket({
           <Info label="Email" value={ticket.email || "—"} />
           <Info label="Teléfono" value={ticket.phone || "—"} />
           <Info label="Promotor" value={promoterName || "Sin promotor"} />
+          {!ticket.table_name && ticket.table_reservation_id && <Info label="Origen" value="Reserva de mesa" />}
           {ticket.table_name && <Info label="Mesa" value={ticket.table_name} />}
           {ticket.product_name && (
             <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0a0a0a] p-3">

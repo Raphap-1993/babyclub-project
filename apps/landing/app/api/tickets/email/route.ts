@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   const codeType = (codeRel?.type || "").toLowerCase();
   const isFreeCode = codeType === "free";
   const isGeneralCode = codeType === "general";
-  const isCourtesyCode = codeType === "courtesy";
+  const isCourtesyCode = codeType === "courtesy" || codeType === "table";
   const isPromoterCode = Boolean(codeRel?.promoter_id);
   const entryCutoff = eventRel?.starts_at ? getEntryCutoffDisplay(eventRel.starts_at, eventRel?.entry_limit) : null;
   const entryLimitLabel = entryCutoff

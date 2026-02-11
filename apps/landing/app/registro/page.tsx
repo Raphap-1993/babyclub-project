@@ -186,7 +186,7 @@ function RegistroContent() {
     return formatDateInput(d);
   }, []);
   const hidePromoterSelect = useMemo(
-    () => (codeInfo?.type || "").toLowerCase() === "courtesy",
+    () => ["courtesy", "table"].includes((codeInfo?.type || "").toLowerCase()),
     [codeInfo]
   );
   const yapeNumber = "950 144 641";

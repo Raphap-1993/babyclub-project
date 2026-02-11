@@ -4,6 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle, Select } from "@repo/ui";
 import type { QRSummary } from "@repo/api-logic/qr-summary";
 
 function TicketsSummaryCard() {
+  const typeLabelMap: Record<string, string> = {
+    table: "Mesa",
+    courtesy: "Cortesia",
+    general: "General",
+    free: "Free",
+  };
   const [events, setEvents] = useState<QRSummary[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [event, setEvent] = useState<QRSummary | null>(null);
@@ -125,7 +131,7 @@ function TicketsSummaryCard() {
               {Object.entries(event.by_type).map(([type, count]) => (
                 <div key={type} className="text-center">
                   <div className="text-lg font-semibold text-white">{count}</div>
-                  <div className="text-xs text-slate-400 capitalize">{type}</div>
+                  <div className="text-xs text-slate-400">{typeLabelMap[type] || type}</div>
                 </div>
               ))}
             </div>

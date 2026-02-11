@@ -18,6 +18,7 @@ type TicketRow = {
   event_name: string | null;
   code_value: string | null;
   promoter_name: string | null;
+  table_name: string | null;
 };
 
 // Componente de paginación externa compacta
@@ -255,11 +256,15 @@ const createTicketsColumns = (): ColumnDef<TicketRow>[] => [
     accessorKey: "event_name",
     header: "Evento",
     size: 100,
-    cell: ({ getValue }) => {
+    cell: ({ row, getValue }) => {
       const eventName = getValue() as string | null;
+      const tableName = row.original.table_name;
       return (
-        <div className="text-xs text-slate-200 truncate" title={eventName || ""}>
-          {eventName || "—"}
+        <div className="min-w-0">
+          <div className="text-xs text-slate-200 truncate" title={eventName || ""}>
+            {eventName || "—"}
+          </div>
+          {tableName ? <div className="text-[11px] text-slate-400 truncate">Mesa: {tableName}</div> : null}
         </div>
       );
     },
