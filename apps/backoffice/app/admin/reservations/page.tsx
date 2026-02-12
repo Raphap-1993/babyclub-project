@@ -21,35 +21,95 @@ type ReservationRow = {
   created_at?: string;
 };
 
+const RETRYABLE_SUPABASE_ERROR = /(error code 522|connection timed out|gateway timeout|service unavailable|fetch failed|network|temporarily unavailable)/i;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function sanitizeErrorMessage(input: unknown): string {
+  const raw = typeof input === "string" ? input : "";
+  const normalized = raw.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Error inesperado al consultar Supabase";
+
+  if (/<(!doctype|html)/i.test(normalized)) {
+    const cloudflareCode = normalized.match(/error code\s+(\d{3})/i)?.[1];
+    if (cloudflareCode) return `Supabase no respondió a tiempo (Cloudflare ${cloudflareCode})`;
+    return "Supabase devolvió una respuesta HTML inesperada";
+  }
+
+  return normalized.length > 220 ? `${normalized.slice(0, 220)}...` : normalized;
+}
+
+function isRetryableSupabaseError(input: unknown): boolean {
+  const raw = typeof input === "string" ? input : "";
+  return RETRYABLE_SUPABASE_ERROR.test(raw);
+}
+
+function getUserFacingError(input: unknown): string {
+  if (isRetryableSupabaseError(input)) {
+    return "No se pudieron cargar reservas por un timeout temporal de Supabase. Reintenta en unos segundos.";
+  }
+  return sanitizeErrorMessage(input);
+}
+
 async function getReservations(): Promise<{ reservations: ReservationRow[]; error?: string }> {
   try {
     if (!supabaseUrl || !supabaseServiceKey) return { reservations: [], error: "Falta configuración de Supabase" };
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    
-    const { data, error } = await applyNotDeleted(
-      supabase
-        .from("table_reservations")
-        .select(`
-          id,
-          friendly_code,
-          full_name,
-          email,
-          phone,
-          status,
-          codes,
-          ticket_quantity,
-          created_at,
-          table_id,
-          event_id
-        `)
-        .order("created_at", { ascending: false })
-    );
-    
-    if (error) {
-      console.error("Error fetching reservations:", error);
-      return { reservations: [], error: error?.message || "No se pudieron cargar reservas" };
+
+    const maxAttempts = 2;
+    let data: any[] | null = null;
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const result = await applyNotDeleted(
+        supabase
+          .from("table_reservations")
+          .select(`
+            id,
+            friendly_code,
+            full_name,
+            email,
+            phone,
+            status,
+            codes,
+            ticket_quantity,
+            created_at,
+            table_id,
+            event_id
+          `)
+          .order("created_at", { ascending: false })
+      );
+
+      if (!result.error) {
+        data = result.data as any[] | null;
+        lastError = null;
+        break;
+      }
+
+      lastError = result.error;
+      const rawMessage = result.error?.message;
+      const retryable = isRetryableSupabaseError(rawMessage);
+      const willRetry = retryable && attempt < maxAttempts;
+
+      console.error("[admin/reservations] fetch failed", {
+        attempt,
+        maxAttempts,
+        retryable,
+        willRetry,
+        message: sanitizeErrorMessage(rawMessage),
+        code: result.error?.code,
+      });
+
+      if (willRetry) {
+        await delay(350 * attempt);
+        continue;
+      }
+    }
+
+    if (lastError) {
+      return { reservations: [], error: getUserFacingError(lastError?.message) };
     }
     
     if (!data || data.length === 0) {
@@ -103,8 +163,11 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
 
     return { reservations: normalized };
   } catch (err: any) {
-    console.error("Unexpected error in getReservations:", err);
-    return { reservations: [], error: `Error inesperado: ${err.message}` };
+    const safeMessage = sanitizeErrorMessage(err?.message || String(err));
+    console.error("[admin/reservations] unexpected getReservations error", {
+      message: safeMessage,
+    });
+    return { reservations: [], error: `Error inesperado: ${safeMessage}` };
   }
 }
 
