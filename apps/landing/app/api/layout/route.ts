@@ -22,25 +22,35 @@ export async function GET(req: NextRequest) {
 
   // Main source: organizers.layout_url (donde se sube desde el backoffice)
   if (organizerId) {
-    const { data: organizerData } = await withSupabaseRetry<{ layout_url: string | null }>("layout.organizer", () =>
-      applyNotDeleted(
-        supabase
-          .from("organizers")
-          .select("layout_url")
-          .eq("id", organizerId)
-      ).maybeSingle()
-    );
+    const { data: organizerData, error: organizerError, retryable: organizerRetryable } =
+      await withSupabaseRetry<{ layout_url: string | null }>(
+        "layout.organizer",
+        () =>
+          applyNotDeleted(
+            supabase
+              .from("organizers")
+              .select("layout_url")
+              .eq("id", organizerId)
+          ).maybeSingle(),
+        1
+      );
 
     if (organizerData?.layout_url) {
       return NextResponse.json({
         layout_url: organizerData.layout_url,
       });
     }
+
+    if (organizerError && organizerRetryable) {
+      return NextResponse.json({ layout_url: null, warning: "temporarily_unavailable" });
+    }
   }
 
   // Fallback: Legacy single layout (backwards compatibility)
-  const { data, error, retryable } = await withSupabaseRetry<{ layout_url: string | null }>("layout.legacy", () =>
-    supabase.from("layout_settings").select("layout_url").eq("id", 1).maybeSingle()
+  const { data, error, retryable } = await withSupabaseRetry<{ layout_url: string | null }>(
+    "layout.legacy",
+    () => supabase.from("layout_settings").select("layout_url").eq("id", 1).maybeSingle(),
+    1
   );
   if (error) {
     if (retryable) {

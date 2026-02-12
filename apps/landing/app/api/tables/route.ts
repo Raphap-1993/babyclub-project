@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     query = query.eq('event_id', eventId);
   }
 
-  const { data, error, retryable } = await withSupabaseRetry<any[]>("tables.list_active", () => query);
+  const { data, error, retryable } = await withSupabaseRetry<any[]>("tables.list_active", () => query, 1);
 
   if (error) {
     if (retryable) {

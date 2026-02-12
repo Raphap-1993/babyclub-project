@@ -9,10 +9,10 @@ type SupabaseLikeResult<T> = {
 };
 
 const RETRYABLE_SUPABASE_ERROR =
-  /(error code 522|connection timed out|gateway timeout|service unavailable|fetch failed|network|temporarily unavailable|upstream|econnreset|etimedout)/i;
+  /(error code 522|connection timed out|gateway timeout|service unavailable|fetch failed|network|temporarily unavailable|upstream|econnreset|etimedout|aborterror|aborted|operation was aborted|timeout)/i;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const DEFAULT_SUPABASE_TIMEOUT_MS = 8000;
+const DEFAULT_SUPABASE_TIMEOUT_MS = 6000;
 
 function extractErrorMessage(error: unknown): string {
   if (!error) return "";
