@@ -22,7 +22,7 @@ describe("GET /api/tables event filter", () => {
     (createClient as any).mockReturnValue(supabase);
 
     const { GET } = await import("./route");
-    const req = new Request("http://localhost/api/tables?event_id=event-1");
+    const req = { nextUrl: new URL("http://localhost/api/tables?event_id=event-1") };
     const res = await GET(req as any);
     expect(res.status).toBe(200);
 
@@ -31,5 +31,25 @@ describe("GET /api/tables event filter", () => {
       (f) => f.type === "eq" && f.args[0] === "event_id" && f.args[1] === "event-1"
     );
     expect(hasEventFilter).toBe(true);
+  });
+
+  it("retorna 200 con lista vacia si Supabase falla por timeout transitorio", async () => {
+    const timeoutHtml = "<!DOCTYPE html><title>error code 522</title><body>Connection timed out</body>";
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        { data: null, error: { message: timeoutHtml } },
+        { data: null, error: { message: timeoutHtml } },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { GET } = await import("./route");
+    const req = { nextUrl: new URL("http://localhost/api/tables") };
+    const res = await GET(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.tables).toEqual([]);
+    expect(payload.warning).toBe("temporarily_unavailable");
   });
 });
