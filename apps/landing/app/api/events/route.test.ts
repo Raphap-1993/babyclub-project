@@ -29,4 +29,23 @@ describe("GET /api/events soft delete filter", () => {
     const hasFilter = eventCall?.filters?.some((f) => f.type === "is" && f.args[0] === "deleted_at" && f.args[1] === null);
     expect(hasFilter).toBe(true);
   });
+
+  it("retorna 200 con lista vacia si Supabase falla por timeout transitorio", async () => {
+    const timeoutHtml = "<!DOCTYPE html><title>error code 522</title><body>Connection timed out</body>";
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        { data: null, error: { message: timeoutHtml } },
+        { data: null, error: { message: timeoutHtml } },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { GET } = await import("./route");
+    const res = await GET();
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.events).toEqual([]);
+    expect(payload.warning).toBe("temporarily_unavailable");
+  });
 });

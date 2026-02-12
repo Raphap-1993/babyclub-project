@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { sanitizeSupabaseErrorMessage, withSupabaseRetry } from "../_utils/supabaseResilience";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,23 +21,32 @@ export async function GET(req: NextRequest) {
 
   // Main source: organizers.layout_url (donde se sube desde el backoffice)
   if (organizerId) {
-    const { data: organizerData } = await applyNotDeleted(
-      supabase
-        .from('organizers')
-        .select('layout_url')
-        .eq('id', organizerId)
-    ).maybeSingle();
+    const { data: organizerData } = await withSupabaseRetry<{ layout_url: string | null }>("layout.organizer", () =>
+      applyNotDeleted(
+        supabase
+          .from("organizers")
+          .select("layout_url")
+          .eq("id", organizerId)
+      ).maybeSingle()
+    );
 
     if (organizerData?.layout_url) {
-      return NextResponse.json({ 
-        layout_url: organizerData.layout_url
+      return NextResponse.json({
+        layout_url: organizerData.layout_url,
       });
     }
   }
 
   // Fallback: Legacy single layout (backwards compatibility)
-  const { data, error } = await supabase.from("layout_settings").select("layout_url").eq("id", 1).maybeSingle();
-  if (error) return NextResponse.json({ layout_url: null, error: error.message }, { status: 500 });
-  
+  const { data, error, retryable } = await withSupabaseRetry<{ layout_url: string | null }>("layout.legacy", () =>
+    supabase.from("layout_settings").select("layout_url").eq("id", 1).maybeSingle()
+  );
+  if (error) {
+    if (retryable) {
+      return NextResponse.json({ layout_url: null, warning: "temporarily_unavailable" });
+    }
+    return NextResponse.json({ layout_url: null, error: sanitizeSupabaseErrorMessage(error) }, { status: 500 });
+  }
+
   return NextResponse.json({ layout_url: data?.layout_url || null });
 }
