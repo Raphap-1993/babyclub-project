@@ -12,6 +12,7 @@ const RETRYABLE_SUPABASE_ERROR =
   /(error code 522|connection timed out|gateway timeout|service unavailable|fetch failed|network|temporarily unavailable|upstream|econnreset|etimedout)/i;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const DEFAULT_SUPABASE_TIMEOUT_MS = 8000;
 
 function extractErrorMessage(error: unknown): string {
   if (!error) return "";
@@ -40,6 +41,19 @@ export function isRetryableSupabaseError(error: unknown): boolean {
   const message = extractErrorMessage(error);
   if (!message) return false;
   return RETRYABLE_SUPABASE_ERROR.test(message);
+}
+
+export function createSupabaseFetchWithTimeout(timeoutMs = DEFAULT_SUPABASE_TIMEOUT_MS) {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(input, { ...(init || {}), signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
 }
 
 export async function withSupabaseRetry<T>(
