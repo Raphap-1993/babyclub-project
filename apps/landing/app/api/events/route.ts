@@ -23,7 +23,8 @@ export async function GET() {
         .select("id,name,starts_at,location,is_active")
         .eq("is_active", true)
         .order("starts_at", { ascending: true })
-    )
+    ),
+    1
   );
 
   if (error) {
