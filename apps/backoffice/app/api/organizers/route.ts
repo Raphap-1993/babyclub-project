@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted, buildArchivePayload } from "shared/db/softDelete";
+import { getUserFacingSupabaseError } from "@/lib/supabaseErrors";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+function getSafeApiError(message: unknown, fallback: string) {
+  return getUserFacingSupabaseError(message, fallback);
+}
 
 // GET - Lista todos los organizadores (incluye inactivos para admin)
 export async function GET(req: NextRequest) {
@@ -38,7 +43,14 @@ export async function GET(req: NextRequest) {
   );
 
   if (error) {
-    return NextResponse.json({ success: false, organizers: [], error: error.message }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        organizers: [],
+        error: getSafeApiError(error?.message, "No se pudieron cargar organizadores"),
+      },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ success: true, organizers: data || [] });
@@ -99,7 +111,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: getSafeApiError(error?.message, "No se pudo crear el organizador") },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, organizer: data });
@@ -155,7 +170,10 @@ export async function PUT(req: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: getSafeApiError(error?.message, "No se pudo actualizar el organizador") },
+        { status: 500 }
+      );
     }
 
     if (!data) {
@@ -199,7 +217,10 @@ export async function DELETE(req: NextRequest) {
       .is("closed_at", null);
 
     if (eventsError) {
-      return NextResponse.json({ success: false, error: eventsError.message }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: getSafeApiError(eventsError?.message, "No se pudo validar eventos activos") },
+        { status: 500 }
+      );
     }
 
     if (eventsCount && eventsCount.length > 0) {
@@ -215,7 +236,10 @@ export async function DELETE(req: NextRequest) {
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: getSafeApiError(error?.message, "No se pudo eliminar el organizador") },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true });
@@ -223,4 +247,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid request" }, { status: 400 });
   }
 }
-
