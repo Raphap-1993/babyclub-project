@@ -83,11 +83,19 @@ function sanitizeErrorMessage(raw: unknown): string {
   return normalized.length > 220 ? `${normalized.slice(0, 220)}...` : normalized;
 }
 
+function isTransientSupabaseError(message: string): boolean {
+  return /(aborterror|operation was aborted|aborted|timeout|timed out|error code 522|gateway timeout|service unavailable|fetch failed|network)/i.test(
+    message
+  );
+}
+
 function logSupabaseError(operation: string, err: unknown) {
-  console.error("[admin/dashboard] supabase query failed", {
-    operation,
-    message: sanitizeErrorMessage(err),
-  });
+  const message = sanitizeErrorMessage(err);
+  if (isTransientSupabaseError(message)) {
+    console.warn("[admin/dashboard] supabase transient issue", { operation, message });
+    return;
+  }
+  console.error("[admin/dashboard] supabase query failed", { operation, message });
 }
 
 async function runDataQuery<T>(
