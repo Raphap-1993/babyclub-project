@@ -19,6 +19,7 @@ const getSessionRole = (user?: User | null) => {
 };
 
 const DOOR_LANDING = "/admin/scan";
+const ROLE_LOOKUP_TIMEOUT_MS = 1200;
 
 const fetchStaffRoleCode = async (authUserId: string) => {
   if (!supabaseClient) return null;
@@ -32,10 +33,23 @@ const fetchStaffRoleCode = async (authUserId: string) => {
   return typeof roleRel?.code === "string" ? roleRel.code : null;
 };
 
+async function resolveWithTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), timeoutMs);
+  });
+  const result = await Promise.race([promise, timeout]);
+  if (timer) clearTimeout(timer);
+  return result;
+}
+
 const resolveDoorRedirect = async (sessionUser?: User | null) => {
   if (!sessionUser) return false;
   const sessionRole = getSessionRole(sessionUser);
-  const staffRole = sessionUser.id ? await fetchStaffRoleCode(sessionUser.id) : null;
+  if (sessionRole) return isDoorRole(sessionRole);
+  const staffRole = sessionUser.id
+    ? await resolveWithTimeout(fetchStaffRoleCode(sessionUser.id), ROLE_LOOKUP_TIMEOUT_MS, null)
+    : null;
   const resolvedRole = staffRole || sessionRole;
   return isDoorRole(resolvedRole);
 };
@@ -51,32 +65,46 @@ export default function LoginPage() {
 
   // Si ya hay sesión, redirigir al dashboard
   useEffect(() => {
+    const client = supabaseClient;
     const checkSession = async () => {
-      if (!supabaseClient) {
+      if (!client) {
         setChecking(false);
         return;
       }
       try {
-        const { data } = await supabaseClient.auth.getSession();
+        const { data } = await client.auth.getSession();
         if (data.session) {
           const shouldGoDoor = await resolveDoorRedirect(data.session.user);
           router.replace(shouldGoDoor ? DOOR_LANDING : "/admin");
           return;
-        }
-        // Cargar logo desde brand_settings
-        const { data: brandData } = await supabaseClient
-          .from("brand_settings")
-          .select("logo_url")
-          .eq("id", 1)
-          .maybeSingle();
-        if (brandData?.logo_url) {
-          setLogoUrl(brandData.logo_url);
         }
       } catch (_err) {}
       setChecking(false);
     };
     checkSession();
   }, [router]);
+
+  useEffect(() => {
+    const client = supabaseClient;
+    if (!client) return;
+    let cancelled = false;
+    const loadLogo = async () => {
+      try {
+        const { data } = await client
+          .from("brand_settings")
+          .select("logo_url")
+          .eq("id", 1)
+          .maybeSingle();
+        if (!cancelled && data?.logo_url) {
+          setLogoUrl(data.logo_url);
+        }
+      } catch (_err) {}
+    };
+    void loadLogo();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
