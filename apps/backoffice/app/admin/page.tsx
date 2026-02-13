@@ -24,223 +24,313 @@ import {
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function getMetrics() {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return {
-      totalRevenue: 0,
-      totalTicketsSold: 0,
-      scannedTickets: 0,
-      scannedPercentage: 0,
-      availableTables: 0,
-      ticketsSoldLast24h: 0,
-      revenueGrowth: 0,
-      ticketsGrowth: 0,
-      scannedGrowth: 0,
-      salesByHour: [],
-      ticketsByEvent: [],
-      freeTickets: 0,
-      paidTickets: 0,
-      freeTicketsByEvent: [],
-      generalCodeByEvent: [],
-    };
-  }
+type DashboardMetrics = {
+  totalRevenue: number;
+  totalTicketsSold: number;
+  scannedTickets: number;
+  scannedPercentage: number;
+  availableTables: number;
+  ticketsSoldLast24h: number;
+  revenueGrowth: number;
+  ticketsGrowth: number;
+  scannedGrowth: number;
+  salesByHour: Array<{ name: string; value: number }>;
+  ticketsByEvent: Array<{ name: string; value: number }>;
+  freeTickets: number;
+  paidTickets: number;
+  freeTicketsByEvent: Array<{ name: string; value: number }>;
+  generalCodeByEvent: Array<{ name: string; value: number }>;
+};
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+const EMPTY_METRICS: DashboardMetrics = {
+  totalRevenue: 0,
+  totalTicketsSold: 0,
+  scannedTickets: 0,
+  scannedPercentage: 0,
+  availableTables: 0,
+  ticketsSoldLast24h: 0,
+  revenueGrowth: 0,
+  ticketsGrowth: 0,
+  scannedGrowth: 0,
+  salesByHour: [],
+  ticketsByEvent: [],
+  freeTickets: 0,
+  paidTickets: 0,
+  freeTicketsByEvent: [],
+  generalCodeByEvent: [],
+};
 
-  const now = new Date();
-  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const last48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+const SUPABASE_TIMEOUT_MS = 6000;
 
-  // 1. Ingresos totales del mes (payments succeeded)
-  const { data: paymentsData } = await supabase
-    .from("payments")
-    .select("amount")
-    .eq("status", "succeeded")
-    .gte("created_at", startOfMonth.toISOString());
+function createSupabaseFetchWithTimeout(timeoutMs = SUPABASE_TIMEOUT_MS) {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  const totalRevenue = paymentsData?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-
-  // 2. Total de tickets vendidos (con payment_status completed)
-  const { count: totalTicketsSold } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed");
-
-  // 3. Tickets escaneados (usados)
-  const { count: scannedTickets } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("used", true);
-
-  const totalTickets = totalTicketsSold ?? 0;
-  const scannedTicketsCount = scannedTickets ?? 0;
-  const scannedPercentage = totalTickets > 0 
-    ? Math.round((scannedTicketsCount / totalTickets) * 100) 
-    : 0;
-
-  // 4. Mesas disponibles (para próximo evento)
-  const { data: nextEvent } = await supabase
-    .from("events")
-    .select("id")
-    .gte("event_date", now.toISOString())
-    .order("event_date", { ascending: true })
-    .limit(1)
-    .single();
-
-  let availableTables = 0;
-  if (nextEvent) {
-    const { count: available } = await supabase
-      .from("tables")
-      .select("*", { head: true, count: "exact" })
-      .eq("event_id", nextEvent.id)
-      .eq("is_reserved", false);
-    availableTables = available ?? 0;
-  }
-
-  // Growth calculations (últimas 24h vs 24h previas)
-  const { count: ticketsLast24h } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed")
-    .gte("created_at", last24h.toISOString());
-
-  const { count: ticketsPrevious24h } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed")
-    .gte("created_at", last48h.toISOString())
-    .lt("created_at", last24h.toISOString());
-
-  const last24hCount = ticketsLast24h ?? 0;
-  const prev24hCount = ticketsPrevious24h ?? 0;
-  
-  const ticketsGrowth = prev24hCount > 0 
-    ? Math.round(((last24hCount - prev24hCount) / prev24hCount) * 100) 
-    : last24hCount > 0 ? 100 : 0;
-
-  // Ventas por hora (últimas 24h)
-  const { data: hourlyTickets } = await supabase
-    .from("tickets")
-    .select("created_at")
-    .eq("payment_status", "completed")
-    .gte("created_at", last24h.toISOString())
-    .order("created_at", { ascending: true });
-
-  const salesByHour: { name: string; value: number }[] = [];
-  const hourCounts: { [key: string]: number } = {};
-  
-  hourlyTickets?.forEach(ticket => {
-    const hour = new Date(ticket.created_at).getHours();
-    const hourKey = `${hour}:00`;
-    hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
-  });
-
-  for (let i = 0; i < 24; i++) {
-    const hourKey = `${i}:00`;
-    salesByHour.push({ name: hourKey, value: hourCounts[hourKey] || 0 });
-  }
-
-  // Tickets por evento (próximos 5 eventos)
-  const { data: upcomingEvents } = await supabase
-    .from("events")
-    .select("id, title")
-    .gte("event_date", now.toISOString())
-    .order("event_date", { ascending: true })
-    .limit(5);
-
-  const ticketsByEvent: { name: string; value: number }[] = [];
-  
-  if (upcomingEvents) {
-    for (const event of upcomingEvents) {
-      const { count } = await supabase
-        .from("tickets")
-        .select("*", { head: true, count: "exact" })
-        .eq("event_id", event.id)
-        .eq("payment_status", "completed");
-      
-      ticketsByEvent.push({ 
-        name: event.title.substring(0, 20), 
-        value: count ?? 0
-      });
+    try {
+      return await fetch(input, { ...(init || {}), signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
     }
-  }
+  };
+}
 
-  // Tickets FREE (códigos generales sin pago)
-  const { count: freeTicketsCount } = await supabase
-    .from("tickets")
-    .select("code_id, codes!inner(type)", { head: true, count: "exact" })
-    .eq("codes.type", "general")
-    .or("payment_status.is.null,payment_status.neq.completed");
+function sanitizeErrorMessage(raw: unknown): string {
+  const message = typeof raw === "string" ? raw : String((raw as any)?.message || "");
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Error inesperado de Supabase";
+  if (/<(!doctype|html)/i.test(normalized)) return "Supabase devolvió HTML (timeout/edge error)";
+  return normalized.length > 220 ? `${normalized.slice(0, 220)}...` : normalized;
+}
 
-  const freeTickets = freeTicketsCount ?? 0;
+function logSupabaseError(operation: string, err: unknown) {
+  console.error("[admin/dashboard] supabase query failed", {
+    operation,
+    message: sanitizeErrorMessage(err),
+  });
+}
 
-  // Tickets PAGADOS (con payment_status completed)
-  const { count: paidTicketsCount } = await supabase
-    .from("tickets")
-    .select("*", { head: true, count: "exact" })
-    .eq("payment_status", "completed");
-
-  const paidTickets = paidTicketsCount ?? 0;
-
-  // Tickets FREE por evento (próximos 5 eventos)
-  const freeTicketsByEvent: { name: string; value: number }[] = [];
-  
-  if (upcomingEvents) {
-    for (const event of upcomingEvents) {
-      const { count } = await supabase
-        .from("tickets")
-        .select("code_id, codes!inner(type)", { head: true, count: "exact" })
-        .eq("event_id", event.id)
-        .eq("codes.type", "general")
-        .or("payment_status.is.null,payment_status.neq.completed");
-      
-      freeTicketsByEvent.push({ 
-        name: event.title.substring(0, 20), 
-        value: count ?? 0
-      });
+async function runDataQuery<T>(
+  operation: string,
+  query: () => PromiseLike<{ data: T | null; error: any }>
+): Promise<T | null> {
+  try {
+    const { data, error } = await query();
+    if (error) {
+      logSupabaseError(operation, error);
+      return null;
     }
+    return data ?? null;
+  } catch (err) {
+    logSupabaseError(operation, err);
+    return null;
   }
+}
 
-  // Tickets con código general por evento (para gráfico circular)
-  const generalCodeByEvent: { name: string; value: number }[] = [];
-  
-  if (upcomingEvents) {
-    for (const event of upcomingEvents) {
-      const { count } = await supabase
-        .from("tickets")
-        .select("code_id, codes!inner(type)", { head: true, count: "exact" })
-        .eq("event_id", event.id)
-        .eq("codes.type", "general");
-      
-      if ((count ?? 0) > 0) {
-        generalCodeByEvent.push({ 
-          name: event.title.substring(0, 25), 
-          value: count ?? 0
-        });
+async function runCountQuery(
+  operation: string,
+  query: () => PromiseLike<{ count: number | null; error: any }>
+): Promise<number> {
+  try {
+    const { count, error } = await query();
+    if (error) {
+      logSupabaseError(operation, error);
+      return 0;
+    }
+    return count ?? 0;
+  } catch (err) {
+    logSupabaseError(operation, err);
+    return 0;
+  }
+}
+
+const truncate = (value: string, max = 20) => (value.length > max ? `${value.slice(0, max)}` : value);
+
+async function getMetrics(): Promise<DashboardMetrics> {
+  if (!supabaseUrl || !supabaseServiceKey) return EMPTY_METRICS;
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: createSupabaseFetchWithTimeout() },
+    });
+
+    const now = new Date();
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const last48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      paymentsData,
+      totalTicketsSold,
+      scannedTicketsCount,
+      nextEvent,
+      ticketsLast24h,
+      ticketsPrevious24h,
+      hourlyTickets,
+      upcomingEvents,
+      freeTickets,
+      paidTickets,
+    ] = await Promise.all([
+      runDataQuery<Array<{ amount: number | null }>>("payments.monthly_succeeded", () =>
+        supabase.from("payments").select("amount").eq("status", "succeeded").gte("created_at", startOfMonth.toISOString())
+      ),
+      runCountQuery("tickets.total_completed", () =>
+        supabase.from("tickets").select("*", { head: true, count: "exact" }).eq("payment_status", "completed")
+      ),
+      runCountQuery("tickets.total_used", () =>
+        supabase.from("tickets").select("*", { head: true, count: "exact" }).eq("used", true)
+      ),
+      runDataQuery<{ id: string }>("events.next", () =>
+        supabase
+          .from("events")
+          .select("id")
+          .gte("event_date", now.toISOString())
+          .order("event_date", { ascending: true })
+          .limit(1)
+          .maybeSingle()
+      ),
+      runCountQuery("tickets.last_24h", () =>
+        supabase
+          .from("tickets")
+          .select("*", { head: true, count: "exact" })
+          .eq("payment_status", "completed")
+          .gte("created_at", last24h.toISOString())
+      ),
+      runCountQuery("tickets.previous_24h", () =>
+        supabase
+          .from("tickets")
+          .select("*", { head: true, count: "exact" })
+          .eq("payment_status", "completed")
+          .gte("created_at", last48h.toISOString())
+          .lt("created_at", last24h.toISOString())
+      ),
+      runDataQuery<Array<{ created_at: string }>>("tickets.hourly_24h", () =>
+        supabase
+          .from("tickets")
+          .select("created_at")
+          .eq("payment_status", "completed")
+          .gte("created_at", last24h.toISOString())
+          .order("created_at", { ascending: true })
+      ),
+      runDataQuery<Array<{ id: string; title: string | null }>>("events.upcoming_top5", () =>
+        supabase
+          .from("events")
+          .select("id,title")
+          .gte("event_date", now.toISOString())
+          .order("event_date", { ascending: true })
+          .limit(5)
+      ),
+      runCountQuery("tickets.free_general_total", () =>
+        supabase
+          .from("tickets")
+          .select("code_id, codes!inner(type)", { head: true, count: "exact" })
+          .eq("codes.type", "general")
+          .or("payment_status.is.null,payment_status.neq.completed")
+      ),
+      runCountQuery("tickets.paid_total", () =>
+        supabase.from("tickets").select("*", { head: true, count: "exact" }).eq("payment_status", "completed")
+      ),
+    ]);
+
+    const totalRevenue = (paymentsData || []).reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    const scannedPercentage =
+      totalTicketsSold > 0 ? Math.round((scannedTicketsCount / totalTicketsSold) * 100) : 0;
+
+    const availableTables =
+      nextEvent?.id
+        ? await runCountQuery("tables.available_next_event", () =>
+            supabase
+              .from("tables")
+              .select("*", { head: true, count: "exact" })
+              .eq("event_id", nextEvent.id)
+              .eq("is_reserved", false)
+          )
+        : 0;
+
+    const ticketsGrowth =
+      ticketsPrevious24h > 0
+        ? Math.round(((ticketsLast24h - ticketsPrevious24h) / ticketsPrevious24h) * 100)
+        : ticketsLast24h > 0
+          ? 100
+          : 0;
+
+    const hourCounts: Record<string, number> = {};
+    for (const ticket of hourlyTickets || []) {
+      const hour = new Date(ticket.created_at).getHours();
+      const hourKey = `${hour}:00`;
+      hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
+    }
+
+    const salesByHour = Array.from({ length: 24 }).map((_, index) => {
+      const hourKey = `${index}:00`;
+      return { name: hourKey, value: hourCounts[hourKey] || 0 };
+    });
+
+    const eventRows = upcomingEvents || [];
+    const eventIds = eventRows.map((event) => event.id).filter(Boolean);
+
+    const [paidRows, generalCodeRows] =
+      eventIds.length > 0
+        ? await Promise.all([
+            runDataQuery<Array<{ event_id: string | null }>>("tickets.paid_by_event", () =>
+              supabase.from("tickets").select("event_id").in("event_id", eventIds).eq("payment_status", "completed")
+            ),
+            runDataQuery<Array<{ event_id: string | null; payment_status: string | null }>>("tickets.general_by_event", () =>
+              supabase
+                .from("tickets")
+                .select("event_id,payment_status,codes!inner(type)")
+                .in("event_id", eventIds)
+                .eq("codes.type", "general")
+            ),
+          ])
+        : [[], []];
+
+    const paidByEventMap = new Map<string, number>();
+    for (const row of paidRows || []) {
+      if (!row?.event_id) continue;
+      paidByEventMap.set(row.event_id, (paidByEventMap.get(row.event_id) || 0) + 1);
+    }
+
+    const generalByEventMap = new Map<string, number>();
+    const freeByEventMap = new Map<string, number>();
+    for (const row of generalCodeRows || []) {
+      if (!row?.event_id) continue;
+      generalByEventMap.set(row.event_id, (generalByEventMap.get(row.event_id) || 0) + 1);
+      if (!row.payment_status || row.payment_status !== "completed") {
+        freeByEventMap.set(row.event_id, (freeByEventMap.get(row.event_id) || 0) + 1);
       }
     }
-  }
 
-  return {
-    totalRevenue: totalRevenue / 100, // Culqi usa céntimos
-    totalTicketsSold: totalTickets,
-    scannedTickets: scannedTicketsCount,
-    scannedPercentage,
-    availableTables,
-    ticketsSoldLast24h: last24hCount,
-    revenueGrowth: 0, // Calcular si necesario
-    ticketsGrowth,
-    scannedGrowth: 0, // Calcular si necesario
-    salesByHour: salesByHour.filter(h => h.value > 0).slice(-12), // Últimas 12 horas con actividad
-    ticketsByEvent,
-    freeTickets,
-    paidTickets,
-    freeTicketsByEvent,
-    generalCodeByEvent,
-  };
+    const ticketsByEvent = eventRows.map((event) => {
+      const title = (event.title || event.id || "Evento").trim();
+      return {
+        name: truncate(title, 20),
+        value: paidByEventMap.get(event.id) || 0,
+      };
+    });
+
+    const freeTicketsByEvent = eventRows.map((event) => {
+      const title = (event.title || event.id || "Evento").trim();
+      return {
+        name: truncate(title, 20),
+        value: freeByEventMap.get(event.id) || 0,
+      };
+    });
+
+    const generalCodeByEvent = eventRows
+      .map((event) => {
+        const title = (event.title || event.id || "Evento").trim();
+        return {
+          name: truncate(title, 25),
+          value: generalByEventMap.get(event.id) || 0,
+        };
+      })
+      .filter((row) => row.value > 0);
+
+    return {
+      totalRevenue: totalRevenue / 100,
+      totalTicketsSold,
+      scannedTickets: scannedTicketsCount,
+      scannedPercentage,
+      availableTables,
+      ticketsSoldLast24h: ticketsLast24h,
+      revenueGrowth: 0,
+      ticketsGrowth,
+      scannedGrowth: 0,
+      salesByHour: salesByHour.filter((row) => row.value > 0).slice(-12),
+      ticketsByEvent,
+      freeTickets,
+      paidTickets,
+      freeTicketsByEvent,
+      generalCodeByEvent,
+    };
+  } catch (err) {
+    console.error("[admin/dashboard] unexpected metrics error", {
+      message: sanitizeErrorMessage(err),
+    });
+    return EMPTY_METRICS;
+  }
 }
 
 export default async function AdminDashboard() {
