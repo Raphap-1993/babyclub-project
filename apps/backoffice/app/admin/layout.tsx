@@ -100,13 +100,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             person: Array.isArray(staff.person) ? staff.person[0] : staff.person,
           });
         }
-
-        // Redirigir si es rol puerta
-        const staffRole = Array.isArray(staff?.role) ? staff?.role?.[0] : (staff as any)?.role;
-        const roleText = sessionMetaRole || staffRole?.code || "";
-        if (isDoorRole(roleText) && pathname !== DOOR_LANDING && pathname !== "/admin/door") {
-          router.replace(DOOR_LANDING);
-        }
       } catch (_err) {
         console.error("Error fetching profile:", _err);
       } finally {
@@ -121,7 +114,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (payload?.success) setRoles(payload.data || []);
       })
       .catch(() => null);
-  }, [pathname, router]);
+  }, [router]);
+
+  useEffect(() => {
+    const staffRoleCode =
+      (typeof userStaff?.role?.code === "string" ? userStaff.role.code : null) || initialRole || "";
+    if (isDoorRole(staffRoleCode) && pathname !== DOOR_LANDING && pathname !== "/admin/door") {
+      router.replace(DOOR_LANDING);
+    }
+  }, [initialRole, pathname, router, userStaff?.role?.code]);
 
   if (profileLoading || !roleResolved) {
     return (

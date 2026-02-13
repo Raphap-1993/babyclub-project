@@ -60,20 +60,32 @@ const EMPTY_METRICS: DashboardMetrics = {
   generalCodeByEvent: [],
 };
 
-const SUPABASE_TIMEOUT_MS = 6000;
+const SUPABASE_TIMEOUT_MS = Number(process.env.SUPABASE_TIMEOUT_MS || 9000);
+const SUPABASE_RETRY_ATTEMPTS = 2;
+const SUPABASE_COUNT_MODE: "exact" | "planned" | "estimated" = "planned";
+const RETRY_BASE_DELAY_MS = 250;
 
 function createSupabaseFetchWithTimeout(timeoutMs = SUPABASE_TIMEOUT_MS) {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const controller = new AbortController();
+    const upstreamSignal = init?.signal;
+    const abortFromUpstream = () => controller.abort();
+    if (upstreamSignal) {
+      if (upstreamSignal.aborted) controller.abort();
+      upstreamSignal.addEventListener("abort", abortFromUpstream, { once: true });
+    }
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       return await fetch(input, { ...(init || {}), signal: controller.signal });
     } finally {
       clearTimeout(timeoutId);
+      upstreamSignal?.removeEventListener("abort", abortFromUpstream);
     }
   };
 }
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function sanitizeErrorMessage(raw: unknown): string {
   const message = typeof raw === "string" ? raw : String((raw as any)?.message || "");
@@ -89,47 +101,96 @@ function isTransientSupabaseError(message: string): boolean {
   );
 }
 
-function logSupabaseError(operation: string, err: unknown) {
+function logSupabaseError(
+  operation: string,
+  err: unknown,
+  context?: { attempt: number; maxAttempts: number; willRetry: boolean }
+) {
   const message = sanitizeErrorMessage(err);
   if (isTransientSupabaseError(message)) {
-    console.warn("[admin/dashboard] supabase transient issue", { operation, message });
+    console.warn("[admin/dashboard] supabase transient issue", {
+      operation,
+      message,
+      attempt: context?.attempt,
+      maxAttempts: context?.maxAttempts,
+      willRetry: context?.willRetry ?? false,
+    });
     return;
   }
-  console.error("[admin/dashboard] supabase query failed", { operation, message });
+  console.error("[admin/dashboard] supabase query failed", {
+    operation,
+    message,
+    attempt: context?.attempt,
+    maxAttempts: context?.maxAttempts,
+  });
 }
 
 async function runDataQuery<T>(
   operation: string,
   query: () => PromiseLike<{ data: T | null; error: any }>
 ): Promise<T | null> {
-  try {
-    const { data, error } = await query();
-    if (error) {
-      logSupabaseError(operation, error);
+  for (let attempt = 1; attempt <= SUPABASE_RETRY_ATTEMPTS; attempt++) {
+    try {
+      const { data, error } = await query();
+      if (!error) {
+        return data ?? null;
+      }
+      const message = sanitizeErrorMessage(error);
+      const retryable = isTransientSupabaseError(message);
+      const willRetry = retryable && attempt < SUPABASE_RETRY_ATTEMPTS;
+      logSupabaseError(operation, error, { attempt, maxAttempts: SUPABASE_RETRY_ATTEMPTS, willRetry });
+      if (willRetry) {
+        await delay(RETRY_BASE_DELAY_MS * attempt);
+        continue;
+      }
+      return null;
+    } catch (err) {
+      const message = sanitizeErrorMessage(err);
+      const retryable = isTransientSupabaseError(message);
+      const willRetry = retryable && attempt < SUPABASE_RETRY_ATTEMPTS;
+      logSupabaseError(operation, err, { attempt, maxAttempts: SUPABASE_RETRY_ATTEMPTS, willRetry });
+      if (willRetry) {
+        await delay(RETRY_BASE_DELAY_MS * attempt);
+        continue;
+      }
       return null;
     }
-    return data ?? null;
-  } catch (err) {
-    logSupabaseError(operation, err);
-    return null;
   }
+  return null;
 }
 
 async function runCountQuery(
   operation: string,
   query: () => PromiseLike<{ count: number | null; error: any }>
 ): Promise<number> {
-  try {
-    const { count, error } = await query();
-    if (error) {
-      logSupabaseError(operation, error);
+  for (let attempt = 1; attempt <= SUPABASE_RETRY_ATTEMPTS; attempt++) {
+    try {
+      const { count, error } = await query();
+      if (!error) {
+        return count ?? 0;
+      }
+      const message = sanitizeErrorMessage(error);
+      const retryable = isTransientSupabaseError(message);
+      const willRetry = retryable && attempt < SUPABASE_RETRY_ATTEMPTS;
+      logSupabaseError(operation, error, { attempt, maxAttempts: SUPABASE_RETRY_ATTEMPTS, willRetry });
+      if (willRetry) {
+        await delay(RETRY_BASE_DELAY_MS * attempt);
+        continue;
+      }
+      return 0;
+    } catch (err) {
+      const message = sanitizeErrorMessage(err);
+      const retryable = isTransientSupabaseError(message);
+      const willRetry = retryable && attempt < SUPABASE_RETRY_ATTEMPTS;
+      logSupabaseError(operation, err, { attempt, maxAttempts: SUPABASE_RETRY_ATTEMPTS, willRetry });
+      if (willRetry) {
+        await delay(RETRY_BASE_DELAY_MS * attempt);
+        continue;
+      }
       return 0;
     }
-    return count ?? 0;
-  } catch (err) {
-    logSupabaseError(operation, err);
-    return 0;
   }
+  return 0;
 }
 
 const truncate = (value: string, max = 20) => (value.length > max ? `${value.slice(0, max)}` : value);
@@ -155,84 +216,91 @@ async function getMetrics(): Promise<DashboardMetrics> {
       nextEvent,
       ticketsLast24h,
       ticketsPrevious24h,
-      hourlyTickets,
       upcomingEvents,
       freeTickets,
-      paidTickets,
     ] = await Promise.all([
-      runDataQuery<Array<{ amount: number | null }>>("payments.monthly_succeeded", () =>
-        supabase.from("payments").select("amount").eq("status", "succeeded").gte("created_at", startOfMonth.toISOString())
+      runDataQuery<Array<{ amount: number | null }>>("payments.monthly_paid", () =>
+        supabase.from("payments").select("amount").eq("status", "paid").gte("created_at", startOfMonth.toISOString())
       ),
-      runCountQuery("tickets.total_completed", () =>
-        supabase.from("tickets").select("*", { head: true, count: "exact" }).eq("payment_status", "completed")
+      runCountQuery("tickets.total_active", () =>
+        supabase
+          .from("tickets")
+          .select("id", { head: true, count: SUPABASE_COUNT_MODE })
+          .is("deleted_at", null)
+          .eq("is_active", true)
       ),
       runCountQuery("tickets.total_used", () =>
-        supabase.from("tickets").select("*", { head: true, count: "exact" }).eq("used", true)
+        supabase
+          .from("tickets")
+          .select("id", { head: true, count: SUPABASE_COUNT_MODE })
+          .is("deleted_at", null)
+          .eq("is_active", true)
+          .eq("used", true)
       ),
-      runDataQuery<{ id: string }>("events.next", () =>
+      runDataQuery<{ id: string; starts_at: string | null }>("events.next", () =>
         supabase
           .from("events")
-          .select("id")
-          .gte("event_date", now.toISOString())
-          .order("event_date", { ascending: true })
+          .select("id,starts_at")
+          .is("deleted_at", null)
+          .eq("is_active", true)
+          .or("force_closed.is.null,force_closed.eq.false")
+          .gte("starts_at", now.toISOString())
+          .order("starts_at", { ascending: true })
           .limit(1)
           .maybeSingle()
       ),
       runCountQuery("tickets.last_24h", () =>
         supabase
           .from("tickets")
-          .select("*", { head: true, count: "exact" })
-          .eq("payment_status", "completed")
+          .select("id", { head: true, count: SUPABASE_COUNT_MODE })
+          .is("deleted_at", null)
+          .eq("is_active", true)
           .gte("created_at", last24h.toISOString())
       ),
       runCountQuery("tickets.previous_24h", () =>
         supabase
           .from("tickets")
-          .select("*", { head: true, count: "exact" })
-          .eq("payment_status", "completed")
+          .select("id", { head: true, count: SUPABASE_COUNT_MODE })
+          .is("deleted_at", null)
+          .eq("is_active", true)
           .gte("created_at", last48h.toISOString())
           .lt("created_at", last24h.toISOString())
       ),
-      runDataQuery<Array<{ created_at: string }>>("tickets.hourly_24h", () =>
-        supabase
-          .from("tickets")
-          .select("created_at")
-          .eq("payment_status", "completed")
-          .gte("created_at", last24h.toISOString())
-          .order("created_at", { ascending: true })
-      ),
-      runDataQuery<Array<{ id: string; title: string | null }>>("events.upcoming_top5", () =>
+      runDataQuery<Array<{ id: string; name: string | null }>>("events.upcoming_top5", () =>
         supabase
           .from("events")
-          .select("id,title")
-          .gte("event_date", now.toISOString())
-          .order("event_date", { ascending: true })
+          .select("id,name")
+          .is("deleted_at", null)
+          .eq("is_active", true)
+          .or("force_closed.is.null,force_closed.eq.false")
+          .gte("starts_at", now.toISOString())
+          .order("starts_at", { ascending: true })
           .limit(5)
       ),
       runCountQuery("tickets.free_general_total", () =>
         supabase
           .from("tickets")
-          .select("code_id, codes!inner(type)", { head: true, count: "exact" })
+          .select("id,codes!inner(type)", { head: true, count: SUPABASE_COUNT_MODE })
+          .is("deleted_at", null)
+          .eq("is_active", true)
           .eq("codes.type", "general")
-          .or("payment_status.is.null,payment_status.neq.completed")
-      ),
-      runCountQuery("tickets.paid_total", () =>
-        supabase.from("tickets").select("*", { head: true, count: "exact" }).eq("payment_status", "completed")
       ),
     ]);
 
     const totalRevenue = (paymentsData || []).reduce((sum, payment) => sum + (payment.amount || 0), 0);
     const scannedPercentage =
       totalTicketsSold > 0 ? Math.round((scannedTicketsCount / totalTicketsSold) * 100) : 0;
+    const paidTickets = Math.max(totalTicketsSold - freeTickets, 0);
 
     const availableTables =
       nextEvent?.id
-        ? await runCountQuery("tables.available_next_event", () =>
+        ? await runCountQuery("table_availability.available_next_event", () =>
             supabase
-              .from("tables")
-              .select("*", { head: true, count: "exact" })
+              .from("table_availability")
+              .select("id", { head: true, count: SUPABASE_COUNT_MODE })
               .eq("event_id", nextEvent.id)
-              .eq("is_reserved", false)
+              .eq("is_available", true)
+              .is("deleted_at", null)
           )
         : 0;
 
@@ -243,72 +311,67 @@ async function getMetrics(): Promise<DashboardMetrics> {
           ? 100
           : 0;
 
-    const hourCounts: Record<string, number> = {};
-    for (const ticket of hourlyTickets || []) {
-      const hour = new Date(ticket.created_at).getHours();
-      const hourKey = `${hour}:00`;
-      hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
-    }
-
-    const salesByHour = Array.from({ length: 24 }).map((_, index) => {
-      const hourKey = `${index}:00`;
-      return { name: hourKey, value: hourCounts[hourKey] || 0 };
-    });
+    const salesByHour: Array<{ name: string; value: number }> = [];
 
     const eventRows = upcomingEvents || [];
-    const eventIds = eventRows.map((event) => event.id).filter(Boolean);
+    const eventStats =
+      eventRows.length > 0
+        ? await Promise.all(
+            eventRows.map(async (event) => {
+              const [totalCount, generalCount] = await Promise.all([
+                runCountQuery(`tickets.total_by_event.${event.id}`, () =>
+                  supabase
+                    .from("tickets")
+                    .select("id", { head: true, count: SUPABASE_COUNT_MODE })
+                    .is("deleted_at", null)
+                    .eq("is_active", true)
+                    .eq("event_id", event.id)
+                ),
+                runCountQuery(`tickets.general_by_event.${event.id}`, () =>
+                  supabase
+                    .from("tickets")
+                    .select("id,codes!inner(type)", { head: true, count: SUPABASE_COUNT_MODE })
+                    .is("deleted_at", null)
+                    .eq("is_active", true)
+                    .eq("event_id", event.id)
+                    .eq("codes.type", "general")
+                ),
+              ]);
+              return {
+                eventId: event.id,
+                totalCount,
+                generalCount,
+              };
+            })
+          )
+        : [];
 
-    const [paidRows, generalCodeRows] =
-      eventIds.length > 0
-        ? await Promise.all([
-            runDataQuery<Array<{ event_id: string | null }>>("tickets.paid_by_event", () =>
-              supabase.from("tickets").select("event_id").in("event_id", eventIds).eq("payment_status", "completed")
-            ),
-            runDataQuery<Array<{ event_id: string | null; payment_status: string | null }>>("tickets.general_by_event", () =>
-              supabase
-                .from("tickets")
-                .select("event_id,payment_status,codes!inner(type)")
-                .in("event_id", eventIds)
-                .eq("codes.type", "general")
-            ),
-          ])
-        : [[], []];
-
-    const paidByEventMap = new Map<string, number>();
-    for (const row of paidRows || []) {
-      if (!row?.event_id) continue;
-      paidByEventMap.set(row.event_id, (paidByEventMap.get(row.event_id) || 0) + 1);
-    }
-
+    const totalByEventMap = new Map<string, number>();
     const generalByEventMap = new Map<string, number>();
-    const freeByEventMap = new Map<string, number>();
-    for (const row of generalCodeRows || []) {
-      if (!row?.event_id) continue;
-      generalByEventMap.set(row.event_id, (generalByEventMap.get(row.event_id) || 0) + 1);
-      if (!row.payment_status || row.payment_status !== "completed") {
-        freeByEventMap.set(row.event_id, (freeByEventMap.get(row.event_id) || 0) + 1);
-      }
-    }
+    eventStats.forEach((row) => {
+      totalByEventMap.set(row.eventId, row.totalCount);
+      generalByEventMap.set(row.eventId, row.generalCount);
+    });
 
     const ticketsByEvent = eventRows.map((event) => {
-      const title = (event.title || event.id || "Evento").trim();
+      const title = (event.name || event.id || "Evento").trim();
       return {
         name: truncate(title, 20),
-        value: paidByEventMap.get(event.id) || 0,
+        value: totalByEventMap.get(event.id) || 0,
       };
     });
 
     const freeTicketsByEvent = eventRows.map((event) => {
-      const title = (event.title || event.id || "Evento").trim();
+      const title = (event.name || event.id || "Evento").trim();
       return {
         name: truncate(title, 20),
-        value: freeByEventMap.get(event.id) || 0,
+        value: generalByEventMap.get(event.id) || 0,
       };
     });
 
     const generalCodeByEvent = eventRows
       .map((event) => {
-        const title = (event.title || event.id || "Evento").trim();
+        const title = (event.name || event.id || "Evento").trim();
         return {
           name: truncate(title, 25),
           value: generalByEventMap.get(event.id) || 0,
