@@ -7,14 +7,9 @@ import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/docu
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@repo/ui/components/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
 import { ScrollArea } from "@repo/ui/components/scroll-area";
-import SimpleTableMap from "./SimpleTableMap";
-
-// Importar utilidades del TableMap original
-const MAP_VIEWBOX = { width: 1080, height: 1659 };
-function percentToViewBox(value: number, axis: "x" | "y") {
-  const size = axis === "x" ? MAP_VIEWBOX.width : MAP_VIEWBOX.height;
-  return (size * value) / 100;
-}
+import TableMap from "./TableMap";
+import { buildMapSlotsFromTables, hasMapPosition } from "./tableSlotUtils";
+import { loadImageDimensions, optimizeImageUrl } from "../../lib/imageOptimization";
 
 type TableInfo = {
   id: string;
@@ -29,6 +24,9 @@ type TableInfo = {
   pos_y?: number | null;
   pos_w?: number | null;
   pos_h?: number | null;
+  layout_x?: number | null;
+  layout_y?: number | null;
+  layout_size?: number | null;
   products?: Array<{
     id: string;
     name: string;
@@ -40,36 +38,6 @@ type TableInfo = {
     sort_order?: number | null;
   }>;
 };
-
-type TableSlot = {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
-const TABLES: TableSlot[] = [
-  { id: "M1", label: "1", x: percentToViewBox(21, "x"), y: percentToViewBox(8.5, "y"), w: percentToViewBox(14, "x"), h: percentToViewBox(10, "y") },
-  { id: "M2", label: "2", x: percentToViewBox(13.5, "x"), y: percentToViewBox(16.5, "y"), w: percentToViewBox(8, "x"), h: percentToViewBox(5, "y") },
-  { id: "M3", label: "3", x: percentToViewBox(12, "x"), y: percentToViewBox(50, "y"), w: percentToViewBox(14, "x"), h: percentToViewBox(10, "y") },
-  { id: "M4", label: "4", x: percentToViewBox(13.5, "x"), y: percentToViewBox(44, "y"), w: percentToViewBox(8, "x"), h: percentToViewBox(5, "y") },
-  { id: "M5", label: "5", x: percentToViewBox(18.5, "x"), y: percentToViewBox(60, "y"), w: percentToViewBox(14, "x"), h: percentToViewBox(10, "y") },
-  { id: "M6", label: "6", x: percentToViewBox(70, "x"), y: percentToViewBox(80, "y"), w: percentToViewBox(16, "x"), h: percentToViewBox(12, "y") },
-];
-
-const normalizeTableName = (name: string) => name.replace(/\s+/g, "").toLowerCase();
-
-function findTableForSlot(label: string, tables: TableInfo[]) {
-  const normalizedLabel = label.toLowerCase();
-  return (
-    tables.find((t) => normalizeTableName(t.name).includes(normalizedLabel)) ||
-    tables.find((t) => normalizeTableName(t.name).includes(`mesa${normalizedLabel}`)) ||
-    tables.find((t) => normalizeTableName(t.name).includes(`table${normalizedLabel}`)) ||
-    null
-  );
-}
 
 const formatCurrency = (value?: number | null) => {
   if (value == null) return "—";
@@ -92,7 +60,7 @@ function getDisplayPriceForTable(table?: TableInfo | null) {
 }
 
 const LOCAL_MAP_ASSET = "/maps/venue-plan.png";
-const ENABLE_MAP_ZOOM = process.env.NEXT_PUBLIC_MAP_ENABLE_ZOOM !== "false";
+const ENABLE_MAP_ZOOM = false;
 
 export default function RegistroPage() {
   return (
@@ -108,8 +76,14 @@ function RegistroContent() {
   const code = searchParams.get("code") || "";
   const tableLayoutUrl = process.env.NEXT_PUBLIC_TABLE_LAYOUT_URL || LOCAL_MAP_ASSET;
   const initialCover = process.env.NEXT_PUBLIC_REGISTRO_COVER_URL || "";
-  const [coverUrl, setCoverUrl] = useState<string>(initialCover);
-  const [logoUrl, setLogoUrl] = useState<string | null>(process.env.NEXT_PUBLIC_LOGO_URL || null);
+  const [coverUrl, setCoverUrl] = useState<string>(
+    optimizeImageUrl(initialCover, { width: 1920, quality: 72 }) || initialCover
+  );
+  const [logoUrl, setLogoUrl] = useState<string | null>(
+    optimizeImageUrl(process.env.NEXT_PUBLIC_LOGO_URL || null, { width: 512, quality: 75 }) ||
+      process.env.NEXT_PUBLIC_LOGO_URL ||
+      null
+  );
 
   // Preload cover image
   useEffect(() => {
@@ -178,6 +152,8 @@ function RegistroContent() {
   const [aforoMeta, setAforoMeta] = useState<{ used: number; capacity: number } | null>(null);
   const [personLoading, setPersonLoading] = useState(false);
   const [layoutUrl, setLayoutUrl] = useState<string | null>(null);
+  const [layoutCanvas, setLayoutCanvas] = useState<{ width: number; height: number } | null>(null);
+  const [layoutImageSize, setLayoutImageSize] = useState<{ width: number; height: number } | null>(null);
   const [activeTab, setActiveTab] = useState<string>("seleccion");
   const lastPersonLookup = useRef<string | null>(null);
   const maxBirthdate = useMemo(() => {
@@ -282,14 +258,35 @@ function RegistroContent() {
       .catch(() => setPromoters([]));
     fetch("/api/layout")
       .then((res) => res.json())
-      .then((data) => setLayoutUrl(data?.layout_url || null))
-      .catch(() => null);
+      .then((data) => {
+        const optimizedLayoutUrl = optimizeImageUrl(data?.layout_url || null, {
+          width: 1600,
+          quality: 72,
+        });
+        setLayoutUrl(optimizedLayoutUrl);
+        const width = Number(data?.canvas_width);
+        const height = Number(data?.canvas_height);
+        if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+          setLayoutCanvas({ width, height });
+        } else {
+          setLayoutCanvas(null);
+        }
+        void loadImageDimensions(optimizedLayoutUrl).then((size) => setLayoutImageSize(size));
+      })
+      .catch(() => {
+        setLayoutUrl(null);
+        setLayoutCanvas(null);
+        setLayoutImageSize(null);
+      });
     fetch("/api/tables", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         const loadedTables = data?.tables || [];
         setTables(loadedTables);
-        const firstTable = loadedTables.find((t: any) => !t.is_reserved) || loadedTables?.[0];
+        const firstTable =
+          loadedTables.find((t: any) => !t.is_reserved && hasMapPosition(t)) ||
+          loadedTables.find((t: any) => !t.is_reserved) ||
+          loadedTables?.[0];
         setSelectedTable(firstTable?.id || "");
         const firstProduct = firstTable?.products?.find((p: any) => p.is_active !== false);
         setSelectedProduct(firstProduct?.id || "");
@@ -298,7 +295,9 @@ function RegistroContent() {
     fetch("/api/branding")
       .then((res) => res.json())
       .then((data) => {
-        if (data?.logo_url) setLogoUrl(data.logo_url);
+        if (data?.logo_url) {
+          setLogoUrl(optimizeImageUrl(data.logo_url, { width: 512, quality: 75 }) || data.logo_url);
+        }
       })
       .catch(() => null);
     if (code) {
@@ -311,9 +310,9 @@ function RegistroContent() {
           .then((res) => res.json())
           .then((data) => {
             if (data?.cover_url) {
-              setCoverUrl(data.cover_url);
+              setCoverUrl(optimizeImageUrl(data.cover_url, { width: 1920, quality: 72 }) || data.cover_url);
             } else if (data?.url) {
-              setCoverUrl(data.url);
+              setCoverUrl(optimizeImageUrl(data.url, { width: 1920, quality: 72 }) || data.url);
             }
             // Guardar información del evento para mostrar contexto
             if (data?.event_name || data?.event_starts_at || data?.event_location) {
@@ -347,63 +346,22 @@ function RegistroContent() {
     }
   }, []);
 
-  const tableSlots = useMemo(() => {
-    const slots = TABLES.map((slot) => {
-      // Buscar mesa por nombre (ej: "Mesa 1", "Mesa1", "1")
-      const table = findTableForSlot(slot.label, tables);
-      if (!table) {
-        return {
-          id: slot.id,
-          label: slot.label,
-          x: slot.x,
-          y: slot.y,
-          width: slot.w,
-          height: slot.h,
-          reserved: true,
-        };
-      }
-
-      const x = table?.pos_x != null ? percentToViewBox(table.pos_x, "x") : slot.x;
-      const y = table?.pos_y != null ? percentToViewBox(table.pos_y, "y") : slot.y;
-      const w = table?.pos_w != null ? percentToViewBox(table.pos_w, "x") : slot.w;
-      const h = table?.pos_h != null ? percentToViewBox(table.pos_h, "y") : slot.h;
-
-      return {
-        id: table.id, // Usar el ID real de la mesa de BD
-        label: table.name,
-        x,
-        y,
-        width: w,
-        height: h,
-        reserved: !!table.is_reserved,
-      };
-    });
-    
-    // Debug logs
-    if (typeof window !== 'undefined') {
-      console.log('[Registro] Tables loaded:', tables.length);
-      console.log('[Registro] Slots mapped:', slots.length);
-      console.log('[Registro] Available slots:', slots.filter(s => !s.reserved).length);
-      console.log('[Registro] Slots detail:', slots.map(s => ({ 
-        label: s.label, 
-        id: s.id.substring(0, 8), 
-        reserved: s.reserved 
-      })));
-    }
-    
-    return slots;
-  }, [tables]);
+  const tableSlots = useMemo(
+    () =>
+      buildMapSlotsFromTables(tables, {
+        canvasWidth: layoutCanvas?.width ?? null,
+        canvasHeight: layoutCanvas?.height ?? null,
+        imageWidth: layoutImageSize?.width ?? null,
+        imageHeight: layoutImageSize?.height ?? null,
+      }),
+    [tables, layoutCanvas, layoutImageSize]
+  );
   
   const mapUrl = layoutUrl || tableLayoutUrl || LOCAL_MAP_ASSET;
 
   const tableInfo = useMemo(() => {
     return tables.find((t) => t.id === selectedTable) || null;
   }, [selectedTable, tables]);
-
-  const fallbackTables = useMemo(
-    () => tables.filter((t) => !TABLES.some((slot) => slot.id === t.id)),
-    [tables]
-  );
 
   const products = useMemo(() => getActiveProductsForTable(tableInfo), [tableInfo]);
   const selectedProductInfo = products.find((p) => p.id === selectedProduct) || products[0] || null;
@@ -485,7 +443,6 @@ function RegistroContent() {
                 fill
                 priority
                 fetchPriority="high"
-                unoptimized={coverUrl.startsWith('http')}
                 className="object-cover object-center"
                 sizes="100vw"
               />
@@ -720,7 +677,7 @@ function RegistroContent() {
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-[400px_1fr]">
                 {/* Columna 1: Mapa compacto y optimizado */}
                 <div className="relative h-[380px] overflow-hidden rounded-xl border border-white/10 bg-black/20 lg:h-[calc(100vh-220px)] lg:max-h-[600px]">
-                  <SimpleTableMap
+                  <TableMap
                     slots={tableSlots}
                     selectedTableId={selectedTable}
                     onSelect={(id) => {
@@ -734,6 +691,10 @@ function RegistroContent() {
                     }}
                     loading={tables.length === 0}
                     layoutUrl={mapUrl}
+                    enableZoom={ENABLE_MAP_ZOOM}
+                    labelMode="number"
+                    enforceSquare
+                    minSlotSizePx={52}
                   />
                 </div>
 

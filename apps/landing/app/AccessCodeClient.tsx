@@ -25,7 +25,7 @@ export default function AccessCodeClient({ initialLogoUrl }: { initialLogoUrl: s
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const errorMsg = data?.error ||
-            "Tu código intenta seducir al sistema… pero no logra abrirle las puertas. No es válido.";
+            "Tu código intenta seducir al sistema… pero no logra abrirle las puertas.";
         setErrorMessage(errorMsg);
         setShowErrorModal(true);
         return;
@@ -83,7 +83,7 @@ export default function AccessCodeClient({ initialLogoUrl }: { initialLogoUrl: s
         <div className="text-center text-sm text-white/70">
           ¿Sin código?{" "}
           <a href="/compra" className="font-semibold text-[#e91e63] underline-offset-4 hover:underline">
-            Comprar tickets / reservar mesa
+            Comprar Entrada
           </a>
         </div>
       </div>
