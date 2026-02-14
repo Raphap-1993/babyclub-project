@@ -6,15 +6,6 @@ import { createSupabaseFetchWithTimeout, sanitizeSupabaseErrorMessage, withSupab
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function isMissingLayoutCanvasColumns(message?: string | null) {
-  const text = (message || "").toLowerCase();
-  return (
-    text.includes("column") &&
-    text.includes("does not exist") &&
-    (text.includes("layout_canvas_width") || text.includes("layout_canvas_height"))
-  );
-}
-
 export async function GET(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ layout_url: null, canvas_width: null, canvas_height: null, error: "Missing Supabase config" }, { status: 500 });
@@ -31,25 +22,13 @@ export async function GET(req: NextRequest) {
   let organizerCanvasWidth: number | null = null;
   let organizerCanvasHeight: number | null = null;
 
-  // Main source: organizers.layout_url (donde se sube desde el backoffice)
+  // Main source: organizers.layout_url (donde se sube desde el backoffice).
+  // Nota: no consultamos layout_canvas_* aquí para mantener compatibilidad
+  // con proyectos donde esas columnas todavía no existen.
   if (organizerId) {
-    let { data: organizerData, error: organizerError, retryable: organizerRetryable } =
-      await withSupabaseRetry<{ layout_url: string | null; layout_canvas_width: number | null; layout_canvas_height: number | null }>(
+    const { data: organizerData, error: organizerError, retryable: organizerRetryable } =
+      await withSupabaseRetry<{ layout_url: string | null }>(
         "layout.organizer",
-        () =>
-          applyNotDeleted(
-            supabase
-              .from("organizers")
-              .select("layout_url,layout_canvas_width,layout_canvas_height")
-              .eq("id", organizerId)
-          ).maybeSingle(),
-        1
-      );
-
-    // Backward compatible fallback when layout_canvas_* columns are not present yet.
-    if (organizerError && !organizerRetryable && isMissingLayoutCanvasColumns(organizerError.message)) {
-      const legacyOrganizerQuery = await withSupabaseRetry<{ layout_url: string | null }>(
-        "layout.organizer_legacy_columns",
         () =>
           applyNotDeleted(
             supabase
@@ -59,20 +38,6 @@ export async function GET(req: NextRequest) {
           ).maybeSingle(),
         1
       );
-
-      organizerData = legacyOrganizerQuery.data
-        ? {
-            layout_url: legacyOrganizerQuery.data.layout_url,
-            layout_canvas_width: null,
-            layout_canvas_height: null,
-          }
-        : null;
-      organizerError = legacyOrganizerQuery.error;
-      organizerRetryable = legacyOrganizerQuery.retryable;
-    }
-
-    organizerCanvasWidth = organizerData?.layout_canvas_width ?? null;
-    organizerCanvasHeight = organizerData?.layout_canvas_height ?? null;
 
     if (organizerData?.layout_url) {
       return NextResponse.json({
