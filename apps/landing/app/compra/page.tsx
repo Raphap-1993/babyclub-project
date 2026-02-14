@@ -211,7 +211,8 @@ export default function CompraPage() {
         setLayoutUrl(optimizedLayoutUrl);
         const width = Number(data?.canvas_width);
         const height = Number(data?.canvas_height);
-        if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+        const isOrganizerCanvas = data?.canvas_source === "organizer";
+        if (isOrganizerCanvas && Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
           setLayoutCanvas({ width, height });
         } else {
           setLayoutCanvas(null);

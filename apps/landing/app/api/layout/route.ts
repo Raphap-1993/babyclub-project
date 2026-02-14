@@ -30,7 +30,10 @@ function isMissingLayoutSettingsCanvasColumns(message?: string | null) {
 
 export async function GET(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ layout_url: null, canvas_width: null, canvas_height: null, error: "Missing Supabase config" }, { status: 500 });
+    return NextResponse.json(
+      { layout_url: null, canvas_width: null, canvas_height: null, canvas_source: null, error: "Missing Supabase config" },
+      { status: 500 }
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -43,63 +46,6 @@ export async function GET(req: NextRequest) {
   const organizerId = searchParams.get('organizer_id') || process.env.NEXT_PUBLIC_ORGANIZER_ID;
   let organizerCanvasWidth: number | null = null;
   let organizerCanvasHeight: number | null = null;
-  const loadCanvasFromLayoutSettings = async () => {
-    if (organizerId) {
-      const organizerScoped = await withSupabaseRetry<{ canvas_width: number | null; canvas_height: number | null }>(
-        "layout.organizer_canvas_from_layout_settings",
-        () =>
-          applyNotDeleted(
-            supabase
-              .from("layout_settings")
-              .select("canvas_width,canvas_height")
-              .eq("organizer_id", organizerId)
-              .order("updated_at", { ascending: false })
-              .limit(1)
-          ).maybeSingle(),
-        1
-      );
-
-      if (!organizerScoped.error) {
-        return {
-          width: organizerScoped.data?.canvas_width ?? null,
-          height: organizerScoped.data?.canvas_height ?? null,
-        };
-      }
-
-      if (organizerScoped.retryable) {
-        return { width: null, height: null };
-      }
-
-      if (!isMissingLayoutSettingsCanvasColumns(organizerScoped.error?.message)) {
-        console.warn("[layout] organizer scoped layout_settings canvas lookup failed", {
-          code: organizerScoped.error?.code || null,
-          message: sanitizeSupabaseErrorMessage(organizerScoped.error),
-        });
-      }
-    }
-
-    const legacy = await withSupabaseRetry<{ canvas_width: number | null; canvas_height: number | null }>(
-      "layout.legacy_canvas_from_layout_settings",
-      () => supabase.from("layout_settings").select("canvas_width,canvas_height").eq("id", 1).maybeSingle(),
-      1
-    );
-
-    if (!legacy.error) {
-      return {
-        width: legacy.data?.canvas_width ?? null,
-        height: legacy.data?.canvas_height ?? null,
-      };
-    }
-
-    if (!legacy.retryable && !isMissingLayoutSettingsCanvasColumns(legacy.error?.message)) {
-      console.warn("[layout] legacy layout_settings canvas lookup failed", {
-        code: legacy.error?.code || null,
-        message: sanitizeSupabaseErrorMessage(legacy.error),
-      });
-    }
-
-    return { width: null, height: null };
-  };
 
   // Main source: organizers.layout_url (donde se sube desde el backoffice)
   if (organizerId) {
@@ -143,22 +89,26 @@ export async function GET(req: NextRequest) {
     organizerCanvasWidth = organizerData?.layout_canvas_width ?? null;
     organizerCanvasHeight = organizerData?.layout_canvas_height ?? null;
 
-    if (organizerCanvasWidth == null || organizerCanvasHeight == null) {
-      const canvasFromLayoutSettings = await loadCanvasFromLayoutSettings();
-      organizerCanvasWidth = organizerCanvasWidth ?? canvasFromLayoutSettings.width;
-      organizerCanvasHeight = organizerCanvasHeight ?? canvasFromLayoutSettings.height;
-    }
-
     if (organizerData?.layout_url) {
       return NextResponse.json({
         layout_url: organizerData.layout_url,
         canvas_width: organizerCanvasWidth,
         canvas_height: organizerCanvasHeight,
+        canvas_source:
+          organizerCanvasWidth != null && organizerCanvasHeight != null
+            ? "organizer"
+            : null,
       });
     }
 
     if (organizerError && organizerRetryable) {
-      return NextResponse.json({ layout_url: null, canvas_width: organizerCanvasWidth, canvas_height: organizerCanvasHeight, warning: "temporarily_unavailable" });
+      return NextResponse.json({
+        layout_url: null,
+        canvas_width: organizerCanvasWidth,
+        canvas_height: organizerCanvasHeight,
+        canvas_source: null,
+        warning: "temporarily_unavailable",
+      });
     }
   }
 
@@ -189,10 +139,22 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     if (retryable) {
-      return NextResponse.json({ layout_url: null, canvas_width: organizerCanvasWidth, canvas_height: organizerCanvasHeight, warning: "temporarily_unavailable" });
+      return NextResponse.json({
+        layout_url: null,
+        canvas_width: organizerCanvasWidth,
+        canvas_height: organizerCanvasHeight,
+        canvas_source: null,
+        warning: "temporarily_unavailable",
+      });
     }
     return NextResponse.json(
-      { layout_url: null, canvas_width: organizerCanvasWidth, canvas_height: organizerCanvasHeight, error: sanitizeSupabaseErrorMessage(error) },
+      {
+        layout_url: null,
+        canvas_width: organizerCanvasWidth,
+        canvas_height: organizerCanvasHeight,
+        canvas_source: null,
+        error: sanitizeSupabaseErrorMessage(error),
+      },
       { status: 500 }
     );
   }
@@ -201,5 +163,6 @@ export async function GET(req: NextRequest) {
     layout_url: data?.layout_url || null,
     canvas_width: organizerCanvasWidth ?? data?.canvas_width ?? null,
     canvas_height: organizerCanvasHeight ?? data?.canvas_height ?? null,
+    canvas_source: organizerCanvasWidth != null && organizerCanvasHeight != null ? "organizer" : "legacy_layout_settings",
   });
 }
