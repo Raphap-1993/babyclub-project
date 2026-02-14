@@ -691,6 +691,7 @@ function RegistroContent() {
                     }}
                     loading={tables.length === 0}
                     layoutUrl={mapUrl}
+                    viewBoxOverride={layoutCanvas}
                     enableZoom={ENABLE_MAP_ZOOM}
                     labelMode="number"
                     enforceSquare

@@ -28,13 +28,26 @@ function isMissingTableLayoutColumns(message?: string | null) {
   );
 }
 
+function isMissingLegacyPosColumns(message?: string | null) {
+  const text = (message || "").toLowerCase();
+  const hasMissingColumnSignal =
+    (text.includes("does not exist") || text.includes("could not find")) &&
+    (text.includes("column") || text.includes("schema cache"));
+  return (
+    hasMissingColumnSignal &&
+    (text.includes("pos_x") || text.includes("pos_y") || text.includes("pos_w") || text.includes("pos_h"))
+  );
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
 function buildLegacyPositionUpdate(update: any, canvasWidth: number, canvasHeight: number) {
-  const centerX = Number(update?.layout_x);
-  const centerY = Number(update?.layout_y);
+  const parsedCenterX = Number(update?.layout_x);
+  const parsedCenterY = Number(update?.layout_y);
+  const centerX = Number.isFinite(parsedCenterX) ? parsedCenterX : 0;
+  const centerY = Number.isFinite(parsedCenterY) ? parsedCenterY : 0;
   const sizeRaw = Number(update?.layout_size);
   const sizePx = Number.isFinite(sizeRaw) && sizeRaw > 0 ? sizeRaw : DEFAULT_LAYOUT_SIZE;
   const safeCanvasWidth = Math.max(1, canvasWidth);
@@ -72,6 +85,21 @@ export async function PUT(
 
     // Actualizar posiciones de mesas
     if (updates && Array.isArray(updates)) {
+      const syncLegacyPosition = async (update: any) => {
+        const legacyCanvasWidth = canvasWidth || 800;
+        const legacyCanvasHeight = canvasHeight || 600;
+        const legacyUpdate = buildLegacyPositionUpdate(update, legacyCanvasWidth, legacyCanvasHeight);
+        const { error: legacySyncError } = await supabase
+          .from("tables")
+          .update(legacyUpdate)
+          .eq("id", update.tableId)
+          .eq("organizer_id", organizerId);
+
+        if (legacySyncError && !isMissingLegacyPosColumns(legacySyncError.message)) {
+          throw legacySyncError;
+        }
+      };
+
       for (const update of updates) {
         const payload = {
           layout_x: update.layout_x,
@@ -85,7 +113,10 @@ export async function PUT(
           .eq("id", update.tableId)
           .eq("organizer_id", organizerId);
 
-        if (!tableError) continue;
+        if (!tableError) {
+          await syncLegacyPosition(update);
+          continue;
+        }
 
         // Fallback 1: esquemas sin layout_size pero con layout_x/layout_y
         if (isMissingTableLayoutColumns(tableError.message)) {
@@ -98,7 +129,10 @@ export async function PUT(
             .eq("id", update.tableId)
             .eq("organizer_id", organizerId);
 
-          if (!withoutSizeError) continue;
+          if (!withoutSizeError) {
+            await syncLegacyPosition(update);
+            continue;
+          }
 
           // Fallback 2: esquemas legacy (pos_x/pos_y/pos_w/pos_h)
           if (isMissingTableLayoutColumns(withoutSizeError.message)) {

@@ -104,6 +104,7 @@ type TableMapProps = {
   selectedTableId: string;
   onSelect: (tableId: string) => void;
   layoutUrl?: string;
+  viewBoxOverride?: ViewBoxSize | null;
   loading?: boolean;
   enableZoom?: boolean;
   labelMode?: "full" | "number";
@@ -116,6 +117,7 @@ export default function TableMap({
   selectedTableId,
   onSelect,
   layoutUrl,
+  viewBoxOverride = null,
   loading = false,
   enableZoom = true,
   labelMode = "full",
@@ -128,6 +130,14 @@ export default function TableMap({
   const debugEnabled = searchParams?.get("debugMap") === "1" || process.env.NEXT_PUBLIC_MAP_DEBUG === "true";
 
   useEffect(() => {
+    if (viewBoxOverride?.width && viewBoxOverride?.height) {
+      setViewBoxSize({
+        width: viewBoxOverride.width,
+        height: viewBoxOverride.height,
+      });
+      return;
+    }
+
     if (!layoutUrl) {
       setViewBoxSize(MAP_VIEWBOX);
       return;
@@ -148,7 +158,7 @@ export default function TableMap({
       img.onload = null;
       img.onerror = null;
     };
-  }, [layoutUrl]);
+  }, [layoutUrl, viewBoxOverride?.width, viewBoxOverride?.height]);
 
   const scaledSlots = useMemo(() => {
     const scaleX = viewBoxSize.width / MAP_VIEWBOX.width;

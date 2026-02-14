@@ -95,12 +95,14 @@ export function buildMapSlotsFromTables(tables: TableMapSource[], options?: Buil
     .filter(hasMapPosition)
     .map((table) => {
       const hasLayout = asFiniteNumber(table.layout_x) !== null && asFiniteNumber(table.layout_y) !== null;
+      const hasLegacy = asFiniteNumber(table.pos_x) !== null && asFiniteNumber(table.pos_y) !== null;
+      const useLayout = hasLayout && (hasProvidedCanvas || !hasLegacy);
       let xPercent = 0;
       let yPercent = 0;
       let widthPercent = 0;
       let heightPercent = 0;
 
-      if (hasLayout) {
+      if (useLayout) {
         const centerX = asFiniteNumber(table.layout_x) ?? 0;
         const centerY = asFiniteNumber(table.layout_y) ?? 0;
         const sizePx = clamp(asFiniteNumber(table.layout_size) ?? DEFAULT_LAYOUT_SIZE_PX, 36, 200);
