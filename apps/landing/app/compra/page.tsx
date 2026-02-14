@@ -976,6 +976,7 @@ export default function CompraPage() {
                       setSelectedProduct(firstProd?.id || "");
                     }}
                     layoutUrl={layoutUrl || undefined}
+                    viewBoxOverride={layoutCanvas}
                     enableZoom={false}
                     loading={tables.length === 0}
                     labelMode="number"
