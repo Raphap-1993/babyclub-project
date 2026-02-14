@@ -11,6 +11,15 @@ function isMissingColumnError(message?: string | null) {
   return text.includes("column") && text.includes("does not exist");
 }
 
+function isMissingTableLayoutColumns(message?: string | null) {
+  const text = (message || "").toLowerCase();
+  return (
+    text.includes("column") &&
+    text.includes("does not exist") &&
+    (text.includes("layout_x") || text.includes("layout_y") || text.includes("layout_size"))
+  );
+}
+
 async function getOrganizerWithLayout(organizerId: string) {
   console.log("=== LAYOUT PAGE SERVER: START ===");
   console.log("organizerId received:", organizerId, "type:", typeof organizerId);
@@ -60,12 +69,54 @@ async function getOrganizerWithLayout(organizerId: string) {
 
   // Obtener todas las mesas del organizador para el diseñador
   console.log("Fetching tables for organizer_id:", organizerId);
-  const { data: tables, error: tablesError } = await supabase
+  let { data: tables, error: tablesError } = await supabase
     .from("tables")
     .select("id, name, ticket_count, layout_x, layout_y, layout_size")
     .eq("organizer_id", organizerId)
     .is("deleted_at", null)
     .order("name");
+
+  if (tablesError && isMissingTableLayoutColumns(tablesError.message)) {
+    const canvasWidth =
+      typeof (organizer as any)?.layout_canvas_width === "number" && (organizer as any).layout_canvas_width > 0
+        ? (organizer as any).layout_canvas_width
+        : 800;
+    const canvasHeight =
+      typeof (organizer as any)?.layout_canvas_height === "number" && (organizer as any).layout_canvas_height > 0
+        ? (organizer as any).layout_canvas_height
+        : 600;
+
+    const fallback = await supabase
+      .from("tables")
+      .select("id, name, ticket_count, pos_x, pos_y, pos_w, pos_h")
+      .eq("organizer_id", organizerId)
+      .is("deleted_at", null)
+      .order("name");
+
+    tables = fallback.data?.map((table: any) => {
+      const widthPercent = Number.isFinite(Number(table.pos_w)) ? Number(table.pos_w) : 9;
+      const heightPercent = Number.isFinite(Number(table.pos_h)) ? Number(table.pos_h) : 6;
+      const xPercent = Number.isFinite(Number(table.pos_x)) ? Number(table.pos_x) : null;
+      const yPercent = Number.isFinite(Number(table.pos_y)) ? Number(table.pos_y) : null;
+      const widthPx = Math.max(40, Math.round((widthPercent / 100) * canvasWidth));
+      const heightPx = Math.max(40, Math.round((heightPercent / 100) * canvasHeight));
+      const sizePx = Math.max(widthPx, heightPx);
+      const layoutX =
+        xPercent === null ? null : ((xPercent + widthPercent / 2) / 100) * canvasWidth;
+      const layoutY =
+        yPercent === null ? null : ((yPercent + heightPercent / 2) / 100) * canvasHeight;
+
+      return {
+        id: table.id,
+        name: table.name,
+        ticket_count: table.ticket_count,
+        layout_x: layoutX,
+        layout_y: layoutY,
+        layout_size: sizePx,
+      };
+    }) || null;
+    tablesError = fallback.error;
+  }
 
   console.log("Tables query result:", { 
     tablesCount: tables?.length || 0,

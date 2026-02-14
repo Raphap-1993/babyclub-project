@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+const DEFAULT_LAYOUT_SIZE = 60;
+
 function isMissingLayoutCanvasColumns(message?: string | null) {
   const text = (message || "").toLowerCase();
   return (
@@ -11,6 +13,40 @@ function isMissingLayoutCanvasColumns(message?: string | null) {
     text.includes("does not exist") &&
     (text.includes("layout_canvas_width") || text.includes("layout_canvas_height"))
   );
+}
+
+function isMissingTableLayoutColumns(message?: string | null) {
+  const text = (message || "").toLowerCase();
+  return (
+    text.includes("column") &&
+    text.includes("does not exist") &&
+    (text.includes("layout_x") || text.includes("layout_y") || text.includes("layout_size"))
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function buildLegacyPositionUpdate(update: any, canvasWidth: number, canvasHeight: number) {
+  const centerX = Number(update?.layout_x);
+  const centerY = Number(update?.layout_y);
+  const sizeRaw = Number(update?.layout_size);
+  const sizePx = Number.isFinite(sizeRaw) && sizeRaw > 0 ? sizeRaw : DEFAULT_LAYOUT_SIZE;
+  const safeCanvasWidth = Math.max(1, canvasWidth);
+  const safeCanvasHeight = Math.max(1, canvasHeight);
+
+  const widthPercent = clamp((sizePx / safeCanvasWidth) * 100, 2, 35);
+  const heightPercent = clamp((sizePx / safeCanvasHeight) * 100, 2, 35);
+  const xPercent = clamp(((centerX - sizePx / 2) / safeCanvasWidth) * 100, 0, 100 - widthPercent);
+  const yPercent = clamp(((centerY - sizePx / 2) / safeCanvasHeight) * 100, 0, 100 - heightPercent);
+
+  return {
+    pos_x: Number(xPercent.toFixed(4)),
+    pos_y: Number(yPercent.toFixed(4)),
+    pos_w: Number(widthPercent.toFixed(4)),
+    pos_h: Number(heightPercent.toFixed(4)),
+  };
 }
 
 export async function PUT(
@@ -33,15 +69,52 @@ export async function PUT(
     // Actualizar posiciones de mesas
     if (updates && Array.isArray(updates)) {
       for (const update of updates) {
-        await supabase
+        const payload = {
+          layout_x: update.layout_x,
+          layout_y: update.layout_y,
+          layout_size: update.layout_size || DEFAULT_LAYOUT_SIZE,
+        };
+
+        const { error: tableError } = await supabase
           .from("tables")
-          .update({
-            layout_x: update.layout_x,
-            layout_y: update.layout_y,
-            layout_size: update.layout_size || 60,
-          })
+          .update(payload)
           .eq("id", update.tableId)
           .eq("organizer_id", organizerId);
+
+        if (!tableError) continue;
+
+        // Fallback 1: esquemas sin layout_size pero con layout_x/layout_y
+        if (isMissingTableLayoutColumns(tableError.message)) {
+          const { error: withoutSizeError } = await supabase
+            .from("tables")
+            .update({
+              layout_x: update.layout_x,
+              layout_y: update.layout_y,
+            })
+            .eq("id", update.tableId)
+            .eq("organizer_id", organizerId);
+
+          if (!withoutSizeError) continue;
+
+          // Fallback 2: esquemas legacy (pos_x/pos_y/pos_w/pos_h)
+          if (isMissingTableLayoutColumns(withoutSizeError.message)) {
+            const legacyCanvasWidth = canvasWidth || 800;
+            const legacyCanvasHeight = canvasHeight || 600;
+            const legacyUpdate = buildLegacyPositionUpdate(update, legacyCanvasWidth, legacyCanvasHeight);
+            const { error: legacyError } = await supabase
+              .from("tables")
+              .update(legacyUpdate)
+              .eq("id", update.tableId)
+              .eq("organizer_id", organizerId);
+
+            if (!legacyError) continue;
+            throw legacyError;
+          }
+
+          throw withoutSizeError;
+        }
+
+        throw tableError;
       }
     }
 
