@@ -8,9 +8,11 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function isMissingLayoutColumns(message?: string | null) {
   const text = (message || "").toLowerCase();
+  const hasMissingColumnSignal =
+    (text.includes("does not exist") || text.includes("could not find")) &&
+    (text.includes("column") || text.includes("schema cache"));
   return (
-    text.includes("column") &&
-    text.includes("does not exist") &&
+    hasMissingColumnSignal &&
     (text.includes("layout_x") || text.includes("layout_y") || text.includes("layout_size"))
   );
 }
