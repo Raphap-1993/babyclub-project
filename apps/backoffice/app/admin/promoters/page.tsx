@@ -1,6 +1,7 @@
 import PromotersClient from "./PromotersClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
+import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,7 +21,18 @@ type Promoter = {
   };
 };
 
-async function getPromoters(params: { page: number; pageSize: number; q?: string }) {
+const sanitizeSearchTerm = (value: string) =>
+  value
+    .trim()
+    .replace(/[(),]/g, " ")
+    .replace(/\s+/g, " ");
+
+async function getPromoters(params: {
+  page: number;
+  pageSize: number;
+  q?: string;
+  status?: "all" | "active" | "inactive";
+}) {
   if (!supabaseUrl || !supabaseServiceKey) return { promoters: [], total: 0, error: "Falta configuración de Supabase" };
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -29,16 +41,18 @@ async function getPromoters(params: { page: number; pageSize: number; q?: string
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
 
-  let query = supabase
-    .from("promoters")
-    .select("id,code,person_id,is_active,person:persons!inner(id,dni,first_name,last_name,email,phone)", {
-      count: "exact",
-    })
-    .order("created_at", { ascending: true })
+  let query = applyNotDeleted(
+    supabase
+      .from("promoters")
+      .select("id,code,person_id,is_active,person:persons!inner(id,dni,first_name,last_name,email,phone)", {
+        count: "exact",
+      })
+  )
+    .order("created_at", { ascending: false })
     .range(start, end);
 
   if (params.q) {
-    const term = params.q.trim();
+    const term = sanitizeSearchTerm(params.q);
     if (term) {
       // buscar coincidencias de persona primero
       const { data: personsMatch } = await supabase
@@ -51,7 +65,8 @@ async function getPromoters(params: { page: number; pageSize: number; q?: string
             `dni.ilike.%${term}%`,
             `email.ilike.%${term}%`,
           ].join(",")
-        );
+        )
+        .limit(300);
       const personIds = (personsMatch || []).map((p: any) => p.id).filter(Boolean);
 
       const ors = [`code.ilike.%${term}%`];
@@ -60,6 +75,12 @@ async function getPromoters(params: { page: number; pageSize: number; q?: string
       }
       query = query.or(ors.join(","));
     }
+  }
+
+  if (params.status === "active") {
+    query = query.eq("is_active", true);
+  } else if (params.status === "inactive") {
+    query = query.eq("is_active", false);
   }
 
   const { data, error, count } = await query;
@@ -92,16 +113,27 @@ export default async function PromotersPage({ searchParams }: { searchParams: Pr
   const page = Math.max(1, parseInt((params?.page as string) || "1", 10) || 1);
   const pageSize = Math.min(100, Math.max(5, parseInt((params?.pageSize as string) || "10", 10) || 10));
   const q = (params?.q as string) || "";
+  const rawStatus = ((params?.status as string) || "all").toLowerCase();
+  const status: "all" | "active" | "inactive" = rawStatus === "active" || rawStatus === "inactive" ? rawStatus : "all";
 
-  const { promoters, error, total } = await getPromoters({ page, pageSize, q });
+  let { promoters, error, total } = await getPromoters({ page, pageSize, q, status });
   if (!promoters && error) return notFound();
 
-  // Si el total real es mayor que la página actual, ajustamos totalPages en el cliente con total; aquí sólo pasamos los datos de la página.
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+
+  if (safePage !== page) {
+    const corrected = await getPromoters({ page: safePage, pageSize, q, status });
+    promoters = corrected.promoters;
+    error = corrected.error;
+    total = corrected.total;
+  }
+
   return (
     <PromotersClient
       promoters={promoters || []}
       error={error || null}
-      pagination={{ page, pageSize, q }}
+      pagination={{ page: safePage, pageSize, q, status }}
       total={total}
     />
   );

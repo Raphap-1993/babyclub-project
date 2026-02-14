@@ -1,28 +1,35 @@
-import { AdminHeader, AdminPage, AdminPanel } from "@/components/admin/PageScaffold";
+"use client";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CalendarClock } from "lucide-react";
+import { ScreenHeader } from "./ScreenHeader";
 
 type ComingSoonProps = {
   title: string;
   description?: string;
+  kicker?: string;
 };
 
-export function ComingSoon({ title, description }: ComingSoonProps) {
+export function ComingSoon({ title, description, kicker = "Módulo" }: ComingSoonProps) {
   return (
-    <AdminPage maxWidth="6xl">
-      <AdminHeader
-        kicker="Módulo"
+    <main className="space-y-6">
+      <ScreenHeader
+        icon={CalendarClock}
+        kicker={kicker}
         title={title}
         description={description || "Estamos terminando esta sección. Pronto podrás gestionarla desde aquí."}
       />
-      <AdminPanel contentClassName="px-6 py-10">
-        <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center text-white">
-          <span className="rounded-full border border-[#2b2b2b] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-            Módulo en desarrollo
-          </span>
-          <p className="max-w-xl text-sm text-white/70">
-            Estamos unificando el nuevo diseño y los componentes de experiencia para este módulo.
+
+      <Card className="border-neutral-700/70 bg-neutral-900/40">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base text-neutral-100">Migración UI</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-neutral-300">
+            Esta pantalla está en proceso de migración al nuevo flujo operativo.
           </p>
-        </div>
-      </AdminPanel>
-    </AdminPage>
+        </CardContent>
+      </Card>
+    </main>
   );
 }

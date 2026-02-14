@@ -127,8 +127,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (profileLoading || !roleResolved) {
     return (
       <ClientAuthGate>
-        <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-          <p className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm">
+        <div className="flex min-h-screen items-center justify-center bg-black text-white">
+          <p className="rounded-lg border border-white/10 bg-[#0b0b0b] px-4 py-3 text-sm">
             Cargando sesión...
           </p>
         </div>
@@ -138,7 +138,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <ClientAuthGate>
-      <div className="flex min-h-screen bg-slate-950 text-white">
+      <div className="flex min-h-screen bg-black text-white">
         <Sidebar />
         <main className="flex-1 md:ml-64">
           <div className="p-4 md:p-8">

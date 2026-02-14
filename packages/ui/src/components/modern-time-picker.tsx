@@ -44,26 +44,26 @@ export default function ModernTimePicker({
       ref={ref}
       onClick={onClick}
       disabled={disabled}
-      className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-left transition-colors ${
+      className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-left transition-colors ${
         disabled
           ? "opacity-50 cursor-not-allowed"
-          : "hover:border-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+          : "hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50"
       }`}
     >
-      <span className={inputValue ? "text-white" : "text-slate-400"}>
+      <span className={inputValue ? "text-white" : "text-neutral-400"}>
         {inputValue || placeholder}
       </span>
       <div className="flex items-center gap-2">
         {inputValue && !disabled && (
           <X
-            className="h-4 w-4 text-slate-400 hover:text-white transition-colors"
+            className="h-4 w-4 text-neutral-400 hover:text-white transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               onChange("");
             }}
           />
         )}
-        <Clock className="h-4 w-4 text-slate-400" />
+        <Clock className="h-4 w-4 text-neutral-400" />
       </div>
     </button>
   ));
@@ -77,53 +77,53 @@ export default function ModernTimePicker({
           z-index: 9999 !important;
         }
         .modern-time-picker .react-datepicker {
-          background-color: rgb(30 41 59) !important;
-          border: 1px solid rgb(71 85 105) !important;
+          background-color: rgb(23 23 23) !important;
+          border: 1px solid rgb(63 63 70) !important;
           border-radius: 0.5rem !important;
           font-family: inherit !important;
         }
         .modern-time-picker .react-datepicker__header {
-          background-color: rgb(30 41 59) !important;
-          border-bottom: 1px solid rgb(71 85 105) !important;
+          background-color: rgb(23 23 23) !important;
+          border-bottom: 1px solid rgb(63 63 70) !important;
           padding: 8px 0 !important;
         }
         .modern-time-picker .react-datepicker-time__header {
-          color: rgb(203 213 225) !important;
+          color: rgb(212 212 216) !important;
           font-size: 0.875rem !important;
           font-weight: 500 !important;
         }
         .modern-time-picker .react-datepicker__time-container {
-          border-left: 1px solid rgb(71 85 105) !important;
+          border-left: 1px solid rgb(63 63 70) !important;
         }
         .modern-time-picker .react-datepicker__time {
-          background-color: rgb(30 41 59) !important;
+          background-color: rgb(23 23 23) !important;
         }
         .modern-time-picker .react-datepicker__time-box {
           width: 100% !important;
         }
         .modern-time-picker .react-datepicker__time-list {
           scrollbar-width: thin !important;
-          scrollbar-color: rgb(71 85 105) rgb(30 41 59) !important;
+          scrollbar-color: rgb(63 63 70) rgb(23 23 23) !important;
         }
         .modern-time-picker .react-datepicker__time-list::-webkit-scrollbar {
           width: 8px !important;
         }
         .modern-time-picker .react-datepicker__time-list::-webkit-scrollbar-track {
-          background: rgb(30 41 59) !important;
+          background: rgb(23 23 23) !important;
         }
         .modern-time-picker .react-datepicker__time-list::-webkit-scrollbar-thumb {
-          background: rgb(71 85 105) !important;
+          background: rgb(63 63 70) !important;
           border-radius: 4px !important;
         }
         .modern-time-picker .react-datepicker__time-list-item {
-          color: rgb(203 213 225) !important;
+          color: rgb(212 212 216) !important;
           padding: 8px 10px !important;
         }
         .modern-time-picker .react-datepicker__time-list-item:hover {
-          background-color: rgb(51 65 85) !important;
+          background-color: rgb(38 38 38) !important;
         }
         .modern-time-picker .react-datepicker__time-list-item--selected {
-          background-color: rgb(59 130 246) !important;
+          background-color: rgb(225 29 72) !important;
           color: white !important;
           font-weight: 500 !important;
         }

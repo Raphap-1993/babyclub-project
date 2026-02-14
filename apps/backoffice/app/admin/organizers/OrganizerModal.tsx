@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { X, Building2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface OrganizerModalProps {
   isOpen: boolean;
@@ -112,44 +114,46 @@ export function OrganizerModal({ isOpen, onClose, onSave, organizer, isLoading =
       />
       
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-slate-800 rounded-xl border border-slate-700 shadow-2xl">
+      <div className="relative w-full max-w-md mx-4 bg-neutral-800 rounded-xl border border-neutral-700 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between p-6 border-b border-neutral-700">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/20 rounded-lg">
-              <Building2 className="h-5 w-5 text-blue-400" />
+            <div className="p-2 bg-neutral-500/20 rounded-lg">
+              <Building2 className="h-5 w-5 text-neutral-400" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">
                 {isEditing ? "Editar Organizador" : "Nuevo Organizador"}
               </h2>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-neutral-400">
                 {isEditing ? "Modifica los datos del organizador" : "Crea un nuevo organizador"}
               </p>
             </div>
           </div>
           
-          <button
+          <Button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg transition-colors"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
           >
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Nombre */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-neutral-300 mb-2">
               Nombre del Organizador
             </label>
-            <input
+            <Input
               type="text"
               value={formData.name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Ej: Baby Club, Colorimetría..."
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+              className="h-10 border-neutral-600 bg-neutral-700 text-white placeholder:text-neutral-400 focus:border-neutral-500/50 focus:ring-2 focus:ring-neutral-500/50"
             />
             {errors.name && (
               <p className="mt-1 text-sm text-red-400">{errors.name}</p>
@@ -158,66 +162,68 @@ export function OrganizerModal({ isOpen, onClose, onSave, organizer, isLoading =
 
           {/* Slug */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-neutral-300 mb-2">
               Identificador (Slug)
             </label>
-            <input
+            <Input
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
               placeholder="baby-club"
               disabled={!isEditing} // Solo editable en modo edición
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 border-neutral-600 bg-neutral-700 text-white placeholder:text-neutral-400 focus:border-neutral-500/50 focus:ring-2 focus:ring-neutral-500/50 disabled:cursor-not-allowed disabled:opacity-50"
             />
             {errors.slug && (
               <p className="mt-1 text-sm text-red-400">{errors.slug}</p>
             )}
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-neutral-400">
               Se usa en URLs y debe ser único
             </p>
           </div>
 
           {/* Estado Activo */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-neutral-300 mb-2">
               Estado
             </label>
-            <button
+            <Button
               type="button"
               onClick={() => setFormData(prev => ({ ...prev, is_active: !prev.is_active }))}
-              className={`flex items-center gap-3 w-full p-3 rounded-lg border transition-colors ${
+              variant="outline"
+              className={`w-full justify-start gap-3 p-3 transition-colors ${
                 formData.is_active 
                   ? 'bg-green-500/20 border-green-500/50 text-green-300'
-                  : 'bg-slate-700 border-slate-600 text-slate-300'
+                  : 'bg-neutral-700 border-neutral-600 text-neutral-300'
               }`}
             >
               {formData.is_active ? (
                 <ToggleRight className="h-5 w-5 text-green-400" />
               ) : (
-                <ToggleLeft className="h-5 w-5 text-slate-400" />
+                <ToggleLeft className="h-5 w-5 text-neutral-400" />
               )}
               <span className="font-medium">
                 {formData.is_active ? 'Activo' : 'Inactivo'}
               </span>
-            </button>
+            </Button>
           </div>
 
           {/* Buttons */}
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 transition-colors"
+              variant="outline"
+              className="flex-1 border-neutral-600 text-neutral-300 hover:bg-neutral-700"
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={isLoading}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-400 hover:to-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-gradient-to-r from-neutral-500 to-neutral-600 text-white hover:from-neutral-400 hover:to-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? 'Guardando...' : (isEditing ? 'Guardar' : 'Crear')}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

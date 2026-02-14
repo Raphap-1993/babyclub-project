@@ -56,7 +56,7 @@ function ManifiestoContent() {
         if (!res.ok) {
           setError(
             data?.error ||
-              "Tu código intenta seducir al sistema… pero no logra abrirle las puertas. No es válido."
+              "Tu código intenta seducir al sistema… pero no logra abrirle las puertas."
           );
           return;
         }

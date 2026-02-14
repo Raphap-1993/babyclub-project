@@ -10,7 +10,7 @@ interface TicketsOverTimeChartProps {
 export function TicketsOverTimeChart({ data }: TicketsOverTimeChartProps) {
   // Detectar los nombres de eventos dinámicamente (todas las keys excepto 'date')
   const eventNames = data.length > 0 ? Object.keys(data[0]).filter(k => k !== 'date') : [];
-  const colors = ["#3b82f6", "#a21caf", "#f59e42", "#10b981", "#f43f5e", "#6366f1", "#fbbf24"];
+  const colors = ["#e11d48", "#f59e0b", "#10b981", "#f43f5e", "#d946ef", "#f97316", "#a3a3a3"];
 
   return (
     <ChartCard title="Evolución de tickets generados" description="Tickets generados por día y evento">

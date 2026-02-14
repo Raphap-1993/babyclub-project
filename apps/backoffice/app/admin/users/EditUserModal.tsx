@@ -3,6 +3,9 @@ import { useState } from "react";
 import { useEffect } from "react";
 import type { ChangeEvent } from "react";
 import { authedFetch } from "@/lib/authedFetch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectNative } from "@/components/ui/select-native";
 
 import type { Role, StaffUser } from "./types";
 
@@ -51,9 +54,8 @@ export default function EditUserModal({
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
-    const { name, value, type } = target;
-    const isChecked = (target as HTMLInputElement).checked;
-    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? isChecked : value }));
+    const { name, value } = target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -91,12 +93,14 @@ export default function EditUserModal({
       <div className="w-full max-w-2xl rounded-3xl border border-[#2b2b2b] bg-[#0b0b0b] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)]">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-xl font-semibold text-white">Editar usuario</h3>
-          <button
+          <Button
             onClick={onClose}
-            className="rounded-full border border-white/20 px-3 py-1 text-sm font-semibold text-white transition hover:border-white"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-white/20 text-white hover:border-white"
           >
             Cerrar
-          </button>
+          </Button>
         </div>
         <form className="space-y-3" onSubmit={handleSubmit}>
           <div className="grid gap-3 md:grid-cols-2">
@@ -108,40 +112,48 @@ export default function EditUserModal({
             <Field label="Nueva contraseña (opcional)" name="password" value={form.password} onChange={handleChange} type="password" />
             <div className="md:col-span-2 flex flex-col gap-1 text-sm">
               <label className="text-xs uppercase tracking-[0.12em] text-white/50">Rol</label>
-              <select
+              <SelectNative
                 name="role_code"
                 value={form.role_code}
                 onChange={handleChange}
-                className="w-full rounded-2xl border border-[#292929] bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
+                className="h-10 rounded-2xl border-[#292929] bg-black text-sm text-white focus:border-white"
               >
                 {roles.map((r) => (
                   <option key={r.code} value={r.code}>
                     {r.name} ({r.code})
                   </option>
                 ))}
-              </select>
+              </SelectNative>
             </div>
-            <label className="flex items-center gap-2 text-xs text-white/80">
-              <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} />
-              Activo
-            </label>
+            <div className="md:col-span-2">
+              <Button
+                type="button"
+                variant={form.is_active ? "outline" : "ghost"}
+                size="sm"
+                onClick={() => setForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
+                className={form.is_active ? "border-emerald-500/40 text-emerald-300" : "text-white/80"}
+              >
+                {form.is_active ? "Activo" : "Inactivo"}
+              </Button>
+            </div>
           </div>
           {error && <p className="text-sm text-red-300">{error}</p>}
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               type="submit"
               disabled={saving}
-              className="rounded-2xl bg-gradient-to-r from-[#a60c2f] to-[#6f0c25] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(166,12,47,0.35)] transition hover:shadow-[0_12px_32px_rgba(166,12,47,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-gradient-to-r from-[#a60c2f] to-[#6f0c25] text-sm font-semibold text-white shadow-[0_10px_30px_rgba(166,12,47,0.35)] transition hover:shadow-[0_12px_32px_rgba(166,12,47,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Guardando..." : "Guardar cambios"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="rounded-2xl border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white"
+              className="rounded-2xl border-white/20 text-sm font-semibold text-white hover:border-white"
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -153,13 +165,13 @@ function Field({ label, name, value, onChange, type = "text", required }: { labe
   return (
     <label className="flex flex-col gap-1 text-sm font-semibold text-white">
       <span className="text-xs uppercase tracking-[0.12em] text-white/50">{label}</span>
-      <input
+      <Input
         name={name}
         value={value}
         onChange={onChange}
         type={type}
         required={required}
-        className="w-full rounded-2xl border border-[#292929] bg-black px-3 py-2 text-sm text-white outline-none focus:border-white"
+        className="h-10 rounded-2xl border-[#292929] bg-black text-sm text-white focus:border-white"
       />
     </label>
   );

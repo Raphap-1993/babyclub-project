@@ -19,7 +19,14 @@ export type EventRow = {
   organizer?: { name: string; slug: string } | null;
 };
 
-async function getEvents(params: { page: number; pageSize: number }): Promise<{ events: EventRow[]; total: number } | null> {
+type EventStatusFilter = "all" | "active" | "inactive" | "closed";
+
+async function getEvents(params: {
+  page: number;
+  pageSize: number;
+  q?: string;
+  status?: EventStatusFilter;
+}): Promise<{ events: EventRow[]; total: number } | null> {
   if (!supabaseUrl || !supabaseServiceKey) return null;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -29,13 +36,26 @@ async function getEvents(params: { page: number; pageSize: number }): Promise<{ 
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
 
-  const { data, error, count } = await applyNotDeleted(
+  let query = applyNotDeleted(
     supabase
       .from("events")
       .select("id,name,location,starts_at,capacity,is_active,closed_at,header_image,organizer:organizers(name,slug)", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(start, end)
   );
+
+  const term = params.q?.trim();
+  if (term) {
+    query = query.or(`name.ilike.*${term}*,location.ilike.*${term}*`);
+  }
+
+  if (params.status === "active") {
+    query = query.eq("is_active", true).is("closed_at", null);
+  } else if (params.status === "inactive") {
+    query = query.eq("is_active", false).is("closed_at", null);
+  } else if (params.status === "closed") {
+    query = query.not("closed_at", "is", null);
+  }
+
+  const { data, error, count } = await query.order("created_at", { ascending: false }).range(start, end);
 
   if (error || !data) return null;
   if (data.length === 0) return { events: [], total: 0 };
@@ -61,14 +81,13 @@ export default async function EventsPage({ searchParams }: { searchParams?: Prom
   const params = await searchParams;
   const page = Math.max(1, parseInt((params?.page as string) || "1", 10) || 1);
   const pageSize = Math.min(100, Math.max(5, parseInt((params?.pageSize as string) || "10", 10) || 10));
+  const q = ((params?.q as string) || "").trim();
+  const statusParam = ((params?.status as string) || "all").toLowerCase();
+  const status: EventStatusFilter =
+    statusParam === "active" || statusParam === "inactive" || statusParam === "closed" ? statusParam : "all";
 
-  const result = await getEvents({ page, pageSize });
+  const result = await getEvents({ page, pageSize, q, status });
   if (!result) return notFound();
 
-  return (
-    <div>
-      <h1>Eventos</h1>
-      <EventsClient events={result.events} pagination={{ page, pageSize }} total={result.total} />
-    </div>
-  );
+  return <EventsClient events={result.events} pagination={{ page, pageSize, q, status }} total={result.total} />;
 }

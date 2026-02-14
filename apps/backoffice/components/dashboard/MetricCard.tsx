@@ -26,10 +26,10 @@ export function MetricCard({
   className,
 }: MetricCardProps) {
   return (
-    <Card className={`border-0 bg-gradient-to-br from-slate-900 to-slate-800 shadow-lg ${className}`}>
+    <Card className={`border-0 bg-gradient-to-br from-neutral-900 to-neutral-800 shadow-lg ${className}`}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-slate-300">{title}</CardTitle>
-        {icon && <div className="text-slate-400">{icon}</div>}
+        <CardTitle className="text-sm font-medium text-neutral-300">{title}</CardTitle>
+        {icon && <div className="text-neutral-400">{icon}</div>}
       </CardHeader>
       <CardContent>
         <div className="flex items-baseline justify-between">
@@ -47,7 +47,7 @@ export function MetricCard({
             </Badge>
           )}
         </div>
-        {description && <p className="mt-2 text-xs text-slate-400">{description}</p>}
+        {description && <p className="mt-2 text-xs text-neutral-400">{description}</p>}
       </CardContent>
     </Card>
   );

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@repo/ui";
 import { X, Download, Mail, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type TicketDetail = {
   id: string;
@@ -109,26 +111,28 @@ export default function TicketDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} className="max-w-4xl">
-      <DialogHeader className="bg-slate-800/30 border-b border-slate-700/50 backdrop-blur-sm">
+      <DialogHeader className="bg-neutral-800/30 border-b border-neutral-700/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-white via-neutral-200 to-neutral-400 bg-clip-text text-transparent">
               Detalle del ticket
             </DialogTitle>
           </div>
-          <button
+          <Button
             onClick={() => onOpenChange(false)}
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-700/50 hover:text-slate-200"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200"
           >
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
       </DialogHeader>
 
-      <DialogContent className="max-h-[70vh] overflow-y-auto bg-slate-800/20">
+      <DialogContent className="max-h-[70vh] overflow-y-auto bg-neutral-800/20">
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-rose-500"></div>
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-600 border-t-rose-500"></div>
           </div>
         )}
 
@@ -147,7 +151,7 @@ export default function TicketDetailModal({
         {ticket && !loading && (
           <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
             {/* QR Code */}
-            <div className="flex items-center justify-center rounded-xl border border-slate-600/50 bg-slate-900/50 p-4">
+            <div className="flex items-center justify-center rounded-xl border border-neutral-600/50 bg-neutral-900/50 p-4">
               {ticket.qr_token ? (
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(ticket.qr_token)}`}
@@ -155,7 +159,7 @@ export default function TicketDetailModal({
                   className="h-56 w-56 max-w-full rounded-lg bg-white p-3 object-contain shadow-lg"
                 />
               ) : (
-                <p className="text-sm text-slate-500">Sin QR</p>
+                <p className="text-sm text-neutral-500">Sin QR</p>
               )}
             </div>
 
@@ -184,11 +188,11 @@ export default function TicketDetailModal({
               {ticket.table_name && <Info label="Mesa" value={ticket.table_name} />}
 
               {ticket.product_name && (
-                <div className="md:col-span-2 space-y-2 rounded-lg bg-slate-700/30 border border-slate-600/30 p-4">
-                  <p className="text-xs uppercase tracking-wider text-slate-400">📦 Pack</p>
-                  <p className="text-base font-semibold text-slate-100">{ticket.product_name}</p>
+                <div className="md:col-span-2 space-y-2 rounded-lg bg-neutral-700/30 border border-neutral-600/30 p-4">
+                  <p className="text-xs uppercase tracking-wider text-neutral-400">📦 Pack</p>
+                  <p className="text-base font-semibold text-neutral-100">{ticket.product_name}</p>
                   {ticket.product_items && ticket.product_items.length > 0 && (
-                    <ul className="list-disc pl-5 text-sm text-slate-300 space-y-1">
+                    <ul className="list-disc pl-5 text-sm text-neutral-300 space-y-1">
                       {ticket.product_items.map((item) => (
                         <li key={item}>{item}</li>
                       ))}
@@ -198,13 +202,13 @@ export default function TicketDetailModal({
               )}
 
               {ticket.table_codes && ticket.table_codes.length > 0 && (
-                <div className="md:col-span-2 space-y-2 rounded-lg bg-slate-700/30 border border-slate-600/30 p-4">
-                  <p className="text-xs uppercase tracking-wider text-slate-400">🔖 Códigos de mesa</p>
+                <div className="md:col-span-2 space-y-2 rounded-lg bg-neutral-700/30 border border-neutral-600/30 p-4">
+                  <p className="text-xs uppercase tracking-wider text-neutral-400">🔖 Códigos de mesa</p>
                   <div className="flex flex-wrap gap-2">
                     {ticket.table_codes.map((c) => (
                       <span
                         key={c}
-                        className="rounded-lg bg-slate-600/50 border border-slate-500/30 px-3 py-1.5 text-xs font-semibold text-slate-200"
+                        className="rounded-lg bg-neutral-600/50 border border-neutral-500/30 px-3 py-1.5 text-xs font-semibold text-neutral-200"
                       >
                         {c}
                       </span>
@@ -218,23 +222,23 @@ export default function TicketDetailModal({
       </DialogContent>
 
       {ticket && !loading && (
-        <DialogFooter className="bg-slate-800/30 border-t border-slate-700/50 backdrop-blur-sm">
+        <DialogFooter className="bg-neutral-800/30 border-t border-neutral-700/50 backdrop-blur-sm">
           <div className="flex flex-col gap-3 w-full">
             {/* Botones de acción principales */}
             <div className="flex items-center gap-2 flex-wrap">
-              <button
+              <Button
                 onClick={handleDownloadPDF}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:from-blue-400 hover:to-blue-500 hover:scale-105"
+                className="bg-gradient-to-r from-neutral-500 to-neutral-600 text-sm font-semibold text-white shadow-lg transition-all hover:from-neutral-400 hover:to-neutral-500 hover:shadow-xl hover:scale-105"
               >
                 <Download className="h-4 w-4" />
                 Ver/Descargar Ticket
-              </button>
+              </Button>
 
               {ticket.email && !showEmailInput && (
-                <button
+                <Button
                   onClick={() => handleSendEmail(ticket.email!)}
                   disabled={sending}
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:from-green-400 hover:to-green-500 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gradient-to-r from-green-500 to-green-600 text-sm font-semibold text-white shadow-lg transition-all hover:from-green-400 hover:to-green-500 hover:shadow-xl hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {sending ? (
                     <>
@@ -247,32 +251,33 @@ export default function TicketDetailModal({
                       Enviar al cliente
                     </>
                   )}
-                </button>
+                </Button>
               )}
 
-              <button
+              <Button
                 onClick={() => setShowEmailInput(!showEmailInput)}
-                className="inline-flex items-center gap-2 border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 rounded-lg transition-all hover:border-slate-500 hover:bg-slate-800"
+                variant="outline"
+                className="border-neutral-600 text-sm font-semibold text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800"
               >
                 <Mail className="h-4 w-4" />
                 {showEmailInput ? "Cancelar" : "Enviar a otro email"}
-              </button>
+              </Button>
             </div>
 
             {/* Input de email personalizado */}
             {showEmailInput && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
-                <input
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-neutral-700/30 border border-neutral-600/30">
+                <Input
                   type="email"
                   value={customEmail}
                   onChange={(e) => setCustomEmail(e.target.value)}
                   placeholder="correo@ejemplo.com"
-                  className="flex-1 bg-slate-800/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50"
+                  className="h-10 flex-1 border-neutral-600 bg-neutral-800/50 text-sm text-neutral-200 placeholder:text-neutral-400 focus:border-green-500/50 focus:ring-2 focus:ring-green-500/50"
                 />
-                <button
+                <Button
                   onClick={() => handleSendEmail(customEmail)}
                   disabled={sending || !customEmail}
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:from-green-400 hover:to-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gradient-to-r from-green-500 to-green-600 text-sm font-semibold text-white transition-all hover:from-green-400 hover:to-green-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {sending ? (
                     <>
@@ -285,7 +290,7 @@ export default function TicketDetailModal({
                       Enviar
                     </>
                   )}
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -298,8 +303,8 @@ export default function TicketDetailModal({
 function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="space-y-1 min-w-0 break-words">
-      <p className="text-xs uppercase tracking-wider text-slate-400">{label}</p>
-      <p className={`text-base font-semibold text-slate-100 break-words ${mono ? "font-mono break-all text-xs" : ""}`}>
+      <p className="text-xs uppercase tracking-wider text-neutral-400">{label}</p>
+      <p className={`text-base font-semibold text-neutral-100 break-words ${mono ? "font-mono break-all text-xs" : ""}`}>
         {value}
       </p>
     </div>

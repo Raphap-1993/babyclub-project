@@ -13,20 +13,20 @@ export function SimpleLineChart({ data, lines, xKey = "name", height = 300 }: Si
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-        <XAxis dataKey={xKey} stroke="#94a3b8" style={{ fontSize: "12px" }} />
-        <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+        <XAxis dataKey={xKey} stroke="#a3a3a3" style={{ fontSize: "12px" }} />
+        <YAxis stroke="#a3a3a3" style={{ fontSize: "12px" }} />
         <Tooltip
           contentStyle={{
-            backgroundColor: "#0f172a",
-            border: "2px solid #475569",
+            backgroundColor: "#0b0b0b",
+            border: "2px solid #3f3f46",
             borderRadius: "8px",
             color: "#ffffff",
             fontSize: "14px",
             fontWeight: "500",
           }}
           labelStyle={{ color: "#ffffff", fontWeight: "600" }}
-          itemStyle={{ color: "#e2e8f0" }}
+          itemStyle={{ color: "#d4d4d8" }}
         />
         {lines && lines.length > 0
           ? lines.map((l) => (
@@ -54,7 +54,7 @@ export function SimpleLineChart({ data, lines, xKey = "name", height = 300 }: Si
           <Line
             type="monotone"
             dataKey="target"
-            stroke="#64748b"
+            stroke="#737373"
             strokeWidth={2}
             strokeDasharray="5 5"
             dot={false}

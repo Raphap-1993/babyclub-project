@@ -59,13 +59,13 @@ export default async function EventDetailPage({
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Detalle</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Detalle</p>
           <h1 className="text-3xl font-bold text-white">{event.name}</h1>
         </div>
         <div className="flex gap-3">
           <Link
             href="/admin/events"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-600 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
           >
             <ArrowLeft className="h-4 w-4" />
             Volver
@@ -84,7 +84,7 @@ export default async function EventDetailPage({
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main info */}
         <div className="lg:col-span-2">
-          <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 space-y-6">
+          <div className="rounded-xl border border-neutral-700 bg-neutral-900 p-6 space-y-6">
             {/* Header Image */}
             {event.header_image && (
               <div className="relative h-48 w-full overflow-hidden rounded-lg">
@@ -99,17 +99,17 @@ export default async function EventDetailPage({
             {/* Basic Info */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">Nombre</p>
+                <p className="text-xs font-semibold uppercase text-neutral-400">Nombre</p>
                 <p className="text-lg font-semibold text-white">{event.name}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">Estado</p>
+                <p className="text-xs font-semibold uppercase text-neutral-400">Estado</p>
                 <div className="mt-1">
                   <span
                     className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
                       event.is_active
                         ? "bg-rose-500/20 text-rose-400"
-                        : "bg-slate-700/50 text-slate-400"
+                        : "bg-neutral-700/50 text-neutral-400"
                     }`}
                   >
                     {event.is_active ? "Activo" : "Inactivo"}
@@ -121,32 +121,32 @@ export default async function EventDetailPage({
             {/* Location & Dates */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">Ubicación</p>
-                <p className="mt-1 text-slate-200">{event.location || "No especificada"}</p>
+                <p className="text-xs font-semibold uppercase text-neutral-400">Ubicación</p>
+                <p className="mt-1 text-neutral-200">{event.location || "No especificada"}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">Fecha de Inicio</p>
-                <p className="mt-1 text-slate-200">{formatLimaFromDb(event.starts_at ?? "")}</p>
+                <p className="text-xs font-semibold uppercase text-neutral-400">Fecha de Inicio</p>
+                <p className="mt-1 text-neutral-200">{formatLimaFromDb(event.starts_at ?? "")}</p>
               </div>
             </div>
 
             {/* Capacity & Entry Limit */}
-            <div className="grid gap-4 sm:grid-cols-2 border-t border-slate-700 pt-4">
+            <div className="grid gap-4 sm:grid-cols-2 border-t border-neutral-700 pt-4">
               <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">Capacidad</p>
+                <p className="text-xs font-semibold uppercase text-neutral-400">Capacidad</p>
                 <p className="mt-1 text-lg font-semibold text-white">{event.capacity ?? "—"}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">Límite de Ingreso</p>
+                <p className="text-xs font-semibold uppercase text-neutral-400">Límite de Ingreso</p>
                 <p className="mt-1 text-lg font-semibold text-white">{event.entry_limit ?? "—"}</p>
               </div>
             </div>
 
             {/* General Code */}
             {event.generalCode && (
-              <div className="border-t border-slate-700 pt-4">
-                <p className="text-xs font-semibold uppercase text-slate-400">Código General</p>
-                <code className="mt-2 block rounded bg-slate-800 px-3 py-2 font-mono text-sm text-slate-200">
+              <div className="border-t border-neutral-700 pt-4">
+                <p className="text-xs font-semibold uppercase text-neutral-400">Código General</p>
+                <code className="mt-2 block rounded bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-200">
                   {event.generalCode}
                 </code>
               </div>
@@ -156,8 +156,8 @@ export default async function EventDetailPage({
 
         {/* Quick Actions */}
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 space-y-3">
-            <p className="text-xs font-semibold uppercase text-slate-400">Acciones Rápidas</p>
+          <div className="rounded-xl border border-neutral-700 bg-neutral-900 p-6 space-y-3">
+            <p className="text-xs font-semibold uppercase text-neutral-400">Acciones Rápidas</p>
             <Link
               href={`/admin/events/${event.id}/edit`}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-400 transition hover:bg-rose-500/30"
@@ -167,13 +167,13 @@ export default async function EventDetailPage({
             </Link>
             <Link
               href={`/admin/codes?event_id=${event.id}`}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-600 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
             >
               Ver Códigos
             </Link>
             <Link
               href={`/admin/tickets?event_id=${event.id}`}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-600 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
             >
               Ver Tickets
             </Link>
@@ -185,14 +185,6 @@ export default async function EventDetailPage({
             </Link>
           </div>
 
-          {/* Info Box */}
-          <div className="rounded-xl border border-slate-700 bg-slate-900 p-4 space-y-2">
-            <p className="text-xs font-semibold uppercase text-slate-400">Información</p>
-            <p className="text-xs leading-relaxed text-slate-300">
-              Este evento contiene toda la información de configuración, códigos y tickets asociados.
-              Usa el botón "Editar" para hacer cambios.
-            </p>
-          </div>
         </div>
       </div>
     </main>

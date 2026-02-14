@@ -122,11 +122,11 @@ export function ExpandableDataTable<T extends Record<string, any>>({
   };
 
   return (
-    <div className="relative bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
+    <div className="relative bg-neutral-900 rounded-lg border border-neutral-700 overflow-hidden">
       {/* Loading overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center z-10">
-          <div className="flex items-center gap-2 text-slate-400">
+        <div className="absolute inset-0 bg-neutral-900/50 flex items-center justify-center z-10">
+          <div className="flex items-center gap-2 text-neutral-400">
             <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
             Cargando...
           </div>
@@ -136,15 +136,15 @@ export function ExpandableDataTable<T extends Record<string, any>>({
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="border-slate-700 hover:bg-transparent">
+            <TableRow className="border-neutral-700 hover:bg-transparent">
               {/* Columna para expandir */}
-              <TableHead className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 w-10" />
+              <TableHead className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neutral-300 w-10" />
               
               {/* Columnas visibles */}
               {visibleCols.map((col) => (
                 <TableHead
                   key={String(col.key)}
-                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 ${col.width || ""} ${col.className || ""}`}
+                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neutral-300 ${col.width || ""} ${col.className || ""}`}
                 >
                   {col.label}
                 </TableHead>
@@ -152,7 +152,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
               
               {/* Columna de acciones */}
               {actions && (
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-300">
                   Acciones
                 </TableHead>
               )}
@@ -161,13 +161,13 @@ export function ExpandableDataTable<T extends Record<string, any>>({
           
           <TableBody>
             {paginatedData.length === 0 ? (
-              <TableRow className="border-slate-700">
+              <TableRow className="border-neutral-700">
                 <TableCell 
                   colSpan={visibleCols.length + (actions ? 2 : 1)} 
-                  className="px-4 py-12 text-center text-slate-400"
+                  className="px-4 py-12 text-center text-neutral-400"
                 >
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center">
                       📋
                     </div>
                     {emptyMessage}
@@ -182,7 +182,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                 return (
                   <React.Fragment key={rowId}>
                     {/* Fila principal */}
-                    <TableRow className="border-slate-700 hover:bg-slate-800/30 transition-colors cursor-pointer group">
+                    <TableRow className="border-neutral-700 hover:bg-neutral-800/30 transition-colors cursor-pointer group">
                       <TableCell
                         className="px-4 py-3 text-right w-10"
                         onClick={() => setExpandedId(isExpanded ? null : rowId)}
@@ -191,7 +191,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                           isExpanded ? (
                             <ChevronUp className="h-4 w-4 text-rose-500" />
                           ) : (
-                            <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-300" />
+                            <ChevronDown className="h-4 w-4 text-neutral-400 group-hover:text-neutral-300" />
                           )
                         )}
                       </TableCell>
@@ -200,7 +200,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                       {visibleCols.map((col) => (
                         <TableCell
                           key={String(col.key)}
-                          className={`px-4 py-3 text-sm text-slate-200 ${col.width || ""} ${col.className || ""}`}
+                          className={`px-4 py-3 text-sm text-neutral-200 ${col.width || ""} ${col.className || ""}`}
                           onClick={() => setExpandedId(isExpanded ? null : rowId)}
                         >
                           {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
@@ -219,7 +219,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
 
                     {/* Fila expandida */}
                     {isExpanded && expandableCols.length > 0 && (
-                      <TableRow className="border-slate-700 bg-slate-800/50">
+                      <TableRow className="border-neutral-700 bg-neutral-800/50">
                         <TableCell 
                           colSpan={visibleCols.length + (actions ? 2 : 1)} 
                           className="px-4 py-6"
@@ -233,10 +233,10 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 {expandableCols.map((col) => (
                                   <div key={String(col.key)} className="space-y-1">
-                                    <p className="text-xs font-semibold uppercase text-slate-400">
+                                    <p className="text-xs font-semibold uppercase text-neutral-400">
                                       {col.label}
                                     </p>
-                                    <p className="text-sm text-slate-200">
+                                    <p className="text-sm text-neutral-200">
                                       {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                                     </p>
                                   </div>
@@ -246,8 +246,8 @@ export function ExpandableDataTable<T extends Record<string, any>>({
 
                             {/* Acciones en expandido (opcional) */}
                             {actions && (
-                              <div className="border-t border-slate-700 pt-4">
-                                <p className="text-xs font-semibold uppercase text-slate-400 mb-3">
+                              <div className="border-t border-neutral-700 pt-4">
+                                <p className="text-xs font-semibold uppercase text-neutral-400 mb-3">
                                   Acciones
                                 </p>
                                 <div className="flex flex-wrap gap-2">
@@ -269,7 +269,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
 
       {/* Paginación mejorada */}
       {(pagination?.total || data.length) > 0 && (
-        <div className="border-t border-slate-700 bg-slate-800/30 p-4">
+        <div className="border-t border-neutral-700 bg-neutral-800/30 p-4">
           <Pagination
             pagination={currentPagination}
             onPageChange={handlePageChange}
@@ -277,7 +277,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
             pageSizeOptions={pagination?.pageSizeOptions || [5, 10, 20, 50]}
             showPageSizeSelector={pagination?.showPageSizeSelector !== false}
             showInfo={true}
-            className="text-slate-300"
+            className="text-neutral-300"
           />
         </div>
       )}

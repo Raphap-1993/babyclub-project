@@ -6,6 +6,11 @@ import OrganizerLayoutClient from "./OrganizerLayoutClient";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+function isMissingColumnError(message?: string | null) {
+  const text = (message || "").toLowerCase();
+  return text.includes("column") && text.includes("does not exist");
+}
+
 async function getOrganizerWithLayout(organizerId: string) {
   console.log("=== LAYOUT PAGE SERVER: START ===");
   console.log("organizerId received:", organizerId, "type:", typeof organizerId);
@@ -20,12 +25,31 @@ async function getOrganizerWithLayout(organizerId: string) {
   });
 
   console.log("Fetching organizer...");
-  const { data: organizer, error: orgError } = await supabase
+  let { data: organizer, error: orgError } = await supabase
     .from("organizers")
-    .select("id, name, slug, layout_url")
+    .select("id, name, slug, layout_url, layout_canvas_width, layout_canvas_height")
     .eq("id", organizerId)
     .is("deleted_at", null)
     .single();
+
+  // Backward compatible fallback when layout_canvas_* columns are not present yet.
+  if (orgError && isMissingColumnError(orgError.message)) {
+    const fallback = await supabase
+      .from("organizers")
+      .select("id, name, slug, layout_url")
+      .eq("id", organizerId)
+      .is("deleted_at", null)
+      .single();
+
+    organizer = fallback.data
+      ? {
+          ...fallback.data,
+          layout_canvas_width: null,
+          layout_canvas_height: null,
+        }
+      : null;
+    orgError = fallback.error;
+  }
 
   console.log("Organizer result:", { organizer, orgError });
 

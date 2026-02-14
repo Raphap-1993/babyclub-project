@@ -136,28 +136,28 @@ export function ExpandableDataTable<T extends Record<string, any>>({
   return (
     <div className="space-y-4">
       {/* Desktop Table */}
-      <div className="hidden overflow-hidden rounded-xl border border-slate-700 bg-slate-900 lg:block">
+      <div className="hidden overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 lg:block">
         <Table>
-          <TableHeader className="bg-slate-800">
-            <TableRow className="border-slate-700">
-              <TableHead className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 w-10">
+          <TableHeader className="bg-neutral-800">
+            <TableRow className="border-neutral-700">
+              <TableHead className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neutral-300 w-10">
                 ▼
               </TableHead>
               {visibleCols.map((col) => (
                 <TableHead
                   key={String(col.key)}
-                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 ${col.width || ""} ${col.className || ""}`}
+                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neutral-300 ${col.width || ""} ${col.className || ""}`}
                 >
                   {col.label}
                 </TableHead>
               ))}
-              {actions && <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">Acciones</TableHead>}
+              {actions && <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-300">Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
-              <TableRow className="border-slate-700">
-                <TableCell colSpan={visibleCols.length + (actions ? 2 : 1)} className="px-4 py-8 text-center text-slate-400">
+              <TableRow className="border-neutral-700">
+                <TableCell colSpan={visibleCols.length + (actions ? 2 : 1)} className="px-4 py-8 text-center text-neutral-400">
                   {emptyMessage}
                 </TableCell>
               </TableRow>
@@ -169,7 +169,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                 return (
                   <React.Fragment key={rowId}>
                     {/* Fila principal */}
-                    <TableRow className="border-slate-700 hover:bg-slate-800/30 transition-colors cursor-pointer group">
+                    <TableRow className="border-neutral-700 hover:bg-neutral-800/30 transition-colors cursor-pointer group">
                       <TableCell
                         className="px-4 py-3 text-right w-10"
                         onClick={() => setExpandedId(isExpanded ? null : rowId)}
@@ -177,13 +177,13 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                         {isExpanded ? (
                           <ChevronUp className="h-4 w-4 text-rose-500" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-300" />
+                          <ChevronDown className="h-4 w-4 text-neutral-400 group-hover:text-neutral-300" />
                         )}
                       </TableCell>
                       {visibleCols.map((col) => (
                         <TableCell
                           key={String(col.key)}
-                          className={`px-4 py-3 text-sm text-slate-200 ${col.width || ""} ${col.className || ""}`}
+                          className={`px-4 py-3 text-sm text-neutral-200 ${col.width || ""} ${col.className || ""}`}
                           onClick={() => setExpandedId(isExpanded ? null : rowId)}
                         >
                           {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
@@ -198,7 +198,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
 
                     {/* Fila expandida */}
                     {isExpanded && (
-                      <TableRow className="border-slate-700 bg-slate-800/50">
+                      <TableRow className="border-neutral-700 bg-neutral-800/50">
                         <TableCell colSpan={visibleCols.length + (actions ? 2 : 1)} className="px-4 py-6">
                           <div className="space-y-6">
                             {/* Campos expandibles */}
@@ -208,8 +208,8 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
                                 {expandableCols.map((col) => (
                                   <div key={String(col.key)} className="space-y-1">
-                                    <p className="text-xs font-semibold uppercase text-slate-400">{col.label}</p>
-                                    <p className="text-sm text-slate-200">
+                                    <p className="text-xs font-semibold uppercase text-neutral-400">{col.label}</p>
+                                    <p className="text-sm text-neutral-200">
                                       {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                                     </p>
                                   </div>
@@ -219,8 +219,8 @@ export function ExpandableDataTable<T extends Record<string, any>>({
 
                             {/* Acciones en expandido */}
                             {actions && (
-                              <div className="border-t border-slate-700 pt-4">
-                                <p className="text-xs font-semibold uppercase text-slate-400 mb-3">Acciones</p>
+                              <div className="border-t border-neutral-700 pt-4">
+                                <p className="text-xs font-semibold uppercase text-neutral-400 mb-3">Acciones</p>
                                 <div className="flex flex-wrap gap-2">
                                   {actions(row)}
                                 </div>
@@ -245,15 +245,15 @@ export function ExpandableDataTable<T extends Record<string, any>>({
           const isExpanded = expandedId === rowId;
 
           return (
-            <div key={rowId} className="rounded-lg border border-slate-700 bg-slate-900 overflow-hidden">
+            <div key={rowId} className="rounded-lg border border-neutral-700 bg-neutral-900 overflow-hidden">
               <div
-                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-neutral-800/50 transition-colors"
                 onClick={() => setExpandedId(isExpanded ? null : rowId)}
               >
                 <div className="flex-1 min-w-0 space-y-1">
                   {visibleCols.slice(0, 1).map((col) => (
                     <div key={String(col.key)}>
-                      <p className="text-xs font-semibold uppercase text-slate-400">{col.label}</p>
+                      <p className="text-xs font-semibold uppercase text-neutral-400">{col.label}</p>
                       <p className="text-sm font-semibold text-white truncate">
                         {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                       </p>
@@ -263,20 +263,20 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                 {isExpanded ? (
                   <ChevronUp className="h-5 w-5 text-rose-500 flex-shrink-0" />
                 ) : (
-                  <ChevronDown className="h-5 w-5 text-slate-400 flex-shrink-0" />
+                  <ChevronDown className="h-5 w-5 text-neutral-400 flex-shrink-0" />
                 )}
               </div>
 
               {isExpanded && (
-                <div className="border-t border-slate-700 bg-slate-800/50 p-4 space-y-4">
+                <div className="border-t border-neutral-700 bg-neutral-800/50 p-4 space-y-4">
                   {expandedContent ? (
                     expandedContent(row)
                   ) : (
                     <div className="space-y-3">
                       {expandableCols.map((col) => (
                         <div key={String(col.key)} className="flex justify-between gap-2">
-                          <p className="text-xs font-semibold uppercase text-slate-400">{col.label}</p>
-                          <p className="text-sm text-slate-200 text-right">
+                          <p className="text-xs font-semibold uppercase text-neutral-400">{col.label}</p>
+                          <p className="text-sm text-neutral-200 text-right">
                             {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                           </p>
                         </div>
@@ -286,8 +286,8 @@ export function ExpandableDataTable<T extends Record<string, any>>({
 
                   {/* Acciones en mobile */}
                   {actions && (
-                    <div className="border-t border-slate-700 pt-4 space-y-2">
-                      <p className="text-xs font-semibold uppercase text-slate-400">Acciones</p>
+                    <div className="border-t border-neutral-700 pt-4 space-y-2">
+                      <p className="text-xs font-semibold uppercase text-neutral-400">Acciones</p>
                       <div className="flex flex-wrap gap-2">
                         {actions(row)}
                       </div>
@@ -302,11 +302,11 @@ export function ExpandableDataTable<T extends Record<string, any>>({
 
       {/* Pagination Controls */}
       {pagination && currentPagination.totalPages > 1 && (
-        <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 space-y-4">
+        <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-4 space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase text-slate-400">Resultados</p>
-              <p className="text-sm text-slate-300">
+              <p className="text-xs font-semibold uppercase text-neutral-400">Resultados</p>
+              <p className="text-sm text-neutral-300">
                 Mostrando <span className="font-semibold text-white">{data.length}</span> de{" "}
                 <span className="font-semibold text-white">{pagination.total}</span> registros
                 {" "}(Página <span className="font-semibold text-white">{currentPagination.page}</span> de{" "}
@@ -315,14 +315,14 @@ export function ExpandableDataTable<T extends Record<string, any>>({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Por página:</span>
+              <span className="text-xs text-neutral-400">Por página:</span>
               <select
                 value={pageSize}
                 onChange={(e) => {
                   const newSize = parseInt(e.target.value, 10);
                   window.location.href = buildUrl(1, newSize);
                 }}
-                className="rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+                className="rounded border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
               >
                 {[5, 10, 15, 20, 30, 50].map((size) => (
                   <option key={size} value={size}>
@@ -338,7 +338,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
             {currentPage > 1 && (
               <Link
                 href={buildUrl(1, pageSize)}
-                className="inline-flex items-center justify-center rounded border border-slate-600 p-2 text-slate-300 transition hover:border-slate-500 hover:bg-slate-800"
+                className="inline-flex items-center justify-center rounded border border-neutral-600 p-2 text-neutral-300 transition hover:border-neutral-500 hover:bg-neutral-800"
                 title="Primera página"
               >
                 <span className="text-xs font-semibold">«</span>
@@ -348,7 +348,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
             {currentPage > 1 && (
               <Link
                 href={buildUrl(currentPage - 1, pageSize)}
-                className="inline-flex items-center justify-center rounded border border-slate-600 p-2 text-slate-300 transition hover:border-slate-500 hover:bg-slate-800"
+                className="inline-flex items-center justify-center rounded border border-neutral-600 p-2 text-neutral-300 transition hover:border-neutral-500 hover:bg-neutral-800"
                 title="Página anterior"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -376,7 +376,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
                   className={`inline-flex items-center justify-center rounded px-3 py-2 text-sm font-semibold transition ${
                     isActive
                       ? "bg-rose-500 text-white shadow-lg"
-                      : "border border-slate-600 text-slate-300 hover:border-slate-500 hover:bg-slate-800"
+                      : "border border-neutral-600 text-neutral-300 hover:border-neutral-500 hover:bg-neutral-800"
                   }`}
                 >
                   {page}
@@ -387,7 +387,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
             {currentPage < totalPages && (
               <Link
                 href={buildUrl(currentPage + 1, pageSize)}
-                className="inline-flex items-center justify-center rounded border border-slate-600 p-2 text-slate-300 transition hover:border-slate-500 hover:bg-slate-800"
+                className="inline-flex items-center justify-center rounded border border-neutral-600 p-2 text-neutral-300 transition hover:border-neutral-500 hover:bg-neutral-800"
                 title="Página siguiente"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -397,7 +397,7 @@ export function ExpandableDataTable<T extends Record<string, any>>({
             {currentPage < totalPages && (
               <Link
                 href={buildUrl(totalPages, pageSize)}
-                className="inline-flex items-center justify-center rounded border border-slate-600 p-2 text-slate-300 transition hover:border-slate-500 hover:bg-slate-800"
+                className="inline-flex items-center justify-center rounded border border-neutral-600 p-2 text-neutral-300 transition hover:border-neutral-500 hover:bg-neutral-800"
                 title="Última página"
               >
                 <span className="text-xs font-semibold">»</span>

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   if (!codeRes.ok || !eventId || isActive === false) {
     return NextResponse.json(
-      { error: "Tu código intenta seducir al sistema… pero no logra abrirle las puertas. No es válido." },
+      { error: "Tu código intenta seducir al sistema… pero no logra abrirle las puertas." },
       { status: 404 }
     );
   }
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   );
   if (!eventRes.ok) {
     return NextResponse.json(
-      { error: "Tu código intenta seducir al sistema… pero no logra abrirle las puertas. No es válido." },
+      { error: "Tu código intenta seducir al sistema… pero no logra abrirle las puertas." },
       { status: 404 }
     );
   }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, Trash2 } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import TicketDetailModal from "./TicketDetailModal";
+import { Button } from "@/components/ui/button";
 
 export default function TicketActions({ id, compact = true }: { id: string; compact?: boolean }) {
   const router = useRouter();
@@ -34,23 +35,27 @@ export default function TicketActions({ id, compact = true }: { id: string; comp
   return (
     <>
       <div className="flex items-center gap-1">
-        <button
+        <Button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-700/50 hover:text-slate-200"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200"
           title="Ver ticket"
         >
           <Eye className="h-3.5 w-3.5" />
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={onDelete}
           disabled={pending}
-          className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-700/20 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-neutral-400 hover:bg-red-700/20 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
           title="Eliminar ticket"
         >
           <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        </Button>
         {error && (
           <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded">
             {error}

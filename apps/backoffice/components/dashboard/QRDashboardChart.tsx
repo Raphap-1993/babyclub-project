@@ -25,9 +25,9 @@ export function QRDashboardChart({ data }: QRDashboardChartProps) {
       <SimpleBarChart
         data={chartData}
         dataKeys={[
-          { key: "Entradas", color: "#3b82f6" },
-          { key: "Mesas", color: "#a21caf" },
-          { key: "Cortesía", color: "#f59e42" },
+          { key: "Entradas", color: "#e11d48" },
+          { key: "Mesas", color: "#f59e0b" },
+          { key: "Cortesía", color: "#10b981" },
         ]}
         height={260}
       />

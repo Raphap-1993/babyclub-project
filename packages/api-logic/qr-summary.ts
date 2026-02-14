@@ -30,16 +30,25 @@ type CodeRow = {
   is_active: boolean | null;
 };
 
-export async function getQrSummaryAll({
-  supabaseUrl,
-  supabaseKey,
-}: {
-  supabaseUrl: string;
-  supabaseKey: string;
-}): Promise<QRSummary[]> {
-  const supabase = createClient(supabaseUrl, supabaseKey);
+type RpcQrSummaryRow = {
+  event_id: string;
+  name: string | null;
+  date: string | null;
+  total_qr: number | null;
+  by_type: Record<string, unknown> | null;
+};
 
-  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+function normalizeByType(input: Record<string, unknown> | null | undefined): Record<string, number> {
+  if (!input || typeof input !== "object") return {};
+
+  return Object.entries(input).reduce<Record<string, number>>((acc, [key, value]) => {
+    const parsed = typeof value === "number" ? value : Number(value);
+    acc[key] = Number.isFinite(parsed) ? parsed : 0;
+    return acc;
+  }, {});
+}
+
+async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRSummary[]> {
   const { data: eventsRaw, error: eventsError } = await supabase
     .from("events")
     .select("id,name,starts_at,is_active,force_closed,deleted_at")
@@ -58,7 +67,7 @@ export async function getQrSummaryAll({
     return [];
   }
 
-  const eventIds = events.map(event => event.id);
+  const eventIds = events.map((event) => event.id);
   const { data: ticketsRaw, error: ticketsError } = await supabase
     .from("tickets")
     .select("event_id,code_id")
@@ -67,7 +76,11 @@ export async function getQrSummaryAll({
     .in("event_id", eventIds);
 
   const codeIds = Array.from(
-    new Set(((ticketsRaw as TicketWithCodeRow[] | null) || []).map((ticket) => ticket.code_id).filter(Boolean) as string[])
+    new Set(
+      ((ticketsRaw as TicketWithCodeRow[] | null) || [])
+        .map((ticket) => ticket.code_id)
+        .filter(Boolean) as string[],
+    ),
   );
 
   let codeMap = new Map<string, CodeRow>();
@@ -88,7 +101,7 @@ export async function getQrSummaryAll({
 
   const byEvent: Record<string, { by_type: Record<string, number>; total_qr: number }> = {};
 
-  (ticketsRaw as TicketWithCodeRow[] | null)?.forEach(row => {
+  (ticketsRaw as TicketWithCodeRow[] | null)?.forEach((row) => {
     const eid = row.event_id;
     if (!eid) return;
 
@@ -115,4 +128,31 @@ export async function getQrSummaryAll({
     by_type: byEvent[event.id]?.by_type || {},
     error: ticketsError?.message || codesErrorMessage,
   }));
+}
+
+export async function getQrSummaryAll({
+  supabaseUrl,
+  supabaseKey,
+}: {
+  supabaseUrl: string;
+  supabaseKey: string;
+}): Promise<QRSummary[]> {
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: rpcData, error: rpcError } = await supabase.rpc("get_qr_summary_all", {
+    p_cutoff: cutoffIso,
+  });
+
+  if (!rpcError && Array.isArray(rpcData)) {
+    return (rpcData as RpcQrSummaryRow[]).map((row) => ({
+      event_id: row.event_id,
+      name: row.name || row.event_id,
+      date: row.date || "",
+      total_qr: Number(row.total_qr || 0),
+      by_type: normalizeByType(row.by_type),
+    }));
+  }
+
+  return getQrSummaryLegacy(supabase, cutoffIso);
 }

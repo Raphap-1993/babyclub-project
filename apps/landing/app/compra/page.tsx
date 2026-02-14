@@ -1,9 +1,11 @@
 /* Compra de mesas/tickets con upload de voucher */
 "use client";
 
-import { useEffect, useState } from "react";
-import MiniTableMap from "./MiniTableMap";
+import { useEffect, useMemo, useState } from "react";
+import TableMap from "../registro/TableMap";
+import { buildMapSlotsFromTables } from "../registro/tableSlotUtils";
 import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
+import { loadImageDimensions, optimizeImageUrl } from "../../lib/imageOptimization";
 
 type TableRow = {
   id: string;
@@ -27,6 +29,9 @@ type TableRow = {
   pos_y?: number | null;
   pos_w?: number | null;
   pos_h?: number | null;
+  layout_x?: number | null;
+  layout_y?: number | null;
+  layout_size?: number | null;
   is_reserved?: boolean | null;
 };
 
@@ -63,7 +68,7 @@ export default function CompraPage() {
     phone: "",
   });
   const [selectedProduct, setSelectedProduct] = useState<string>("");
-  const [mode, setMode] = useState<"mesa" | "ticket">("mesa");
+  const [mode, setMode] = useState<"mesa" | "ticket">("ticket");
   const [uploading, setUploading] = useState(false);
   const [ticketUploading, setTicketUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -73,6 +78,8 @@ export default function CompraPage() {
   const [successCodes, setSuccessCodes] = useState<string[] | null>(null);
   const [ticketReservationId, setTicketReservationId] = useState<string | null>(null);
   const [layoutUrl, setLayoutUrl] = useState<string | null>(null);
+  const [layoutCanvas, setLayoutCanvas] = useState<{ width: number; height: number } | null>(null);
+  const [layoutImageSize, setLayoutImageSize] = useState<{ width: number; height: number } | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showTicketSummary, setShowTicketSummary] = useState(false);
   const [showTicketConfirmation, setShowTicketConfirmation] = useState(false);
@@ -196,8 +203,26 @@ export default function CompraPage() {
     
     fetch(`/api/layout?organizer_id=${organizerId}`)
       .then((res) => res.json())
-      .then((data) => setLayoutUrl(data?.layout_url || null))
-      .catch(() => setLayoutUrl(null));
+      .then((data) => {
+        const optimizedLayoutUrl = optimizeImageUrl(data?.layout_url || null, {
+          width: 1600,
+          quality: 72,
+        });
+        setLayoutUrl(optimizedLayoutUrl);
+        const width = Number(data?.canvas_width);
+        const height = Number(data?.canvas_height);
+        if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+          setLayoutCanvas({ width, height });
+        } else {
+          setLayoutCanvas(null);
+        }
+        void loadImageDimensions(optimizedLayoutUrl).then((size) => setLayoutImageSize(size));
+      })
+      .catch(() => {
+        setLayoutUrl(null);
+        setLayoutCanvas(null);
+        setLayoutImageSize(null);
+      });
   }, [organizerId]);
 
   useEffect(() => {
@@ -625,6 +650,16 @@ export default function CompraPage() {
   };
 
   const tableInfo = tables.find((t) => t.id === selected);
+  const tableSlots = useMemo(
+    () =>
+      buildMapSlotsFromTables(tables, {
+        canvasWidth: layoutCanvas?.width ?? null,
+        canvasHeight: layoutCanvas?.height ?? null,
+        imageWidth: layoutImageSize?.width ?? null,
+        imageHeight: layoutImageSize?.height ?? null,
+      }),
+    [tables, layoutCanvas, layoutImageSize]
+  );
   const activeProducts =
     (tableInfo?.products?.filter((p) => p.is_active !== false) || []).sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
@@ -930,17 +965,29 @@ export default function CompraPage() {
 
               <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0c0c0c] p-3 text-xs text-white/70 lg:col-start-2 lg:row-start-1 lg:row-span-2">
                 <p className="font-semibold text-white">Plano de mesas</p>
-                <MiniTableMap
-                  tables={tables}
-                  selectedId={selected}
-                  onSelect={(id) => {
-                    setSelected(id);
-                    const next = tables.find((t) => t.id === id);
-                    const firstProd = next?.products?.find((p) => p.is_active !== false);
-                    setSelectedProduct(firstProd?.id || "");
-                  }}
-                  layoutUrl={layoutUrl}
-                />
+                <div className="h-[520px] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                  <TableMap
+                    slots={tableSlots}
+                    selectedTableId={selected}
+                    onSelect={(id) => {
+                      setSelected(id);
+                      const next = tables.find((t) => t.id === id);
+                      const firstProd = next?.products?.find((p) => p.is_active !== false);
+                      setSelectedProduct(firstProd?.id || "");
+                    }}
+                    layoutUrl={layoutUrl || undefined}
+                    enableZoom={false}
+                    loading={tables.length === 0}
+                    labelMode="number"
+                    enforceSquare
+                    minSlotSizePx={52}
+                  />
+                </div>
+                {tableSlots.length === 0 && (
+                  <p className="text-[11px] text-white/50">
+                    No hay mesas posicionadas en el croquis del organizador.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-3 lg:col-start-1 lg:row-start-2">

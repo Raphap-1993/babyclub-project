@@ -194,37 +194,5 @@ export default async function ReservationsPage() {
   const { reservations, error } = await getReservations();
   const organizers = await getOrganizers();
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header consistente */}
-      <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-b border-slate-700">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-white">
-                📋 Reservas de Mesas
-              </h1>
-              <p className="text-sm text-slate-400 mt-1">
-                Gestiona las reservas de mesas por evento y organizador
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Contenido */}
-      <div className="p-6">
-        {error && (
-          <div className="mb-4 bg-red-900/30 border border-red-700 text-red-200 p-4 rounded-lg">
-            <strong>Error:</strong> {error}
-          </div>
-        )}
-        
-        <ModernReservationsClient 
-          initialReservations={reservations} 
-          organizers={organizers}
-        />
-      </div>
-    </div>
-  );
+  return <ModernReservationsClient initialReservations={reservations} organizers={organizers} error={error || null} />;
 }

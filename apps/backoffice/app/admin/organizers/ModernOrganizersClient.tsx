@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { DataTable } from "@repo/ui/components/data-table";
 import { StatusBadge } from "@repo/ui";
 import { ColumnDef } from "@tanstack/react-table";
-import { Eye, Edit2, Plus, Trash2 } from "lucide-react";
+import { Building2, Eye, Edit2, Plus, Search, Trash2, Filter, Armchair, Map } from "lucide-react";
 import { OrganizerModal, OrganizerFormData } from "./OrganizerModal";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { authedFetch } from "@/lib/authedFetch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectNative } from "@/components/ui/select-native";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ExternalPagination } from "../components/ExternalPagination";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type OrganizerRow = {
   id: string;
@@ -21,17 +28,46 @@ type OrganizerRow = {
 
 interface Props {
   initialOrganizers: OrganizerRow[];
+  error?: string | null;
 }
 
-export default function ModernOrganizersClient({ initialOrganizers }: Props) {
+export default function ModernOrganizersClient({ initialOrganizers, error }: Props) {
   const [organizers, setOrganizers] = useState<OrganizerRow[]>(initialOrganizers);
   const [isLoading, setIsLoading] = useState(false);
+  const [tempSearchTerm, setTempSearchTerm] = useState("");
+  const [tempStatusFilter, setTempStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   
   // Estados para modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingOrganizer, setEditingOrganizer] = useState<OrganizerRow | null>(null);
   const [deletingOrganizer, setDeletingOrganizer] = useState<OrganizerRow | null>(null);
   const [viewingOrganizer, setViewingOrganizer] = useState<OrganizerRow | null>(null);
+
+  const filteredOrganizers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return organizers.filter((organizer) => {
+      if (statusFilter === "active" && !organizer.is_active) return false;
+      if (statusFilter === "inactive" && organizer.is_active) return false;
+      if (!term) return true;
+      const name = organizer.name.toLowerCase();
+      const slug = organizer.slug.toLowerCase();
+      return name.includes(term) || slug.includes(term);
+    });
+  }, [organizers, searchTerm, statusFilter]);
+
+  const totalItems = filteredOrganizers.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedOrganizers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrganizers.slice(start, start + pageSize);
+  }, [filteredOrganizers, currentPage, pageSize]);
+
+  const hasActiveFilters = Boolean(searchTerm || statusFilter !== "all");
 
   // Crear organizador
   const handleCreateOrganizer = async (data: OrganizerFormData) => {
@@ -121,65 +157,140 @@ export default function ModernOrganizersClient({ initialOrganizers }: Props) {
     }
   };
 
-  // Stats para el encabezado
-  const stats = {
-    total: organizers.length,
-    active: organizers.filter(org => org.is_active).length,
-    inactive: organizers.filter(org => !org.is_active).length,
-    totalEvents: organizers.reduce((sum, org) => sum + (org.events_count || 0), 0)
+  const handleApplyFilters = () => {
+    setSearchTerm(tempSearchTerm);
+    setStatusFilter(tempStatusFilter);
+    setPage(1);
+  };
+
+  const handleClearFilters = () => {
+    setTempSearchTerm("");
+    setTempStatusFilter("all");
+    setSearchTerm("");
+    setStatusFilter("all");
+    setPage(1);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header con estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4">
-          <div className="text-2xl font-bold text-white">{stats.total}</div>
-          <div className="text-sm text-slate-400">Total organizadores</div>
-        </div>
-        
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4">
-          <div className="text-2xl font-bold text-green-400">{stats.active}</div>
-          <div className="text-sm text-slate-400">Activos</div>
-        </div>
-        
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4">
-          <div className="text-2xl font-bold text-slate-400">{stats.inactive}</div>
-          <div className="text-sm text-slate-400">Inactivos</div>
-        </div>
-        
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4">
-          <div className="text-2xl font-bold text-blue-400">{stats.totalEvents}</div>
-          <div className="text-sm text-slate-400">Total eventos</div>
-        </div>
-      </div>
+    <TooltipProvider>
+      <main className="space-y-6">
+      <ScreenHeader
+        icon={Building2}
+        kicker="Operations"
+        title="Gestión de Organizadores"
+        description="Administra organizadores, estado y orden operativo desde una sola vista."
+        actions={
+          <>
+            <Link
+              href="/admin"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-600 px-4 py-2 text-sm font-semibold text-neutral-200 transition-all hover:border-neutral-500 hover:bg-neutral-800"
+            >
+              ← Dashboard
+            </Link>
+            <Button
+              onClick={() => setShowCreateModal(true)}
+              className="bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-400 hover:to-pink-500"
+            >
+              <Plus className="h-4 w-4" />
+              Crear organizador
+            </Button>
+          </>
+        }
+      />
 
-      {/* Acciones principales */}
-      <div className="flex items-center justify-between">
-        <div className="text-lg font-semibold text-white">
-          Lista de Organizadores
-        </div>
-        
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-green-600 px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-lg transition-all hover:shadow-xl hover:from-emerald-400 hover:to-green-500 hover:scale-105"
-        >
-          <Plus className="h-4 w-4" />
-          Crear Organizador
-        </button>
-      </div>
+      <section className="mb-6 space-y-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-neutral-300">Búsqueda</label>
+            <div className="relative">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                </TooltipTrigger>
+                <TooltipContent>Buscar por nombre o slug</TooltipContent>
+              </Tooltip>
+              <Input
+                value={tempSearchTerm}
+                onChange={(event) => setTempSearchTerm(event.target.value)}
+                placeholder="Nombre o slug"
+                className="h-10 pl-10"
+              />
+            </div>
+          </div>
 
-      {/* Tabla de datos */}
-      <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700 rounded-xl overflow-hidden">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-neutral-300">Estado</label>
+            <div className="relative">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                </TooltipTrigger>
+                <TooltipContent>Filtrar por estado</TooltipContent>
+              </Tooltip>
+              <SelectNative
+                value={tempStatusFilter}
+                onChange={(event) => setTempStatusFilter(event.target.value as "all" | "active" | "inactive")}
+                className="h-10 pl-10 text-sm"
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </SelectNative>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            onClick={handleApplyFilters}
+            className="bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-400 hover:to-pink-500"
+          >
+            <Search className="h-4 w-4" />
+            Filtrar
+          </Button>
+
+          {hasActiveFilters ? (
+            <Button type="button" variant="ghost" onClick={handleClearFilters}>
+              Limpiar
+            </Button>
+          ) : null}
+        </div>
+      </section>
+
+      {error ? (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/20 p-3 backdrop-blur-sm">
+          <p className="text-sm text-red-400">⚠️ Error: {error}</p>
+        </div>
+      ) : null}
+
+      <div className="rounded-xl border border-neutral-700/70 bg-neutral-900/40 p-1">
         <DataTable
-          data={organizers}
-          columns={createColumns({ 
-            onView: (organizer) => setViewingOrganizer(organizer), 
+          data={pagedOrganizers}
+          columns={createColumns({
+            onView: (organizer) => setViewingOrganizer(organizer),
             onEdit: (organizer) => setEditingOrganizer(organizer),
-            onDelete: (organizer) => setDeletingOrganizer(organizer)
+            onDelete: (organizer) => setDeletingOrganizer(organizer),
           })}
+          compact
+          maxHeight="55vh"
+          enableSorting
+          showPagination={false}
+          emptyMessage="No hay organizadores con los filtros actuales."
         />
       </div>
+
+      <ExternalPagination
+        currentPage={currentPage}
+        totalItems={totalItems}
+        itemsPerPage={pageSize}
+        onPageChange={(nextPage) => setPage(nextPage)}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+        itemLabel="organizadores"
+      />
       
       {/* Modals */}
       <OrganizerModal
@@ -212,46 +323,48 @@ export default function ModernOrganizersClient({ initialOrganizers }: Props) {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setViewingOrganizer(null)}
           />
-          <div className="relative w-full max-w-md mx-4 bg-slate-800 rounded-xl border border-slate-700 shadow-2xl">
-            <div className="p-6 border-b border-slate-700">
+          <div className="relative w-full max-w-md mx-4 bg-neutral-800 rounded-xl border border-neutral-700 shadow-2xl">
+            <div className="p-6 border-b border-neutral-700">
               <h2 className="text-lg font-semibold text-white">Detalles del Organizador</h2>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-sm text-slate-400">Nombre</label>
+                <label className="text-sm text-neutral-400">Nombre</label>
                 <p className="text-white font-medium">{viewingOrganizer.name}</p>
               </div>
               <div>
-                <label className="text-sm text-slate-400">Slug</label>
-                <p className="text-slate-300 font-mono text-sm">{viewingOrganizer.slug}</p>
+                <label className="text-sm text-neutral-400">Slug</label>
+                <p className="text-neutral-300 font-mono text-sm">{viewingOrganizer.slug}</p>
               </div>
               <div>
-                <label className="text-sm text-slate-400">Estado</label>
+                <label className="text-sm text-neutral-400">Estado</label>
                 <div className="mt-1">
                   <StatusBadge status={viewingOrganizer.is_active} />
                 </div>
               </div>
               <div>
-                <label className="text-sm text-slate-400">Orden</label>
-                <p className="text-slate-300">{viewingOrganizer.sort_order}</p>
+                <label className="text-sm text-neutral-400">Orden</label>
+                <p className="text-neutral-300">{viewingOrganizer.sort_order}</p>
               </div>
               <div>
-                <label className="text-sm text-slate-400">Eventos</label>
-                <p className="text-slate-300">{viewingOrganizer.events_count || 0} eventos</p>
+                <label className="text-sm text-neutral-400">Eventos</label>
+                <p className="text-neutral-300">{viewingOrganizer.events_count || 0} eventos</p>
               </div>
             </div>
-            <div className="p-6 border-t border-slate-700">
-              <button
+            <div className="p-6 border-t border-neutral-700">
+              <Button
                 onClick={() => setViewingOrganizer(null)}
-                className="w-full px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                variant="ghost"
+                className="w-full border border-neutral-700 bg-neutral-700 text-white hover:bg-neutral-600"
               >
                 Cerrar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+      </main>
+    </TooltipProvider>
   );
 }
 
@@ -272,10 +385,10 @@ const createColumns = ({
       const organizer = row.original;
       return (
         <div className="min-w-0">
-          <div className="font-medium text-slate-100 truncate">
+          <div className="font-medium text-neutral-100 truncate">
             {organizer.name}
           </div>
-          <div className="text-xs text-slate-400 truncate">
+          <div className="text-xs text-neutral-400 truncate">
             @{organizer.slug}
           </div>
         </div>
@@ -304,10 +417,10 @@ const createColumns = ({
       const count = organizer.events_count || 0;
       return (
         <div className="text-center">
-          <div className="text-sm font-medium text-slate-100">
+          <div className="text-sm font-medium text-neutral-100">
             {count}
           </div>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-neutral-400">
             eventos
           </div>
         </div>
@@ -322,7 +435,7 @@ const createColumns = ({
       const organizer = row.original;
       return (
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-700 rounded-full text-xs font-medium text-slate-300">
+          <div className="inline-flex items-center justify-center w-8 h-8 bg-neutral-700 rounded-full text-xs font-medium text-neutral-300">
             {organizer.sort_order}
           </div>
         </div>
@@ -337,29 +450,76 @@ const createColumns = ({
       const organizer = row.original;
       return (
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => onView(organizer)}
-            className="inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-400 hover:bg-slate-700 rounded-lg transition-colors"
-            title="Ver detalles"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          
-          <button
-            onClick={() => onEdit(organizer)}
-            className="inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-emerald-400 hover:bg-slate-700 rounded-lg transition-colors"
-            title="Editar organizador"
-          >
-            <Edit2 className="h-4 w-4" />
-          </button>
-          
-          <button
-            onClick={() => onDelete(organizer)}
-            className="inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition-colors"
-            title="Eliminar organizador"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={`/admin/organizers/${organizer.id}/tables`}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-700 hover:text-neutral-200"
+                aria-label="Mesas del organizador"
+              >
+                <Armchair className="h-4 w-4" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Mesas del organizador</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={`/admin/organizers/${organizer.id}/layout`}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-700 hover:text-cyan-300"
+                aria-label="Croquis del organizador"
+              >
+                <Map className="h-4 w-4" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Croquis del organizador</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => onView(organizer)}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-300"
+                aria-label="Ver detalles"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Ver detalles</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => onEdit(organizer)}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-neutral-400 transition-colors hover:bg-neutral-700 hover:text-rose-300"
+                aria-label="Editar organizador"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Editar organizador</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => onDelete(organizer)}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-neutral-400 hover:bg-neutral-700 hover:text-red-400"
+                aria-label="Eliminar organizador"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Eliminar organizador</TooltipContent>
+          </Tooltip>
         </div>
       );
     },
