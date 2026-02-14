@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface DeleteConfirmModalProps {
   isOpen: boolean;
@@ -28,9 +29,9 @@ export function DeleteConfirmModal({
       />
       
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-slate-800 rounded-xl border border-slate-700 shadow-2xl">
+      <div className="relative w-full max-w-md mx-4 bg-neutral-800 rounded-xl border border-neutral-700 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between p-6 border-b border-neutral-700">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-red-500/20 rounded-lg">
               <AlertTriangle className="h-5 w-5 text-red-400" />
@@ -39,23 +40,25 @@ export function DeleteConfirmModal({
               <h2 className="text-lg font-semibold text-white">
                 Confirmar Eliminación
               </h2>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-neutral-400">
                 Esta acción no se puede deshacer
               </p>
             </div>
           </div>
           
-          <button
+          <Button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg transition-colors"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
           >
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-slate-300 mb-2">
+          <p className="text-neutral-300 mb-2">
             ¿Estás seguro que deseas eliminar el organizador:
           </p>
           <p className="text-white font-semibold text-lg mb-4">
@@ -69,20 +72,21 @@ export function DeleteConfirmModal({
 
           {/* Buttons */}
           <div className="flex gap-3">
-            <button
+            <Button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 transition-colors"
+              variant="outline"
+              className="flex-1 border-neutral-600 text-neutral-300 hover:bg-neutral-700"
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={onConfirm}
               disabled={isLoading}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-400 hover:to-red-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-400 hover:to-red-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? 'Eliminando...' : 'Eliminar'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       .from("tables")
       .select(
         `
-      id,name,event_id,organizer_id,ticket_count,min_consumption,price,is_active,notes,pos_x,pos_y,pos_w,pos_h,
+      id,name,event_id,organizer_id,ticket_count,min_consumption,price,is_active,notes,pos_x,pos_y,pos_w,pos_h,layout_x,layout_y,layout_size,
       event:events(id,name,starts_at,organizer_id),
       table_reservations(status,created_at,deleted_at),
       products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order,deleted_at)

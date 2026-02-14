@@ -9,10 +9,16 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 export async function GET(req: NextRequest) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
-    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+    return NextResponse.json(
+      { success: false, error: guard.error },
+      { status: guard.status },
+    );
   }
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ success: false, error: "Falta configuración de Supabase" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Falta configuración de Supabase" },
+      { status: 500 },
+    );
   }
 
   const slugify = (val: string) =>
@@ -29,8 +35,10 @@ export async function GET(req: NextRequest) {
   const from = search.get("from") || "";
   const to = search.get("to") || "";
   const q = search.get("q") || "";
+  const event_id = search.get("event_id") || "";
   const promoter_id = search.get("promoter_id") || "";
   const organizer_id = search.get("organizer_id") || "";
+  let eventLabel: string | null = null;
   let promoterLabel: string | null = null;
   let organizerLabel: string | null = null;
 
@@ -41,13 +49,16 @@ export async function GET(req: NextRequest) {
   let query = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)", {
-        count: "exact",
-      })
+      .select(
+        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)",
+        {
+          count: "exact",
+        },
+      )
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       // límite para evitar respuestas gigantes y respetar el tope de PostgREST
-      .limit(5000)
+      .limit(5000),
   );
 
   if (from) {
@@ -59,22 +70,50 @@ export async function GET(req: NextRequest) {
   if (q) {
     const term = q.trim();
     if (term) {
-      query = query.or(["dni", "full_name", "email", "phone"].map((col) => `${col}.ilike.*${term}*`).join(","));
+      query = query.or(
+        ["dni", "full_name", "email", "phone"]
+          .map((col) => `${col}.ilike.*${term}*`)
+          .join(","),
+      );
     }
+  }
+  if (event_id) {
+    const eventQuery = applyNotDeleted(
+      supabase.from("events").select("id,name").eq("id", event_id),
+    );
+    const { data: eventRow } = await eventQuery.maybeSingle();
+    eventLabel = eventRow?.name || event_id;
+    query = query.eq("event_id", event_id);
   }
   if (promoter_id) {
     const promoterQuery = applyNotDeleted(
-      supabase.from("promoters").select("code,person:persons(first_name,last_name)").eq("id", promoter_id)
+      supabase
+        .from("promoters")
+        .select("code,person:persons(first_name,last_name)")
+        .eq("id", promoter_id),
     );
     const { data: promoterRows } = await promoterQuery.maybeSingle();
-    const personRel = promoterRows ? (Array.isArray((promoterRows as any).person) ? (promoterRows as any).person?.[0] : (promoterRows as any).person) : null;
-    const personName = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
+    const personRel = promoterRows
+      ? Array.isArray((promoterRows as any).person)
+        ? (promoterRows as any).person?.[0]
+        : (promoterRows as any).person
+      : null;
+    const personName = [personRel?.first_name, personRel?.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     promoterLabel = personName || promoterRows?.code || promoter_id;
 
     const { data: codesByPromoter } = await applyNotDeleted(
-      supabase.from("codes").select("id").eq("promoter_id", promoter_id).eq("is_active", true)
+      supabase
+        .from("codes")
+        .select("id")
+        .eq("promoter_id", promoter_id)
+        .eq("is_active", true),
     );
-    const codeIdsForPromoter = (codesByPromoter || []).map((c: any) => c.id).filter(Boolean);
+    const codeIdsForPromoter = (codesByPromoter || [])
+      .map((c: any) => c.id)
+      .filter(Boolean);
     const promoterFilters = [`promoter_id.eq.${promoter_id}`];
     if (codeIdsForPromoter.length > 0) {
       promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
@@ -82,40 +121,61 @@ export async function GET(req: NextRequest) {
     query = query.or(promoterFilters.join(","));
   }
   if (organizer_id) {
-    const organizerQuery = applyNotDeleted(supabase.from("organizers").select("id,name").eq("id", organizer_id));
+    const organizerQuery = applyNotDeleted(
+      supabase.from("organizers").select("id,name").eq("id", organizer_id),
+    );
     const { data: organizerRow } = await organizerQuery.maybeSingle();
     organizerLabel = organizerRow?.name || organizer_id;
 
-    const { data: organizerEvents, error: organizerEventsError } = await applyNotDeleted(
-      supabase.from("events").select("id").eq("organizer_id", organizer_id)
-    );
+    const { data: organizerEvents, error: organizerEventsError } =
+      await applyNotDeleted(
+        supabase.from("events").select("id").eq("organizer_id", organizer_id),
+      );
     if (organizerEventsError) {
-      return NextResponse.json({ success: false, error: organizerEventsError.message }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: organizerEventsError.message },
+        { status: 400 },
+      );
     }
-    const organizerEventIds = (organizerEvents || []).map((e: any) => e.id).filter(Boolean);
+    const organizerEventIds = (organizerEvents || [])
+      .map((e: any) => e.id)
+      .filter(Boolean);
     if (organizerEventIds.length === 0) {
-      return new Response("created_at,event_name,dni,full_name,email,phone,code,promoter,organizer\n", {
-        status: 200,
-        headers: {
-          "Content-Type": "text/csv",
-          "Content-Disposition": `attachment; filename="tickets-organizer-${organizer_id}.csv"`,
+      return new Response(
+        "created_at,event_name,dni,full_name,email,phone,code,promoter,organizer\n",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/csv",
+            "Content-Disposition": `attachment; filename="tickets-organizer-${organizer_id}.csv"`,
+          },
         },
-      });
+      );
     }
     query = query.in("event_id", organizerEventIds);
   }
 
   const { data, error } = await query;
   if (error || !data) {
-    return NextResponse.json({ success: false, error: error?.message || "No se pudieron exportar tickets" }, { status: 400 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error?.message || "No se pudieron exportar tickets",
+      },
+      { status: 400 },
+    );
   }
 
-  const eventIds = Array.from(new Set((data as any[]).map((t) => t.event_id).filter(Boolean)));
+  const eventIds = Array.from(
+    new Set((data as any[]).map((t) => t.event_id).filter(Boolean)),
+  );
   const codeIds = Array.from(
     new Set(
       (data as any[])
         .map((t) => {
-          const cRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+          const cRel = Array.isArray((t as any).code)
+            ? (t as any).code?.[0]
+            : (t as any).code;
           return cRel?.id || t.code_id;
         })
         .filter(Boolean),
@@ -125,7 +185,9 @@ export async function GET(req: NextRequest) {
     new Set(
       (data as any[])
         .flatMap((t) => {
-          const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+          const codeRel = Array.isArray((t as any).code)
+            ? (t as any).code?.[0]
+            : (t as any).code;
           return [t.promoter_id, codeRel?.promoter_id].filter(Boolean);
         })
         .filter(Boolean),
@@ -134,13 +196,25 @@ export async function GET(req: NextRequest) {
 
   const [eventsRes, codesRes, promotersRes] = await Promise.all([
     eventIds.length
-      ? applyNotDeleted(supabase.from("events").select("id,name,organizer_id").in("id", eventIds))
+      ? applyNotDeleted(
+          supabase
+            .from("events")
+            .select("id,name,organizer_id")
+            .in("id", eventIds),
+        )
       : Promise.resolve({ data: [] as any[], error: null }),
     codeIds.length
-      ? applyNotDeleted(supabase.from("codes").select("id,code").in("id", codeIds))
+      ? applyNotDeleted(
+          supabase.from("codes").select("id,code").in("id", codeIds),
+        )
       : Promise.resolve({ data: [] as any[], error: null }),
     promoterIds.length
-      ? applyNotDeleted(supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIds))
+      ? applyNotDeleted(
+          supabase
+            .from("promoters")
+            .select("id,code,person:persons(first_name,last_name)")
+            .in("id", promoterIds),
+        )
       : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 
@@ -155,36 +229,60 @@ export async function GET(req: NextRequest) {
   const promoterMap = new Map<string, string>();
   (promotersRes.data || []).forEach((p: any) => {
     const personRel = Array.isArray(p.person) ? p.person[0] : p.person;
-    const full = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
+    const full = [personRel?.first_name, personRel?.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     promoterMap.set(p.id, full || p.code || "");
   });
 
-  const organizerIds = Array.from(new Set((eventsRes.data || []).map((e: any) => e.organizer_id).filter(Boolean)));
+  const organizerIds = Array.from(
+    new Set(
+      (eventsRes.data || []).map((e: any) => e.organizer_id).filter(Boolean),
+    ),
+  );
   const { data: organizersRes } =
     organizerIds.length > 0
-      ? await applyNotDeleted(supabase.from("organizers").select("id,name").in("id", organizerIds))
+      ? await applyNotDeleted(
+          supabase.from("organizers").select("id,name").in("id", organizerIds),
+        )
       : { data: [] as any[] };
   const organizerMap = new Map<string, string>();
   (organizersRes || []).forEach((o: any) => organizerMap.set(o.id, o.name));
 
   const rows = (data as any[]).map((t) => {
-    const codeRel = Array.isArray((t as any).code) ? (t as any).code?.[0] : (t as any).code;
+    const codeRel = Array.isArray((t as any).code)
+      ? (t as any).code?.[0]
+      : (t as any).code;
     const promoterId = t.promoter_id || codeRel?.promoter_id || null;
-    const organizerName = t.event_id ? organizerMap.get(eventOrganizerMap.get(t.event_id) || "") || "" : "";
+    const organizerName = t.event_id
+      ? organizerMap.get(eventOrganizerMap.get(t.event_id) || "") || ""
+      : "";
     return {
       created_at: t.created_at,
-      event_name: t.event_id ? eventMap.get(t.event_id) ?? "" : "",
+      event_name: t.event_id ? (eventMap.get(t.event_id) ?? "") : "",
       dni: t.dni ?? "",
       full_name: t.full_name ?? "",
       email: t.email ?? "",
       phone: t.phone ?? "",
-      code_value: codeRel?.code || (t.code_id ? codeMap.get(t.code_id) ?? "" : ""),
-      promoter_name: promoterId ? promoterMap.get(promoterId) ?? "" : "",
+      code_value:
+        codeRel?.code || (t.code_id ? (codeMap.get(t.code_id) ?? "") : ""),
+      promoter_name: promoterId ? (promoterMap.get(promoterId) ?? "") : "",
       organizer_name: organizerName,
     };
   });
 
-  const headers = ["created_at", "event_name", "dni", "full_name", "email", "phone", "code", "promoter", "organizer"];
+  const headers = [
+    "created_at",
+    "event_name",
+    "dni",
+    "full_name",
+    "email",
+    "phone",
+    "code",
+    "promoter",
+    "organizer",
+  ];
   const csv = [
     headers.join(","),
     ...rows.map((r) =>
@@ -205,9 +303,13 @@ export async function GET(req: NextRequest) {
   ].join("\n");
 
   const nameParts: string[] = [];
-  if (from || to) nameParts.push(slugify(`rango-${from || "inicio"}-${to || "hoy"}`));
-  if (promoter_id) nameParts.push(slugify(`promotor-${promoterLabel || promoter_id}`));
-  if (organizer_id) nameParts.push(slugify(`organizer-${organizerLabel || organizer_id}`));
+  if (from || to)
+    nameParts.push(slugify(`rango-${from || "inicio"}-${to || "hoy"}`));
+  if (event_id) nameParts.push(slugify(`evento-${eventLabel || event_id}`));
+  if (promoter_id)
+    nameParts.push(slugify(`promotor-${promoterLabel || promoter_id}`));
+  if (organizer_id)
+    nameParts.push(slugify(`organizer-${organizerLabel || organizer_id}`));
   if (q) nameParts.push(slugify(`q-${q.slice(0, 30)}`));
   const filename = `tickets-${nameParts.length ? nameParts.join("-") : "all"}.csv`;
 

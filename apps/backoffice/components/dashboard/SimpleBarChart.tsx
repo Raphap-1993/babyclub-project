@@ -13,29 +13,29 @@ export function SimpleBarChart({ data, dataKeys, height = 300 }: SimpleBarChartP
   const keys = dataKeys || (data.length > 0 
     ? Object.keys(data[0])
         .filter(k => k !== 'name')
-        .map(k => ({ key: k, color: '#3b82f6' })) // Color azul por defecto
+        .map(k => ({ key: k, color: '#e11d48' })) // Acento rose por defecto
     : []
   );
 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-        <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: "12px" }} />
-        <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+        <XAxis dataKey="name" stroke="#a3a3a3" style={{ fontSize: "12px" }} />
+        <YAxis stroke="#a3a3a3" style={{ fontSize: "12px" }} />
         <Tooltip
           contentStyle={{
-            backgroundColor: "#0f172a",
-            border: "2px solid #475569",
+            backgroundColor: "#0b0b0b",
+            border: "2px solid #3f3f46",
             borderRadius: "8px",
             color: "#ffffff",
             fontSize: "14px",
             fontWeight: "500",
           }}
           labelStyle={{ color: "#ffffff", fontWeight: "600" }}
-          itemStyle={{ color: "#e2e8f0" }}
+          itemStyle={{ color: "#d4d4d8" }}
         />
-        <Legend wrapperStyle={{ color: "#cbd5e1" }} />
+        <Legend wrapperStyle={{ color: "#a3a3a3" }} />
         {keys.map((item) => (
           <Bar key={item.key} dataKey={item.key} fill={item.color} radius={[8, 8, 0, 0]} />
         ))}

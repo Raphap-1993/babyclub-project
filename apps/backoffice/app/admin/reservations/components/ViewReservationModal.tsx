@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Calendar, MapPin, Ticket, FileText, User, Mail, Phone, CreditCard, Check, Clock, XCircle, Send, Trash2 } from "lucide-react";
+import { X, Calendar, MapPin, Ticket, FileText, User, Mail, Phone, CreditCard, Check, Clock, XCircle, Send } from "lucide-react";
 import { formatLimaFromDb } from "shared/limaTime";
 import { authedFetch } from "@/lib/authedFetch";
+import { Button } from "@/components/ui/button";
 
 interface ReservationDetail {
   id: string;
@@ -35,7 +36,7 @@ const statusConfig: Record<string, { label: string; icon: any; color: string }> 
   pending: { label: "Pendiente", icon: Clock, color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
   approved: { label: "Aprobada", icon: Check, color: "bg-green-500/10 text-green-400 border-green-500/20" },
   rejected: { label: "Rechazada", icon: XCircle, color: "bg-red-500/10 text-red-400 border-red-500/20" },
-  confirmed: { label: "Confirmada", icon: Check, color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+  confirmed: { label: "Confirmada", icon: Check, color: "bg-neutral-500/10 text-neutral-400 border-neutral-500/20" },
 };
 
 export default function ViewReservationModal({ reservationId, isOpen, onClose, onUpdate }: ViewReservationModalProps) {
@@ -135,19 +136,21 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-slate-900 rounded-2xl border border-slate-700/50 shadow-2xl">
+      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-neutral-900 rounded-2xl border border-neutral-700/50 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between p-6 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50">
+        <div className="sticky top-0 z-10 flex items-center justify-between p-6 bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-900 border-b border-neutral-700/50">
           <div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Reserva</div>
-            <h2 className="text-xl font-bold text-slate-100">Detalle de reserva</h2>
+            <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1">Reserva</div>
+            <h2 className="text-xl font-bold text-neutral-100">Detalle de reserva</h2>
           </div>
-          <button
+          <Button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 transition-colors"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200"
           >
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -185,36 +188,36 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                 {/* Left Column */}
                 <div className="space-y-4">
                   {/* Cliente */}
-                  <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/50">
+                  <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                     <div className="flex items-center gap-2 mb-3">
                       <User className="h-4 w-4 text-rose-400" />
-                      <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Cliente</h3>
+                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Cliente</h3>
                     </div>
                     <div className="space-y-2">
                       <div>
-                        <div className="text-xs text-slate-500 mb-0.5">Nombres</div>
-                        <div className="text-base font-medium text-slate-100">{reservation.full_name}</div>
+                        <div className="text-xs text-neutral-500 mb-0.5">Nombres</div>
+                        <div className="text-base font-medium text-neutral-100">{reservation.full_name}</div>
                       </div>
                       
                       {reservation.document && (
                         <div>
-                          <div className="text-xs text-slate-500 mb-0.5">Documento</div>
-                          <div className="text-sm text-slate-200 font-mono">
+                          <div className="text-xs text-neutral-500 mb-0.5">Documento</div>
+                          <div className="text-sm text-neutral-200 font-mono">
                             {(reservation.doc_type || "DNI").toUpperCase()} • {reservation.document}
                           </div>
                         </div>
                       )}
                       
                       {reservation.email && (
-                        <div className="flex items-center gap-2 text-sm text-slate-300">
-                          <Mail className="h-3.5 w-3.5 text-slate-400" />
+                        <div className="flex items-center gap-2 text-sm text-neutral-300">
+                          <Mail className="h-3.5 w-3.5 text-neutral-400" />
                           {reservation.email}
                         </div>
                       )}
                       
                       {reservation.phone && (
-                        <div className="flex items-center gap-2 text-sm text-slate-300">
-                          <Phone className="h-3.5 w-3.5 text-slate-400" />
+                        <div className="flex items-center gap-2 text-sm text-neutral-300">
+                          <Phone className="h-3.5 w-3.5 text-neutral-400" />
                           {reservation.phone}
                         </div>
                       )}
@@ -222,20 +225,20 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                   </div>
 
                   {/* Evento */}
-                  <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/50">
+                  <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                     <div className="flex items-center gap-2 mb-3">
-                      <Calendar className="h-4 w-4 text-blue-400" />
-                      <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Evento</h3>
+                      <Calendar className="h-4 w-4 text-neutral-400" />
+                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Evento</h3>
                     </div>
                     <div className="space-y-2">
-                      <div className="text-base font-medium text-slate-100">{reservation.event_name}</div>
+                      <div className="text-base font-medium text-neutral-100">{reservation.event_name}</div>
                       {reservation.event_starts_at && (
-                        <div className="text-sm text-slate-400">
+                        <div className="text-sm text-neutral-400">
                           {formatLimaFromDb(reservation.event_starts_at)}
                         </div>
                       )}
                       {reservation.event_location && (
-                        <div className="flex items-center gap-2 text-sm text-slate-400">
+                        <div className="flex items-center gap-2 text-sm text-neutral-400">
                           <MapPin className="h-3.5 w-3.5" />
                           {reservation.event_location}
                         </div>
@@ -247,15 +250,15 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                 {/* Right Column */}
                 <div className="space-y-4">
                   {/* Mesa y Entradas */}
-                  <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/50">
+                  <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                     <div className="flex items-center gap-2 mb-3">
                       <Ticket className="h-4 w-4 text-purple-400" />
-                      <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Mesa</h3>
+                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Mesa</h3>
                     </div>
                     <div className="space-y-2">
-                      <div className="text-base font-medium text-slate-100">{reservation.table_name}</div>
+                      <div className="text-base font-medium text-neutral-100">{reservation.table_name}</div>
                       {(reservation.ticket_quantity ?? reservation.codes?.length) && (
-                        <div className="text-sm text-slate-400">
+                        <div className="text-sm text-neutral-400">
                           Entradas: {reservation.ticket_quantity ?? reservation.codes?.length}
                         </div>
                       )}
@@ -264,33 +267,33 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
 
                   {/* Voucher */}
                   {reservation.voucher_url && (
-                    <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/50">
+                    <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                       <div className="flex items-center gap-2 mb-3">
                         <FileText className="h-4 w-4 text-green-400" />
-                        <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Voucher</h3>
+                        <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Voucher</h3>
                       </div>
                       <a
                         href={reservation.voucher_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block rounded-lg overflow-hidden border border-slate-600/50 hover:border-rose-500/30 transition-colors"
+                        className="block rounded-lg overflow-hidden border border-neutral-600/50 hover:border-rose-500/30 transition-colors"
                       >
                         <img
                           src={reservation.voucher_url}
                           alt="Voucher"
-                          className="w-full h-auto object-contain bg-slate-950"
+                          className="w-full h-auto object-contain bg-neutral-950"
                         />
                       </a>
                     </div>
                   )}
 
                   {/* Metadata */}
-                  <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/50">
+                  <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                     <div className="flex items-center gap-2 mb-3">
-                      <Clock className="h-4 w-4 text-slate-400" />
-                      <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Creada</h3>
+                      <Clock className="h-4 w-4 text-neutral-400" />
+                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Creada</h3>
                     </div>
-                    <div className="text-sm text-slate-400">
+                    <div className="text-sm text-neutral-400">
                       {formatLimaFromDb(reservation.created_at)}
                     </div>
                   </div>
@@ -299,10 +302,10 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
 
               {/* Códigos generados */}
               {reservation.codes && reservation.codes.length > 0 && (
-                <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/50">
+                <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                   <div className="flex items-center gap-2 mb-3">
                     <CreditCard className="h-4 w-4 text-amber-400" />
-                    <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">
+                    <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">
                       Códigos generados
                     </h3>
                   </div>
@@ -310,7 +313,7 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                     {reservation.codes.map((code, index) => (
                       <div
                         key={index}
-                        className="bg-slate-900/80 rounded-lg px-3 py-2 border border-slate-600/50 font-mono text-sm text-slate-200 hover:border-rose-500/30 transition-colors"
+                        className="bg-neutral-900/80 rounded-lg px-3 py-2 border border-neutral-600/50 font-mono text-sm text-neutral-200 hover:border-rose-500/30 transition-colors"
                       >
                         {code}
                       </div>
@@ -324,38 +327,41 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
 
         {/* Footer Actions */}
         {!loading && !error && reservation && (
-          <div className="sticky bottom-0 flex items-center justify-between gap-2 p-4 bg-slate-900/95 backdrop-blur-sm border-t border-slate-700/50">
+          <div className="sticky bottom-0 flex items-center justify-between gap-2 p-4 bg-neutral-900/95 backdrop-blur-sm border-t border-neutral-700/50">
             <div className="flex items-center gap-2">
               {reservation.status === "approved" && (
-                <button
+                <Button
                   onClick={handleResendEmail}
                   disabled={actionLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30 text-green-400 hover:text-green-300 font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed border border-green-600/30"
+                  variant="outline"
+                  className="border-green-600/30 bg-green-600/20 text-green-400 hover:bg-green-600/30 hover:text-green-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Send className="h-4 w-4" />
                   Reenviar correo
-                </button>
+                </Button>
               )}
               
               {reservation.status !== "rejected" && (
-                <button
+                <Button
                   onClick={handleCancelReservation}
                   disabled={actionLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed border border-red-600/30"
+                  variant="outline"
+                  className="border-red-600/30 bg-red-600/20 text-red-400 hover:bg-red-600/30 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <XCircle className="h-4 w-4" />
                   Anular reserva
-                </button>
+                </Button>
               )}
             </div>
             
-            <button
+            <Button
               onClick={onClose}
               disabled={actionLoading}
-              className="px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-200 font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="ghost"
+              className="bg-neutral-700/50 text-neutral-200 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cerrar
-            </button>
+            </Button>
           </div>
         )}
       </div>

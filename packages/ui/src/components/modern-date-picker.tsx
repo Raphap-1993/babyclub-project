@@ -82,14 +82,14 @@ export default function ModernDatePicker({
   return (
     <div className="relative date-picker-container">
       <div className="relative">
-        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
         <button
           type="button"
           disabled={disabled}
           onClick={() => setOpen(!open)}
-          className="w-full pl-10 pr-10 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm text-left transition-colors hover:bg-slate-800/70 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full pl-10 pr-10 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm text-left transition-colors hover:bg-neutral-800/70 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span className={value ? "text-slate-200" : "text-slate-400"}>
+          <span className={value ? "text-neutral-200" : "text-neutral-400"}>
             {displayValue}
           </span>
         </button>
@@ -97,7 +97,7 @@ export default function ModernDatePicker({
           <button
             type="button"
             onClick={clear}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-200 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -106,23 +106,23 @@ export default function ModernDatePicker({
 
       {open && (
         <div className="absolute top-full left-0 right-0 mt-1 z-50">
-          <div className="bg-slate-800/95 backdrop-blur-md border border-slate-700/50 rounded-lg p-4 shadow-2xl w-72">
+          <div className="bg-neutral-800/95 backdrop-blur-md border border-neutral-700/50 rounded-lg p-4 shadow-2xl w-72">
             {/* Header del calendario */}
             <div className="flex items-center justify-between mb-4">
               <button
                 type="button"
                 onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                className="p-1 text-slate-400 hover:text-slate-200 transition-colors rounded"
+                className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors rounded"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <h3 className="text-sm font-semibold text-slate-200 capitalize">
+              <h3 className="text-sm font-semibold text-neutral-200 capitalize">
                 {format(currentMonth, 'MMMM yyyy', { locale: es })}
               </h3>
               <button
                 type="button"
                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                className="p-1 text-slate-400 hover:text-slate-200 transition-colors rounded"
+                className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors rounded"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -131,7 +131,7 @@ export default function ModernDatePicker({
             {/* Días de la semana */}
             <div className="grid grid-cols-7 gap-1 mb-2">
               {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
-                <div key={day} className="text-xs font-medium text-slate-400 text-center py-2">
+                <div key={day} className="text-xs font-medium text-neutral-400 text-center py-2">
                   {day}
                 </div>
               ))}
@@ -155,10 +155,10 @@ export default function ModernDatePicker({
                       ${isSelected 
                         ? 'bg-rose-500 text-white font-semibold' 
                         : isCurrentMonth 
-                          ? 'text-slate-200 hover:bg-slate-700/50' 
-                          : 'text-slate-600 cursor-not-allowed'
+                          ? 'text-neutral-200 hover:bg-neutral-700/50' 
+                          : 'text-neutral-600 cursor-not-allowed'
                       }
-                      ${isTodayDate && !isSelected ? 'bg-blue-500/20 text-blue-300' : ''}
+                      ${isTodayDate && !isSelected ? 'bg-rose-500/20 text-rose-300' : ''}
                     `}
                   >
                     {format(day, 'd')}
@@ -168,18 +168,18 @@ export default function ModernDatePicker({
             </div>
             
             {/* Quick actions */}
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-700/50">
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-700/50">
               <button
                 type="button"
                 onClick={() => selectDate(new Date())}
-                className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
               >
                 Hoy
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
               >
                 Cancelar
               </button>

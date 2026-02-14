@@ -40,10 +40,10 @@ const colorMap = {
     title: "text-yellow-400",
   },
   info: {
-    bg: "from-blue-500/20 to-cyan-500/20",
-    border: "border-blue-500",
-    icon: "text-blue-500",
-    title: "text-blue-400",
+    bg: "from-neutral-500/20 to-cyan-500/20",
+    border: "border-neutral-500",
+    icon: "text-neutral-500",
+    title: "text-neutral-400",
   },
 };
 
@@ -73,7 +73,7 @@ export default function MessageModal({
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+          className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -97,7 +97,7 @@ export default function MessageModal({
           <div className="mt-6 flex justify-end">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors font-medium"
+              className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition-colors font-medium"
             >
               Entendido
             </button>

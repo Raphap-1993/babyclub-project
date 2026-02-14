@@ -55,35 +55,35 @@ export function DataTable<T extends Record<string, any>>({
   return (
     <div className="space-y-4">
       {/* Desktop Table */}
-      <div className="hidden overflow-hidden rounded-xl border border-slate-700 bg-slate-900 lg:block">
+      <div className="hidden overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 lg:block">
         <Table>
-          <TableHeader className="bg-slate-800">
-            <TableRow className="border-slate-700">
+          <TableHeader className="bg-neutral-800">
+            <TableRow className="border-neutral-700">
               {columns.map((col) => (
                 <TableHead
                   key={String(col.key)}
-                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 ${col.width || ""} ${col.className || ""}`}
+                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neutral-300 ${col.width || ""} ${col.className || ""}`}
                 >
                   {col.label}
                 </TableHead>
               ))}
-              {actions && <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">Acciones</TableHead>}
+              {actions && <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-300">Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
-              <TableRow className="border-slate-700">
-                <TableCell colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-8 text-center text-slate-400">
+              <TableRow className="border-neutral-700">
+                <TableCell colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-8 text-center text-neutral-400">
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
               data.map((row, idx) => (
-                <TableRow key={idx} className="border-slate-700 hover:bg-slate-800/30 transition-colors">
+                <TableRow key={idx} className="border-neutral-700 hover:bg-neutral-800/30 transition-colors">
                   {columns.map((col) => (
                     <TableCell
                       key={String(col.key)}
-                      className={`px-4 py-3 text-sm text-slate-200 ${col.width || ""} ${col.className || ""}`}
+                      className={`px-4 py-3 text-sm text-neutral-200 ${col.width || ""} ${col.className || ""}`}
                     >
                       {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                     </TableCell>
@@ -99,20 +99,20 @@ export function DataTable<T extends Record<string, any>>({
       {/* Mobile Cards */}
       <div className="space-y-3 lg:hidden">
         {data.length === 0 ? (
-          <div className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-8 text-center text-slate-400">
+          <div className="rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-8 text-center text-neutral-400">
             {emptyMessage}
           </div>
         ) : (
           data.map((row, idx) => (
             <div
               key={idx}
-              className="rounded-lg border border-slate-700 bg-slate-900 p-4 space-y-3 hover:border-slate-600 transition-colors"
+              className="rounded-lg border border-neutral-700 bg-neutral-900 p-4 space-y-3 hover:border-neutral-600 transition-colors"
             >
               <div className="space-y-2">
                 {columns.slice(0, 2).map((col) => (
                   <div key={String(col.key)} className="flex justify-between text-sm">
-                    <span className="text-slate-400">{col.label}</span>
-                    <span className="font-semibold text-slate-200">
+                    <span className="text-neutral-400">{col.label}</span>
+                    <span className="font-semibold text-neutral-200">
                       {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                     </span>
                   </div>
@@ -122,15 +122,15 @@ export function DataTable<T extends Record<string, any>>({
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   {columns.slice(2).map((col) => (
                     <div key={String(col.key)}>
-                      <p className="text-slate-500 mb-1">{col.label}</p>
-                      <p className="text-slate-200 font-semibold">
+                      <p className="text-neutral-500 mb-1">{col.label}</p>
+                      <p className="text-neutral-200 font-semibold">
                         {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                       </p>
                     </div>
                   ))}
                 </div>
               )}
-              {actions && <div className="flex gap-2 pt-2 border-t border-slate-700">{actions(row)}</div>}
+              {actions && <div className="flex gap-2 pt-2 border-t border-neutral-700">{actions(row)}</div>}
             </div>
           ))
         )}
@@ -140,14 +140,14 @@ export function DataTable<T extends Record<string, any>>({
       {pagination && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-400">Mostrar:</label>
+            <label className="text-sm text-neutral-400">Mostrar:</label>
             <select
               defaultValue={pageSize}
               onChange={(e) => {
                 const size = parseInt(e.target.value, 10);
                 window.location.href = buildUrl(1, size);
               }}
-              className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 focus:border-slate-500 focus:outline-none"
+              className="rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-200 focus:border-neutral-500 focus:outline-none"
             >
               {[5, 10, 15, 20, 30, 50].map((opt) => (
                 <option key={opt} value={opt}>
@@ -160,10 +160,10 @@ export function DataTable<T extends Record<string, any>>({
           <div className="flex items-center gap-2">
             <Link
               href={buildUrl(Math.max(1, currentPage - 1), pageSize)}
-              className={`inline-flex items-center gap-1 rounded-lg border border-slate-600 px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-1 rounded-lg border border-neutral-600 px-3 py-1.5 text-sm font-medium transition-colors ${
                 currentPage <= 1
-                  ? "cursor-not-allowed border-slate-700 text-slate-500"
-                  : "text-slate-200 hover:border-slate-500 hover:bg-slate-800"
+                  ? "cursor-not-allowed border-neutral-700 text-neutral-500"
+                  : "text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800"
               }`}
               onClick={(e) => currentPage <= 1 && e.preventDefault()}
             >
@@ -171,17 +171,17 @@ export function DataTable<T extends Record<string, any>>({
               <span className="hidden sm:inline">Anterior</span>
             </Link>
 
-            <div className="text-sm text-slate-400">
-              Página <span className="font-semibold text-slate-200">{currentPage}</span> de{" "}
-              <span className="font-semibold text-slate-200">{totalPages}</span>
+            <div className="text-sm text-neutral-400">
+              Página <span className="font-semibold text-neutral-200">{currentPage}</span> de{" "}
+              <span className="font-semibold text-neutral-200">{totalPages}</span>
             </div>
 
             <Link
               href={buildUrl(Math.min(totalPages, currentPage + 1), pageSize)}
-              className={`inline-flex items-center gap-1 rounded-lg border border-slate-600 px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-1 rounded-lg border border-neutral-600 px-3 py-1.5 text-sm font-medium transition-colors ${
                 currentPage >= totalPages
-                  ? "cursor-not-allowed border-slate-700 text-slate-500"
-                  : "text-slate-200 hover:border-slate-500 hover:bg-slate-800"
+                  ? "cursor-not-allowed border-neutral-700 text-neutral-500"
+                  : "text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800"
               }`}
               onClick={(e) => currentPage >= totalPages && e.preventDefault()}
             >
@@ -190,7 +190,7 @@ export function DataTable<T extends Record<string, any>>({
             </Link>
           </div>
 
-          <div className="text-xs text-slate-500 text-center sm:text-right">
+          <div className="text-xs text-neutral-500 text-center sm:text-right">
             Total: {pagination.total} registros
           </div>
         </div>

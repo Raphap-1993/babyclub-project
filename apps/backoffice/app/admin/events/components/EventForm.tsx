@@ -155,11 +155,11 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
   };
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl">
-      <div className="p-6 border-b border-slate-700">
+    <div className="bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl">
+      <div className="p-6 border-b border-neutral-700">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-400 mb-1">
+            <p className="text-sm font-medium text-neutral-400 mb-1">
               {mode === "edit" ? "EDICIÓN" : "CREAR"}
             </p>
             <h2 className="text-xl font-semibold text-white">{header}</h2>
@@ -193,16 +193,16 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
 
           {/* Campo Organizador */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-neutral-300 mb-2">
               Organizador <span className="text-red-400">*</span>
             </label>
             <select
               name="organizer_id"
               value={form.organizer_id}
               onChange={(e) => updateField("organizer_id", e.target.value)}
-              className={`w-full px-4 py-2.5 bg-slate-800 border ${
-                errors.organizer_id ? "border-red-500" : "border-slate-600"
-              } rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+              className={`w-full px-4 py-2.5 bg-neutral-800 border ${
+                errors.organizer_id ? "border-red-500" : "border-neutral-600"
+              } rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:border-transparent`}
               required
             >
               <option value="">-- Selecciona organizador --</option>
@@ -228,7 +228,7 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
             error={errors.code}
           />
           {!codeTouched && codeSuggestion && (
-            <p className="text-xs text-blue-400 -mt-1">
+            <p className="text-xs text-neutral-400 -mt-1">
               💡 Sugerencia: {codeSuggestion}
             </p>
           )}
@@ -245,7 +245,7 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-neutral-300">
                 Fecha y hora del evento (America/Lima)
               </label>
               <div className="flex gap-2">
@@ -286,18 +286,18 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                       const nowIso = DateTime.now().setZone(EVENT_ZONE).toUTC().toISO();
                       if (nowIso) updateField("starts_at", nowIso);
                     }}
-                    className="px-2 py-2 bg-slate-600 hover:bg-slate-500 border border-slate-500 rounded-lg text-xs font-medium text-white transition-colors whitespace-nowrap"
+                    className="px-2 py-2 bg-neutral-600 hover:bg-neutral-500 border border-neutral-500 rounded-lg text-xs font-medium text-white transition-colors whitespace-nowrap"
                   >
                     Ahora
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-slate-400">Se guarda en UTC en la BD.</p>
+              <p className="text-xs text-neutral-400">Se guarda en UTC en la BD.</p>
               {errors.starts_at && <ErrorText message={errors.starts_at} />}
             </div>
             
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-neutral-300">
                 Hora límite de ingreso (America/Lima)
               </label>
               <ModernTimePicker
@@ -305,7 +305,7 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                 onChange={(timeStr) => updateField("entry_limit", timeStr)}
                 placeholder="Hora límite"
               />
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-neutral-400">
                 Si es menor a la hora del evento, se asume día siguiente.
               </p>
               {errors.entry_limit && <ErrorText message={errors.entry_limit} />}
@@ -314,7 +314,7 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-neutral-300">
                 Manifiesto (imagen)
               </label>
               <ManifestUploader
@@ -323,13 +323,13 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                 initialUrl={form.header_image}
               />
               {form.header_image && (
-                <div className="overflow-hidden rounded-lg border border-slate-600 bg-slate-700 p-2">
+                <div className="overflow-hidden rounded-lg border border-neutral-600 bg-neutral-700 p-2">
                   <img src={form.header_image} alt="Manifiesto" className="h-32 w-full rounded-md object-cover" />
                 </div>
               )}
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-neutral-300">
                 Cover (imagen cabecera)
               </label>
               <ManifestUploader
@@ -340,7 +340,7 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                 inputId="cover-file"
               />
               {form.cover_image && (
-                <div className="overflow-hidden rounded-lg border border-slate-600 bg-slate-700 p-2">
+                <div className="overflow-hidden rounded-lg border border-neutral-600 bg-neutral-700 p-2">
                   <img src={form.cover_image} alt="Cover" className="h-32 w-full rounded-md object-cover" />
                 </div>
               )}
@@ -361,15 +361,15 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
           </div>
         )}
 
-        <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
+        <div className="flex items-center gap-4 pt-4 border-t border-neutral-700">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-400 hover:to-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-gradient-to-r from-neutral-500 to-neutral-600 text-white rounded-lg hover:from-neutral-400 hover:to-neutral-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Guardando..." : mode === "edit" ? "Guardar cambios" : "Crear evento"}
           </button>
-          <p className="text-sm text-slate-400">Se guardará directamente en Supabase.</p>
+          <p className="text-sm text-neutral-400">Se guardará directamente en Supabase.</p>
         </div>
       </form>
     </div>
@@ -392,7 +392,7 @@ type FieldProps = {
 function Field({ label, value, onChange, placeholder, type = "text", required, min, step, error }: FieldProps) {
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-slate-300" htmlFor={label}>
+      <label className="block text-sm font-medium text-neutral-300" htmlFor={label}>
         {label}
         {required && <span className="text-red-400 ml-1">*</span>}
       </label>
@@ -405,7 +405,7 @@ function Field({ label, value, onChange, placeholder, type = "text", required, m
         required={required}
         min={min}
         step={step}
-        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-colors"
+        className="w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-500/50 focus:border-neutral-500/50 transition-colors"
       />
       {error && <ErrorText message={error} />}
     </div>
@@ -425,9 +425,9 @@ function Checkbox({ label, checked, onChange }: CheckboxProps) {
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 text-blue-600 bg-slate-700 border border-slate-600 rounded focus:ring-blue-500/50 focus:ring-2"
+        className="w-4 h-4 text-neutral-600 bg-neutral-700 border border-neutral-600 rounded focus:ring-neutral-500/50 focus:ring-2"
       />
-      <span className="text-sm font-medium text-slate-300">{label}</span>
+      <span className="text-sm font-medium text-neutral-300">{label}</span>
     </label>
   );
 }

@@ -26,7 +26,7 @@ const TableWrapper = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "w-full overflow-hidden rounded-xl border border-slate-700/60 bg-slate-900/90 backdrop-blur-sm shadow-xl ring-1 ring-slate-700/20",
+      "w-full overflow-hidden rounded-xl border border-neutral-700/60 bg-neutral-900/90 backdrop-blur-sm shadow-xl ring-1 ring-neutral-700/20",
       compact && "shadow-md",
       className
     )}
@@ -55,8 +55,8 @@ const TableHeader = React.forwardRef<
   <thead
     ref={ref}
     className={cn(
-      "bg-gradient-to-r from-slate-800/90 via-slate-800/90 to-slate-700/90 border-b border-slate-600/60 sticky top-0 z-10 backdrop-blur-sm",
-      compact && "bg-slate-800/95",
+      "bg-gradient-to-r from-neutral-800/90 via-neutral-800/90 to-neutral-700/90 border-b border-neutral-600/60 sticky top-0 z-10 backdrop-blur-sm",
+      compact && "bg-neutral-800/95",
       className
     )}
     {...props}
@@ -83,7 +83,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-slate-700/30 transition-all duration-150 hover:bg-gradient-to-r hover:from-slate-800/40 hover:via-slate-800/25 hover:to-transparent data-[state=selected]:bg-slate-800/50",
+      "border-b border-neutral-700/30 transition-all duration-150 hover:bg-gradient-to-r hover:from-neutral-800/40 hover:via-neutral-800/25 hover:to-transparent data-[state=selected]:bg-neutral-800/50",
       compact ? "h-8" : "h-12",
       className
     )}
@@ -104,9 +104,9 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "text-left align-middle font-semibold text-slate-300 border-r border-slate-600/20 last:border-r-0 overflow-hidden",
+      "text-left align-middle font-semibold text-neutral-300 border-r border-neutral-600/20 last:border-r-0 overflow-hidden",
       compact ? "h-8 px-2 text-xs" : "h-10 px-3 text-xs",
-      sortable && "cursor-pointer hover:text-slate-100 select-none transition-colors",
+      sortable && "cursor-pointer hover:text-neutral-100 select-none transition-colors",
       className
     )}
     onClick={sortable ? onSort : undefined}
@@ -122,7 +122,7 @@ const TableHead = React.forwardRef<
           ) : sorted === "desc" ? (
             <ChevronDown className="h-3 w-3 text-rose-400" />
           ) : (
-            <ChevronsUpDown className="h-3 w-3 text-slate-500" />
+            <ChevronsUpDown className="h-3 w-3 text-neutral-500" />
           )}
         </div>
       )}
@@ -138,7 +138,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "align-middle text-slate-200 border-r border-slate-700/10 last:border-r-0 overflow-hidden",
+      "align-middle text-neutral-200 border-r border-neutral-700/10 last:border-r-0 overflow-hidden",
       compact ? "px-2 py-1 text-xs" : "px-3 py-2 text-sm",
       className
     )}
@@ -154,13 +154,13 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
   pageSizeOptions?: number[];
 }) => {
   return (
-    <div className="flex items-center justify-between px-2 py-2 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-sm">
+    <div className="flex items-center justify-between px-2 py-2 border-t border-neutral-700/30 bg-neutral-800/20 backdrop-blur-sm">
       <div className="flex items-center space-x-2">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-neutral-400">
           Filas por página:
         </p>
         <select
-          className="h-7 px-2 py-0 text-xs bg-slate-800/50 border border-slate-700 rounded text-slate-200 focus:outline-none focus:ring-1 focus:ring-rose-500/50"
+          className="h-7 px-2 py-0 text-xs bg-neutral-800/50 border border-neutral-700 rounded text-neutral-200 focus:outline-none focus:ring-1 focus:ring-rose-500/50"
           value={table.getState().pagination.pageSize}
           onChange={(e) => {
             table.setPageSize(Number(e.target.value));
@@ -175,7 +175,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
       </div>
       
       <div className="flex items-center space-x-1">
-        <p className="text-xs text-slate-400 mr-2">
+        <p className="text-xs text-neutral-400 mr-2">
           {table.getRowModel().rows.length === 0 ? (
             "0 registros"
           ) : (
@@ -188,7 +188,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
         </p>
         
         <button
-          className="inline-flex items-center justify-center h-7 w-7 rounded border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.setPageIndex(0)}
           disabled={!table.getCanPreviousPage()}
           title="Primera página"
@@ -197,7 +197,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
         </button>
         
         <button
-          className="inline-flex items-center justify-center h-7 w-7 rounded border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.previousPage()}
           disabled={!table.getCanPreviousPage()}
           title="Página anterior"
@@ -206,7 +206,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
         </button>
         
         <button
-          className="inline-flex items-center justify-center h-7 w-7 rounded border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.nextPage()}
           disabled={!table.getCanNextPage()}
           title="Página siguiente"
@@ -215,7 +215,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
         </button>
         
         <button
-          className="inline-flex items-center justify-center h-7 w-7 rounded border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.setPageIndex(table.getPageCount() - 1)}
           disabled={!table.getCanNextPage()}
           title="Última página"
@@ -297,7 +297,7 @@ export function DataTable<TData, TValue>({
           <Table>
             <TableHeader compact={compact}>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-slate-600" compact={compact}>
+                <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-neutral-600" compact={compact}>
                   {headerGroup.headers.map((header) => (
                     <TableHead 
                       key={header.id} 
@@ -309,7 +309,7 @@ export function DataTable<TData, TValue>({
                         false
                       }
                       onSort={() => header.column.toggleSorting()}
-                      className="uppercase tracking-wider font-bold text-slate-300"
+                      className="uppercase tracking-wider font-bold text-neutral-300"
                       style={{ 
                         width: header.column.columnDef.size ? `${header.column.columnDef.size}px` : 'auto',
                         minWidth: header.column.columnDef.size ? `${header.column.columnDef.size}px` : 'auto',
@@ -354,7 +354,7 @@ export function DataTable<TData, TValue>({
                 ))
               ) : (
                 <TableRow compact={compact}>
-                  <TableCell colSpan={columns.length} className="h-24 text-center text-slate-400" compact={compact}>
+                  <TableCell colSpan={columns.length} className="h-24 text-center text-neutral-400" compact={compact}>
                     <div className="flex flex-col items-center justify-center space-y-2 py-8">
                       <div className="text-3xl opacity-40">📊</div>
                       <div>{emptyMessage}</div>
@@ -378,7 +378,7 @@ export function DataTable<TData, TValue>({
       <Table>
         <TableHeader compact={compact}>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-slate-600" compact={compact}>
+            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-neutral-600" compact={compact}>
               {headerGroup.headers.map((header) => (
                 <TableHead 
                   key={header.id} 
@@ -390,7 +390,7 @@ export function DataTable<TData, TValue>({
                     false
                   }
                   onSort={() => header.column.toggleSorting()}
-                  className="uppercase tracking-wider font-bold text-slate-300"
+                  className="uppercase tracking-wider font-bold text-neutral-300"
                 >
                   {header.isPlaceholder
                     ? null
@@ -425,12 +425,12 @@ export function DataTable<TData, TValue>({
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <div className="flex w-full border-b border-slate-700/30 hover:bg-slate-800/30 transition-colors cursor-pointer group">
+                <div className="flex w-full border-b border-neutral-700/30 hover:bg-neutral-800/30 transition-colors cursor-pointer group">
                   {row.getVisibleCells().map((cell) => (
                     <div
                       key={cell.id}
                       className={cn(
-                        "flex-1 px-3 py-2 text-xs text-slate-200 group-hover:text-white transition-colors border-r border-slate-700/10 last:border-r-0 truncate",
+                        "flex-1 px-3 py-2 text-xs text-neutral-200 group-hover:text-white transition-colors border-r border-neutral-700/10 last:border-r-0 truncate",
                         compact && "py-1.5"
                       )}
                     >
@@ -460,7 +460,7 @@ export function StatusBadge({
   children?: React.ReactNode;
 }) {
   const variants = {
-    default: "bg-slate-700/50 text-slate-300 border-slate-600",
+    default: "bg-neutral-700/50 text-neutral-300 border-neutral-600",
     success: "bg-green-500/20 text-green-400 border-green-500/30",
     danger: "bg-red-500/20 text-red-400 border-red-500/30",
     warning: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
@@ -492,7 +492,7 @@ export function CodeDisplay({ children, className }: { children: React.ReactNode
   return (
     <code
       className={cn(
-        "rounded-md bg-slate-700/30 border border-slate-600/30 px-2 py-1 text-xs font-mono text-slate-300 shadow-inner",
+        "rounded-md bg-neutral-700/30 border border-neutral-600/30 px-2 py-1 text-xs font-mono text-neutral-300 shadow-inner",
         className
       )}
     >

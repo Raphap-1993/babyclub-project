@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, TicketPlus, Trash2 } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -38,6 +38,28 @@ export default function PromoterActions({ id, compact }: Props) {
   return (
     <TooltipProvider>
       <div className="flex justify-end gap-2">
+        {compact ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={`/admin/promoters/${encodeURIComponent(id)}/codes`}
+                className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
+                aria-label="Generar códigos"
+              >
+                <TicketPlus className="h-4 w-4" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Generar códigos</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Link
+            href={`/admin/promoters/${encodeURIComponent(id)}/codes`}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+          >
+            <TicketPlus className="h-4 w-4" />
+            Códigos
+          </Link>
+        )}
         {compact ? (
           <Tooltip>
             <TooltipTrigger asChild>

@@ -28,7 +28,7 @@ function ActionButton({
     "inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all duration-200";
   const variants = {
     primary:
-      "border-slate-600 text-slate-300 hover:border-slate-500 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed",
+      "border-neutral-600 text-neutral-300 hover:border-neutral-500 hover:bg-neutral-800 hover:text-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed",
     danger:
       "border-red-600/30 text-red-400 hover:border-red-600 hover:bg-red-600/10 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed",
   };

@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
   const status = (searchParams.get("status") || "all") as "all" | "active" | "inactive" | "expired";
   const batch_id = searchParams.get("batch_id") || "";
   const format = searchParams.get("format") || "json";
+  const view = (searchParams.get("view") || "codes") as "codes" | "lots";
 
   const start_date = toIso(searchParams.get("start_date"));
   const end_date = toIso(searchParams.get("end_date"));
@@ -47,40 +48,27 @@ export async function GET(req: NextRequest) {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = applyNotDeleted(
-    supabase
-      .from("codes")
-      .select(
-        "id,code,type,event_id,promoter_id,is_active,max_uses,uses,expires_at,created_at,batch_id,event:events(name),promoter:promoters(code,person:persons(first_name,last_name))",
-        { count: "exact" },
-      )
-      .eq("event_id", event_id)
-      .order("created_at", { ascending: false })
-      .range(from, to)
-  );
-
-  if (type) query = query.eq("type", type);
-  if (promoter_id) query = query.eq("promoter_id", promoter_id);
-  if (batch_id) query = query.eq("batch_id", batch_id);
-  if (start_date) query = query.gte("created_at", start_date);
-  if (end_date) query = query.lte("created_at", end_date);
-
+  const selectColumns =
+    "id,code,type,event_id,promoter_id,is_active,max_uses,uses,expires_at,created_at,batch_id,event:events(name),promoter:promoters(code,person:persons(first_name,last_name))";
   const nowIso = new Date().toISOString();
-  if (status === "active") {
-    query = query.eq("is_active", true).or(`expires_at.is.null,expires_at.gt.${nowIso}`);
-  } else if (status === "inactive") {
-    query = query.eq("is_active", false);
-  } else if (status === "expired") {
-    query = query.lt("expires_at", nowIso);
+  function applyFilters<T>(query: T & any) {
+    if (type) query = query.eq("type", type);
+    if (promoter_id) query = query.eq("promoter_id", promoter_id);
+    if (batch_id) query = query.eq("batch_id", batch_id);
+    if (start_date) query = query.gte("created_at", start_date);
+    if (end_date) query = query.lte("created_at", end_date);
+    if (status === "active") {
+      query = query.eq("is_active", true).or(`expires_at.is.null,expires_at.gt.${nowIso}`);
+    } else if (status === "inactive") {
+      query = query.eq("is_active", false);
+    } else if (status === "expired") {
+      query = query.lt("expires_at", nowIso);
+    }
+    return query;
   }
 
-  const { data, error, count } = await query;
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-  }
-
-  const rows =
-    (data as any[])?.map((c) => ({
+  function mapRows(data: any[] | null | undefined) {
+    return (data || []).map((c) => ({
       id: c.id,
       code: c.code,
       type: c.type,
@@ -100,7 +88,81 @@ export async function GET(req: NextRequest) {
       expires_at: c.expires_at,
       created_at: c.created_at,
       batch_id: c.batch_id,
-    })) || [];
+    }));
+  }
+
+  if (view === "lots" && format !== "csv") {
+    const chunkSize = 1000;
+    const hardLimit = 10000;
+    let offset = 0;
+    const allData: any[] = [];
+
+    while (offset < hardLimit) {
+      let chunkQuery = applyNotDeleted(
+        supabase
+          .from("codes")
+          .select(selectColumns)
+          .eq("event_id", event_id)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + chunkSize - 1),
+      );
+      chunkQuery = applyFilters(chunkQuery);
+
+      const { data, error } = await chunkQuery;
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      }
+
+      const batch = data || [];
+      allData.push(...batch);
+      if (batch.length < chunkSize) break;
+      offset += chunkSize;
+    }
+
+    const rows = mapRows(allData);
+    const grouped = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const key = row.batch_id || "no-batch";
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(row);
+    }
+
+    const groups = Array.from(grouped.entries())
+      .map(([groupBatchId, groupRows]) => ({
+        batchId: groupBatchId,
+        createdAt: groupRows[0]?.created_at || "",
+        rows: groupRows.sort((a, b) => b.created_at.localeCompare(a.created_at)),
+      }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    const pagedGroups = groups.slice(from, to + 1);
+    const pagedRows = pagedGroups.flatMap((group) => group.rows);
+
+    return NextResponse.json({
+      success: true,
+      data: pagedRows,
+      total: groups.length,
+      total_codes: rows.length,
+      mode: "lots",
+    });
+  }
+
+  let query = applyNotDeleted(
+    supabase
+      .from("codes")
+      .select(selectColumns, { count: "exact" })
+      .eq("event_id", event_id)
+      .order("created_at", { ascending: false })
+      .range(from, to),
+  );
+  query = applyFilters(query);
+
+  const { data, error, count } = await query;
+  if (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  }
+
+  const rows = mapRows(data as any[]);
 
   if (format === "csv") {
     const headers = [

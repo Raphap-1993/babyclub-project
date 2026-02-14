@@ -73,28 +73,28 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
   const [event, organizers] = await Promise.all([getEvent(id), getOrganizers()]);
   if (!event || organizers.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-950 p-6">
+      <div className="min-h-screen bg-neutral-950 p-6">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-400 mb-1">EDITAR</p>
+              <p className="text-sm font-medium text-neutral-400 mb-1">EDITAR</p>
               <h1 className="text-2xl font-semibold text-white">Evento no encontrado</h1>
             </div>
             <Link
               href="/admin/events"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-lg text-white transition-colors"
             >
               ← Volver
             </Link>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
-            <div className="text-slate-400 mb-4">
+          <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-8 text-center">
+            <div className="text-neutral-400 mb-4">
               <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <h3 className="text-lg font-medium text-white mb-2">No se pudo encontrar el evento</h3>
-            <p className="text-slate-400">El evento que intentas editar no existe o ha sido eliminado.</p>
+            <p className="text-neutral-400">El evento que intentas editar no existe o ha sido eliminado.</p>
           </div>
         </div>
       </div>
@@ -102,16 +102,16 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
+    <div className="min-h-screen bg-neutral-950 p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-400 mb-1">EDITAR</p>
+            <p className="text-sm font-medium text-neutral-400 mb-1">EDITAR</p>
             <h1 className="text-2xl font-semibold text-white">Editar evento</h1>
           </div>
           <Link
             href="/admin/events"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-lg text-white transition-colors"
           >
             ← Volver
           </Link>

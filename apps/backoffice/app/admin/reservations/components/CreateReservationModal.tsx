@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Calendar, User, Mail, Phone, CreditCard, FileText, QrCode, AlertCircle, CheckCircle, Loader2, Search, Users, Tag, Upload, File, Trash2 } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectNative } from "@/components/ui/select-native";
 
 type Mode = "new_customer" | "existing_ticket";
 type Status = "pending" | "approved" | "confirmed";
@@ -492,34 +495,36 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between border-b border-blue-500/50">
+        <div className="bg-gradient-to-r from-neutral-600 to-neutral-700 px-6 py-4 flex items-center justify-between border-b border-neutral-500/50">
           <div className="flex items-center gap-3">
             <div className="bg-white/20 p-2 rounded-lg">
               <Calendar className="h-6 w-6 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Nueva Reserva Manual</h2>
-              <p className="text-sm text-blue-100">Paso {step} de 3</p>
+              <p className="text-sm text-neutral-100">Paso {step} de 3</p>
             </div>
           </div>
-          <button
+          <Button
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 hover:bg-white/10"
           >
             <X className="h-5 w-5 text-white" />
-          </button>
+          </Button>
         </div>
 
         {/* Progress bar */}
-        <div className="bg-slate-800 px-6 py-3 border-b border-slate-700">
+        <div className="bg-neutral-800 px-6 py-3 border-b border-neutral-700">
           <div className="flex items-center gap-2">
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center flex-1">
                 <div
                   className={`h-2 rounded-full flex-1 transition-all ${
-                    s <= step ? "bg-blue-500" : "bg-slate-700"
+                    s <= step ? "bg-neutral-500" : "bg-neutral-700"
                   }`}
                 />
                 {s < 3 && <div className="w-2" />}
@@ -527,13 +532,13 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
             ))}
           </div>
           <div className="flex justify-between mt-2 text-xs">
-            <span className={step >= 1 ? "text-blue-400 font-medium" : "text-slate-500"}>
+            <span className={step >= 1 ? "text-neutral-400 font-medium" : "text-neutral-500"}>
               Cliente
             </span>
-            <span className={step >= 2 ? "text-blue-400 font-medium" : "text-slate-500"}>
+            <span className={step >= 2 ? "text-neutral-400 font-medium" : "text-neutral-500"}>
               Mesa & Evento
             </span>
-            <span className={step >= 3 ? "text-blue-400 font-medium" : "text-slate-500"}>
+            <span className={step >= 3 ? "text-neutral-400 font-medium" : "text-neutral-500"}>
               Confirmación
             </span>
           </div>
@@ -565,66 +570,68 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-3">
+                <label className="block text-sm font-semibold text-neutral-300 mb-3">
                   Tipo de Reserva
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setMode("new_customer")}
+                    variant="outline"
                     className={`p-4 rounded-lg border-2 transition-all ${
                       mode === "new_customer"
-                        ? "border-blue-500 bg-blue-500/20 text-blue-300"
-                        : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600"
+                        ? "border-neutral-500 bg-neutral-500/20 text-neutral-300"
+                        : "border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:border-neutral-600"
                     }`}
                   >
                     <User className="h-6 w-6 mx-auto mb-2" />
                     <p className="font-semibold text-sm">Cliente Nuevo</p>
                     <p className="text-xs opacity-75 mt-1">Sin ticket previo</p>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => setMode("existing_ticket")}
+                    variant="outline"
                     className={`p-4 rounded-lg border-2 transition-all ${
                       mode === "existing_ticket"
-                        ? "border-blue-500 bg-blue-500/20 text-blue-300"
-                        : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600"
+                        ? "border-neutral-500 bg-neutral-500/20 text-neutral-300"
+                        : "border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:border-neutral-600"
                     }`}
                   >
                     <QrCode className="h-6 w-6 mx-auto mb-2" />
                     <p className="font-semibold text-sm">Con Ticket</p>
                     <p className="text-xs opacity-75 mt-1">Buscar existente</p>
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {mode === "existing_ticket" ? (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-neutral-300 mb-2">
                       Buscar Ticket
                     </label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <input
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                        <Input
                           type="text"
                           value={ticketSearch}
                           onChange={(e) => setTicketSearch(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && searchTickets()}
                           placeholder="Email, teléfono o documento..."
-                          className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="h-10 border-neutral-700 bg-neutral-800 pl-10 text-neutral-200 placeholder:text-neutral-500 focus:ring-2 focus:ring-neutral-500"
                         />
                       </div>
-                      <button
+                      <Button
                         type="button"
                         onClick={searchTickets}
                         disabled={loading || !ticketSearch.trim()}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="bg-neutral-600 text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                         Buscar
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
@@ -637,40 +644,43 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                             Ticket Seleccionado
                           </p>
                           <p className="text-white mt-1">{selectedTicket.full_name}</p>
-                          <p className="text-slate-400 text-sm">{selectedTicket.email}</p>
+                          <p className="text-neutral-400 text-sm">{selectedTicket.email}</p>
                         </div>
-                        <button
+                        <Button
                           onClick={() => setSelectedTicket(null)}
-                          className="text-slate-400 hover:text-white"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-neutral-400 hover:text-white"
                         >
                           <X className="h-4 w-4" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
 
                   {searchResults.length > 0 && (
-                    <div className="border border-slate-700 rounded-lg overflow-hidden">
-                      <div className="bg-slate-800 px-4 py-2 border-b border-slate-700">
-                        <p className="text-sm font-semibold text-slate-300">
+                    <div className="border border-neutral-700 rounded-lg overflow-hidden">
+                      <div className="bg-neutral-800 px-4 py-2 border-b border-neutral-700">
+                        <p className="text-sm font-semibold text-neutral-300">
                           {searchResults.length} resultados encontrados
                         </p>
                       </div>
                       <div className="max-h-60 overflow-y-auto">
                         {searchResults.map((ticket) => (
-                          <button
+                          <Button
                             key={ticket.id}
                             onClick={() => selectTicket(ticket)}
-                            className="w-full px-4 py-3 hover:bg-slate-800/50 text-left border-b border-slate-700/50 last:border-b-0 transition-colors"
+                            variant="ghost"
+                            className="h-auto w-full justify-start rounded-none border-b border-neutral-700/50 px-4 py-3 text-left hover:bg-neutral-800/50 last:border-b-0"
                           >
-                            <p className="font-medium text-slate-200">{ticket.full_name}</p>
-                            <p className="text-sm text-slate-400">{ticket.email || ticket.phone}</p>
+                            <p className="font-medium text-neutral-200">{ticket.full_name}</p>
+                            <p className="text-sm text-neutral-400">{ticket.email || ticket.phone}</p>
                             {ticket.document && (
-                              <p className="text-xs text-slate-500 mt-1">
+                              <p className="text-xs text-neutral-500 mt-1">
                                 {ticket.doc_type?.toUpperCase()}: {ticket.document}
                               </p>
                             )}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -679,8 +689,8 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
               ) : (
                 <div className="space-y-4">
                   {/* Prioridad: DNI primero para búsqueda automática */}
-                  <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-3">
-                    <p className="text-xs text-blue-300 mb-2 flex items-center gap-2">
+                  <div className="bg-neutral-900/20 border border-neutral-700/50 rounded-lg p-3">
+                    <p className="text-xs text-neutral-300 mb-2 flex items-center gap-2">
                       <AlertCircle className="h-3 w-3" />
                       Ingresa el DNI para autocompletar los datos desde nuestra BD o Reniec
                     </p>
@@ -688,10 +698,10 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-neutral-300 mb-2">
                         Tipo Documento *
                       </label>
-                      <select
+                      <SelectNative
                         value={docType}
                         onChange={(e) => {
                           setDocType(e.target.value as any);
@@ -699,35 +709,35 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                             searchByDocument(document, e.target.value);
                           }
                         }}
-                        className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                       >
                         <option value="dni">DNI</option>
                         <option value="ce">CE</option>
                         <option value="passport">Pasaporte</option>
-                      </select>
+                      </SelectNative>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-neutral-300 mb-2">
                         Número Documento *
                       </label>
                       <div className="flex gap-2">
                         <div className="relative flex-1">
-                          <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                          <input
+                          <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                          <Input
                             type="text"
                             value={document}
                             onChange={(e) => setDocument(e.target.value)}
                             placeholder={docType === 'dni' ? '12345678' : 'Número'}
                             maxLength={docType === 'dni' ? 8 : 20}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="h-10 border-neutral-700 bg-neutral-800 pl-10 text-neutral-200 placeholder:text-neutral-500 focus:ring-2 focus:ring-neutral-500"
                           />
                         </div>
-                        <button
+                        <Button
                           type="button"
                           onClick={() => searchByDocument(document, docType)}
                           disabled={searchingDocument || !document.trim()}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center"
+                          className="bg-neutral-600 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-700"
                           title="Buscar datos del cliente"
                         >
                           {searchingDocument ? (
@@ -735,10 +745,10 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                           ) : (
                             <Search className="h-4 w-4 text-white" />
                           )}
-                        </button>
+                        </Button>
                       </div>
                       {searchingDocument && (
-                        <p className="text-xs text-blue-400 mt-1 flex items-center gap-1">
+                        <p className="text-xs text-neutral-400 mt-1 flex items-center gap-1">
                           <Loader2 className="h-3 w-3 animate-spin" />
                           Buscando datos...
                         </p>
@@ -748,46 +758,46 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-neutral-300 mb-2">
                         Nombre Completo *
                       </label>
-                      <input
+                      <Input
                         type="text"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Se autocompletará con el DNI"
-                        className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 placeholder:text-neutral-500 focus:ring-2 focus:ring-neutral-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-neutral-300 mb-2">
                         Email *
                       </label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <input
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                        <Input
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="juan@example.com"
-                          className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="h-10 border-neutral-700 bg-neutral-800 pl-10 text-neutral-200 placeholder:text-neutral-500 focus:ring-2 focus:ring-neutral-500"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-neutral-300 mb-2">
                         Teléfono
                       </label>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <input
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                        <Input
                           type="tel"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="987654321"
-                          className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="h-10 border-neutral-700 bg-neutral-800 pl-10 text-neutral-200 placeholder:text-neutral-500 focus:ring-2 focus:ring-neutral-500"
                         />
                       </div>
                     </div>
@@ -801,17 +811,17 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Organizador *
                 </label>
-                <select
+                <SelectNative
                   value={selectedOrganizer}
                   onChange={(e) => {
                     setSelectedOrganizer(e.target.value);
                     setSelectedEvent("");
                     setSelectedTable("");
                   }}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                 >
                   <option value="">Seleccionar organizador</option>
                   {organizers.map((org) => (
@@ -819,21 +829,21 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                       {org.name}
                     </option>
                   ))}
-                </select>
+                </SelectNative>
               </div>
 
               {selectedOrganizer && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-neutral-300 mb-2">
                     Evento *
                   </label>
-                  <select
+                  <SelectNative
                     value={selectedEvent}
                     onChange={(e) => {
                       setSelectedEvent(e.target.value);
                       setSelectedTable("");
                     }}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                   >
                     <option value="">Seleccionar evento</option>
                     {events.map((event) => (
@@ -841,31 +851,32 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                         {event.name} - {event.date}
                       </option>
                     ))}
-                  </select>
+                  </SelectNative>
                 </div>
               )}
 
               {selectedEvent && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-neutral-300 mb-2">
                     Mesa *
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {tables.map((table) => (
-                      <button
+                      <Button
                         key={table.id}
                         type="button"
                         onClick={() => setSelectedTable(table.id)}
+                        variant="outline"
                         className={`p-4 rounded-lg border-2 transition-all ${
                           selectedTable === table.id
-                            ? "border-blue-500 bg-blue-500/20 text-blue-300"
-                            : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600"
+                            ? "border-neutral-500 bg-neutral-500/20 text-neutral-300"
+                            : "border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:border-neutral-600"
                         }`}
                       >
                         <Users className="h-5 w-5 mx-auto mb-1" />
                         <p className="font-semibold text-sm">{table.name}</p>
                         <p className="text-xs opacity-75">{table.ticket_count} personas</p>
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -873,13 +884,13 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
 
               {selectedTable && products.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-neutral-300 mb-2">
                     Producto/Combo (Opcional)
                   </label>
-                  <select
+                  <SelectNative
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                   >
                     <option value="">Sin producto</option>
                     {products.map((product) => (
@@ -887,7 +898,7 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                         {product.name} - S/ {product.price}
                       </option>
                     ))}
-                  </select>
+                  </SelectNative>
                 </div>
               )}
             </div>
@@ -896,49 +907,49 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
           {/* Step 3: Confirmación */}
           {step === 3 && (
             <div className="space-y-6">
-              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-200 mb-3 flex items-center gap-2">
+              <div className="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+                <h3 className="font-semibold text-neutral-200 mb-3 flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-400" />
                   Resumen de Reserva
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Cliente:</span>
-                    <span className="text-slate-200 font-medium">{fullName}</span>
+                    <span className="text-neutral-400">Cliente:</span>
+                    <span className="text-neutral-200 font-medium">{fullName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Email:</span>
-                    <span className="text-slate-200">{email}</span>
+                    <span className="text-neutral-400">Email:</span>
+                    <span className="text-neutral-200">{email}</span>
                   </div>
                   {phone && (
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Teléfono:</span>
-                      <span className="text-slate-200">{phone}</span>
+                      <span className="text-neutral-400">Teléfono:</span>
+                      <span className="text-neutral-200">{phone}</span>
                     </div>
                   )}
-                  <div className="border-t border-slate-700 my-2" />
+                  <div className="border-t border-neutral-700 my-2" />
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Mesa:</span>
-                    <span className="text-slate-200 font-medium">
+                    <span className="text-neutral-400">Mesa:</span>
+                    <span className="text-neutral-200 font-medium">
                       {tables.find((t) => t.id === selectedTable)?.name}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Evento:</span>
-                    <span className="text-slate-200">
+                    <span className="text-neutral-400">Evento:</span>
+                    <span className="text-neutral-200">
                       {events.find((e) => e.id === selectedEvent)?.name}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Entradas incluidas:</span>
+                    <span className="text-neutral-400">Entradas incluidas:</span>
                     <span className="font-semibold text-green-400">
                       {getTicketCount()} tickets
                     </span>
                   </div>
                   {selectedProduct && (
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Producto:</span>
-                      <span className="text-slate-200">
+                      <span className="text-neutral-400">Producto:</span>
+                      <span className="text-neutral-200">
                         {products.find((p) => p.id === selectedProduct)?.name}
                       </span>
                     </div>
@@ -947,22 +958,22 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Estado
                 </label>
-                <select
+                <SelectNative
                   value={status}
                   onChange={(e) => setStatus(e.target.value as Status)}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                 >
                   <option value="pending">🟡 Pendiente</option>
                   <option value="approved">✅ Aprobada</option>
                   <option value="confirmed">🎉 Confirmada</option>
-                </select>
+                </SelectNative>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Voucher de Pago (Opcional)
                 </label>
                 
@@ -974,11 +985,11 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                     onClick={() => fileInputRef.current?.click()}
                     className={`relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
                       isDragging
-                        ? "border-blue-500 bg-blue-500/10"
-                        : "border-slate-600 bg-slate-800/50 hover:border-slate-500 hover:bg-slate-800"
+                        ? "border-neutral-500 bg-neutral-500/10"
+                        : "border-neutral-600 bg-neutral-800/50 hover:border-neutral-500 hover:bg-neutral-800"
                     }`}
                   >
-                    <input
+                    <Input
                       ref={fileInputRef}
                       type="file"
                       accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
@@ -988,60 +999,62 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                     
                     {uploadingVoucher ? (
                       <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
-                        <p className="text-sm text-slate-400">Subiendo voucher...</p>
+                        <Loader2 className="h-8 w-8 text-neutral-400 animate-spin" />
+                        <p className="text-sm text-neutral-400">Subiendo voucher...</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2">
-                        <Upload className="h-8 w-8 text-slate-400" />
-                        <p className="text-sm text-slate-300">
-                          Arrastra el voucher aquí o <span className="text-blue-400">haz click para seleccionar</span>
+                        <Upload className="h-8 w-8 text-neutral-400" />
+                        <p className="text-sm text-neutral-300">
+                          Arrastra el voucher aquí o <span className="text-neutral-400">haz click para seleccionar</span>
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-neutral-500">
                           JPG, PNG, WEBP o PDF (máx. 5MB)
                         </p>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="border border-slate-700 rounded-lg p-4 bg-slate-800/50">
+                  <div className="border border-neutral-700 rounded-lg p-4 bg-neutral-800/50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-green-500/20 rounded">
                           <File className="h-5 w-5 text-green-400" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-slate-200">
+                          <p className="text-sm font-medium text-neutral-200">
                             {voucherFile?.name || 'Voucher cargado'}
                           </p>
                           <a
                             href={voucherUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-400 hover:underline"
+                            className="text-xs text-neutral-400 hover:underline"
                           >
                             Ver archivo
                           </a>
                         </div>
                       </div>
-                      <button
+                      <Button
                         type="button"
                         onClick={removeVoucher}
-                        className="p-2 text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-red-400 hover:bg-red-500/10"
                       >
                         <Trash2 className="h-4 w-4" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
                 
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-neutral-500 mt-1">
                   📌 Próximamente: Integración con Izipay para pagos directos
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Notas Internas (Opcional)
                 </label>
                 <textarea
@@ -1049,12 +1062,12 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Información adicional sobre la reserva..."
                   rows={3}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500"
                 />
               </div>
 
-              <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3">
-                <p className="text-xs text-blue-300">
+              <div className="bg-neutral-900/20 border border-neutral-700/30 rounded-lg p-3">
+                <p className="text-xs text-neutral-300">
                   ℹ️ Al crear la reserva, se enviará un correo transaccional al cliente con los detalles de su reserva
                 </p>
               </div>
@@ -1063,45 +1076,47 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-800 px-6 py-4 border-t border-slate-700 flex items-center justify-between">
+        <div className="bg-neutral-800 px-6 py-4 border-t border-neutral-700 flex items-center justify-between">
           <div className="flex gap-2">
             {step > 1 && (
-              <button
+              <Button
                 onClick={() => setStep(step - 1)}
                 disabled={loading}
-                className="px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                variant="outline"
+                className="border-neutral-600 text-neutral-300 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Atrás
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              variant="outline"
+              className="border-neutral-600 text-neutral-300 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancelar
-            </button>
+            </Button>
 
             {step < 3 ? (
-              <button
+              <Button
                 onClick={() => setStep(step + 1)}
                 disabled={
                   loading ||
                   (step === 1 && !validateStep1()) ||
                   (step === 2 && !validateStep2())
                 }
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className="bg-neutral-600 text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Siguiente
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 onClick={handleSubmit}
                 disabled={loading || success}
-                className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-500 hover:to-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 font-semibold"
+                className="bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold hover:from-green-500 hover:to-green-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? (
                   <>
@@ -1114,7 +1129,7 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                     Crear Reserva
                   </>
                 )}
-              </button>
+              </Button>
             )}
           </div>
         </div>

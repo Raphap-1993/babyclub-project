@@ -5,7 +5,7 @@ import { formatLimaFromDb } from "shared/limaTime";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@repo/ui";
 import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;

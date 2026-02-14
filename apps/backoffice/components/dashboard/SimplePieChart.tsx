@@ -8,7 +8,7 @@ interface SimplePieChartProps {
   height?: number;
 }
 
-const DEFAULT_COLORS = ["#f97316", "#06b6d4", "#8b5cf6", "#ec4899", "#10b981", "#f59e0b"];
+const DEFAULT_COLORS = ["#e11d48", "#f59e0b", "#10b981", "#f97316", "#d946ef", "#a3a3a3"];
 
 export function SimplePieChart({
   data,
@@ -35,17 +35,17 @@ export function SimplePieChart({
         </Pie>
         <Tooltip
           contentStyle={{
-            backgroundColor: "#0f172a",
-            border: "2px solid #475569",
+            backgroundColor: "#0b0b0b",
+            border: "2px solid #3f3f46",
             borderRadius: "8px",
             color: "#ffffff",
             fontSize: "14px",
             fontWeight: "500",
           }}
           labelStyle={{ color: "#ffffff", fontWeight: "600" }}
-          itemStyle={{ color: "#e2e8f0" }}
+          itemStyle={{ color: "#d4d4d8" }}
         />
-        <Legend wrapperStyle={{ color: "#cbd5e1" }} />
+        <Legend wrapperStyle={{ color: "#a3a3a3" }} />
       </PieChart>
     </ResponsiveContainer>
   );

@@ -66,9 +66,17 @@ export default async function EditPromoterPage({ params }: { params: Promise<{ i
         title="Editar promotor"
         description="Actualiza datos de contacto y configuración comercial."
         actions={
-          <Link href="/admin/promoters" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            Volver
-          </Link>
+          <>
+            <Link
+              href={`/admin/promoters/${encodeURIComponent(id)}/codes`}
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+            >
+              Códigos
+            </Link>
+            <Link href="/admin/promoters" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              Volver
+            </Link>
+          </>
         }
       />
       <AdminPanel contentClassName="p-6">

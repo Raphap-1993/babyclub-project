@@ -20,6 +20,8 @@ type Organizer = {
   name: string;
   slug: string;
   layout_url: string | null;
+  layout_canvas_width?: number | null;
+  layout_canvas_height?: number | null;
 };
 
 type Props = {
@@ -162,6 +164,10 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
   const saveLayout = async () => {
     setSaving(true);
     try {
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      const canvasWidth = canvasRect?.width ? Math.round(canvasRect.width) : organizer.layout_canvas_width || 800;
+      const canvasHeight = canvasRect?.height ? Math.round(canvasRect.height) : organizer.layout_canvas_height || 600;
+
       const updates = Object.entries(tablePositions).map(([tableId, pos]) => ({
         tableId,
         layout_x: pos.x,
@@ -172,7 +178,12 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
       const res = await authedFetch(`/api/organizers/${organizer.id}/layout`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates, layout_url: backgroundImage }),
+        body: JSON.stringify({
+          updates,
+          layout_url: backgroundImage,
+          canvas_width: canvasWidth,
+          canvas_height: canvasHeight,
+        }),
       });
 
       if (!res.ok) throw new Error("Error al guardar");
@@ -207,13 +218,13 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 p-4">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link
             href={`/admin/organizers`}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-neutral-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
@@ -224,20 +235,20 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
             <h1 className="text-xl font-bold text-white">
               📐 Diseñador de Croquis
             </h1>
-            <p className="text-xs text-slate-400">{organizer.name}</p>
+            <p className="text-xs text-neutral-400">{organizer.name}</p>
           </div>
         </div>
 
         <div className="flex gap-2">
           <button
             onClick={() => setShowGrid(!showGrid)}
-            className="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition-colors flex items-center gap-1.5"
           >
             <Grid className="w-3.5 h-3.5" />
             {showGrid ? "Ocultar" : "Mostrar"}
           </button>
-          <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg">
-            <span className="text-xs text-slate-400">Tamaño:</span>
+          <div className="flex items-center gap-2 bg-neutral-800 px-3 py-1.5 rounded-lg">
+            <span className="text-xs text-neutral-400">Tamaño:</span>
             <input
               type="range"
               min="40"
@@ -253,7 +264,7 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
                 });
                 setTableSizes(prev => ({ ...prev, ...newSizes }));
               }}
-              className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+              className="w-20 h-1 bg-neutral-600 rounded-lg appearance-none cursor-pointer"
               style={{
                 accentColor: '#ec4899',
               }}
@@ -262,7 +273,7 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
           </div>
           <button
             onClick={exportLayout}
-            className="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition-colors flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
             Exportar
@@ -287,7 +298,7 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
           <button
             onClick={saveLayout}
             disabled={saving}
-            className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-neutral-600 hover:bg-neutral-700 disabled:bg-neutral-600 text-white rounded-lg transition-colors flex items-center gap-1.5"
           >
             <Save className="w-3.5 h-3.5" />
             {saving ? "Guardando..." : "Guardar"}
@@ -306,7 +317,7 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
       <div className="grid grid-cols-12 gap-4">
         {/* Paleta de mesas */}
         <div className="col-span-3 space-y-2">
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+          <div className="bg-neutral-800/50 border border-neutral-700 rounded-xl p-3">
             <h3 className="text-white font-semibold text-sm mb-2">
               Mesas Disponibles ({tables.length})
             </h3>
@@ -332,10 +343,10 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
                     key={table.id}
                     draggable
                     onDragStart={() => handleDragStart(table.id)}
-                    className="bg-slate-900/50 border border-slate-600 rounded-lg p-2 cursor-move hover:border-pink-500 transition-colors"
+                    className="bg-neutral-900/50 border border-neutral-600 rounded-lg p-2 cursor-move hover:border-pink-500 transition-colors"
                   >
                     <div className="text-white font-semibold text-sm">{table.name}</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-neutral-400">
                       Cap: {table.ticket_count || "—"}
                     </div>
                     {tablePositions[table.id] && (
@@ -349,9 +360,9 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
             )}
           </div>
 
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+          <div className="bg-neutral-800/50 border border-neutral-700 rounded-xl p-3">
             <h3 className="text-white font-semibold text-sm mb-1.5">Instrucciones</h3>
-            <ul className="text-xs text-slate-400 space-y-0.5">
+            <ul className="text-xs text-neutral-400 space-y-0.5">
               <li>1. 📤 Arrastra una imagen al canvas o usa "Subir Fondo"</li>
               <li>2. 🪑 Arrastra las mesas al croquis</li>
               <li>3. � Arrastra mesas posicionadas para moverlas</li>
@@ -374,7 +385,7 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
             }}
             onDragOver={handleDragOver}
             onDragEnter={handleDragEnter}
-            className="relative w-full h-[600px] bg-slate-800/30 border-2 border-dashed border-slate-600 rounded-xl overflow-hidden"
+            className="relative w-full h-[600px] bg-neutral-800/30 border-2 border-dashed border-neutral-600 rounded-xl overflow-hidden"
           >
             {/* Imagen de fondo */}
             {backgroundImage && (
@@ -401,7 +412,7 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
               )}
 
               {!backgroundImage && !uploading && (
-                <div className="absolute inset-0 flex items-center justify-center text-slate-500" style={{ width: '100%', height: '600px' }}>
+                <div className="absolute inset-0 flex items-center justify-center text-neutral-500" style={{ width: '100%', height: '600px' }}>
                   <div className="text-center">
                     <Upload className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <p>Arrastra una imagen aquí o haz clic en "Subir Fondo"</p>
@@ -461,18 +472,18 @@ export default function OrganizerLayoutClient({ organizer, tables }: Props) {
 
             {/* Loading overlay cuando se está subiendo */}
             {uploading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-50">
+              <div className="absolute inset-0 flex items-center justify-center bg-neutral-900/80 backdrop-blur-sm z-50">
                 <div className="text-center">
                   <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                   <p className="text-white font-semibold text-lg">Subiendo imagen...</p>
-                  <p className="text-slate-400 text-sm mt-2">Por favor espera</p>
+                  <p className="text-neutral-400 text-sm mt-2">Por favor espera</p>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-2">
-            <div className="text-xs text-slate-400">
+          <div className="mt-2 bg-neutral-800/50 border border-neutral-700 rounded-lg p-2">
+            <div className="text-xs text-neutral-400">
               <strong className="text-white text-xs">Tips:</strong>
               <ul className="mt-0.5 space-y-0.5 text-xs">
                 <li>• Arrastra mesas posicionadas para moverlas</li>

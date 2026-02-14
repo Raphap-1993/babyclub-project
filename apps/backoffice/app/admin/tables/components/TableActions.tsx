@@ -56,7 +56,7 @@ export default function TableActions({ id, reserved }: { id: string; reserved?: 
         <Button 
           variant="outline" 
           size="sm" 
-          className="border-slate-600 text-slate-300 hover:border-purple-500 hover:text-purple-400 hover:bg-purple-500/10"
+          className="border-neutral-600 text-neutral-300 hover:border-purple-500 hover:text-purple-400 hover:bg-purple-500/10"
         >
           Editar
         </Button>
@@ -68,7 +68,7 @@ export default function TableActions({ id, reserved }: { id: string; reserved?: 
           disabled={pending}
           variant="outline"
           size="sm"
-          className="border-slate-600 text-slate-300 hover:border-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10 disabled:opacity-50"
+          className="border-neutral-600 text-neutral-300 hover:border-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10 disabled:opacity-50"
         >
           Liberar
         </Button>
@@ -79,7 +79,7 @@ export default function TableActions({ id, reserved }: { id: string; reserved?: 
         disabled={pending}
         variant="outline"
         size="sm"
-        className="border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+        className="border-neutral-600 text-neutral-300 hover:border-red-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50"
       >
         Eliminar
       </Button>

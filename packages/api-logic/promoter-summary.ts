@@ -42,6 +42,18 @@ type PromoterRow = {
     | null;
 };
 
+type RpcPromoterRow = {
+  event_id: string;
+  name: string | null;
+  date: string | null;
+  total_tickets: number | null;
+  promoters: Array<{
+    promoter_id: string;
+    name: string;
+    tickets: number;
+  }> | null;
+};
+
 const DIRECT_PROMOTER_ID = "direct";
 const DIRECT_PROMOTER_LABEL = "Invitacion directa";
 
@@ -53,18 +65,27 @@ function getPromoterLabel(row: PromoterRow): string {
   return `Promotor ${row.id.slice(0, 6)}`;
 }
 
-export async function getPromoterSummaryAll({
-  supabaseUrl,
-  supabaseKey,
-  topLimit = 10,
-}: {
-  supabaseUrl: string;
-  supabaseKey: string;
-  topLimit?: number;
-}): Promise<PromoterSummary[]> {
-  const supabase = createClient(supabaseUrl, supabaseKey);
+function normalizePromoters(
+  input: RpcPromoterRow["promoters"],
+  topLimit: number,
+): PromoterBreakdown[] {
+  if (!Array.isArray(input)) return [];
 
-  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  return input
+    .map((item) => ({
+      promoter_id: typeof item?.promoter_id === "string" ? item.promoter_id : DIRECT_PROMOTER_ID,
+      name: typeof item?.name === "string" && item.name.trim() ? item.name : DIRECT_PROMOTER_LABEL,
+      tickets: Number(item?.tickets || 0),
+    }))
+    .sort((a, b) => b.tickets - a.tickets)
+    .slice(0, topLimit);
+}
+
+async function getPromoterSummaryLegacy(
+  supabase: any,
+  cutoffIso: string,
+  topLimit: number,
+): Promise<PromoterSummary[]> {
   const { data: eventsRaw, error: eventsError } = await supabase
     .from("events")
     .select("id,name,starts_at,is_active,force_closed,deleted_at")
@@ -95,8 +116,8 @@ export async function getPromoterSummaryAll({
     new Set(
       ((ticketsRaw as TicketRow[] | null) || [])
         .map((ticket) => ticket.code_id)
-        .filter(Boolean) as string[]
-    )
+        .filter(Boolean) as string[],
+    ),
   );
 
   let codeMap = new Map<string, CodeRow>();
@@ -178,4 +199,34 @@ export async function getPromoterSummaryAll({
       error: ticketsError?.message || codesErrorMessage,
     };
   });
+}
+
+export async function getPromoterSummaryAll({
+  supabaseUrl,
+  supabaseKey,
+  topLimit = 10,
+}: {
+  supabaseUrl: string;
+  supabaseKey: string;
+  topLimit?: number;
+}): Promise<PromoterSummary[]> {
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: rpcData, error: rpcError } = await supabase.rpc("get_promoter_summary_all", {
+    p_cutoff: cutoffIso,
+    p_top_limit: topLimit,
+  });
+
+  if (!rpcError && Array.isArray(rpcData)) {
+    return (rpcData as RpcPromoterRow[]).map((row) => ({
+      event_id: row.event_id,
+      name: row.name || row.event_id,
+      date: row.date || "",
+      total_tickets: Number(row.total_tickets || 0),
+      promoters: normalizePromoters(row.promoters, topLimit),
+    }));
+  }
+
+  return getPromoterSummaryLegacy(supabase, cutoffIso, topLimit);
 }

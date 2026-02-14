@@ -38,10 +38,10 @@ const createColumns = (
       const user = row.original;
       return (
         <div className="min-w-0">
-          <div className="font-medium text-slate-100 truncate">
+          <div className="font-medium text-neutral-100 truncate">
             {user.first_name} {user.last_name}
           </div>
-          <div className="text-xs text-slate-400 truncate">
+          <div className="text-xs text-neutral-400 truncate">
             DNI: {user.dni}
           </div>
         </div>
@@ -54,16 +54,16 @@ const createColumns = (
     cell: ({ row }) => {
       const user = row.original;
       return (
-        <div className="text-xs text-slate-300 space-y-0.5">
+        <div className="text-xs text-neutral-300 space-y-0.5">
           {user.email && (
             <div className="flex items-center gap-1 truncate">
-              <Mail className="h-3 w-3 text-slate-500" />
+              <Mail className="h-3 w-3 text-neutral-500" />
               <span className="truncate">{user.email}</span>
             </div>
           )}
           {user.phone && (
             <div className="flex items-center gap-1">
-              <Phone className="h-3 w-3 text-slate-500" />
+              <Phone className="h-3 w-3 text-neutral-500" />
               {user.phone}
             </div>
           )}
@@ -87,7 +87,7 @@ const createColumns = (
           case "promotor":
             return { variant: "warning" as const, icon: "📢", color: "text-yellow-400" };
           default:
-            return { variant: "default" as const, icon: "👤", color: "text-slate-400" };
+            return { variant: "default" as const, icon: "👤", color: "text-neutral-400" };
         }
       };
       
@@ -100,7 +100,7 @@ const createColumns = (
             <div className={`text-xs font-medium ${config.color}`}>
               {role?.name || user.role_code}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-neutral-500">
               {user.role_code}
             </div>
           </div>
@@ -131,7 +131,7 @@ const createColumns = (
             variant="ghost"
             size="sm"
             onClick={() => onEdit(user)}
-            className="h-7 w-7 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20"
+            className="h-7 w-7 p-0 text-neutral-400 hover:text-neutral-300 hover:bg-neutral-500/20"
           >
             <Edit2 className="h-3 w-3" />
           </Button>
@@ -223,10 +223,10 @@ export default function ModernAdminUsersClient({ roles, initialStaff }: ModernAd
           <p className="text-xs font-semibold uppercase tracking-wider text-rose-400/80">
             👥 Staff Management
           </p>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-neutral-200 to-neutral-400 bg-clip-text text-transparent">
             Gestión de Usuarios
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-neutral-400">
             Administra el equipo y sus permisos
           </p>
         </div>
@@ -242,43 +242,43 @@ export default function ModernAdminUsersClient({ roles, initialStaff }: ModernAd
 
       {/* Stats por rol */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3 backdrop-blur-sm">
+        <div className="bg-neutral-800/30 border border-neutral-700/50 rounded-lg p-3 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <span className="text-lg">👤</span>
             <div>
-              <p className="text-xs text-slate-400">Total</p>
+              <p className="text-xs text-neutral-400">Total</p>
               <p className="text-lg font-bold text-white">{staff.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3 backdrop-blur-sm">
+        <div className="bg-neutral-800/30 border border-neutral-700/50 rounded-lg p-3 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <span className="text-lg">👑</span>
             <div>
-              <p className="text-xs text-slate-400">Admins</p>
+              <p className="text-xs text-neutral-400">Admins</p>
               <p className="text-lg font-bold text-red-400">
                 {staff.filter(u => u.role_code.toLowerCase() === "admin").length}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3 backdrop-blur-sm">
+        <div className="bg-neutral-800/30 border border-neutral-700/50 rounded-lg p-3 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <span className="text-lg">🚪</span>
             <div>
-              <p className="text-xs text-slate-400">Puerta</p>
+              <p className="text-xs text-neutral-400">Puerta</p>
               <p className="text-lg font-bold text-green-400">
                 {staff.filter(u => u.role_code.toLowerCase() === "door").length}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3 backdrop-blur-sm">
+        <div className="bg-neutral-800/30 border border-neutral-700/50 rounded-lg p-3 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <span className="text-lg">✅</span>
             <div>
-              <p className="text-xs text-slate-400">Activos</p>
-              <p className="text-lg font-bold text-blue-400">
+              <p className="text-xs text-neutral-400">Activos</p>
+              <p className="text-lg font-bold text-neutral-400">
                 {staff.filter(u => u.is_active).length}
               </p>
             </div>
@@ -294,13 +294,13 @@ export default function ModernAdminUsersClient({ roles, initialStaff }: ModernAd
             placeholder="Buscar por nombre, DNI, email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm"
+            className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm"
           />
         </div>
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm min-w-[140px]"
+          className="px-4 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-200 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 text-sm min-w-[140px]"
         >
           <option value="all">Todos los roles</option>
           {allowedRoles.map(role => (
@@ -323,8 +323,8 @@ export default function ModernAdminUsersClient({ roles, initialStaff }: ModernAd
       />
 
       {/* Info sobre permisos */}
-      <div className="mt-4 rounded-lg bg-slate-800/20 border border-slate-700/30 p-3 backdrop-blur-sm">
-        <p className="text-xs text-slate-400">
+      <div className="mt-4 rounded-lg bg-neutral-800/20 border border-neutral-700/30 p-3 backdrop-blur-sm">
+        <p className="text-xs text-neutral-400">
           💡 <strong>Roles disponibles:</strong> Admin (acceso total), Door (solo escaneo), 
           Promotor (gestión limitada). Los usuarios inactivos no pueden iniciar sesión.
         </p>

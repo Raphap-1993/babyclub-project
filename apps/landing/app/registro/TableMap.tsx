@@ -106,6 +106,9 @@ type TableMapProps = {
   layoutUrl?: string;
   loading?: boolean;
   enableZoom?: boolean;
+  labelMode?: "full" | "number";
+  enforceSquare?: boolean;
+  minSlotSizePx?: number;
 };
 
 export default function TableMap({
@@ -115,6 +118,9 @@ export default function TableMap({
   layoutUrl,
   loading = false,
   enableZoom = true,
+  labelMode = "full",
+  enforceSquare = false,
+  minSlotSizePx = 0,
 }: TableMapProps) {
   const searchParams = useSearchParams();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -148,13 +154,49 @@ export default function TableMap({
     const scaleX = viewBoxSize.width / MAP_VIEWBOX.width;
     const scaleY = viewBoxSize.height / MAP_VIEWBOX.height;
     return slots.map((slot) => ({
-      ...slot,
-      x: slot.x * scaleX,
-      y: slot.y * scaleY,
-      w: slot.w * scaleX,
-      h: slot.h * scaleY,
+      ...(() => {
+        const x = slot.x * scaleX;
+        const y = slot.y * scaleY;
+        const w = slot.w * scaleX;
+        const h = slot.h * scaleY;
+
+        if (enforceSquare) {
+          const centerX = x + w / 2;
+          const centerY = y + h / 2;
+          const squareSide = Math.max(Math.max(w, h), minSlotSizePx);
+          return {
+            ...slot,
+            x: centerX - squareSide / 2,
+            y: centerY - squareSide / 2,
+            w: squareSide,
+            h: squareSide,
+          };
+        }
+
+        if (minSlotSizePx > 0) {
+          const centerX = x + w / 2;
+          const centerY = y + h / 2;
+          const width = Math.max(w, minSlotSizePx);
+          const height = Math.max(h, minSlotSizePx);
+          return {
+            ...slot,
+            x: centerX - width / 2,
+            y: centerY - height / 2,
+            w: width,
+            h: height,
+          };
+        }
+
+        return {
+          ...slot,
+          x,
+          y,
+          w,
+          h,
+        };
+      })(),
     }));
-  }, [slots, viewBoxSize.height, viewBoxSize.width]);
+  }, [slots, viewBoxSize.height, viewBoxSize.width, enforceSquare, minSlotSizePx]);
 
   const handleDebugClick = (event: MouseEvent<SVGSVGElement>) => {
     if (!debugEnabled || !svgRef.current) return;
@@ -175,12 +217,14 @@ export default function TableMap({
     const isAvailable = slot.status === "available";
     const centerX = slot.x + slot.w / 2;
     const centerY = slot.y + slot.h / 2;
-    const label = slot.tableName || `Mesa ${slot.label}`;
-    const capacity = slot.capacity != null ? `${slot.capacity} pax` : null;
-    const statusLabel = isReserved ? "Reservada" : slot.status === "unavailable" ? "Fuera del mapa" : null;
+    const label = labelMode === "number" ? slot.label : slot.tableName || `Mesa ${slot.label}`;
+    const capacity = labelMode === "number" ? null : slot.capacity != null ? `${slot.capacity} pax` : null;
+    const statusLabel =
+      labelMode === "number" ? null : isReserved ? "Reservada" : slot.status === "unavailable" ? "Fuera del mapa" : null;
     const fill = isSelected ? "rgba(233,30,99,0.2)" : isReserved ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.16)";
     const stroke = isSelected ? "#e91e63" : isReserved ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.6)";
     const textColor = isSelected ? "#ffffff" : "#f5f5f5";
+    const labelFontSize = Math.max(13, Math.min(26, Math.min(slot.w, slot.h) * 0.36));
 
     return (
       <g
@@ -197,8 +241,8 @@ export default function TableMap({
           y={slot.y}
           width={slot.w}
           height={slot.h}
-          rx={12}
-          ry={12}
+          rx={4}
+          ry={4}
           fill={fill}
           stroke={stroke}
           strokeWidth={isSelected ? 4 : 2}
@@ -210,11 +254,11 @@ export default function TableMap({
           textAnchor="middle"
           dominantBaseline="middle"
           fill={textColor}
-          fontSize={14}
+          fontSize={labelFontSize}
           fontWeight={600}
           style={{ pointerEvents: "none" }}
         >
-          <tspan x={centerX} dy={-4}>
+          <tspan x={centerX} dy={labelMode === "number" ? 0 : -4}>
             {label}
           </tspan>
           {capacity && (
@@ -247,7 +291,7 @@ export default function TableMap({
           y={0} 
           width={viewBoxSize.width} 
           height={viewBoxSize.height}
-          preserveAspectRatio="xMidYMid slice"
+          preserveAspectRatio="xMidYMid meet"
         />
       )}
       {scaledSlots.map(renderSlot)}

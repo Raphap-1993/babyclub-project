@@ -38,7 +38,7 @@ export const toast = {
   info: (message: string, options?: Omit<ToastProps, "variant">) => {
     return sonnerToast.info(message, {
       duration: options?.duration || 4000,
-      icon: <Info className="w-4 h-4 text-blue-500" />,
+      icon: <Info className="w-4 h-4 text-neutral-300" />,
       ...options,
     })
   },

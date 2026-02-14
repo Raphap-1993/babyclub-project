@@ -27,16 +27,16 @@ export default async function CreateEventPage() {
   if (organizers.length === 0) return notFound();
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
+    <div className="min-h-screen bg-neutral-950 p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-400 mb-1">CREAR</p>
+            <p className="text-sm font-medium text-neutral-400 mb-1">CREAR</p>
             <h1 className="text-2xl font-semibold text-white">Nuevo evento</h1>
           </div>
           <Link
             href="/admin/events"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-lg text-white transition-colors"
           >
             ← Volver
           </Link>
