@@ -8,18 +8,22 @@ const DEFAULT_LAYOUT_SIZE = 60;
 
 function isMissingLayoutCanvasColumns(message?: string | null) {
   const text = (message || "").toLowerCase();
+  const hasMissingColumnSignal =
+    (text.includes("does not exist") || text.includes("could not find")) &&
+    (text.includes("column") || text.includes("schema cache"));
   return (
-    text.includes("column") &&
-    text.includes("does not exist") &&
+    hasMissingColumnSignal &&
     (text.includes("layout_canvas_width") || text.includes("layout_canvas_height"))
   );
 }
 
 function isMissingTableLayoutColumns(message?: string | null) {
   const text = (message || "").toLowerCase();
+  const hasMissingColumnSignal =
+    (text.includes("does not exist") || text.includes("could not find")) &&
+    (text.includes("column") || text.includes("schema cache"));
   return (
-    text.includes("column") &&
-    text.includes("does not exist") &&
+    hasMissingColumnSignal &&
     (text.includes("layout_x") || text.includes("layout_y") || text.includes("layout_size"))
   );
 }
