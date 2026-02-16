@@ -95,8 +95,17 @@ export default function CompraPage() {
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
   const [ticketVoucherUrl, setTicketVoucherUrl] = useState<string>("");
   const [ticketQuantity, setTicketQuantity] = useState<1 | 2>(1);
+  const earlyBirdOptionsDisabled = true;
+  const defaultTicketPricingSelection: TicketSalePhase =
+    (process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird").toLowerCase() === "all_night"
+      ? "all_night"
+      : "early_bird";
+  const initialTicketPricingSelection: TicketSalePhase =
+    earlyBirdOptionsDisabled && defaultTicketPricingSelection === "early_bird"
+      ? "all_night"
+      : defaultTicketPricingSelection;
   const [ticketPricingSelection, setTicketPricingSelection] = useState<TicketSalePhase>(
-    (process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird").toLowerCase() === "all_night" ? "all_night" : "early_bird"
+    initialTicketPricingSelection
   );
   const [isDragging, setIsDragging] = useState(false);
   const [ticketIsDragging, setTicketIsDragging] = useState(false);
@@ -160,7 +169,7 @@ export default function CompraPage() {
     setTicketModalError(null);
     setTicketUploading(false);
     setTicketQuantity(1);
-    setTicketPricingSelection((process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird").toLowerCase() === "all_night" ? "all_night" : "early_bird");
+    setTicketPricingSelection(initialTicketPricingSelection);
   };
 
   const clearMesaInputs = () => {
@@ -250,6 +259,13 @@ export default function CompraPage() {
       lookupPerson(form.document, "mesa", form.doc_type as DocumentType);
     }
   }, [form.doc_type, form.document]);
+
+  useEffect(() => {
+    if (earlyBirdOptionsDisabled && ticketPricingSelection === "early_bird") {
+      setTicketPricingSelection("all_night");
+      setTicketQuantity(1);
+    }
+  }, [earlyBirdOptionsDisabled, ticketPricingSelection]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -742,8 +758,11 @@ export default function CompraPage() {
             <div className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
                 <label
+                  aria-disabled={earlyBirdOptionsDisabled}
                   className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                    isEarlySoloSelected
+                    earlyBirdOptionsDisabled
+                      ? "cursor-not-allowed border-white/10 bg-[#0a0a0a] text-white/45"
+                      : isEarlySoloSelected
                       ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
                       : "border-white/10 bg-[#0a0a0a] text-white"
                   }`}
@@ -751,19 +770,26 @@ export default function CompraPage() {
                   <input
                     type="radio"
                     name="ticketQty"
+                    disabled={earlyBirdOptionsDisabled}
                     checked={isEarlySoloSelected}
                     onChange={() => {
+                      if (earlyBirdOptionsDisabled) return;
                       setTicketPricingSelection("early_bird");
                       setTicketQuantity(1);
                     }}
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>1 QR EARLY BABY - S/ {earlyBirdPriceSingle}</span>
-                  <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
+                  <span className="text-xs font-normal text-white/70">
+                    Incluye 1 trago de cortesía {earlyBirdOptionsDisabled ? "- No disponible" : ""}
+                  </span>
                 </label>
                 <label
+                  aria-disabled={earlyBirdOptionsDisabled}
                   className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                    isEarlyDuoSelected
+                    earlyBirdOptionsDisabled
+                      ? "cursor-not-allowed border-white/10 bg-[#0a0a0a] text-white/45"
+                      : isEarlyDuoSelected
                       ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
                       : "border-white/10 bg-[#0a0a0a] text-white"
                   }`}
@@ -771,15 +797,19 @@ export default function CompraPage() {
                   <input
                     type="radio"
                     name="ticketQty"
+                    disabled={earlyBirdOptionsDisabled}
                     checked={isEarlyDuoSelected}
                     onChange={() => {
+                      if (earlyBirdOptionsDisabled) return;
                       setTicketPricingSelection("early_bird");
                       setTicketQuantity(2);
                     }}
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>2 QR EARLY BABY - S/ {earlyBirdPriceDouble}</span>
-                  <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
+                  <span className="text-xs font-normal text-white/70">
+                    Incluye 2 tragos de cortesía {earlyBirdOptionsDisabled ? "- No disponible" : ""}
+                  </span>
                 </label>
                 <label
                   className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
@@ -799,7 +829,7 @@ export default function CompraPage() {
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>1 QR ALL NIGHT - S/ {allNightPriceSingle}</span>
-                  <span className="text-xs font-normal text-white/70">Incluye 1 trago de cortesía</span>
+                  <span className="text-xs font-normal text-white/70">Incluye 1 trago a elección</span>
                 </label>
                 <label
                   className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
@@ -819,7 +849,7 @@ export default function CompraPage() {
                     className="h-4 w-4 accent-[#e91e63]"
                   />
                   <span>2 QR ALL NIGHT - S/ {allNightPriceDouble}</span>
-                  <span className="text-xs font-normal text-white/70">Incluye 2 tragos de cortesía</span>
+                  <span className="text-xs font-normal text-white/70">Incluye 2 tragos a elección</span>
                 </label>
               </div>
             </div>
