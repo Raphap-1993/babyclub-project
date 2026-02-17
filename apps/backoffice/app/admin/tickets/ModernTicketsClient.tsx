@@ -8,6 +8,7 @@ import { DataTable } from "@repo/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
+import { authedFetch } from "@/lib/authedFetch";
 import {
   Calendar,
   User,
@@ -46,7 +47,8 @@ function TicketFilters({
   setPromoterId,
   promoterOptions,
   onSubmit,
-  exportHref,
+  onExport,
+  exporting,
   hasActiveFilters,
   onClear,
 }: {
@@ -59,7 +61,8 @@ function TicketFilters({
   setPromoterId: (id: string) => void;
   promoterOptions: Array<{ id: string; label: string }>;
   onSubmit: () => void;
-  exportHref: string;
+  onExport: () => void;
+  exporting: boolean;
   hasActiveFilters: boolean;
   onClear: () => void;
 }) {
@@ -143,13 +146,15 @@ function TicketFilters({
           </Button>
         )}
 
-        <Link
-          href={exportHref}
-          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors"
+        <Button
+          type="button"
+          onClick={onExport}
+          disabled={exporting}
+          className="bg-green-600 hover:bg-green-500 text-white"
         >
           <Download className="h-4 w-4" />
-          Exportar
-        </Link>
+          {exporting ? "Exportando..." : "Exportar"}
+        </Button>
       </div>
     </div>
   );
@@ -317,6 +322,8 @@ export default function ModernTicketsClient({
   const [eventId, setEventId] = useState(event_id);
   const [searchValue, setSearchValue] = useState(q);
   const [promoterId, setPromoterId] = useState(promoter_id);
+  const [exporting, setExporting] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -346,6 +353,34 @@ export default function ModernTicketsClient({
     setSearchValue("");
     setPromoterId("");
     router.push(pathname);
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setClientError(null);
+    try {
+      const res = await authedFetch(exportHref, { cache: "no-store" as RequestCache });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload?.error || "No se pudo exportar");
+      }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get("content-disposition") || "";
+      const fileMatch = contentDisposition.match(/filename=\"?([^"]+)\"?/i);
+      const filename = fileMatch?.[1] || "tickets.csv";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setClientError(err?.message || "Error exportando");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handlePageChange = (newPage: number) => {
@@ -400,15 +435,16 @@ export default function ModernTicketsClient({
         setPromoterId={setPromoterId}
         promoterOptions={promoterOptions}
         onSubmit={handleSubmit}
-        exportHref={exportHref}
+        onExport={handleExport}
+        exporting={exporting}
         hasActiveFilters={hasActiveFilters}
         onClear={handleClear}
       />
 
       {/* Error handling */}
-      {error && (
+      {(error || clientError) && (
         <div className="rounded-lg bg-red-500/20 border border-red-500/30 p-3 backdrop-blur-sm">
-          <p className="text-sm text-red-400">⚠️ Error: {error}</p>
+          <p className="text-sm text-red-400">⚠️ Error: {clientError || error}</p>
         </div>
       )}
 
