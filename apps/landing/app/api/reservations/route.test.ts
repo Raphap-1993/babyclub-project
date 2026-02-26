@@ -15,7 +15,7 @@ describe("POST /api/reservations", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
   });
 
-  it("crea reserva de mesa y genera códigos de cortesía", async () => {
+  it("crea reserva de mesa y genera códigos individuales por persona", async () => {
     const { supabase } = createSupabaseMock({
       "tables.select": [
         {
@@ -30,7 +30,7 @@ describe("POST /api/reservations", () => {
         },
       ],
       "table_reservations.insert": [{ data: { id: "res-1" }, error: null }],
-      "codes.insert": [{ data: [{ code: "mesa-ABC123" }], error: null }],
+      "codes.insert": [{ data: [{ code: "mesa-ABC123" }, { code: "mesa-ABC124" }], error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
 
@@ -59,8 +59,56 @@ describe("POST /api/reservations", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(payload.reservationId).toBe("res-1");
+    expect(typeof payload.friendlyCode).toBe("string");
+    expect(payload.friendlyCode.length).toBeGreaterThan(0);
     expect(Array.isArray(payload.codes)).toBe(true);
-    expect(payload.codes.length).toBe(1);
+    expect(payload.codes.length).toBe(2);
+  });
+
+  it("bloquea una nueva solicitud cuando la mesa ya tiene reserva aprobada", async () => {
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-1",
+            event_id: "event-1",
+            ticket_count: 6,
+            is_active: true,
+            event: { id: "event-1", name: "Evento" },
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: { id: "res-active", status: "approved" },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table_id: "table-1",
+        doc_type: "dni",
+        document: "12345678",
+        full_name: "Ana Perez",
+        email: "ana@example.com",
+        phone: "+51999999999",
+        voucher_url: "https://example.com/voucher.png",
+        event_id: "event-1",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
   });
 });

@@ -40,15 +40,18 @@ export default function ReservationActions({ id, status, compact }: { id: string
   };
 
   const handleDelete = () => {
-    const confirmed = window.confirm("¿Eliminar esta reserva?");
-    if (!confirmed) return;
+    const confirmation = window.prompt('Para eliminar escribe "eliminar"');
+    if (!confirmation || confirmation.trim().toLowerCase() !== "eliminar") {
+      setError('Confirmación inválida. Debes escribir "eliminar".');
+      return;
+    }
     setError(null);
     setInfo(null);
     startTransition(async () => {
       const res = await authedFetch("/api/admin/reservations/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, confirmation }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {

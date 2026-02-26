@@ -7,7 +7,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 const { createClient } = await import("@supabase/supabase-js");
 
-describe("GET /api/tables event filter", () => {
+describe("GET /api/tables", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -15,22 +15,92 @@ describe("GET /api/tables event filter", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
   });
 
-  it.skip("aplica filtro por event_id cuando viene en query", async () => {
-    const { supabase, calls } = createSupabaseMock({
-      "tables.select": [{ data: [], error: null }],
+  it("marca mesa reservada para el evento aunque la reserva sea antigua", async () => {
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: [
+            {
+              id: "table-1",
+              name: "Mesa 1",
+              event_id: "event-1",
+              organizer_id: "org-1",
+              ticket_count: 6,
+              min_consumption: 160,
+              price: 160,
+              products: [],
+            },
+          ],
+          error: null,
+        },
+      ],
+      "table_availability.select": [{ data: [], error: null }],
+      "table_reservations.select": [
+        {
+          data: [
+            {
+              table_id: "table-1",
+              status: "approved",
+              event_id: "event-1",
+            },
+          ],
+          error: null,
+        },
+      ],
     });
     (createClient as any).mockReturnValue(supabase);
 
     const { GET } = await import("./route");
     const req = { nextUrl: new URL("http://localhost/api/tables?event_id=event-1") };
     const res = await GET(req as any);
-    expect(res.status).toBe(200);
+    const payload = await res.json();
 
-    const tableCall = calls.find((c) => c.table === "tables" && c.op === "select");
-    const hasEventFilter = tableCall?.filters?.some(
-      (f) => f.type === "eq" && f.args[0] === "event_id" && f.args[1] === "event-1"
-    );
-    expect(hasEventFilter).toBe(true);
+    expect(res.status).toBe(200);
+    expect(payload.tables[0]?.is_reserved).toBe(true);
+  });
+
+  it("no marca como reservada una mesa con reservas rechazadas", async () => {
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: [
+            {
+              id: "table-1",
+              name: "Mesa 1",
+              event_id: "event-1",
+              organizer_id: "org-1",
+              ticket_count: 6,
+              min_consumption: 160,
+              price: 160,
+              products: [],
+            },
+          ],
+          error: null,
+        },
+      ],
+      "table_availability.select": [{ data: [], error: null }],
+      "table_reservations.select": [
+        {
+          data: [
+            {
+              table_id: "table-1",
+              status: "rejected",
+              event_id: "event-1",
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { GET } = await import("./route");
+    const req = { nextUrl: new URL("http://localhost/api/tables?event_id=event-1") };
+    const res = await GET(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.tables[0]?.is_reserved).toBe(false);
   });
 
   it("retorna 200 con lista vacia si Supabase falla por timeout transitorio", async () => {

@@ -4,6 +4,7 @@ import { requireStaffRole } from "shared/auth/requireStaff";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ACTIVE_RESERVATION_STATUSES = ["pending", "approved", "confirmed", "paid"];
 
 export async function GET(req: NextRequest) {
   const guard = await requireStaffRole(req);
@@ -68,6 +69,7 @@ export async function GET(req: NextRequest) {
       .from("table_reservations")
       .select("table_id")
       .eq("event_id", event_id)
+      .in("status", ACTIVE_RESERVATION_STATUSES)
       .is("deleted_at", null);
 
     if (reservError) {

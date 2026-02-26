@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,table_id,product_id,full_name,email,phone,doc_type,document,codes,ticket_quantity,event_id,ticket_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,event:events(id,name,starts_at,location))"
+      "id,table_id,product_id,full_name,email,phone,doc_type,document,codes,ticket_quantity,event_id,ticket_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -102,10 +102,13 @@ export async function POST(req: NextRequest) {
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];
   const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || eventDirectRel?.id || null;
-  const ticketQuantity =
+  const reservationTicketQty =
     typeof (reservation as any).ticket_quantity === "number" && (reservation as any).ticket_quantity > 0
       ? Math.floor((reservation as any).ticket_quantity)
-      : 1;
+      : 0;
+  const tableTicketQty =
+    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0 ? Math.floor(tableRel.ticket_count) : 0;
+  const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
   const tableName = tableRel?.name || "Entrada";
   const isTableReservation = Boolean(tableRel?.id);
   trace.push(`eventId:${eventId || "null"}`);
