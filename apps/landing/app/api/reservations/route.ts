@@ -72,6 +72,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Mesa inactiva" }, { status: 400 });
   }
 
+  // Invariante de negocio: toda reserva de mesa debe incluir un pack/producto activo.
+  const activeProductsQuery = applyNotDeleted(
+    supabase
+      .from("table_products")
+      .select("id,table_id,is_active")
+      .eq("table_id", table_id)
+      .eq("is_active", true)
+  );
+  const { data: activeProducts, error: activeProductsError } = await activeProductsQuery;
+  if (activeProductsError) {
+    return NextResponse.json({ success: false, error: activeProductsError.message }, { status: 500 });
+  }
+  if (!activeProducts || activeProducts.length === 0) {
+    return NextResponse.json(
+      { success: false, error: "La mesa no tiene packs activos configurados" },
+      { status: 400 }
+    );
+  }
+  if (!product_id) {
+    return NextResponse.json(
+      { success: false, error: "product_id es requerido para reservar mesa" },
+      { status: 400 }
+    );
+  }
+  const selectedProduct = activeProducts.find((product: any) => product.id === product_id);
+  if (!selectedProduct) {
+    return NextResponse.json(
+      { success: false, error: "El producto no pertenece a la mesa seleccionada o está inactivo" },
+      { status: 400 }
+    );
+  }
+
   const ticketCount = Math.max(table.ticket_count || 1, 1);
   let effectiveEventId = table.event_id || event_id_body || null;
 

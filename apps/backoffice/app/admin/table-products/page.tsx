@@ -10,48 +10,187 @@ import { cn } from "@/lib/utils";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function getData() {
-  if (!supabaseUrl || !supabaseServiceKey) return { tables: [], error: "Falta configuración de Supabase" };
+type SearchParams = Record<string, string | string[] | undefined>;
+
+type OrganizerOption = { id: string; name: string };
+type EventOption = { id: string; name: string; date?: string };
+type ProductRow = {
+  id: string;
+  name: string;
+  description?: string | null;
+  items?: string[];
+  price?: number | null;
+  tickets_included?: number | null;
+  is_active?: boolean | null;
+  sort_order?: number | null;
+};
+type TableRow = {
+  id: string;
+  name: string;
+  organizer_id?: string | null;
+  event_id?: string | null;
+  event?: { id?: string | null; name?: string | null } | null;
+  products: ProductRow[];
+};
+
+async function getData(params?: SearchParams) {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return {
+      organizers: [] as OrganizerOption[],
+      events: [] as EventOption[],
+      tables: [] as TableRow[],
+      selectedOrganizerId: "",
+      selectedEventId: "",
+      error: "Falta configuración de Supabase",
+    };
+  }
+
+  const requestedOrganizerId = typeof params?.organizer_id === "string" ? params.organizer_id : "";
+  const requestedEventId = typeof params?.event_id === "string" ? params.event_id : "";
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await applyNotDeleted(
+  const { data: organizersRaw, error: organizersError } = await applyNotDeleted(
+    supabase.from("organizers").select("id,name").order("name", { ascending: true })
+  );
+
+  if (organizersError) {
+    return {
+      organizers: [] as OrganizerOption[],
+      events: [] as EventOption[],
+      tables: [] as TableRow[],
+      selectedOrganizerId: "",
+      selectedEventId: "",
+      error: organizersError.message,
+    };
+  }
+
+  const organizers = ((organizersRaw as any[]) || []).map((organizer) => ({
+    id: String(organizer.id),
+    name: String(organizer.name || "Organizador sin nombre"),
+  }));
+
+  const selectedOrganizerId =
+    requestedOrganizerId && organizers.some((organizer) => organizer.id === requestedOrganizerId)
+      ? requestedOrganizerId
+      : organizers[0]?.id || "";
+
+  let events: EventOption[] = [];
+  if (selectedOrganizerId) {
+    const { data: eventsRaw, error: eventsError } = await applyNotDeleted(
+      supabase
+        .from("events")
+        .select("id,name,starts_at,is_active,force_closed")
+        .eq("organizer_id", selectedOrganizerId)
+        .order("starts_at", { ascending: false })
+    );
+
+    if (eventsError) {
+      return {
+        organizers,
+        events: [] as EventOption[],
+        tables: [] as TableRow[],
+        selectedOrganizerId,
+        selectedEventId: "",
+        error: eventsError.message,
+      };
+    }
+
+    events = ((eventsRaw as any[]) || [])
+      .filter((event) => event?.is_active !== false && event?.force_closed !== true)
+      .map((event) => ({
+        id: String(event.id),
+        name: String(event.name || "Evento sin nombre"),
+        date: event?.starts_at ? new Date(event.starts_at).toLocaleDateString("es-PE") : "",
+      }));
+  }
+
+  const selectedEventId =
+    requestedEventId && events.some((event) => event.id === requestedEventId)
+      ? requestedEventId
+      : events[0]?.id || "";
+
+  if (!selectedOrganizerId) {
+    return {
+      organizers,
+      events,
+      tables: [] as TableRow[],
+      selectedOrganizerId,
+      selectedEventId,
+    };
+  }
+
+  const { data: tablesRaw, error: tablesError } = await applyNotDeleted(
     supabase
       .from("tables")
       .select(
-        "id,name,event:events(name),products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order,deleted_at)"
+        "id,name,event_id,organizer_id,event:events(id,name),products:table_products(id,name,description,items,price,tickets_included,is_active,sort_order,deleted_at)"
       )
+      .eq("organizer_id", selectedOrganizerId)
       .order("name", { ascending: true })
   );
 
-  if (error || !data) return { tables: [], error: error?.message || "No se pudieron cargar las mesas" };
+  if (tablesError) {
+    return {
+      organizers,
+      events,
+      tables: [] as TableRow[],
+      selectedOrganizerId,
+      selectedEventId,
+      error: tablesError.message,
+    };
+  }
 
-  const normalized = (data as any[]).map((t) => ({
-    id: t.id,
-    name: t.name,
-    event: Array.isArray(t.event) ? t.event?.[0] : t.event,
-    products: (t.products || [])
-      .filter((p: any) => !p?.deleted_at)
-      .map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        items: p.items || [],
-        price: p.price,
-        tickets_included: p.tickets_included,
-        is_active: p.is_active,
-        sort_order: p.sort_order,
-      })),
-  }));
+  let tables = ((tablesRaw as any[]) || []).map((table) => ({
+    id: table.id,
+    name: table.name,
+    organizer_id: table.organizer_id,
+    event_id: table.event_id,
+    event: Array.isArray(table.event) ? table.event?.[0] : table.event,
+    products: (table.products || [])
+      .filter((product: any) => !product?.deleted_at)
+      .map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        items: product.items || [],
+        price: product.price,
+        tickets_included: product.tickets_included,
+        is_active: product.is_active,
+        sort_order: product.sort_order,
+      }))
+      .sort((a: any, b: any) => {
+        const orderA = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : 0;
+        const orderB = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : 0;
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a?.name || "").localeCompare(String(b?.name || ""), "es", { sensitivity: "base" });
+      }),
+  })) as TableRow[];
 
-  return { tables: normalized };
+  if (selectedEventId) {
+    tables = tables.filter((table) => !table.event_id || table.event_id === selectedEventId);
+  }
+
+  return {
+    organizers,
+    events,
+    tables,
+    selectedOrganizerId,
+    selectedEventId,
+  };
 }
 
 export const dynamic = "force-dynamic";
 
-export default async function TableProductsPage() {
-  const { tables, error } = await getData();
+export default async function TableProductsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const { organizers, events, tables, selectedOrganizerId, selectedEventId, error } = await getData(params);
 
   return (
     <main className="relative overflow-hidden px-3 py-4 text-white sm:px-5 lg:px-8">
@@ -65,8 +204,10 @@ export default async function TableProductsPage() {
                 <CardDescription className="text-[11px] uppercase tracking-[0.16em] text-white/55">
                   Operaciones / Productos de mesa
                 </CardDescription>
-                <CardTitle className="mt-2 text-3xl">Table Product Manager</CardTitle>
-                <p className="mt-2 text-sm text-white/60">Configura combos, precios y orden operativo de venta por mesa.</p>
+                <CardTitle className="mt-2 text-3xl">Gestión de Productos de Mesa</CardTitle>
+                <p className="mt-2 text-sm text-white/60">
+                  Flujo ordenado por organizador: selecciona organizador, evento y mesa antes de editar combos.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
@@ -85,7 +226,14 @@ export default async function TableProductsPage() {
           </CardHeader>
         </Card>
 
-        <ProductManager tables={tables} error={error} />
+        <ProductManager
+          organizers={organizers}
+          events={events}
+          tables={tables}
+          selectedOrganizerId={selectedOrganizerId}
+          selectedEventId={selectedEventId}
+          error={error}
+        />
       </div>
     </main>
   );

@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Building2,
+  Package2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -45,6 +46,7 @@ const menuItems = [
         icon: UserRound,
         children: [{ label: "Códigos/Lotes", href: "/admin/codes" }],
       },
+      { label: "Productos Mesa", href: "/admin/table-products", icon: Package2 },
       { label: "Reservas", href: "/admin/reservations", icon: BookOpen },
       { label: "Tickets/QR", href: "/admin/tickets", icon: QrCode },
     ] as NavItem[],

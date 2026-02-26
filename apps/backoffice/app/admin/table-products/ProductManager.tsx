@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Plus, Save, Trash2 } from "lucide-react";
+import { Box, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
+import { authedFetch } from "@/lib/authedFetch";
+
+export type OrganizerOption = { id: string; name: string };
+export type EventOption = { id: string; name: string; date?: string };
 
 type Product = {
   id: string;
@@ -20,16 +24,37 @@ type Product = {
   sort_order?: number | null;
 };
 
-type TableRow = {
+export type TableRow = {
   id: string;
   name: string;
-  event?: { name?: string | null } | null;
+  organizer_id?: string | null;
+  event_id?: string | null;
+  event?: { id?: string | null; name?: string | null } | null;
   products: Product[];
 };
 
-export default function ProductManager({ tables, error }: { tables: TableRow[]; error?: string }) {
+const ALL_EVENTS_VALUE = "__all_events__";
+
+export default function ProductManager({
+  organizers,
+  events,
+  tables,
+  selectedOrganizerId,
+  selectedEventId,
+  error,
+}: {
+  organizers: OrganizerOption[];
+  events: EventOption[];
+  tables: TableRow[];
+  selectedOrganizerId: string;
+  selectedEventId: string;
+  error?: string;
+}) {
   const router = useRouter();
+  const [isRouting, startTransition] = useTransition();
   const [tablesState, setTablesState] = useState<TableRow[]>(tables);
+  const [currentOrganizerId, setCurrentOrganizerId] = useState<string>(selectedOrganizerId);
+  const [currentEventId, setCurrentEventId] = useState<string>(selectedEventId || ALL_EVENTS_VALUE);
   const [selectedTableId, setSelectedTableId] = useState<string>(tables?.[0]?.id || "");
   const [selectedProductId, setSelectedProductId] = useState<string>(tables?.[0]?.products?.[0]?.id || "");
   const [saving, setSaving] = useState(false);
@@ -44,7 +69,40 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
     is_active: true,
   });
 
-  const currentTable = useMemo(() => tablesState.find((table) => table.id === selectedTableId) || null, [tablesState, selectedTableId]);
+  useEffect(() => {
+    setTablesState(tables);
+    setCurrentOrganizerId(selectedOrganizerId);
+    setCurrentEventId(selectedEventId || ALL_EVENTS_VALUE);
+  }, [tables, selectedOrganizerId, selectedEventId]);
+
+  useEffect(() => {
+    if (!tablesState.length) {
+      setSelectedTableId("");
+      return;
+    }
+    setSelectedTableId((prev) => {
+      if (prev && tablesState.some((table) => table.id === prev)) return prev;
+      return tablesState[0]?.id || "";
+    });
+  }, [tablesState]);
+
+  useEffect(() => {
+    const currentTable = tablesState.find((table) => table.id === selectedTableId);
+    const products = currentTable?.products || [];
+    if (products.length === 0) {
+      setSelectedProductId("");
+      return;
+    }
+    setSelectedProductId((prev) => {
+      if (prev && products.some((product) => product.id === prev)) return prev;
+      return products[0]?.id || "";
+    });
+  }, [tablesState, selectedTableId]);
+
+  const currentTable = useMemo(
+    () => tablesState.find((table) => table.id === selectedTableId) || null,
+    [tablesState, selectedTableId]
+  );
   const currentProduct = useMemo(
     () => currentTable?.products.find((product) => product.id === selectedProductId) || null,
     [currentTable, selectedProductId]
@@ -71,9 +129,20 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const navigateWithFilters = (organizerId: string, eventId: string) => {
+    const params = new URLSearchParams();
+    if (organizerId) params.set("organizer_id", organizerId);
+    if (eventId && eventId !== ALL_EVENTS_VALUE) params.set("event_id", eventId);
+    const query = params.toString();
+    const target = query ? `/admin/table-products?${query}` : "/admin/table-products";
+    startTransition(() => {
+      router.push(target);
+    });
+  };
+
   async function saveProduct() {
     if (!selectedTableId || !form.name.trim()) {
-      setMessage("Selecciona mesa y pon nombre al producto");
+      setMessage("Selecciona mesa y coloca un nombre al producto");
       return;
     }
 
@@ -100,7 +169,7 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
     const body = isEditing ? { ...payload, id: currentProduct?.id } : payload;
 
     try {
-      const res = await fetch(endpoint, {
+      const res = await authedFetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -122,7 +191,15 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
               next[existingIdx] = nextProduct;
               return { ...table, products: next };
             }
-            return { ...table, products: [...products, nextProduct] };
+            return {
+              ...table,
+              products: [...products, nextProduct].sort((a, b) => {
+                const orderA = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : 0;
+                const orderB = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : 0;
+                if (orderA !== orderB) return orderA - orderB;
+                return String(a?.name || "").localeCompare(String(b?.name || ""), "es", { sensitivity: "base" });
+              }),
+            };
           })
         );
         setMessage("Guardado");
@@ -140,10 +217,10 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/table-products/delete?id=${currentProduct.id}`, { method: "DELETE" });
+      const res = await authedFetch(`/api/table-products/delete?id=${currentProduct.id}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setMessage(data?.error || "No se pudo borrar");
+        setMessage(data?.error || "No se pudo eliminar");
       } else {
         setMessage("Eliminado");
         setSelectedProductId("");
@@ -162,6 +239,11 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
     }
   }
 
+  const selectedEventLabel =
+    currentEventId === ALL_EVENTS_VALUE
+      ? "Todos los eventos"
+      : events.find((event) => event.id === currentEventId)?.name || "Evento";
+
   return (
     <div className="space-y-4">
       {error && (
@@ -169,6 +251,63 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
           <CardContent className="p-3 text-sm text-red-100">{error}</CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Contexto operativo</CardTitle>
+          <CardDescription className="mt-1 text-xs text-white/55">
+            Trabaja por organizador para homologar catálogo de mesa con reservas y landing.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-[0.12em] text-white/50">Organizador</span>
+            <SelectNative
+              value={currentOrganizerId}
+              onChange={(event) => {
+                const nextOrganizerId = event.target.value;
+                setCurrentOrganizerId(nextOrganizerId);
+                setCurrentEventId(ALL_EVENTS_VALUE);
+                navigateWithFilters(nextOrganizerId, ALL_EVENTS_VALUE);
+              }}
+              disabled={isRouting || saving || organizers.length === 0}
+            >
+              {organizers.length === 0 && <option value="">Sin organizadores</option>}
+              {organizers.map((organizer) => (
+                <option key={organizer.id} value={organizer.id}>
+                  {organizer.name}
+                </option>
+              ))}
+            </SelectNative>
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-[0.12em] text-white/50">Evento</span>
+            <SelectNative
+              value={currentEventId}
+              onChange={(event) => {
+                const nextEventId = event.target.value;
+                setCurrentEventId(nextEventId);
+                navigateWithFilters(currentOrganizerId, nextEventId);
+              }}
+              disabled={isRouting || saving || !currentOrganizerId || events.length === 0}
+            >
+              <option value={ALL_EVENTS_VALUE}>Todos los eventos</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.name}{event.date ? ` - ${event.date}` : ""}
+                </option>
+              ))}
+            </SelectNative>
+          </label>
+
+          <div className="rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white/75">
+            <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Resumen</p>
+            <p className="mt-1 font-semibold text-white">{tablesState.length} mesas visibles</p>
+            <p className="text-xs text-white/55">{selectedEventLabel}</p>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr,1fr]">
         <Card>
@@ -178,65 +317,77 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
                 <CardTitle className="text-base">Catálogo por mesa</CardTitle>
                 <CardDescription className="mt-1 text-xs text-white/55">Selecciona mesa y administra sus combos.</CardDescription>
               </div>
-              <Badge>{tablesState.length} mesas</Badge>
+              <div className="flex items-center gap-2">
+                {(isRouting || saving) && <Loader2 className="h-4 w-4 animate-spin text-white/60" />}
+                <Badge>{tablesState.length} mesas</Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <SelectNative
-                value={selectedTableId}
-                onChange={(e) => {
-                  setSelectedTableId(e.target.value);
-                  const next = tablesState.find((table) => table.id === e.target.value);
-                  setSelectedProductId(next?.products?.[0]?.id || "");
-                }}
-                className="max-w-sm"
-              >
-                {tablesState.map((table) => (
-                  <option key={table.id} value={table.id}>
-                    {table.name}
-                  </option>
-                ))}
-              </SelectNative>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedProductId("")}> 
-                <Plus className="h-4 w-4" />
-                Nuevo
-              </Button>
-              {currentProduct && <Badge variant="warning">Editando: {currentProduct.name}</Badge>}
-            </div>
-
-            <div className="grid gap-2 md:grid-cols-2">
-              {(currentTable?.products || []).map((product) => {
-                const active = product.id === selectedProductId;
-                return (
-                  <button
-                    type="button"
-                    key={product.id}
-                    onClick={() => setSelectedProductId(product.id)}
-                    className={`rounded-xl border px-3 py-3 text-left transition ${
-                      active ? "border-[#a60c2f]/60 bg-[#a60c2f]/10" : "border-[#292929] hover:border-white/30"
-                    }`}
+            {tablesState.length > 0 ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <SelectNative
+                    value={selectedTableId}
+                    onChange={(event) => {
+                      setSelectedTableId(event.target.value);
+                      const next = tablesState.find((table) => table.id === event.target.value);
+                      setSelectedProductId(next?.products?.[0]?.id || "");
+                    }}
+                    className="max-w-sm"
                   >
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-white">{product.name}</p>
-                      <span className={`text-[11px] ${product.is_active === false ? "text-white/40" : "text-emerald-300"}`}>
-                        {product.is_active === false ? "Inactivo" : "Activo"}
-                      </span>
-                    </div>
-                    {product.price != null && <p className="text-xs text-white/70">S/ {product.price}</p>}
-                    {product.tickets_included != null && (
-                      <p className="text-[11px] text-white/55">Incluye {product.tickets_included} tickets</p>
-                    )}
-                  </button>
-                );
-              })}
-
-              {(currentTable?.products || []).length === 0 && (
-                <div className="rounded-xl border border-dashed border-[#292929] px-3 py-6 text-center text-sm text-white/60">
-                  Sin productos para esta mesa. Crea uno nuevo.
+                    {tablesState.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        {table.name}
+                        {table.event?.name ? ` - ${table.event.name}` : ""}
+                      </option>
+                    ))}
+                  </SelectNative>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedProductId("")}> 
+                    <Plus className="h-4 w-4" />
+                    Nuevo
+                  </Button>
+                  {currentProduct && <Badge variant="warning">Editando: {currentProduct.name}</Badge>}
                 </div>
-              )}
-            </div>
+
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(currentTable?.products || []).map((product) => {
+                    const active = product.id === selectedProductId;
+                    return (
+                      <button
+                        type="button"
+                        key={product.id}
+                        onClick={() => setSelectedProductId(product.id)}
+                        className={`rounded-xl border px-3 py-3 text-left transition ${
+                          active ? "border-[#a60c2f]/60 bg-[#a60c2f]/10" : "border-[#292929] hover:border-white/30"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-white">{product.name}</p>
+                          <span className={`text-[11px] ${product.is_active === false ? "text-white/40" : "text-emerald-300"}`}>
+                            {product.is_active === false ? "Inactivo" : "Activo"}
+                          </span>
+                        </div>
+                        {product.price != null && <p className="text-xs text-white/70">S/ {product.price}</p>}
+                        {product.tickets_included != null && (
+                          <p className="text-[11px] text-white/55">Incluye {product.tickets_included} tickets</p>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {(currentTable?.products || []).length === 0 && (
+                    <div className="rounded-xl border border-dashed border-[#292929] px-3 py-6 text-center text-sm text-white/60">
+                      Sin productos para esta mesa. Crea uno nuevo.
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-[#292929] px-3 py-6 text-center text-sm text-white/60">
+                No hay mesas para este contexto. Cambia de organizador/evento.
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -253,7 +404,7 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
                 label="Tickets incluidos"
                 value={form.tickets_included}
                 onChange={(value) => handleChange("tickets_included", value)}
-                placeholder="ej. 4"
+                placeholder="ej. 6"
               />
               <Field label="Orden" value={form.sort_order} onChange={(value) => handleChange("sort_order", value)} placeholder="0" />
               <div className="md:col-span-2">
@@ -268,7 +419,7 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
                 <span className="text-xs uppercase tracking-[0.12em] text-white/50">Ítems (uno por línea)</span>
                 <textarea
                   value={form.items}
-                  onChange={(e) => handleChange("items", e.target.value)}
+                  onChange={(event) => handleChange("items", event.target.value)}
                   rows={5}
                   className="w-full rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#a60c2f]/50"
                   placeholder="1 Ron...\n1 Gin..."
@@ -278,7 +429,7 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
                 <input
                   type="checkbox"
                   checked={form.is_active}
-                  onChange={(e) => handleChange("is_active", e.target.checked)}
+                  onChange={(event) => handleChange("is_active", event.target.checked)}
                   className="h-4 w-4"
                 />
                 Producto activo
@@ -286,11 +437,11 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" onClick={saveProduct} disabled={saving}>
+              <Button type="button" onClick={saveProduct} disabled={saving || isRouting || !selectedTableId}>
                 <Save className="h-4 w-4" />
                 {saving ? "Guardando..." : "Guardar"}
               </Button>
-              <Button type="button" variant="danger" onClick={deleteProduct} disabled={!currentProduct || saving}>
+              <Button type="button" variant="danger" onClick={deleteProduct} disabled={!currentProduct || saving || isRouting}>
                 <Trash2 className="h-4 w-4" />
                 Eliminar
               </Button>
@@ -301,7 +452,7 @@ export default function ProductManager({ tables, error }: { tables: TableRow[]; 
                   setSelectedProductId("");
                   setForm({ name: "", description: "", items: "", price: "", tickets_included: "", sort_order: "0", is_active: true });
                 }}
-                disabled={saving}
+                disabled={saving || isRouting}
               >
                 <Box className="h-4 w-4" />
                 Limpiar
@@ -332,7 +483,7 @@ function Field({
   return (
     <label className="space-y-1">
       <span className="text-xs uppercase tracking-[0.12em] text-white/50">{label}</span>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} required={required} placeholder={placeholder} />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} required={required} placeholder={placeholder} />
     </label>
   );
 }

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { Button } from "@repo/ui";
-import { TrendingUp, Calendar, QrCode, Armchair } from "lucide-react";
+import { TrendingUp, Calendar, QrCode, Armchair, Package2 } from "lucide-react";
 import TicketsSummaryCard from "@/components/dashboard/TicketsSummaryCard";
 import PromotersSummaryCard from "@/components/dashboard/PromotersSummaryCard";
 
@@ -11,6 +11,7 @@ export default async function AdminDashboard() {
     { label: "Crear Evento", href: "/admin/events/create", icon: Calendar },
     { label: "Escaneo QR", href: "/admin/tickets", icon: QrCode },
     { label: "Ver Mesas", href: "/admin/tables", icon: Armchair },
+    { label: "Productos Mesa", href: "/admin/table-products", icon: Package2 },
     { label: "Reportes", href: "/admin/ingresos", icon: TrendingUp },
   ];
 

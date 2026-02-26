@@ -177,7 +177,14 @@ export async function GET(req: NextRequest) {
 
   const normalized = tables.map((table: any) => ({
     ...table,
-    products: (table.products || []).filter((product: any) => !product?.deleted_at),
+    products: (table.products || [])
+      .filter((product: any) => !product?.deleted_at && product?.is_active !== false)
+      .sort((a: any, b: any) => {
+        const orderA = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : 0;
+        const orderB = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : 0;
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a?.name || "").localeCompare(String(b?.name || ""), "es", { sensitivity: "base" });
+      }),
     is_reserved: reservedTableIds.has(table.id),
   }));
 
