@@ -5,12 +5,23 @@ import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ACTIVE_RESERVATION_STATUSES = ["pending", "approved", "confirmed", "paid"];
 
 function isCodesTypeCheckError(error: any): boolean {
   if (!error) return false;
   const message = String(error?.message || "");
   const details = String(error?.details || "");
   return error?.code === "23514" && /codes_type_check/i.test(`${message} ${details}`);
+}
+
+function isMissingTableAvailabilityError(error: any): boolean {
+  if (!error) return false;
+  const message = String(error?.message || "").toLowerCase();
+  const details = String(error?.details || "").toLowerCase();
+  return (
+    error?.code === "42p01" ||
+    (message.includes("table_availability") && (message.includes("does not exist") || details.includes("does not exist")))
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -61,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Mesa inactiva" }, { status: 400 });
   }
 
-  const ticketCount = table.ticket_count || 1;
+  const ticketCount = Math.max(table.ticket_count || 1, 1);
   let effectiveEventId = table.event_id || event_id_body || null;
 
   // Si no hay event_id en la mesa, intentar resolverlo desde el código del registro
@@ -84,7 +95,55 @@ export async function POST(req: NextRequest) {
     if (fallbackEvent?.id) effectiveEventId = fallbackEvent.id;
   }
 
-  const codesToGenerate = effectiveEventId ? Math.max((table.ticket_count || 1) - 1, 0) : 0; // solo generamos códigos si hay evento
+  // No permitir doble solicitud sobre la misma mesa para el mismo evento en estados activos.
+  let reservationTakenQuery = applyNotDeleted(
+    supabase
+      .from("table_reservations")
+      .select("id,status")
+      .eq("table_id", table_id)
+      .in("status", ACTIVE_RESERVATION_STATUSES)
+      .limit(1)
+  );
+  if (effectiveEventId) {
+    reservationTakenQuery = reservationTakenQuery.eq("event_id", effectiveEventId);
+  }
+
+  const { data: activeReservation, error: activeReservationError } = await reservationTakenQuery.maybeSingle();
+  if (activeReservationError) {
+    return NextResponse.json({ success: false, error: activeReservationError.message }, { status: 500 });
+  }
+  if (activeReservation?.id) {
+    return NextResponse.json(
+      { success: false, error: "La mesa ya tiene una reserva activa para este evento" },
+      { status: 409 }
+    );
+  }
+
+  // Si existe configuración de disponibilidad por evento, respetarla.
+  if (effectiveEventId) {
+    const availabilityQuery = applyNotDeleted(
+      supabase
+        .from("table_availability")
+        .select("is_available")
+        .eq("table_id", table_id)
+        .eq("event_id", effectiveEventId)
+        .limit(1)
+    );
+    const { data: availability, error: availabilityError } = await availabilityQuery.maybeSingle();
+
+    if (availabilityError && !isMissingTableAvailabilityError(availabilityError)) {
+      return NextResponse.json({ success: false, error: availabilityError.message }, { status: 500 });
+    }
+    if (availability?.is_available === false) {
+      return NextResponse.json(
+        { success: false, error: "La mesa no está disponible para este evento" },
+        { status: 409 }
+      );
+    }
+  }
+
+  // Invariante negocio: generar un QR por persona de la mesa.
+  const codesToGenerate = effectiveEventId ? ticketCount : 0;
 
   // Generate friendly code for the reservation
   // Primero intentar obtener el nombre del evento desde la relación de la mesa

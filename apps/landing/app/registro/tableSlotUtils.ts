@@ -43,7 +43,56 @@ function parseTableLabel(name: string) {
   return match ? match[1] : name;
 }
 
+function median(values: number[]) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function inferCanvasFromLegacy(tables: TableMapSource[]) {
+  const widthCandidates: number[] = [];
+  const heightCandidates: number[] = [];
+
+  tables.forEach((table) => {
+    const layoutSize = asFiniteNumber(table.layout_size);
+    const legacyW = asFiniteNumber(table.pos_w);
+    const legacyH = asFiniteNumber(table.pos_h);
+
+    if (layoutSize && legacyW && legacyW > 0) {
+      const inferredWidth = (layoutSize * 100) / legacyW;
+      if (Number.isFinite(inferredWidth) && inferredWidth >= 320 && inferredWidth <= 5000) {
+        widthCandidates.push(inferredWidth);
+      }
+    }
+
+    if (layoutSize && legacyH && legacyH > 0) {
+      const inferredHeight = (layoutSize * 100) / legacyH;
+      if (Number.isFinite(inferredHeight) && inferredHeight >= 240 && inferredHeight <= 5000) {
+        heightCandidates.push(inferredHeight);
+      }
+    }
+  });
+
+  const width = median(widthCandidates);
+  const height = median(heightCandidates);
+
+  if (width && height) {
+    return {
+      width: Math.round(width),
+      height: Math.round(height),
+    };
+  }
+
+  return null;
+}
+
 function resolveLayoutCanvas(tables: TableMapSource[]) {
+  const inferredCanvas = inferCanvasFromLegacy(tables);
+  if (inferredCanvas) {
+    return inferredCanvas;
+  }
+
   const layoutTables = tables.filter((table) => {
     return asFiniteNumber(table.layout_x) !== null && asFiniteNumber(table.layout_y) !== null;
   });
@@ -95,8 +144,7 @@ export function buildMapSlotsFromTables(tables: TableMapSource[], options?: Buil
     .filter(hasMapPosition)
     .map((table) => {
       const hasLayout = asFiniteNumber(table.layout_x) !== null && asFiniteNumber(table.layout_y) !== null;
-      const hasLegacy = asFiniteNumber(table.pos_x) !== null && asFiniteNumber(table.pos_y) !== null;
-      const useLayout = hasLayout && (hasProvidedCanvas || !hasLegacy);
+      const useLayout = hasLayout;
       let xPercent = 0;
       let yPercent = 0;
       let widthPercent = 0;

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ticket_quantity,
         event_id,
         promoter_id,
-        table:tables(id,name,event_id,event:events(id,name,starts_at,location))
+        table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))
         `
       )
       .eq("id", id)
@@ -78,10 +78,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const eventData = eventRel || null;
   const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || null;
   const tableName = tableRel?.name || "Entrada";
-  const ticketQuantity =
+  const reservationTicketQty =
     typeof (reservation as any).ticket_quantity === "number" && (reservation as any).ticket_quantity > 0
       ? Math.floor((reservation as any).ticket_quantity)
-      : 1;
+      : 0;
+  const tableTicketQty =
+    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0 ? Math.floor(tableRel.ticket_count) : 0;
+  const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
 
   const reservationCodes = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes.map((c: any) => String(c || "").trim()).filter(Boolean)
@@ -128,7 +131,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const createdTicketIds: string[] = [];
   const createdTicketCodes: string[] = [];
 
-  if (ticketIds.length === 0) {
+  if (ticketIds.length < ticketQuantity) {
     if (!eventId) {
       return NextResponse.json(
         { success: false, error: "No se encontró evento para regenerar los tickets de esta reserva" },
@@ -136,8 +139,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       );
     }
 
-    for (let i = 0; i < ticketQuantity; i++) {
-      const reuseCodes = resolvedCodes[i] ? [resolvedCodes[i]] : [];
+    const missingTickets = ticketQuantity - ticketIds.length;
+    for (let i = 0; i < missingTickets; i++) {
+      const targetIndex = ticketIds.length + i;
+      const reuseCodes = resolvedCodes[targetIndex] ? [resolvedCodes[targetIndex]] : [];
       const ticketResult = await createTicketForReservation(supabase, {
         eventId,
         tableName,

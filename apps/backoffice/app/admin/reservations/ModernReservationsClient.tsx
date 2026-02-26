@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, StatusBadge, ModernDatePicker } from "@repo/ui";
 import { authedFetch } from "@/lib/authedFetch";
-import { Calendar, Users, Mail, Phone, QrCode, Search, Filter, Eye, Send, XCircle, CheckCircle } from "lucide-react";
+import { Calendar, Users, Mail, Phone, QrCode, Search, Filter, Eye, Send, XCircle, CheckCircle, Trash2 } from "lucide-react";
 import CreateReservationModal from "./components/CreateReservationModal";
 import ViewReservationModal from "./components/ViewReservationModal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
@@ -146,6 +146,7 @@ const createColumns = (
   onApproveReservation: (id: string) => void,
   onResendEmail: (id: string) => void,
   onCancelReservation: (id: string) => void,
+  onDeleteReservation: (id: string) => void,
   openMenuId: string | null,
   setOpenMenuId: (id: string | null) => void
 ): ColumnDef<ReservationRow>[] => [
@@ -207,7 +208,7 @@ const createColumns = (
     header: "Entradas",
     cell: ({ row }) => {
       const reservation = row.original;
-      const codesCount = reservation.codes?.length || 0;
+      const codesCount = Math.max(reservation.codes?.length || 0, reservation.ticket_quantity || 0);
       return (
         <div className="text-center">
           {codesCount > 0 ? (
@@ -308,6 +309,19 @@ const createColumns = (
           >
             <XCircle className="h-3.5 w-3.5" />
           </Button>
+
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteReservation(reservation.id);
+            }}
+            title="Eliminar reserva"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 bg-red-900/40 text-red-300 hover:bg-red-900/60"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
       );
     },
@@ -340,6 +354,9 @@ export default function ModernReservationsClient({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [cancelReservationId, setCancelReservationId] = useState<string | null>(null);
   const [cancelPending, setCancelPending] = useState(false);
+  const [deleteReservationId, setDeleteReservationId] = useState<string | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -422,6 +439,12 @@ export default function ModernReservationsClient({
     setCancelReservationId(id);
   };
 
+  // Eliminar reserva (soft-delete + desactivar tickets/códigos vinculados)
+  const handleDeleteReservation = (id: string) => {
+    setDeleteReservationId(id);
+    setDeleteConfirmationText("");
+  };
+
   const confirmCancelReservation = async () => {
     if (!cancelReservationId) return;
     setCancelPending(true);
@@ -458,6 +481,41 @@ export default function ModernReservationsClient({
       console.error("Error:", err);
     } finally {
       setCancelPending(false);
+    }
+  };
+
+  const confirmDeleteReservation = async () => {
+    if (!deleteReservationId) return;
+
+    const normalized = deleteConfirmationText.trim().toLowerCase();
+    if (normalized !== "eliminar") {
+      alert('Para confirmar, escribe exactamente "eliminar".');
+      return;
+    }
+
+    setDeletePending(true);
+    try {
+      const res = await authedFetch("/api/admin/reservations/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: deleteReservationId, confirmation: deleteConfirmationText }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDeleteReservationId(null);
+        setDeleteConfirmationText("");
+        alert("✅ Reserva eliminada");
+        window.location.reload();
+      } else {
+        alert(`❌ Error al eliminar reserva: ${data.error || "Error desconocido"}`);
+      }
+    } catch (err: any) {
+      alert(`❌ Error al eliminar reserva: ${err.message}`);
+      console.error("Error:", err);
+    } finally {
+      setDeletePending(false);
     }
   };
 
@@ -546,6 +604,7 @@ export default function ModernReservationsClient({
       handleApproveReservation,
       handleResendEmail,
       handleCancelReservation,
+      handleDeleteReservation,
       openMenuId,
       setOpenMenuId
     ),
@@ -669,6 +728,60 @@ export default function ModernReservationsClient({
                 className="bg-red-600 text-white transition-all hover:bg-red-700 disabled:opacity-50"
               >
                 {cancelPending ? "Anulando..." : "Sí, anular"}
+              </Button>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
+        open={Boolean(deleteReservationId)}
+        onOpenChange={(open) => {
+          if (!open && !deletePending) {
+            setDeleteReservationId(null);
+            setDeleteConfirmationText("");
+          }
+        }}
+      >
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+          <AlertDialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] rounded-lg border border-red-900/60 bg-neutral-900 p-6 shadow-xl">
+            <AlertDialog.Title className="text-lg font-semibold text-white">
+              Eliminar reserva
+            </AlertDialog.Title>
+            <AlertDialog.Description className="mt-3 text-sm text-neutral-300">
+              Esta acción archivará la reserva y desactivará sus tickets/códigos vinculados.
+              <br />
+              <br />
+              Para continuar, escribe <span className="font-semibold text-red-300">eliminar</span>.
+            </AlertDialog.Description>
+
+            <div className="mt-4">
+              <Input
+                value={deleteConfirmationText}
+                onChange={(event) => setDeleteConfirmationText(event.target.value)}
+                placeholder='Escribe "eliminar"'
+                className="border-neutral-700 bg-neutral-800/60 text-neutral-100"
+                disabled={deletePending}
+              />
+            </div>
+
+            <div className="mt-6 flex gap-3 justify-end">
+              <AlertDialog.Cancel asChild>
+                <Button
+                  disabled={deletePending}
+                  variant="outline"
+                  className="border-neutral-600 text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800 disabled:opacity-50"
+                >
+                  Cancelar
+                </Button>
+              </AlertDialog.Cancel>
+              <Button
+                onClick={confirmDeleteReservation}
+                disabled={deletePending || deleteConfirmationText.trim().toLowerCase() !== "eliminar"}
+                className="bg-red-700 text-white transition-all hover:bg-red-800 disabled:opacity-50"
+              >
+                {deletePending ? "Eliminando..." : "Sí, eliminar"}
               </Button>
             </div>
           </AlertDialog.Content>

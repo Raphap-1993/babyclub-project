@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "La mesa pertenece a otro evento" }, { status: 400 });
   }
   eventId = eventId || table.event_id || null;
+  const requiredQrCount = Math.max(table.ticket_count || 1, 1);
 
   // Fetch event data with event_prefix
   let eventData: any = null;
@@ -113,11 +114,6 @@ export async function POST(req: NextRequest) {
         const documentValue = bodyDocument;
         const docTypeValue = bodyDocType;
         const docSearchValid = documentValue ? validateDocument(docTypeValue, documentValue) : false;
-        const codes_count =
-          typeof body?.codes_count === "number" && Number.isFinite(body.codes_count) && body.codes_count >= 0
-            ? Math.floor(body.codes_count)
-            : Math.max(table.ticket_count || 1, 1);
-
         if (documentValue && !docSearchValid) {
           return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
         }
@@ -201,6 +197,7 @@ export async function POST(req: NextRequest) {
               voucher_url: voucher_url || null,
               status,
               codes: [], // Will update after creating individual codes
+              ticket_quantity: requiredQrCount,
               notes: notes || null,
               ticket_id: ticket.id,
               created_by_staff_id,
@@ -226,7 +223,7 @@ export async function POST(req: NextRequest) {
 
       // Generate individual friendly codes
       const eventPrefix = eventData?.event_prefix || "BC";
-      const quantity = table.ticket_count || 1;
+      const quantity = requiredQrCount;
       const { codes } = await createReservationCodes(supabase, {
         eventId: eventId!,
         eventPrefix,
@@ -261,11 +258,7 @@ export async function POST(req: NextRequest) {
     const docType = bodyDocType;
     const document = bodyDocument;
     const dniForTicket = docType === "dni" ? document : null;
-    const ticketCount = Math.max(table.ticket_count || 1, 1);
-    const codes_count =
-      typeof body?.codes_count === "number" && Number.isFinite(body.codes_count) && body.codes_count >= 0
-        ? Math.floor(body.codes_count)
-        : Math.max(ticketCount - 1, 0);
+    const ticketCount = requiredQrCount;
 
     if (!full_name) {
       return NextResponse.json({ success: false, error: "full_name es requerido para crear ticket" }, { status: 400 });
@@ -306,6 +299,7 @@ export async function POST(req: NextRequest) {
         phone: phone || null,
         voucher_url: voucher_url || null,
         status,
+        ticket_quantity: ticketCount,
         codes: [], // Will update after creating individual codes
         notes: notes || null,
         ticket_id: ticketResult.ticketId,

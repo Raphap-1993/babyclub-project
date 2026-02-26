@@ -231,8 +231,8 @@ export default function TableMap({
     const capacity = labelMode === "number" ? null : slot.capacity != null ? `${slot.capacity} pax` : null;
     const statusLabel =
       labelMode === "number" ? null : isReserved ? "Reservada" : slot.status === "unavailable" ? "Fuera del mapa" : null;
-    const fill = isSelected ? "rgba(233,30,99,0.2)" : isReserved ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.16)";
-    const stroke = isSelected ? "#e91e63" : isReserved ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.6)";
+    const fill = isSelected ? "rgba(233,30,99,0.2)" : isReserved ? "rgba(80,80,80,0.28)" : "rgba(255,255,255,0.16)";
+    const stroke = isSelected ? "#e91e63" : isReserved ? "rgba(220,220,220,0.45)" : "rgba(255,255,255,0.6)";
     const textColor = isSelected ? "#ffffff" : "#f5f5f5";
     const labelFontSize = Math.max(13, Math.min(26, Math.min(slot.w, slot.h) * 0.36));
 
@@ -240,6 +240,7 @@ export default function TableMap({
       <g
         key={slot.id}
         role={isAvailable ? "button" : "presentation"}
+        aria-disabled={!isAvailable}
         tabIndex={isAvailable ? 0 : -1}
         onClick={() => {
           if (isAvailable && slot.tableId) onSelect(slot.tableId);
@@ -258,6 +259,17 @@ export default function TableMap({
           strokeWidth={isSelected ? 4 : 2}
           style={{ filter: isSelected ? "drop-shadow(0px 10px 25px rgba(233,30,99,0.3))" : "drop-shadow(0px 8px 20px rgba(0,0,0,0.35))" }}
         />
+        {isReserved && (
+          <line
+            x1={slot.x + 4}
+            y1={slot.y + 4}
+            x2={slot.x + slot.w - 4}
+            y2={slot.y + slot.h - 4}
+            stroke="rgba(245,245,245,0.7)"
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        )}
         <text
           x={centerX}
           y={centerY}

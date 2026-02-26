@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
@@ -168,6 +168,34 @@ function RegistroContent() {
   const yapeNumber = "950 144 641";
   const yapeHolder = "Kevin Andree Huansi Ruiz";
 
+  const loadTables = useCallback((eventFilter?: string | null) => {
+    const params = new URLSearchParams();
+    if (eventFilter) {
+      params.set("event_id", eventFilter);
+    }
+    const endpoint = params.toString() ? `/api/tables?${params.toString()}` : "/api/tables";
+
+    fetch(endpoint, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        const loadedTables = data?.tables || [];
+        setTables(loadedTables);
+        const selectableTables = loadedTables.filter((t: any) => !t.is_reserved);
+        const firstTable =
+          selectableTables.find((t: any) => hasMapPosition(t)) ||
+          selectableTables[0] ||
+          null;
+        setSelectedTable(firstTable?.id || "");
+        const firstProduct = firstTable?.products?.find((p: any) => p.is_active !== false);
+        setSelectedProduct(firstProduct?.id || "");
+      })
+      .catch(() => {
+        setTables([]);
+        setSelectedTable("");
+        setSelectedProduct("");
+      });
+  }, []);
+
   const resetMainForm = () => {
     setForm({ ...initialFormState });
     setExistingTicketId(null);
@@ -266,8 +294,7 @@ function RegistroContent() {
         setLayoutUrl(optimizedLayoutUrl);
         const width = Number(data?.canvas_width);
         const height = Number(data?.canvas_height);
-        const isOrganizerCanvas = data?.canvas_source === "organizer";
-        if (isOrganizerCanvas && Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+        if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
           setLayoutCanvas({ width, height });
         } else {
           setLayoutCanvas(null);
@@ -279,20 +306,7 @@ function RegistroContent() {
         setLayoutCanvas(null);
         setLayoutImageSize(null);
       });
-    fetch("/api/tables", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        const loadedTables = data?.tables || [];
-        setTables(loadedTables);
-        const firstTable =
-          loadedTables.find((t: any) => !t.is_reserved && hasMapPosition(t)) ||
-          loadedTables.find((t: any) => !t.is_reserved) ||
-          loadedTables?.[0];
-        setSelectedTable(firstTable?.id || "");
-        const firstProduct = firstTable?.products?.find((p: any) => p.is_active !== false);
-        setSelectedProduct(firstProduct?.id || "");
-      })
-      .catch(() => setTables([]));
+    loadTables(null);
     fetch("/api/branding")
       .then((res) => res.json())
       .then((data) => {
@@ -345,7 +359,12 @@ function RegistroContent() {
         })
         .catch(() => null);
     }
-  }, []);
+  }, [code, loadTables]);
+
+  useEffect(() => {
+    if (!codeEventId) return;
+    loadTables(codeEventId);
+  }, [codeEventId, loadTables]);
 
   const tableSlots = useMemo(
     () =>
@@ -363,6 +382,15 @@ function RegistroContent() {
   const tableInfo = useMemo(() => {
     return tables.find((t) => t.id === selectedTable) || null;
   }, [selectedTable, tables]);
+
+  useEffect(() => {
+    if (!selectedTable) return;
+    const selected = tables.find((table) => table.id === selectedTable);
+    if (!selected || selected.is_reserved) {
+      setSelectedTable("");
+      setSelectedProduct("");
+    }
+  }, [tables, selectedTable]);
 
   const products = useMemo(() => getActiveProductsForTable(tableInfo), [tableInfo]);
   const selectedProductInfo = products.find((p) => p.id === selectedProduct) || products[0] || null;
@@ -419,6 +447,11 @@ function RegistroContent() {
 
     if (!selectedTable) {
       setReservationError("Selecciona una mesa");
+      return;
+    }
+    const selected = tables.find((table) => table.id === selectedTable);
+    if (selected?.is_reserved) {
+      setReservationError("Esta mesa ya está reservada. Elige otra mesa disponible.");
       return;
     }
     if (!validateDocument(reservation.doc_type as DocumentType, reservation.document) || !reservationFullName) {
@@ -1341,6 +1374,13 @@ function RegistroContent() {
       setReservationError(msg);
       return;
     }
+    const selected = tables.find((table) => table.id === selectedTable);
+    if (selected?.is_reserved) {
+      const msg = "Esta mesa ya está reservada. Selecciona otra mesa disponible.";
+      setModalError(msg);
+      setReservationError(msg);
+      return;
+    }
     if (!reservation.voucher_url) {
       const msg = "Sube tu comprobante de pago para continuar.";
       setModalError(msg);
@@ -1362,7 +1402,7 @@ function RegistroContent() {
         body: JSON.stringify({
           table_id: selectedTable,
           product_id: selectedProduct || null,
-          event_id: tableInfo?.event_id || null,
+          event_id: codeEventId || tableInfo?.event_id || null,
           code,
           doc_type: reservation.doc_type,
           document: reservation.document,
