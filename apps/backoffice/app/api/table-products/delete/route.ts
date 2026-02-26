@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
-import { buildArchivePayload } from "shared/db/softDelete";
+import { applyNotDeleted, buildArchivePayload } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,8 +25,14 @@ export async function archiveTableProduct(req: NextRequest) {
 
   if (!id) return NextResponse.json({ success: false, error: "id requerido" }, { status: 400 });
 
+  const existingQuery = applyNotDeleted(supabase.from("table_products").select("id").eq("id", id).limit(1));
+  const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+  if (existingError) return NextResponse.json({ success: false, error: existingError.message }, { status: 500 });
+  if (!existing) return NextResponse.json({ success: false, error: "Producto no encontrado" }, { status: 404 });
+
   const archivePayload = buildArchivePayload(guard.context?.staffId);
-  const { error } = await supabase.from("table_products").update(archivePayload).eq("id", id);
+  const archiveQuery = applyNotDeleted(supabase.from("table_products").update(archivePayload).eq("id", id));
+  const { error } = await archiveQuery;
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   return NextResponse.json({ success: true, archived: true });

@@ -113,9 +113,7 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
   }, [fullName, email, phone]);
 
   useEffect(() => {
-    if (selectedTable) {
-      loadProducts();
-    }
+    loadProducts();
   }, [selectedTable]);
 
   const resetForm = () => {
@@ -168,19 +166,26 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
   };
 
   const loadProducts = async () => {
-    // TODO: Productos opcionales de mesa - endpoint pendiente
-    // Por ahora no carga productos para evitar error 404
-    /*
+    if (!selectedTable) {
+      setProducts([]);
+      setSelectedProduct("");
+      return;
+    }
     try {
       const response = await authedFetch(`/api/admin/table-products?table_id=${selectedTable}`);
       const data = await response.json();
       if (data.success && data.products) {
         setProducts(data.products);
+        setSelectedProduct(data.products[0]?.id || "");
+      } else {
+        setProducts([]);
+        setSelectedProduct("");
       }
     } catch (err) {
       console.error("Error loading products:", err);
+      setProducts([]);
+      setSelectedProduct("");
     }
-    */
   };
 
   const searchTickets = async () => {
@@ -330,7 +335,7 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
   };
 
   const validateStep2 = () => {
-    return selectedOrganizer && selectedEvent && selectedTable;
+    return Boolean(selectedOrganizer && selectedEvent && selectedTable && selectedProduct);
   };
 
   // Obtener cantidad de entradas según la mesa seleccionada
@@ -435,6 +440,11 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
   };
 
   const handleSubmit = async () => {
+    if (!selectedProduct) {
+      setError("Selecciona un producto/pack para la reserva.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -443,6 +453,7 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
         mode,
         table_id: selectedTable,
         event_id: selectedEvent,
+        product_id: selectedProduct,
         status,
         notes,
         voucher_url: voucherUrl,
@@ -450,10 +461,6 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
         // payment_method: paymentMethod,
         // izipay_transaction_id: transactionId,
       };
-
-      if (selectedProduct) {
-        payload.product_id = selectedProduct;
-      }
 
       if (mode === "new_customer") {
         payload.full_name = fullName;
@@ -820,6 +827,8 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                     setSelectedOrganizer(e.target.value);
                     setSelectedEvent("");
                     setSelectedTable("");
+                    setProducts([]);
+                    setSelectedProduct("");
                   }}
                   className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                 >
@@ -842,6 +851,8 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                     onChange={(e) => {
                       setSelectedEvent(e.target.value);
                       setSelectedTable("");
+                      setProducts([]);
+                      setSelectedProduct("");
                     }}
                     className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                   >
@@ -865,7 +876,10 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
                       <Button
                         key={table.id}
                         type="button"
-                        onClick={() => setSelectedTable(table.id)}
+                        onClick={() => {
+                          setSelectedTable(table.id);
+                          setSelectedProduct("");
+                        }}
                         variant="outline"
                         className={`p-4 rounded-lg border-2 transition-all ${
                           selectedTable === table.id
@@ -885,20 +899,25 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
               {selectedTable && products.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-neutral-300 mb-2">
-                    Producto/Combo (Opcional)
+                    Producto/Combo *
                   </label>
                   <SelectNative
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
                     className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                   >
-                    <option value="">Sin producto</option>
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name} - S/ {product.price}
                       </option>
                     ))}
                   </SelectNative>
+                </div>
+              )}
+
+              {selectedTable && products.length === 0 && (
+                <div className="rounded-lg border border-amber-700/50 bg-amber-900/20 p-3 text-sm text-amber-200">
+                  Esta mesa no tiene packs activos configurados. Agrega packs en <strong>Operaciones → Productos Mesa</strong>.
                 </div>
               )}
             </div>

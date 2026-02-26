@@ -82,18 +82,36 @@ export async function POST(req: NextRequest) {
     eventData = evt;
   }
 
-  // Validar producto pertenece a la mesa
-  if (product_id) {
-    const productQuery = applyNotDeleted(
-      supabase.from("table_products").select("id,table_id").eq("id", product_id)
+  // Invariante de negocio: toda reserva de mesa debe ir con pack/producto activo.
+  const activeProductsQuery = applyNotDeleted(
+    supabase
+      .from("table_products")
+      .select("id,table_id,is_active")
+      .eq("table_id", table_id)
+      .eq("is_active", true)
+  );
+  const { data: activeProducts, error: activeProductsError } = await activeProductsQuery;
+  if (activeProductsError) {
+    return NextResponse.json({ success: false, error: activeProductsError.message }, { status: 500 });
+  }
+  if (!activeProducts || activeProducts.length === 0) {
+    return NextResponse.json(
+      { success: false, error: "La mesa no tiene packs activos configurados" },
+      { status: 400 }
     );
-    const { data: product, error: productError } = await productQuery.maybeSingle();
-    if (productError) {
-      return NextResponse.json({ success: false, error: productError.message }, { status: 400 });
-    }
-    if (!product || product.table_id !== table_id) {
-      return NextResponse.json({ success: false, error: "El producto no pertenece a la mesa seleccionada" }, { status: 400 });
-    }
+  }
+  if (!product_id) {
+    return NextResponse.json(
+      { success: false, error: "product_id es requerido para reservar mesa" },
+      { status: 400 }
+    );
+  }
+  const selectedProduct = activeProducts.find((product: any) => product.id === product_id);
+  if (!selectedProduct) {
+    return NextResponse.json(
+      { success: false, error: "El producto no pertenece a la mesa seleccionada o está inactivo" },
+      { status: 400 }
+    );
   }
 
   // Evitar doble reserva
@@ -214,7 +232,7 @@ export async function POST(req: NextRequest) {
         .update({
           table_reservation_id: reservation.id,
           table_id,
-          product_id: product_id || null,
+          product_id,
         })
         .eq("id", ticket.id);
       if (linkExistingTicketError) {
@@ -282,7 +300,7 @@ export async function POST(req: NextRequest) {
       reuseCodes: providedCodes,
       codeType: "table",
       tableId: table_id,
-      productId: product_id || null,
+      productId: product_id,
     });
 
     // Create reservation first

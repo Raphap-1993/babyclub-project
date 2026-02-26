@@ -29,6 +29,12 @@ describe("POST /api/reservations", () => {
           error: null,
         },
       ],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
+          error: null,
+        },
+      ],
       "table_reservations.insert": [{ data: { id: "res-1" }, error: null }],
       "codes.insert": [{ data: [{ code: "mesa-ABC123" }, { code: "mesa-ABC124" }], error: null }],
       "table_reservations.update": [{ data: null, error: null }],
@@ -48,7 +54,7 @@ describe("POST /api/reservations", () => {
         email: "ana@example.com",
         phone: "+51999999999",
         voucher_url: "https://example.com/voucher.png",
-        product_id: null,
+        product_id: "prod-1",
         event_id: "event-1",
         code: "PUBLIC",
       }),
@@ -79,9 +85,63 @@ describe("POST /api/reservations", () => {
           error: null,
         },
       ],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
+          error: null,
+        },
+      ],
       "table_reservations.select": [
         {
           data: { id: "res-active", status: "approved" },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table_id: "table-1",
+        doc_type: "dni",
+        document: "12345678",
+        full_name: "Ana Perez",
+        email: "ana@example.com",
+        phone: "+51999999999",
+        voucher_url: "https://example.com/voucher.png",
+        product_id: "prod-1",
+        event_id: "event-1",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+  });
+
+  it("requiere product_id activo para reservar mesa", async () => {
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-1",
+            event_id: "event-1",
+            ticket_count: 6,
+            is_active: true,
+            event: { id: "event-1", name: "Evento" },
+          },
+          error: null,
+        },
+      ],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
           error: null,
         },
       ],
@@ -108,7 +168,8 @@ describe("POST /api/reservations", () => {
     const res = await POST(req as any);
     const payload = await res.json();
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
     expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("product_id");
   });
 });
