@@ -36,10 +36,28 @@ const COLUMN_LABELS: Record<string, string> = {
   promoter_code: "Código promotor",
   promoter_name: "Promotor",
   codes_generated: "Códigos generados",
-  scans_confirmed: "Escaneos válidos",
+  scans_confirmed: "Ingresos validados",
   attendance_rate_percent: "% de asistencia",
-  unique_tickets_scanned: "Tickets únicos",
-  unique_codes_scanned: "Códigos únicos",
+  unique_tickets_scanned: "Personas únicas",
+  unique_codes_scanned: "Códigos únicos usados",
+  escaneos_qr_general: "QR general (escaneos)",
+  escaneos_qr_cortesia: "QR cortesía (escaneos)",
+  escaneos_qr_mesa: "QR mesa (escaneos)",
+  escaneos_qr_free: "QR free (escaneos)",
+  escaneos_qr_promotor_legado: "QR promotor legado (escaneos)",
+  escaneos_qr_sin_tipo: "QR sin tipo (escaneos)",
+  promotores_activos: "Promotores activos",
+  asistentes_unicos_con_promotor: "Personas únicas con promotor",
+  asistentes_unicos_sin_promotor: "Personas únicas sin promotor",
+  escaneos_sin_promotor: "Escaneos sin promotor",
+  top_promotores: "Top promotores",
+  top_codigos_usados: "Top códigos usados",
+  free_qr_scans_confirmed: "Escaneos QR free/cortesía",
+  free_qr_unique_tickets_scanned: "Personas únicas QR free/cortesía",
+  first_scan_at_lima: "Primer ingreso (Lima)",
+  last_scan_at_lima: "Último ingreso (Lima)",
+  free_qr_first_scan_at_lima: "Primer ingreso QR free/cortesía",
+  free_qr_last_scan_at_lima: "Último ingreso QR free/cortesía",
   paid_count: "Pagos confirmados",
   total_amount_pen_est: "Ventas (S/)",
   currency: "Moneda",
@@ -56,7 +74,27 @@ function prettifyHeader(header: string) {
 
 function formatReportValue(header: string, value: unknown) {
   if (value == null || value === "") return "—";
-  if (["codes_generated", "scans_confirmed", "unique_tickets_scanned", "unique_codes_scanned", "paid_count"].includes(header)) {
+  if (
+    [
+      "codes_generated",
+      "scans_confirmed",
+      "unique_tickets_scanned",
+      "unique_codes_scanned",
+      "escaneos_qr_general",
+      "escaneos_qr_cortesia",
+      "escaneos_qr_mesa",
+      "escaneos_qr_free",
+      "escaneos_qr_promotor_legado",
+      "escaneos_qr_sin_tipo",
+      "promotores_activos",
+      "asistentes_unicos_con_promotor",
+      "asistentes_unicos_sin_promotor",
+      "escaneos_sin_promotor",
+      "free_qr_scans_confirmed",
+      "free_qr_unique_tickets_scanned",
+      "paid_count",
+    ].includes(header)
+  ) {
     return Number(value).toLocaleString("es-PE");
   }
   if (header === "attendance_rate_percent") {
@@ -110,6 +148,18 @@ export default function ReportWorkspace({
     () => tableHeaders.filter((header) => !HIDDEN_UI_COLUMNS.has(header)),
     [tableHeaders]
   );
+
+  const attendanceSummary = useMemo(() => {
+    if (report !== "event_attendance" || rows.length === 0) return null;
+    const total = (key: string) =>
+      rows.reduce((acc, row) => acc + Number((row?.[key] as number | string | null | undefined) || 0), 0);
+    return {
+      ingresosValidados: total("scans_confirmed"),
+      personasUnicas: total("unique_tickets_scanned"),
+      promotoresActivos: total("promotores_activos"),
+      ingresosQrFree: total("free_qr_scans_confirmed"),
+    };
+  }, [report, rows]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -270,9 +320,33 @@ export default function ReportWorkspace({
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
-              <strong>Tickets únicos</strong> = personas únicas validadas en puerta (ticket_id distinto).{" "}
-              <strong>Códigos únicos</strong> = códigos comerciales/QR base distintos usados en el escaneo (code_id distinto).
+              <strong>Personas únicas</strong> = asistentes reales (sin duplicados).{" "}
+              <strong>Códigos únicos usados</strong> = cantidad de códigos comerciales distintos que sí se usaron.{" "}
+              <strong>Top promotores</strong> = ranking por asistentes y escaneos validados.{" "}
+              <strong>Top códigos usados</strong> = códigos con más validaciones en puerta.{" "}
+              <strong>Primer/Último ingreso</strong> = horas reales de validación en zona horaria Lima.
             </span>
+          </div>
+        ) : null}
+
+        {attendanceSummary ? (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Ingresos validados</div>
+              <div className="text-lg font-semibold text-white">{attendanceSummary.ingresosValidados.toLocaleString("es-PE")}</div>
+            </div>
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Personas únicas</div>
+              <div className="text-lg font-semibold text-white">{attendanceSummary.personasUnicas.toLocaleString("es-PE")}</div>
+            </div>
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Promotores activos</div>
+              <div className="text-lg font-semibold text-white">{attendanceSummary.promotoresActivos.toLocaleString("es-PE")}</div>
+            </div>
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Ingresos QR free/cortesía</div>
+              <div className="text-lg font-semibold text-white">{attendanceSummary.ingresosQrFree.toLocaleString("es-PE")}</div>
+            </div>
           </div>
         ) : null}
 
