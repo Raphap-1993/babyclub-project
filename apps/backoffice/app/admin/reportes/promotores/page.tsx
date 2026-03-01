@@ -73,8 +73,9 @@ export default async function ReportePromotoresPage() {
       />
       <ReportWorkspace
         title="Reporte de promotores"
-        description="Filtro por rango, organizador, evento y promotor."
+        description="Filtra por organizador, evento y promotor."
         defaultReport="promoter_performance"
+        showDateRange={false}
         organizers={options.organizers}
         events={options.events}
         promoters={options.promoters}
@@ -82,4 +83,3 @@ export default async function ReportePromotoresPage() {
     </AdminPage>
   );
 }
-

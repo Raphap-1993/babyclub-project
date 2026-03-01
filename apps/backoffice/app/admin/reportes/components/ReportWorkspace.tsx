@@ -28,12 +28,54 @@ const REPORT_LABELS: Record<string, string> = {
   event_sales: "Ventas por evento",
 };
 
+const HIDDEN_UI_COLUMNS = new Set(["organizer_id", "event_id", "promoter_id", "total_amount_raw"]);
+
+const COLUMN_LABELS: Record<string, string> = {
+  organizer_name: "Organizador",
+  event_name: "Evento",
+  promoter_code: "Código promotor",
+  promoter_name: "Promotor",
+  codes_generated: "Códigos generados",
+  scans_confirmed: "Escaneos válidos",
+  attendance_rate_percent: "% de asistencia",
+  unique_tickets_scanned: "Tickets únicos",
+  unique_codes_scanned: "Códigos únicos",
+  paid_count: "Pagos confirmados",
+  total_amount_pen_est: "Ventas (S/)",
+  currency: "Moneda",
+};
+
+function prettifyHeader(header: string) {
+  if (COLUMN_LABELS[header]) return COLUMN_LABELS[header];
+  return header
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatReportValue(header: string, value: unknown) {
+  if (value == null || value === "") return "—";
+  if (["codes_generated", "scans_confirmed", "unique_tickets_scanned", "unique_codes_scanned", "paid_count"].includes(header)) {
+    return Number(value).toLocaleString("es-PE");
+  }
+  if (header === "attendance_rate_percent") {
+    const numeric = Number(value);
+    return `${numeric.toLocaleString("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
+  }
+  if (header === "total_amount_pen_est") {
+    const numeric = Number(value);
+    return `S/ ${numeric.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return String(value);
+}
+
 export default function ReportWorkspace({
   title,
   description,
   defaultReport,
   allowReportSwitch = false,
-  showDateRange = true,
+  showDateRange = false,
   organizers,
   events,
   promoters,
@@ -63,6 +105,11 @@ export default function ReportWorkspace({
     if (rows.length === 0) return [] as string[];
     return Object.keys(rows[0]);
   }, [rows]);
+
+  const visibleHeaders = useMemo(
+    () => tableHeaders.filter((header) => !HIDDEN_UI_COLUMNS.has(header)),
+    [tableHeaders]
+  );
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -204,7 +251,7 @@ export default function ReportWorkspace({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-white/60">{rows.length} fila(s) cargadas</div>
+          <div className="text-xs text-white/60">Resultados cargados: {rows.length}</div>
           <div className="flex items-center gap-2">
             <Button type="button" size="sm" onClick={runReport} disabled={loading}>
               <Search className="h-4 w-4" />
@@ -219,26 +266,46 @@ export default function ReportWorkspace({
 
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
+        {report === "event_attendance" ? (
+          <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
+            <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
+            <span>
+              <strong>Tickets únicos</strong> = personas únicas validadas en puerta (ticket_id distinto).{" "}
+              <strong>Códigos únicos</strong> = códigos comerciales/QR base distintos usados en el escaneo (code_id distinto).
+            </span>
+          </div>
+        ) : null}
+
+        {report === "promoter_performance" ? (
+          <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
+            <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
+            <span>
+              <strong>Códigos generados</strong> son los QR/códigos emitidos para venta/gestión comercial del promotor.{" "}
+              <strong>Escaneos válidos</strong> son ingresos confirmados en puerta.
+            </span>
+          </div>
+        ) : null}
+
         <Table containerClassName="max-h-[55dvh] min-h-[220px]">
           <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
             <TableRow>
-              {tableHeaders.length === 0 ? <TableHead>Resultado</TableHead> : null}
-              {tableHeaders.map((header) => (
-                <TableHead key={header}>{header}</TableHead>
+              {visibleHeaders.length === 0 ? <TableHead>Resultado</TableHead> : null}
+              {visibleHeaders.map((header) => (
+                <TableHead key={header}>{prettifyHeader(header)}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tableHeaders.length === 0 ? (
+            {visibleHeaders.length === 0 ? (
               <TableRow>
                 <TableCell className="py-10 text-center text-white/55">Ejecuta una consulta para ver resultados.</TableCell>
               </TableRow>
             ) : (
               rows.map((row, index) => (
-                <TableRow key={`${index}-${String(row[tableHeaders[0]])}`}>
-                  {tableHeaders.map((header) => (
+                <TableRow key={`${index}-${String(row[visibleHeaders[0]])}`}>
+                  {visibleHeaders.map((header) => (
                     <TableCell key={header} className="py-2.5 text-white/85">
-                      {String(row[header] ?? "")}
+                      {formatReportValue(header, row[header])}
                     </TableCell>
                   ))}
                 </TableRow>
