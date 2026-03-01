@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { UserPlus, Search, Filter, Shield, Pencil, Trash2 } from "lucide-react";
 import { DataTable } from "@repo/ui";
@@ -14,6 +14,35 @@ import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ExternalPagination } from "../components/ExternalPagination";
+
+type DoorAuditUser = {
+  id: string;
+  auth_user_id: string | null;
+  is_active: boolean;
+  role_code: string | null;
+  role_name: string | null;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  scans_today: number;
+  last_scan_at: string | null;
+  ready_for_door: boolean;
+  issues: string[];
+};
+
+type DoorAuditData = {
+  date: string;
+  timezone: string;
+  summary: {
+    total_door_users: number;
+    active_door_users: number;
+    ready_door_users: number;
+    users_with_issues: number;
+    scanned_staff_today: number;
+    total_scans_today: number;
+  };
+  users: DoorAuditUser[];
+};
 
 export default function AdminUsersClient({ roles, initialStaff }: { roles: Role[]; initialStaff: StaffUser[] }) {
   const allowedRoles = roles.filter(
@@ -45,6 +74,9 @@ export default function AdminUsersClient({ roles, initialStaff }: { roles: Role[
   const [tempRoleFilter, setTempRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [tempStatusFilter, setTempStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [doorAudit, setDoorAudit] = useState<DoorAuditData | null>(null);
+  const [doorAuditLoading, setDoorAuditLoading] = useState(false);
+  const [doorAuditError, setDoorAuditError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -85,12 +117,34 @@ export default function AdminUsersClient({ roles, initialStaff }: { roles: Role[
   }, [filteredStaff, currentPage, pageSize]);
   const hasActiveFilters = Boolean(searchValue.trim() || roleFilter !== "all" || statusFilter !== "all");
 
+  const refreshDoorAudit = useCallback(async () => {
+    setDoorAuditLoading(true);
+    setDoorAuditError(null);
+    try {
+      const res = await authedFetch("/api/admin/users/door-audit");
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || "No se pudo cargar la auditoría de puerta");
+      }
+      setDoorAudit(payload.data || null);
+    } catch (err: any) {
+      setDoorAuditError(err?.message || "Error al cargar auditoría de puerta");
+    } finally {
+      setDoorAuditLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDoorAudit();
+  }, [refreshDoorAudit]);
+
   async function refreshStaff() {
     try {
       const res = await authedFetch("/api/admin/users/list");
       const payload = await res.json().catch(() => null);
       if (res.ok && payload?.success) {
         setStaff(payload.data || []);
+        await refreshDoorAudit();
       }
     } catch (_err) {
       // ignore refresh failures
@@ -156,6 +210,7 @@ export default function AdminUsersClient({ roles, initialStaff }: { roles: Role[
       const payload = await res.json().catch(() => null);
       if (!res.ok || !payload?.success) throw new Error(payload?.error || "No se pudo eliminar");
       setStaff((prev) => prev.filter((item) => item.id !== staffId));
+      await refreshDoorAudit();
     } catch (err: any) {
       setError(err?.message || "Error al eliminar usuario");
     } finally {
@@ -381,6 +436,106 @@ export default function AdminUsersClient({ roles, initialStaff }: { roles: Role[
         </div>
       </section>
 
+      <section className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b]/75 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.4)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-neutral-100">Auditoría puerta (hoy)</h2>
+            <p className="text-xs text-neutral-400">
+              Usuarios con rol door habilitados para escaneo y actividad del día.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {doorAudit ? (
+              <span className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white/75">
+                {doorAudit.date} · {doorAudit.timezone}
+              </span>
+            ) : null}
+            <Button type="button" variant="ghost" size="sm" onClick={() => void refreshDoorAudit()} disabled={doorAuditLoading}>
+              {doorAuditLoading ? "Actualizando..." : "Actualizar"}
+            </Button>
+          </div>
+        </div>
+
+        {doorAuditError ? (
+          <p className="rounded-lg border border-red-500/30 bg-red-500/20 px-3 py-2 text-xs text-red-300">
+            {doorAuditError}
+          </p>
+        ) : null}
+
+        {doorAudit ? (
+          <>
+            <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+              <AuditStat label="Usuarios door" value={doorAudit.summary.total_door_users} />
+              <AuditStat label="Activos" value={doorAudit.summary.active_door_users} />
+              <AuditStat label="Listos para puerta" value={doorAudit.summary.ready_door_users} />
+              <AuditStat label="Con incidencias" value={doorAudit.summary.users_with_issues} />
+              <AuditStat label="Operadores con scans" value={doorAudit.summary.scanned_staff_today} />
+              <AuditStat label="Scans hoy" value={doorAudit.summary.total_scans_today} />
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-white/10">
+              <table className="min-w-full divide-y divide-white/10 text-xs text-white/80">
+                <thead className="bg-black/40 text-[11px] uppercase tracking-[0.08em] text-white/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Usuario</th>
+                    <th className="px-3 py-2 text-left">Rol</th>
+                    <th className="px-3 py-2 text-left">Estado</th>
+                    <th className="px-3 py-2 text-left">Scans hoy</th>
+                    <th className="px-3 py-2 text-left">Último scan</th>
+                    <th className="px-3 py-2 text-left">Incidencias</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {doorAudit.users.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-3 text-white/60" colSpan={6}>
+                        No hay usuarios con rol door registrados.
+                      </td>
+                    </tr>
+                  ) : (
+                    doorAudit.users.map((user) => (
+                      <tr key={user.id}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-white">{user.full_name}</div>
+                          <div className="text-[11px] text-white/60">{user.email || "Sin email"}</div>
+                        </td>
+                        <td className="px-3 py-2">{user.role_name || user.role_code || "—"}</td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={
+                              user.ready_for_door
+                                ? "rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200"
+                                : "rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-200"
+                            }
+                          >
+                            {user.ready_for_door ? "Habilitado" : "Revisar"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-semibold text-white">{user.scans_today}</td>
+                        <td className="px-3 py-2 text-white/70">
+                          {user.last_scan_at
+                            ? new Date(user.last_scan_at).toLocaleTimeString("es-PE", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                timeZone: "America/Lima",
+                              })
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-white/70">
+                          {user.issues.length > 0 ? user.issues.join(" · ") : "Sin incidencias"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-white/60">{doorAuditLoading ? "Cargando auditoría..." : "Sin datos de auditoría."}</p>
+        )}
+      </section>
+
       <section className="rounded-2xl border border-white/10 bg-[#0b0b0b]/75 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.4)]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-neutral-100">Staff</h2>
@@ -472,6 +627,15 @@ export default function AdminUsersClient({ roles, initialStaff }: { roles: Role[
 
       <EditUserModal open={Boolean(editing)} user={editing} roles={roles} onClose={() => setEditing(null)} onSaved={refreshStaff} />
     </main>
+  );
+}
+
+function AuditStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/40 px-3 py-2">
+      <p className="text-[11px] uppercase tracking-[0.08em] text-white/50">{label}</p>
+      <p className="text-lg font-semibold text-white">{value}</p>
+    </div>
   );
 }
 

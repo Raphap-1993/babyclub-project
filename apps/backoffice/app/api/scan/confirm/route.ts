@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       ticket_id: ticket.id,
       raw_value: ticket.id,
       result: "valid",
-      scanned_by_staff_id: null,
+      scanned_by_staff_id: guard.context?.staffId || null,
     });
 
     return NextResponse.json({
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
     ticket_id: null,
     raw_value: codeRow.id,
     result: "valid",
-    scanned_by_staff_id: null,
+    scanned_by_staff_id: guard.context?.staffId || null,
   });
 
   return NextResponse.json({

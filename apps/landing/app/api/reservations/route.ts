@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -125,6 +126,41 @@ export async function POST(req: NextRequest) {
     );
     const { data: fallbackEvent } = await fallbackEventQuery.maybeSingle();
     if (fallbackEvent?.id) effectiveEventId = fallbackEvent.id;
+  }
+
+  if (effectiveEventId) {
+    const eventStateQuery = applyNotDeleted(
+      supabase
+        .from("events")
+        .select("id,is_active,closed_at,sale_status,sale_public_message")
+        .eq("id", effectiveEventId)
+    );
+    let { data: eventRow, error: eventError } = await eventStateQuery.maybeSingle();
+    if (eventError && isMissingEventSalesColumnsError(eventError)) {
+      const legacyQuery = applyNotDeleted(
+        supabase.from("events").select("id,is_active,closed_at").eq("id", effectiveEventId)
+      );
+      const legacyResult = await legacyQuery.maybeSingle();
+      eventRow = legacyResult.data as any;
+      eventError = legacyResult.error;
+    }
+    if (eventError || !eventRow) {
+      return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
+    }
+    const saleDecision = evaluateEventSales(ensureEventSalesDefaults(eventRow as any));
+    if (!saleDecision.available) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: saleDecision.public_message || "La venta online no está disponible para este evento",
+          code: "sales_blocked",
+          sale_status: saleDecision.sale_status,
+          sale_block_reason: saleDecision.block_reason,
+          sale_public_message: saleDecision.public_message,
+        },
+        { status: 409 }
+      );
+    }
   }
 
   // No permitir doble solicitud sobre la misma mesa para el mismo evento en estados activos.

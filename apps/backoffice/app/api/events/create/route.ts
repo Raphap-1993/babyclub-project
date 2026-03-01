@@ -6,6 +6,7 @@ import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { buildArchivePayload } from "shared/db/softDelete";
 import { generateEventCode, addSuffixIfNeeded } from "shared/friendlyCode";
+import { isMissingEventSalesColumnsError } from "shared/eventSales";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -37,8 +38,22 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ success: false, error }, { status: 400 });
   }
+  if (payload) {
+    payload.sale_updated_at = new Date().toISOString();
+    payload.sale_updated_by = guard.context?.staffId || null;
+  }
 
-  const { data, error: dbError } = await supabase.from("events").insert(payload).select("id").single();
+  let { data, error: dbError } = await supabase.from("events").insert(payload).select("id").single();
+  if (dbError && isMissingEventSalesColumnsError(dbError)) {
+    const legacyPayload = { ...(payload as Record<string, any>) };
+    delete legacyPayload.sale_status;
+    delete legacyPayload.sale_public_message;
+    delete legacyPayload.sale_updated_at;
+    delete legacyPayload.sale_updated_by;
+    const legacyInsert = await supabase.from("events").insert(legacyPayload).select("id").single();
+    data = legacyInsert.data;
+    dbError = legacyInsert.error;
+  }
   if (dbError) {
     return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
   }
@@ -121,6 +136,11 @@ function buildEventPayload(body: any): {
   if (!entry_limit) return { error: "entry_limit inválido" };
 
   const is_active = typeof body?.is_active === "boolean" ? body.is_active : true;
+  const saleStatusRaw = typeof body?.sale_status === "string" ? body.sale_status.trim().toLowerCase() : "on_sale";
+  const allowedSaleStatuses = new Set(["on_sale", "sold_out", "paused"]);
+  if (!allowedSaleStatuses.has(saleStatusRaw)) return { error: "sale_status inválido" };
+  const sale_public_message =
+    typeof body?.sale_public_message === "string" ? body.sale_public_message.trim() : "";
   const code = typeof body?.code === "string" ? body.code.trim() : "";
   const organizer_id = typeof body?.organizer_id === "string" ? body.organizer_id.trim() : "";
   
@@ -136,6 +156,8 @@ function buildEventPayload(body: any): {
       capacity,
       header_image,
       is_active,
+      sale_status: saleStatusRaw,
+      sale_public_message: sale_public_message || null,
       organizer_id,
     },
     capacity,

@@ -11,7 +11,7 @@ import type { Role, StaffUser } from "@/app/admin/users/types";
 import type { User } from "@supabase/supabase-js";
 import { isDoorRole } from "@/lib/roles";
 
-const DOOR_LANDING = "/admin/scan";
+const DOOR_LANDING = "/admin/door";
 
 const joinName = (...parts: Array<string | null | undefined>) => {
   return parts
@@ -78,7 +78,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         null;
       setInitialRole(sessionMetaRole);
 
-      if (!authUserId) return;
+      if (!authUserId) {
+        setRoleResolved(true);
+        return;
+      }
 
       try {
         const { data: staff } = await supabaseClient
@@ -116,13 +119,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => null);
   }, [router]);
 
+  const staffRoleCode =
+    (typeof userStaff?.role?.code === "string" ? userStaff.role.code : null) || initialRole || "";
+  const isDoorSession = isDoorRole(staffRoleCode);
+  const isDoorAllowedPath = pathname === DOOR_LANDING;
+
   useEffect(() => {
-    const staffRoleCode =
-      (typeof userStaff?.role?.code === "string" ? userStaff.role.code : null) || initialRole || "";
-    if (isDoorRole(staffRoleCode) && pathname !== DOOR_LANDING && pathname !== "/admin/door") {
+    if (!roleResolved) return;
+    if (isDoorSession && !isDoorAllowedPath) {
       router.replace(DOOR_LANDING);
     }
-  }, [initialRole, pathname, router, userStaff?.role?.code]);
+  }, [isDoorAllowedPath, isDoorSession, roleResolved, router]);
 
   if (profileLoading || !roleResolved) {
     return (
@@ -136,25 +143,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  if (isDoorSession && !isDoorAllowedPath) {
+    return (
+      <ClientAuthGate>
+        <div className="flex min-h-screen items-center justify-center bg-black text-white">
+          <p className="rounded-lg border border-white/10 bg-[#0b0b0b] px-4 py-3 text-sm">
+            Redirigiendo al módulo de escaneo...
+          </p>
+        </div>
+      </ClientAuthGate>
+    );
+  }
+
   return (
     <ClientAuthGate>
       <div className="flex min-h-screen bg-black text-white">
-        <Sidebar />
-        <main className="flex-1 md:ml-64">
-          <div className="p-4 md:p-8">
+        {!isDoorSession ? <Sidebar /> : null}
+        <main className={isDoorSession ? "flex-1" : "flex-1 md:ml-64"}>
+          <div className={isDoorSession ? "p-2 md:p-4" : "p-4 md:p-8"}>
             {children}
           </div>
         </main>
       </div>
-      <EditUserModal
-        open={profileModal}
-        onClose={() => setProfileModal(false)}
-        user={userStaff}
-        roles={roles}
-        onSaved={() => {
-          window.location.reload();
-        }}
-      />
+      {!isDoorSession ? (
+        <EditUserModal
+          open={profileModal}
+          onClose={() => setProfileModal(false)}
+          user={userStaff}
+          roles={roles}
+          onSaved={() => {
+            window.location.reload();
+          }}
+        />
+      ) : null}
     </ClientAuthGate>
   );
 }

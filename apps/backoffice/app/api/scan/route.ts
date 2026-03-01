@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
     ticket_id,
     raw_value,
     result,
-    scanned_by_staff_id: null,
+    scanned_by_staff_id: guard.context?.staffId || null,
   });
 
   return NextResponse.json({

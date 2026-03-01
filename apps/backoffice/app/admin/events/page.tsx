@@ -2,6 +2,7 @@ import EventsClient from "./EventsClientModern";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { ensureEventSalesDefaultsList, isMissingEventSalesColumnsError } from "shared/eventSales";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,6 +15,8 @@ export type EventRow = {
   capacity: number | null;
   is_active: boolean | null;
   closed_at: string | null;
+  sale_status?: "on_sale" | "sold_out" | "paused" | null;
+  sale_public_message?: string | null;
   header_image: string | null;
   code?: string | null;
   organizer?: { name: string; slug: string } | null;
@@ -36,26 +39,41 @@ async function getEvents(params: {
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize - 1;
 
-  let query = applyNotDeleted(
-    supabase
-      .from("events")
-      .select("id,name,location,starts_at,capacity,is_active,closed_at,header_image,organizer:organizers(name,slug)", { count: "exact" })
+  const buildQuery = (selectClause: string) => {
+    let query = applyNotDeleted(
+      supabase
+        .from("events")
+        .select(selectClause, { count: "exact" })
+    );
+
+    const term = params.q?.trim();
+    if (term) {
+      query = query.or(`name.ilike.*${term}*,location.ilike.*${term}*`);
+    }
+
+    if (params.status === "active") {
+      query = query.eq("is_active", true).is("closed_at", null);
+    } else if (params.status === "inactive") {
+      query = query.eq("is_active", false).is("closed_at", null);
+    } else if (params.status === "closed") {
+      query = query.not("closed_at", "is", null);
+    }
+
+    return query.order("created_at", { ascending: false }).range(start, end);
+  };
+
+  let { data, error, count } = await buildQuery(
+    "id,name,location,starts_at,capacity,is_active,closed_at,sale_status,sale_public_message,header_image,organizer:organizers(name,slug)"
   );
 
-  const term = params.q?.trim();
-  if (term) {
-    query = query.or(`name.ilike.*${term}*,location.ilike.*${term}*`);
+  if (error && isMissingEventSalesColumnsError(error)) {
+    const legacyResult = await buildQuery(
+      "id,name,location,starts_at,capacity,is_active,closed_at,header_image,organizer:organizers(name,slug)"
+    );
+    data = legacyResult.data;
+    error = legacyResult.error;
+    count = legacyResult.count;
   }
-
-  if (params.status === "active") {
-    query = query.eq("is_active", true).is("closed_at", null);
-  } else if (params.status === "inactive") {
-    query = query.eq("is_active", false).is("closed_at", null);
-  } else if (params.status === "closed") {
-    query = query.not("closed_at", "is", null);
-  }
-
-  const { data, error, count } = await query.order("created_at", { ascending: false }).range(start, end);
 
   if (error || !data) return null;
   if (data.length === 0) return { events: [], total: 0 };
@@ -69,8 +87,13 @@ async function getEvents(params: {
     if (!codeMap.has(c.event_id)) codeMap.set(c.event_id, c.code);
   });
 
+  const normalizedEvents = ensureEventSalesDefaultsList(data as any[]).map((event) => ({
+    ...event,
+    code: codeMap.get(event.id) ?? null,
+  }));
+
   return {
-    events: (data as EventRow[]).map((e) => ({ ...e, code: codeMap.get(e.id) ?? null })),
+    events: normalizedEvents as EventRow[],
     total: count ?? data.length,
   };
 }

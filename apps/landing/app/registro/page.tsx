@@ -133,6 +133,12 @@ function RegistroContent() {
   const [codeInfo, setCodeInfo] = useState<{ type?: string | null; promoter_id?: string | null } | null>(null);
   const [codeEventId, setCodeEventId] = useState<string | null>(null);
   const [eventInfo, setEventInfo] = useState<{ name?: string; starts_at?: string; location?: string } | null>(null);
+  const [saleGuard, setSaleGuard] = useState<{
+    available: boolean;
+    status: "on_sale" | "sold_out" | "paused";
+    message: string | null;
+    reason: string | null;
+  } | null>(null);
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [reservation, setReservation] = useState({ ...initialReservationState });
@@ -178,6 +184,14 @@ function RegistroContent() {
     fetch(endpoint, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
+        if (typeof data?.sale_status === "string" || typeof data?.sale_public_message === "string") {
+          setSaleGuard({
+            available: !(data?.sale_block_reason || data?.sale_status === "sold_out" || data?.sale_status === "paused"),
+            status: data?.sale_status === "sold_out" || data?.sale_status === "paused" ? data.sale_status : "on_sale",
+            message: typeof data?.sale_public_message === "string" ? data.sale_public_message : null,
+            reason: typeof data?.sale_block_reason === "string" ? data.sale_block_reason : null,
+          });
+        }
         const loadedTables = data?.tables || [];
         setTables(loadedTables);
         const selectableTables = loadedTables.filter((t: any) => !t.is_reserved);
@@ -344,6 +358,14 @@ function RegistroContent() {
           .then((data) => {
             setCodeInfo(data?.error ? null : data);
             if (data?.event_id) setCodeEventId(data.event_id);
+            if (typeof data?.sales_available === "boolean") {
+              setSaleGuard({
+                available: data.sales_available,
+                status: data?.sale_status === "sold_out" || data?.sale_status === "paused" ? data.sale_status : "on_sale",
+                message: typeof data?.sale_public_message === "string" ? data.sale_public_message : null,
+                reason: typeof data?.sale_block_reason === "string" ? data.sale_block_reason : null,
+              });
+            }
           })
           .catch(() => setCodeInfo(null))
       ]);
@@ -413,6 +435,12 @@ function RegistroContent() {
   }, [selectedTable, products, selectedProduct]);
 
   const aforoWidth = Math.max(0, Math.min(aforo, 100));
+  const salesBlocked = saleGuard ? !saleGuard.available : false;
+  const salesBlockedMessage =
+    saleGuard?.message ||
+    (saleGuard?.status === "paused"
+      ? "La venta online está pausada temporalmente."
+      : "Entradas agotadas. Este evento está sold out.");
   const reservationDocError =
     reservation.document && !validateDocument(reservation.doc_type as DocumentType, reservation.document)
       ? "Documento inválido"
@@ -460,6 +488,10 @@ function RegistroContent() {
     }
     if (products.length > 0 && !selectedProduct) {
       setReservationError("Elige un pack para tu mesa");
+      return;
+    }
+    if (salesBlocked) {
+      setReservationError(salesBlockedMessage);
       return;
     }
     setShowPaymentModal(true);
@@ -536,6 +568,15 @@ function RegistroContent() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {salesBlocked && (
+              <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-left">
+                <p className="text-xs font-semibold uppercase tracking-wider text-rose-200">
+                  {saleGuard?.status === "paused" ? "Venta pausada" : "Sold out"}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">{salesBlockedMessage}</p>
               </div>
             )}
           </div>
@@ -646,13 +687,18 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => createTicketAndRedirect()}
+                disabled={salesBlocked}
                 className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition"
               >
-                {existingTicketId ? "Ver mi QR" : "Generar QR"}
+                {salesBlocked ? "Venta bloqueada" : existingTicketId ? "Ver mi QR" : "Generar QR"}
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  if (salesBlocked) {
+                    setError(salesBlockedMessage);
+                    return;
+                  }
                   if (tables.length === 0) {
                     createTicketAndRedirect();
                   } else {
@@ -670,9 +716,10 @@ function RegistroContent() {
                       setStep(2);
                     }
                   }}
+                  disabled={salesBlocked}
                   className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
                 >
-                  {tables.length > 0 ? "Reservar mesa (opcional)" : "No hay mesas disponibles"}
+                  {salesBlocked ? "Reserva bloqueada" : tables.length > 0 ? "Reservar mesa (opcional)" : "No hay mesas disponibles"}
                 </button>
               <p className="text-center text-xs text-white/60">Opcional: separa tu mesa y asigna tus tickets.</p>
             </form>
@@ -1374,6 +1421,11 @@ function RegistroContent() {
       setReservationError(msg);
       return;
     }
+    if (salesBlocked) {
+      setModalError(salesBlockedMessage);
+      setReservationError(salesBlockedMessage);
+      return;
+    }
     const selected = tables.find((table) => table.id === selectedTable);
     if (selected?.is_reserved) {
       const msg = "Esta mesa ya está reservada. Selecciona otra mesa disponible.";
@@ -1503,6 +1555,10 @@ function RegistroContent() {
   async function createTicketAndRedirect(extraCodes?: string[]) {
     setError(null);
     if (extraCodes?.length) setReservationError(null);
+    if (salesBlocked) {
+      setError(salesBlockedMessage);
+      return;
+    }
     
     // Validar que el ticket existente sea del evento actual antes de redirigir
     if (ticketId) {
