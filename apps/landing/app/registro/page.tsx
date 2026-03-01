@@ -130,7 +130,20 @@ function RegistroContent() {
   const [reniecLoading, setReniecLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [promoters, setPromoters] = useState<Array<{ id: string; name: string }>>([]);
-  const [codeInfo, setCodeInfo] = useState<{ type?: string | null; promoter_id?: string | null } | null>(null);
+  const [codeInfo, setCodeInfo] = useState<{
+    type?: string | null;
+    promoter_id?: string | null;
+    registered_person?: {
+      first_name?: string | null;
+      last_name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      doc_type?: string | null;
+      document?: string | null;
+      ticket_id?: string | null;
+      ticket_event_id?: string | null;
+    } | null;
+  } | null>(null);
   const [codeEventId, setCodeEventId] = useState<string | null>(null);
   const [eventInfo, setEventInfo] = useState<{ name?: string; starts_at?: string; location?: string } | null>(null);
   const [saleGuard, setSaleGuard] = useState<{
@@ -365,6 +378,50 @@ function RegistroContent() {
                 message: typeof data?.sale_public_message === "string" ? data.sale_public_message : null,
                 reason: typeof data?.sale_block_reason === "string" ? data.sale_block_reason : null,
               });
+            }
+
+            if (data?.registered_person) {
+              const rp = data.registered_person;
+              const firstName = String(rp?.first_name || "").trim();
+              const lastName = String(rp?.last_name || "").trim();
+              const [apPat, ...rest] = lastName.split(/\s+/).filter(Boolean);
+              const apMat = rest.join(" ").trim();
+              const documentValue = String(rp?.document || "").trim();
+              const docTypeValue = String(rp?.doc_type || "").trim().toLowerCase();
+              const safeDocType =
+                (DOCUMENT_TYPES.some((opt) => opt.value === docTypeValue) ? docTypeValue : "dni") as DocumentType;
+
+              setForm((prev) => ({
+                ...prev,
+                doc_type: prev.doc_type || safeDocType,
+                document: prev.document || documentValue,
+                nombre: prev.nombre || firstName,
+                apellidos: prev.apellidos || [apPat, apMat].filter(Boolean).join(" "),
+                apellido_paterno: prev.apellido_paterno || apPat || "",
+                apellido_materno: prev.apellido_materno || apMat || "",
+                email: prev.email || String(rp?.email || ""),
+                telefono: prev.telefono || String(rp?.phone || ""),
+              }));
+
+              setReservation((prev) => ({
+                ...prev,
+                doc_type: prev.doc_type || safeDocType,
+                document: prev.document || documentValue,
+                dni: prev.dni || documentValue,
+                nombre: prev.nombre || firstName,
+                apellido_paterno: prev.apellido_paterno || apPat || "",
+                apellido_materno: prev.apellido_materno || apMat || "",
+                email: prev.email || String(rp?.email || ""),
+                phone: prev.phone || String(rp?.phone || ""),
+              }));
+
+              if (rp?.ticket_id) {
+                setTicketId(rp.ticket_id);
+                setExistingTicketId(rp.ticket_id);
+              }
+              if (rp?.ticket_event_id) {
+                setExistingTicketEventId(rp.ticket_event_id);
+              }
             }
           })
           .catch(() => setCodeInfo(null))
