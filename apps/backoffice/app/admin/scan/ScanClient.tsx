@@ -69,6 +69,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   const [manual, setManual] = useState("");
   const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logs, setLogs] = useState<ScanLog[]>([]);
   const [lastResult, setLastResult] = useState<ScanSummary | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -97,6 +98,21 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   useEffect(() => {
     return () => stopScanner();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/branding", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data?.logo_url) {
+          setLogoUrl(data.logo_url);
+        }
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function stopScanner() {
@@ -190,26 +206,40 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
     }
   }
 
+  const showCameraFrame = scanning || ready;
+  const cameraActiveHeightClass = simpleMode ? "h-[34vh] min-h-[190px] max-h-[280px] sm:h-[300px]" : "h-[52vh] min-h-[300px] sm:h-[360px]";
+  const cameraIdleHeightClass = simpleMode ? "h-[104px] sm:h-[120px]" : "h-[220px] sm:h-[240px]";
+
   return (
     <AdminPage>
+      {simpleMode ? (
+        <div className="-mx-3 sticky top-0 z-40 mb-2 border-b border-[#222222] bg-black/90 px-3 py-2 backdrop-blur sm:-mx-5 sm:px-5 lg:-mx-8 lg:px-8">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2">
+            <div className="flex h-10 min-w-[104px] items-center justify-center rounded-xl border border-[#2b2b2b] bg-[#0f0f0f] px-3">
+              {logoUrl ? (
+                <img src={logoUrl} alt="Baby Logo" className="h-6 w-auto object-contain" />
+              ) : (
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Baby</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="default" className="h-10 rounded-xl px-3 text-[11px] uppercase tracking-[0.12em]">
+                Modo puerta
+              </Badge>
+              <LogoutButton className="h-10 min-w-[118px]" />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <AdminHeader
         kicker="Control de ingreso"
         title="Escanear QR"
         description="Usa la cámara del celular para validar entradas en puerta."
-        actions={
-          simpleMode ? (
-            <>
-              <Badge variant="default" className="h-10 rounded-xl px-4 text-xs uppercase tracking-[0.12em]">
-                Modo puerta
-              </Badge>
-              <LogoutButton className="min-w-[130px]" />
-            </>
-          ) : null
-        }
       />
 
-      <Card className="mb-4 rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]">
-        <CardContent className="grid gap-3 p-3 sm:p-4 md:grid-cols-2">
+      <Card className={simpleMode ? "mb-2 rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]" : "mb-4 rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"}>
+        <CardContent className={simpleMode ? "grid gap-2 p-2.5 sm:p-3 md:grid-cols-2" : "grid gap-3 p-3 sm:p-4 md:grid-cols-2"}>
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-white">Evento</label>
             <SelectNative
@@ -313,28 +343,54 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         </CardContent>
       </Card>
 
-      <div className={`grid gap-4 ${simpleMode ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[1.8fr,1fr]"}`}>
-        <Card className="rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]">
-          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
+      <Card className={simpleMode ? "mb-2 rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]" : "mb-4 rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"}>
+        <CardContent className={simpleMode ? "flex flex-wrap gap-2 p-2.5" : "flex flex-wrap gap-2 p-3"}>
+          <Badge variant="default" className="rounded-lg px-3 py-1 text-[11px] uppercase tracking-[0.12em]">
+            Reglas de hora
+          </Badge>
+          <Badge variant={entryStatus === "late" ? "danger" : "warning"} className="rounded-lg px-3 py-1 text-[11px]">
+            General: {entryLimitLabel ? `hasta ${entryLimitLabel}` : "según evento"}{entryStatus ? ` (${entryStatus === "late" ? "fuera de hora" : "dentro de hora"})` : ""}
+          </Badge>
+          <Badge variant="success" className="rounded-lg px-3 py-1 text-[11px]">
+            Mesa/Box: sin límite horario
+          </Badge>
+          <Badge variant="success" className="rounded-lg px-3 py-1 text-[11px]">
+            EARLY y ALL NIGHT: sin límite horario
+          </Badge>
+          <Badge variant="success" className="rounded-lg px-3 py-1 text-[11px]">
+            Promotor y Cortesía: sin límite horario
+          </Badge>
+        </CardContent>
+      </Card>
+
+      <div className={`grid ${simpleMode ? "gap-2" : "gap-4"} ${simpleMode ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[1.8fr,1fr]"}`}>
+        <Card className={simpleMode ? "rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]" : "rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"}>
+          <CardHeader className={simpleMode ? "flex flex-row flex-wrap items-center justify-between gap-2 p-3 pb-2" : "flex flex-row flex-wrap items-center justify-between gap-2 pb-3"}>
             <CardTitle className="text-sm font-semibold">Cámara</CardTitle>
             <Button
               type="button"
               variant={scanning ? "outline" : "default"}
               size="lg"
               onClick={() => (scanning ? stopScanner() : startScanner())}
-              className={`h-11 rounded-2xl px-6 ${simpleMode ? "w-full" : "w-full sm:w-auto"}`}
+              className={`rounded-2xl ${simpleMode ? "h-10 w-full px-4" : "h-11 w-full px-6 sm:w-auto"}`}
             >
               {scanning ? "Detener" : "Iniciar escaneo"}
             </Button>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="overflow-hidden rounded-2xl border border-[#292929] bg-black">
-              {!ready && !scanning && (
-                <div className="flex h-[52vh] min-h-[300px] items-center justify-center px-6 text-center text-sm text-white/60 sm:h-[360px]">
+          <CardContent className={simpleMode ? "px-3 pb-3 pt-0" : "pt-0"}>
+            <div className={simpleMode ? "overflow-hidden rounded-xl border border-[#292929] bg-black" : "overflow-hidden rounded-2xl border border-[#292929] bg-black"}>
+              {!showCameraFrame && (
+                <div className={`flex items-center justify-center px-4 text-center text-sm text-white/60 ${cameraIdleHeightClass}`}>
                   Selecciona evento y pulsa “Iniciar escaneo”.
                 </div>
               )}
-              <video ref={videoRef} className="block h-[52vh] min-h-[300px] w-full bg-black object-cover sm:h-[360px]" autoPlay muted playsInline />
+              <video
+                ref={videoRef}
+                className={showCameraFrame ? `block w-full bg-black object-cover ${cameraActiveHeightClass}` : "hidden"}
+                autoPlay
+                muted
+                playsInline
+              />
             </div>
           </CardContent>
         </Card>
