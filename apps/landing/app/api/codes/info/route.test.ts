@@ -140,4 +140,78 @@ describe("GET /api/codes/info", () => {
     expect(payload.code).toBe("MULTI1234");
     expect(payload.registered_person).toBeNull();
   });
+
+  it("incluye tickets legacy con status null para autocompletar datos del titular", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-legacy",
+            code: "LEGACY001",
+            type: "table",
+            promoter_id: null,
+            event_id: "event-1",
+            is_active: true,
+            expires_at: null,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "sold_out",
+            sale_public_message: "Entradas agotadas",
+          },
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-legacy",
+              event_id: "event-1",
+              status: null,
+              doc_type: "dni",
+              document: "12345678",
+              dni: "12345678",
+              full_name: "Ana Perez",
+              email: "ana@example.com",
+              phone: "999888777",
+              person: {
+                first_name: "Ana",
+                last_name: "Perez",
+                email: "ana@example.com",
+                phone: "999888777",
+                doc_type: "dni",
+                document: "12345678",
+                dni: "12345678",
+              },
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL("http://localhost/api/codes/info?code=LEGACY001"),
+    } as any;
+    const res = await GET(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.registered_person?.ticket_id).toBe("ticket-legacy");
+    expect(payload.registered_person?.document).toBe("12345678");
+
+    const ticketsCall = calls.find((call) => call.table === "tickets" && call.op === "select");
+    expect(ticketsCall?.filters?.some((f) => f.type === "or")).toBe(true);
+  });
 });
