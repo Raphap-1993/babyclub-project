@@ -72,7 +72,8 @@ export async function GET(req: NextRequest) {
           "id,event_id,status,doc_type,document,dni,full_name,email,phone,person:persons(first_name,last_name,email,phone,doc_type,document,dni)"
         )
         .eq("code_id", data.id)
-        .neq("status", "cancelled")
+        // Legacy rows may have status = null and must still be treated as active.
+        .or("status.is.null,status.neq.cancelled")
         .order("created_at", { ascending: false })
         .limit(2)
     );
