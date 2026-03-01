@@ -242,4 +242,173 @@ describe("GET /api/admin/reports/export", () => {
     expect(payload.rows[0].total_amount_raw).toBe(1500);
     expect(payload.rows[0].total_amount_pen_est).toBe(15);
   });
+
+  it("event_attendance CSV: exporta encabezados homologados en español", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: [
+            {
+              id: "event-1",
+              name: "LOVE IS A DRUG",
+              organizer_id: "org-1",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "scan_logs.select": [
+        {
+          data: [
+            {
+              id: "scan-1",
+              event_id: "event-1",
+              ticket_id: "ticket-1",
+              code_id: "code-1",
+              result: "valid",
+              created_at: "2026-03-01T00:00:00.000Z",
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL("http://localhost/api/admin/reports/export?report=event_attendance&format=csv"),
+      headers: new Headers({ Authorization: "Bearer token-123" }),
+    } as any;
+    const res = await GET(req);
+    const csv = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition") || "").toContain("reporte-asistencia-eventos.csv");
+    expect(csv.split("\n")[0]).toBe("Organizador,Evento,Escaneos válidos,Tickets únicos,Códigos únicos");
+  });
+
+  it("promoter_performance CSV: exporta encabezados homologados en español", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: [
+            {
+              id: "event-1",
+              name: "LOVE IS A DRUG",
+              organizer_id: "org-1",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: [
+            {
+              id: "code-1",
+              event_id: "event-1",
+              promoter_id: "prom-1",
+              created_at: "2026-03-01T00:00:00.000Z",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "scan_logs.select": [
+        {
+          data: [
+            {
+              id: "scan-1",
+              event_id: "event-1",
+              result: "valid",
+              created_at: "2026-03-01T01:00:00.000Z",
+              code: { promoter_id: "prom-1" },
+              ticket: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+      "promoters.select": [
+        {
+          data: [
+            {
+              id: "prom-1",
+              code: "PROM01",
+              organizer_id: "org-1",
+              person: { first_name: "Luis", last_name: "Perez" },
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL("http://localhost/api/admin/reports/export?report=promoter_performance&format=csv"),
+      headers: new Headers({ Authorization: "Bearer token-123" }),
+    } as any;
+    const res = await GET(req);
+    const csv = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition") || "").toContain("reporte-promotores.csv");
+    expect(csv.split("\n")[0]).toBe(
+      "Organizador,Evento,Código promotor,Promotor,Códigos generados,Escaneos válidos,% de asistencia"
+    );
+  });
+
+  it("event_sales CSV: exporta encabezados homologados en español", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: [
+            {
+              id: "event-1",
+              name: "LOVE IS A DRUG",
+              organizer_id: "org-1",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "payments.select": [
+        {
+          data: [
+            {
+              id: "pay-1",
+              event_id: "event-1",
+              status: "paid",
+              amount: 1000,
+              currency_code: "PEN",
+              created_at: "2026-03-01T00:00:00.000Z",
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL("http://localhost/api/admin/reports/export?report=event_sales&format=csv"),
+      headers: new Headers({ Authorization: "Bearer token-123" }),
+    } as any;
+    const res = await GET(req);
+    const csv = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition") || "").toContain("reporte-ventas-eventos.csv");
+    expect(csv.split("\n")[0]).toBe("Organizador,Evento,Pagos confirmados,Ventas (S/),Moneda");
+  });
 });

@@ -96,8 +96,11 @@ function csvEscape(value: unknown) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
 
-function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {
-  const body = rows.map((row) => headers.map((h) => csvEscape(row[h])).join(","));
+type CsvColumn = { key: string; label: string };
+
+function toCsvFromColumns(columns: CsvColumn[], rows: Array<Record<string, unknown>>) {
+  const headers = columns.map((column) => column.label);
+  const body = rows.map((row) => columns.map((column) => csvEscape(row[column.key])).join(","));
   return [headers.join(","), ...body].join("\n");
 }
 
@@ -268,24 +271,23 @@ export async function GET(req: NextRequest) {
       });
 
     if (format === "csv") {
-      const headers = [
-        "organizer_id",
-        "organizer_name",
-        "event_id",
-        "event_name",
-        "promoter_id",
-        "promoter_code",
-        "promoter_name",
-        "codes_generated",
-        "scans_confirmed",
-        "attendance_rate_percent",
-      ];
-      const csv = toCsv(headers, rows as any);
+      const csv = toCsvFromColumns(
+        [
+          { key: "organizer_name", label: "Organizador" },
+          { key: "event_name", label: "Evento" },
+          { key: "promoter_code", label: "Código promotor" },
+          { key: "promoter_name", label: "Promotor" },
+          { key: "codes_generated", label: "Códigos generados" },
+          { key: "scans_confirmed", label: "Escaneos válidos" },
+          { key: "attendance_rate_percent", label: "% de asistencia" },
+        ],
+        rows as any
+      );
       return new Response(csv, {
         status: 200,
         headers: {
-          "Content-Type": "text/csv",
-          "Content-Disposition": 'attachment; filename="report-promoter-performance.csv"',
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="reporte-promotores.csv"',
         },
       });
     }
@@ -329,21 +331,21 @@ export async function GET(req: NextRequest) {
     });
 
     if (format === "csv") {
-      const headers = [
-        "organizer_id",
-        "organizer_name",
-        "event_id",
-        "event_name",
-        "scans_confirmed",
-        "unique_tickets_scanned",
-        "unique_codes_scanned",
-      ];
-      const csv = toCsv(headers, rows as any);
+      const csv = toCsvFromColumns(
+        [
+          { key: "organizer_name", label: "Organizador" },
+          { key: "event_name", label: "Evento" },
+          { key: "scans_confirmed", label: "Escaneos válidos" },
+          { key: "unique_tickets_scanned", label: "Tickets únicos" },
+          { key: "unique_codes_scanned", label: "Códigos únicos" },
+        ],
+        rows as any
+      );
       return new Response(csv, {
         status: 200,
         headers: {
-          "Content-Type": "text/csv",
-          "Content-Disposition": 'attachment; filename="report-event-attendance.csv"',
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="reporte-asistencia-eventos.csv"',
         },
       });
     }
@@ -396,22 +398,21 @@ export async function GET(req: NextRequest) {
   });
 
   if (format === "csv") {
-    const headers = [
-      "organizer_id",
-      "organizer_name",
-      "event_id",
-      "event_name",
-      "paid_count",
-      "total_amount_raw",
-      "total_amount_pen_est",
-      "currency",
-    ];
-    const csv = toCsv(headers, rows as any);
+    const csv = toCsvFromColumns(
+      [
+        { key: "organizer_name", label: "Organizador" },
+        { key: "event_name", label: "Evento" },
+        { key: "paid_count", label: "Pagos confirmados" },
+        { key: "total_amount_pen_est", label: "Ventas (S/)" },
+        { key: "currency", label: "Moneda" },
+      ],
+      rows as any
+    );
     return new Response(csv, {
       status: 200,
       headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": 'attachment; filename="report-event-sales.csv"',
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="reporte-ventas-eventos.csv"',
       },
     });
   }

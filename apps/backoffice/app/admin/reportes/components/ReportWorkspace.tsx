@@ -286,6 +286,16 @@ export default function ReportWorkspace({
           </div>
         ) : null}
 
+        {report === "event_sales" ? (
+          <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
+            <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
+            <span>
+              <strong>Pagos confirmados</strong> son transacciones en estado pagado.{" "}
+              <strong>Ventas (S/)</strong> es el total acumulado convertido a soles desde el monto almacenado en centavos.
+            </span>
+          </div>
+        ) : null}
+
         <Table containerClassName="max-h-[55dvh] min-h-[220px]">
           <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
             <TableRow>
