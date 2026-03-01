@@ -56,6 +56,7 @@ describe("GET /api/admin/reports/export", () => {
               code_id: "code-1",
               result: "valid",
               created_at: "2026-03-01T00:00:00.000Z",
+              code: { type: "general" },
             },
             {
               id: "scan-2",
@@ -64,6 +65,7 @@ describe("GET /api/admin/reports/export", () => {
               code_id: "code-1",
               result: "valid",
               created_at: "2026-03-01T00:10:00.000Z",
+              code: { type: "courtesy" },
             },
           ],
           error: null,
@@ -87,6 +89,12 @@ describe("GET /api/admin/reports/export", () => {
     expect(payload.rows[0].scans_confirmed).toBe(2);
     expect(payload.rows[0].unique_tickets_scanned).toBe(2);
     expect(payload.rows[0].unique_codes_scanned).toBe(1);
+    expect(payload.rows[0].free_qr_scans_confirmed).toBe(1);
+    expect(payload.rows[0].free_qr_unique_tickets_scanned).toBe(1);
+    expect(payload.rows[0].first_scan_at_lima).toBeTruthy();
+    expect(payload.rows[0].last_scan_at_lima).toBeTruthy();
+    expect(payload.rows[0].free_qr_first_scan_at_lima).toBeTruthy();
+    expect(payload.rows[0].free_qr_last_scan_at_lima).toBeTruthy();
 
     const scanCalls = calls.filter((call) => call.table === "scan_logs" && call.op === "select");
     expect(scanCalls.length).toBe(2);
@@ -268,6 +276,7 @@ describe("GET /api/admin/reports/export", () => {
               code_id: "code-1",
               result: "valid",
               created_at: "2026-03-01T00:00:00.000Z",
+              code: { type: "courtesy" },
             },
           ],
           error: null,
@@ -287,7 +296,9 @@ describe("GET /api/admin/reports/export", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-disposition") || "").toContain("reporte-asistencia-eventos.csv");
-    expect(csv.split("\n")[0]).toBe("Organizador,Evento,Escaneos válidos,Tickets únicos,Códigos únicos");
+    expect(csv.split("\n")[0]).toBe(
+      "Organizador,Evento,Escaneos válidos,Tickets únicos,Códigos únicos,Escaneos QR general,Escaneos QR cortesía,Escaneos QR mesa,Escaneos QR free,Escaneos QR promotor (legado),Escaneos QR sin tipo identificado,Promotores activos con ingresos,Asistentes únicos con promotor,Asistentes únicos sin promotor,Escaneos sin promotor,Top promotores (asistencia/escaneos),Top códigos usados,Escaneos QR free/cortesía,Personas únicas QR free/cortesía,Primer ingreso (Lima),Último ingreso (Lima),Primer ingreso QR free/cortesía (Lima),Último ingreso QR free/cortesía (Lima)"
+    );
   });
 
   it("promoter_performance CSV: exporta encabezados homologados en español", async () => {

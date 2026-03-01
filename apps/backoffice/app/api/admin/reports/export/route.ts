@@ -104,6 +104,21 @@ function toCsvFromColumns(columns: CsvColumn[], rows: Array<Record<string, unkno
   return [headers.join(","), ...body].join("\n");
 }
 
+function formatLimaDateTime(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
 export async function GET(req: NextRequest) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
@@ -297,7 +312,7 @@ export async function GET(req: NextRequest) {
 
   if (report === "event_attendance") {
     const { data: scansData, error: scansError } = await fetchScanLogs(supabase, {
-      select: "id,event_id,ticket_id,code_id,result,created_at",
+      select: "id,event_id,ticket_id,code_id,result,created_at,code:codes(code,type,promoter_id),ticket:tickets(promoter_id)",
       allowedEventIds,
       fromIso,
       toIso,
@@ -307,18 +322,156 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: scansError.message }, { status: 400 });
     }
 
-    const grouped = new Map<string, { scans: number; ticketSet: Set<string>; codeSet: Set<string> }>();
+    const incrementCount = (counter: Map<string, number>, key: string, delta = 1) => {
+      counter.set(key, (counter.get(key) || 0) + delta);
+    };
+    const normalizeTypeBucket = (codeType: string) => {
+      if (codeType === "general") return "general";
+      if (codeType === "courtesy") return "courtesy";
+      if (codeType === "table") return "table";
+      if (codeType === "free") return "free";
+      if (codeType === "promoter") return "promoter_legacy";
+      return "unknown";
+    };
+
+    const grouped = new Map<
+      string,
+      {
+        scans: number;
+        ticketSet: Set<string>;
+        codeSet: Set<string>;
+        freeScans: number;
+        freeTicketSet: Set<string>;
+        firstScanAt: string | null;
+        lastScanAt: string | null;
+        freeFirstScanAt: string | null;
+        freeLastScanAt: string | null;
+        typeScans: Map<string, number>;
+        promoterScans: Map<string, number>;
+        promoterTicketSets: Map<string, Set<string>>;
+        withPromoterTicketSet: Set<string>;
+        withoutPromoterTicketSet: Set<string>;
+        withoutPromoterScans: number;
+        codeUsage: Map<string, number>;
+      }
+    >();
+    const promoterIds = new Set<string>();
     for (const scan of scansData || []) {
       const event_id = (scan as any).event_id as string;
-      if (!grouped.has(event_id)) grouped.set(event_id, { scans: 0, ticketSet: new Set<string>(), codeSet: new Set<string>() });
+      if (!grouped.has(event_id)) {
+        grouped.set(event_id, {
+          scans: 0,
+          ticketSet: new Set<string>(),
+          codeSet: new Set<string>(),
+          freeScans: 0,
+          freeTicketSet: new Set<string>(),
+          firstScanAt: null,
+          lastScanAt: null,
+          freeFirstScanAt: null,
+          freeLastScanAt: null,
+          typeScans: new Map<string, number>(),
+          promoterScans: new Map<string, number>(),
+          promoterTicketSets: new Map<string, Set<string>>(),
+          withPromoterTicketSet: new Set<string>(),
+          withoutPromoterTicketSet: new Set<string>(),
+          withoutPromoterScans: 0,
+          codeUsage: new Map<string, number>(),
+        });
+      }
       const row = grouped.get(event_id)!;
       row.scans += 1;
-      if ((scan as any).ticket_id) row.ticketSet.add((scan as any).ticket_id);
-      if ((scan as any).code_id) row.codeSet.add((scan as any).code_id);
+      const ticketId = (scan as any).ticket_id as string | null;
+      const codeId = (scan as any).code_id as string | null;
+      const createdAt = (scan as any).created_at as string | null;
+      const codeRel = Array.isArray((scan as any)?.code) ? (scan as any)?.code?.[0] : (scan as any)?.code;
+      const ticketRel = Array.isArray((scan as any)?.ticket) ? (scan as any)?.ticket?.[0] : (scan as any)?.ticket;
+      const codeType = String(codeRel?.type || "").toLowerCase();
+      const typeBucket = normalizeTypeBucket(codeType);
+      const isFreeCode = typeBucket === "free" || typeBucket === "courtesy" || typeBucket === "promoter_legacy";
+      incrementCount(row.typeScans, typeBucket, 1);
+
+      if (ticketId) row.ticketSet.add(ticketId);
+      if (codeId) row.codeSet.add(codeId);
+
+      const codeValue = String(codeRel?.code || "").trim();
+      if (codeValue) {
+        incrementCount(row.codeUsage, codeValue, 1);
+      }
+
+      const promoterId = String(codeRel?.promoter_id || ticketRel?.promoter_id || "").trim();
+      if (promoterId) {
+        promoterIds.add(promoterId);
+        incrementCount(row.promoterScans, promoterId, 1);
+        if (ticketId) {
+          if (!row.promoterTicketSets.has(promoterId)) {
+            row.promoterTicketSets.set(promoterId, new Set<string>());
+          }
+          row.promoterTicketSets.get(promoterId)!.add(ticketId);
+          row.withPromoterTicketSet.add(ticketId);
+        }
+      } else {
+        row.withoutPromoterScans += 1;
+        if (ticketId) {
+          row.withoutPromoterTicketSet.add(ticketId);
+        }
+      }
+
+      if (createdAt) {
+        if (!row.firstScanAt || createdAt < row.firstScanAt) row.firstScanAt = createdAt;
+        if (!row.lastScanAt || createdAt > row.lastScanAt) row.lastScanAt = createdAt;
+      }
+
+      if (isFreeCode) {
+        row.freeScans += 1;
+        if (ticketId) row.freeTicketSet.add(ticketId);
+        if (createdAt) {
+          if (!row.freeFirstScanAt || createdAt < row.freeFirstScanAt) row.freeFirstScanAt = createdAt;
+          if (!row.freeLastScanAt || createdAt > row.freeLastScanAt) row.freeLastScanAt = createdAt;
+        }
+      }
+    }
+
+    const promoterIdList = Array.from(promoterIds);
+    const { data: promoterRows } =
+      promoterIdList.length > 0
+        ? await applyNotDeleted(
+            supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIdList)
+          )
+        : { data: [] as any[] };
+    const promoterLabelMap = new Map<string, string>();
+    for (const promoter of promoterRows || []) {
+      const personRel = Array.isArray((promoter as any)?.person) ? (promoter as any)?.person?.[0] : (promoter as any)?.person;
+      const fullName = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
+      const code = String((promoter as any)?.code || "").trim();
+      const label = [code, fullName].filter(Boolean).join(" - ") || String((promoter as any).id || "");
+      promoterLabelMap.set(String((promoter as any).id), label);
     }
 
     const rows = Array.from(grouped.entries()).map(([event_id, metrics]) => {
       const event = eventById.get(event_id);
+      const topPromoters = Array.from(metrics.promoterScans.entries())
+        .map(([id, scans]) => {
+          const attendees = metrics.promoterTicketSets.get(id)?.size || 0;
+          const label = promoterLabelMap.get(id) || id;
+          return { id, scans, attendees, label };
+        })
+        .sort((a, b) => {
+          if (a.attendees !== b.attendees) return b.attendees - a.attendees;
+          if (a.scans !== b.scans) return b.scans - a.scans;
+          return a.label.localeCompare(b.label);
+        })
+        .slice(0, 5)
+        .map((row) => `${row.label} (${row.attendees} pers. / ${row.scans} esc.)`)
+        .join(" | ");
+      const topCodes = Array.from(metrics.codeUsage.entries())
+        .sort((a, b) => {
+          if (a[1] !== b[1]) return b[1] - a[1];
+          return a[0].localeCompare(b[0]);
+        })
+        .slice(0, 5)
+        .map(([code, count]) => `${code} (${count})`)
+        .join(" | ");
+
       return {
         organizer_id: event?.organizer_id || "",
         organizer_name: event?.organizer_name || "",
@@ -327,6 +480,24 @@ export async function GET(req: NextRequest) {
         scans_confirmed: metrics.scans,
         unique_tickets_scanned: metrics.ticketSet.size,
         unique_codes_scanned: metrics.codeSet.size,
+        escaneos_qr_general: metrics.typeScans.get("general") || 0,
+        escaneos_qr_cortesia: metrics.typeScans.get("courtesy") || 0,
+        escaneos_qr_mesa: metrics.typeScans.get("table") || 0,
+        escaneos_qr_free: metrics.typeScans.get("free") || 0,
+        escaneos_qr_promotor_legado: metrics.typeScans.get("promoter_legacy") || 0,
+        escaneos_qr_sin_tipo: metrics.typeScans.get("unknown") || 0,
+        promotores_activos: metrics.promoterScans.size,
+        asistentes_unicos_con_promotor: metrics.withPromoterTicketSet.size,
+        asistentes_unicos_sin_promotor: metrics.withoutPromoterTicketSet.size,
+        escaneos_sin_promotor: metrics.withoutPromoterScans,
+        top_promotores: topPromoters || "Sin promotor identificado",
+        top_codigos_usados: topCodes || "Sin códigos identificables",
+        free_qr_scans_confirmed: metrics.freeScans,
+        free_qr_unique_tickets_scanned: metrics.freeTicketSet.size,
+        first_scan_at_lima: formatLimaDateTime(metrics.firstScanAt),
+        last_scan_at_lima: formatLimaDateTime(metrics.lastScanAt),
+        free_qr_first_scan_at_lima: formatLimaDateTime(metrics.freeFirstScanAt),
+        free_qr_last_scan_at_lima: formatLimaDateTime(metrics.freeLastScanAt),
       };
     });
 
@@ -338,6 +509,24 @@ export async function GET(req: NextRequest) {
           { key: "scans_confirmed", label: "Escaneos válidos" },
           { key: "unique_tickets_scanned", label: "Tickets únicos" },
           { key: "unique_codes_scanned", label: "Códigos únicos" },
+          { key: "escaneos_qr_general", label: "Escaneos QR general" },
+          { key: "escaneos_qr_cortesia", label: "Escaneos QR cortesía" },
+          { key: "escaneos_qr_mesa", label: "Escaneos QR mesa" },
+          { key: "escaneos_qr_free", label: "Escaneos QR free" },
+          { key: "escaneos_qr_promotor_legado", label: "Escaneos QR promotor (legado)" },
+          { key: "escaneos_qr_sin_tipo", label: "Escaneos QR sin tipo identificado" },
+          { key: "promotores_activos", label: "Promotores activos con ingresos" },
+          { key: "asistentes_unicos_con_promotor", label: "Asistentes únicos con promotor" },
+          { key: "asistentes_unicos_sin_promotor", label: "Asistentes únicos sin promotor" },
+          { key: "escaneos_sin_promotor", label: "Escaneos sin promotor" },
+          { key: "top_promotores", label: "Top promotores (asistencia/escaneos)" },
+          { key: "top_codigos_usados", label: "Top códigos usados" },
+          { key: "free_qr_scans_confirmed", label: "Escaneos QR free/cortesía" },
+          { key: "free_qr_unique_tickets_scanned", label: "Personas únicas QR free/cortesía" },
+          { key: "first_scan_at_lima", label: "Primer ingreso (Lima)" },
+          { key: "last_scan_at_lima", label: "Último ingreso (Lima)" },
+          { key: "free_qr_first_scan_at_lima", label: "Primer ingreso QR free/cortesía (Lima)" },
+          { key: "free_qr_last_scan_at_lima", label: "Último ingreso QR free/cortesía (Lima)" },
         ],
         rows as any
       );
