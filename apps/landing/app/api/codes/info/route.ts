@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   });
 
   const codeQuery = applyNotDeleted(
-    supabase.from("codes").select("code,type,promoter_id,event_id,is_active,expires_at").eq("code", code)
+    supabase.from("codes").select("id,code,type,promoter_id,event_id,is_active,expires_at").eq("code", code)
   );
   const { data, error } = await codeQuery.maybeSingle();
 
@@ -31,6 +31,16 @@ export async function GET(req: NextRequest) {
   let sale_block_reason: string | null = null;
   let sale_public_message: string | null = null;
   let sales_available = true;
+  let registered_person: {
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    phone: string | null;
+    doc_type: string | null;
+    document: string | null;
+    ticket_id: string | null;
+    ticket_event_id: string | null;
+  } | null = null;
 
   if (data.event_id) {
     const eventQuery = applyNotDeleted(
@@ -54,6 +64,42 @@ export async function GET(req: NextRequest) {
     sales_available = saleDecision.available;
   }
 
+  if (data.id) {
+    const ticketsQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select(
+          "id,event_id,status,doc_type,document,dni,full_name,email,phone,person:persons(first_name,last_name,email,phone,doc_type,document,dni)"
+        )
+        .eq("code_id", data.id)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(2)
+    );
+    const { data: ticketsData } = await ticketsQuery;
+
+    // Only prefill when the code has exactly one active ticket owner.
+    if (Array.isArray(ticketsData) && ticketsData.length === 1) {
+      const ticketRow: any = ticketsData[0];
+      const personRel = Array.isArray(ticketRow?.person) ? ticketRow.person[0] : ticketRow?.person;
+      const fullName = String(ticketRow?.full_name || "").trim();
+      const nameParts = fullName.split(/\s+/).filter(Boolean);
+      const fallbackFirstName = nameParts.length > 0 ? nameParts[0] : null;
+      const fallbackLastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+
+      registered_person = {
+        first_name: personRel?.first_name ?? fallbackFirstName,
+        last_name: personRel?.last_name ?? fallbackLastName,
+        email: ticketRow?.email ?? personRel?.email ?? null,
+        phone: ticketRow?.phone ?? personRel?.phone ?? null,
+        doc_type: ticketRow?.doc_type ?? personRel?.doc_type ?? ((ticketRow?.document || ticketRow?.dni) ? "dni" : null),
+        document: ticketRow?.document ?? ticketRow?.dni ?? personRel?.document ?? personRel?.dni ?? null,
+        ticket_id: ticketRow?.id ?? null,
+        ticket_event_id: ticketRow?.event_id ?? null,
+      };
+    }
+  }
+
   return NextResponse.json({
     code: data.code,
     type: data.type || null,
@@ -65,5 +111,6 @@ export async function GET(req: NextRequest) {
     sale_status,
     sale_block_reason,
     sale_public_message,
+    registered_person,
   });
 }
