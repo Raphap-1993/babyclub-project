@@ -21,16 +21,18 @@ const getSessionRole = (user?: User | null) => {
 const DOOR_LANDING = "/admin/door";
 const ROLE_LOOKUP_TIMEOUT_MS = 1200;
 
-const fetchStaffRoleCode = async (authUserId: string) => {
-  if (!supabaseClient) return null;
-  const { data, error } = await supabaseClient
-    .from("staff")
-    .select("role:staff_roles(code)")
-    .eq("auth_user_id", authUserId)
-    .maybeSingle();
-  if (error || !data) return null;
-  const roleRel = Array.isArray((data as any).role) ? (data as any).role[0] : (data as any).role;
-  return typeof roleRel?.code === "string" ? roleRel.code : null;
+const fetchStaffRoleCode = async (accessToken: string) => {
+  if (!accessToken) return null;
+  try {
+    const res = await fetch("/api/auth/staff-context", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.success) return null;
+    return typeof payload?.data?.role_code === "string" ? payload.data.role_code : null;
+  } catch (_err) {
+    return null;
+  }
 };
 
 async function resolveWithTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
@@ -43,12 +45,12 @@ async function resolveWithTimeout<T>(promise: Promise<T>, timeoutMs: number, fal
   return result;
 }
 
-const resolveDoorRedirect = async (sessionUser?: User | null) => {
+const resolveDoorRedirect = async (sessionUser?: User | null, accessToken?: string | null) => {
   if (!sessionUser) return false;
   const sessionRole = getSessionRole(sessionUser);
-  if (sessionRole) return isDoorRole(sessionRole);
-  const staffRole = sessionUser.id
-    ? await resolveWithTimeout(fetchStaffRoleCode(sessionUser.id), ROLE_LOOKUP_TIMEOUT_MS, null)
+  if (sessionRole && isDoorRole(sessionRole)) return true;
+  const staffRole = accessToken
+    ? await resolveWithTimeout(fetchStaffRoleCode(accessToken), ROLE_LOOKUP_TIMEOUT_MS, null)
     : null;
   const resolvedRole = staffRole || sessionRole;
   return isDoorRole(resolvedRole);
@@ -74,7 +76,7 @@ export default function LoginPage() {
       try {
         const { data } = await client.auth.getSession();
         if (data.session) {
-          const shouldGoDoor = await resolveDoorRedirect(data.session.user);
+          const shouldGoDoor = await resolveDoorRedirect(data.session.user, data.session.access_token);
           router.replace(shouldGoDoor ? DOOR_LANDING : "/admin");
           return;
         }
@@ -120,9 +122,10 @@ export default function LoginPage() {
       setError(signInError.message);
       return;
     }
-    const sessionUser =
-      signInData.session?.user || (await supabaseClient.auth.getSession()).data.session?.user || null;
-    const shouldGoDoor = await resolveDoorRedirect(sessionUser);
+    const fallbackSession = (await supabaseClient.auth.getSession()).data.session || null;
+    const sessionUser = signInData.session?.user || fallbackSession?.user || null;
+    const sessionToken = signInData.session?.access_token || fallbackSession?.access_token || null;
+    const shouldGoDoor = await resolveDoorRedirect(sessionUser, sessionToken);
     router.push(shouldGoDoor ? DOOR_LANDING : "/admin");
   };
 
