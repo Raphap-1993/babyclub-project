@@ -6,6 +6,7 @@ import Link from "next/link";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { getEntryCutoffDisplay } from "shared/entryLimit";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { isReservationOwner } from "./reservationOwnership";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -165,24 +166,26 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  if (Array.isArray(ticket.reservation_codes) && ticket.reservation_codes.length > 0) {
-    return Array.from(new Set(ticket.reservation_codes.map((code) => String(code || "").trim()).filter(Boolean)));
-  }
-
   if (ticket.table_reservation_id) {
     const reservationByIdQuery = applyNotDeleted(
       supabase
         .from("table_reservations")
-        .select("codes,status")
+        .select("codes,status,full_name,email,phone,document")
         .eq("id", ticket.table_reservation_id)
         .limit(1)
     );
     const { data: reservationById } = await reservationByIdQuery.maybeSingle();
     const status = String((reservationById as any)?.status || "").toLowerCase();
     const activeStatuses = new Set(["approved", "confirmed", "paid"]);
-    if (reservationById && activeStatuses.has(status) && Array.isArray((reservationById as any).codes)) {
+    if (
+      reservationById &&
+      activeStatuses.has(status) &&
+      Array.isArray((reservationById as any).codes) &&
+      isReservationOwner(ticket, reservationById as any)
+    ) {
       return ((reservationById as any).codes as any[]).map((code) => String(code || "").trim()).filter(Boolean);
     }
+    return [];
   }
 
   const email = ticket.email;
@@ -192,7 +195,7 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
 
   let query = supabase
     .from("table_reservations")
-    .select("codes,status,created_at,event_id")
+    .select("codes,status,created_at,event_id,full_name,email,phone,document")
     .or(filters.join(","))
     .order("created_at", { ascending: false })
     .limit(5);
@@ -208,7 +211,8 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
   const valid = (data as any[]).find((r) => {
     const status = (r?.status || "").toLowerCase();
     if (!activeStatuses.has(status)) return false;
-    return Array.isArray(r.codes) && r.codes.length > 0;
+    if (!Array.isArray(r.codes) || r.codes.length === 0) return false;
+    return isReservationOwner(ticket, r);
   });
   return valid?.codes || [];
 }
