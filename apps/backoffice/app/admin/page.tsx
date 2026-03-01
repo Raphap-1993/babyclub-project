@@ -9,7 +9,7 @@ import PromotersSummaryCard from "@/components/dashboard/PromotersSummaryCard";
 export default async function AdminDashboard() {
   const quickActions = [
     { label: "Crear Evento", href: "/admin/events/create", icon: Calendar },
-    { label: "Escaneo QR", href: "/admin/tickets", icon: QrCode },
+    { label: "Escaneo QR", href: "/admin/scan", icon: QrCode },
     { label: "Ver Mesas", href: "/admin/tables", icon: Armchair },
     { label: "Productos Mesa", href: "/admin/table-products", icon: Package2 },
     { label: "Reportes", href: "/admin/ingresos", icon: TrendingUp },

@@ -48,6 +48,7 @@ const menuItems = [
       },
       { label: "Productos Mesa", href: "/admin/table-products", icon: Package2 },
       { label: "Reservas", href: "/admin/reservations", icon: BookOpen },
+      { label: "Escanear QR", href: "/admin/scan", icon: QrCode },
       { label: "Tickets/QR", href: "/admin/tickets", icon: QrCode },
     ] as NavItem[],
   },
