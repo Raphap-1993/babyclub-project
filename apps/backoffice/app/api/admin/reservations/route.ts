@@ -206,6 +206,8 @@ export async function POST(req: NextRequest) {
             .insert({
               table_id,
               event_id: eventId,
+              sale_origin: "table",
+              ticket_pricing_phase: null,
               product_id,
               full_name: full_name || "Invitado reserva",
               email: contactEmail,
@@ -309,6 +311,8 @@ export async function POST(req: NextRequest) {
       .insert({
         table_id,
         event_id: eventId,
+        sale_origin: "table",
+        ticket_pricing_phase: null,
         product_id,
         full_name,
         doc_type: docType,

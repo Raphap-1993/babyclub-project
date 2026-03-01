@@ -63,11 +63,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [roles, setRoles] = useState<Role[]>([]);
   const [profileLoading, setProfileLoading] = useState(true);
   const [initialRole, setInitialRole] = useState<string | null>(null);
+  const [resolvedRoleCode, setResolvedRoleCode] = useState<string | null>(null);
   const [roleResolved, setRoleResolved] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!supabaseClient) return;
+      if (!supabaseClient) {
+        setRoleResolved(true);
+        return;
+      }
       const { data } = await supabaseClient.auth.getSession();
       const sessionUser = data.session?.user;
       const authUserId = data.session?.user.id;
@@ -77,50 +81,70 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         (sessionUser?.app_metadata?.user_role as string | undefined) ||
         null;
       setInitialRole(sessionMetaRole);
+      let effectiveRole = sessionMetaRole;
 
       if (!authUserId) {
+        setResolvedRoleCode(sessionMetaRole);
         setRoleResolved(true);
         return;
       }
 
       try {
-        const { data: staff } = await supabaseClient
-          .from("staff")
-          .select(
-            "id,is_active,created_at,auth_user_id,person:persons(id,dni,first_name,last_name,email,phone),role:staff_roles(id,code,name)",
-          )
-          .eq("auth_user_id", authUserId)
-          .maybeSingle();
+        const roleRes = await authedFetch("/api/auth/staff-context");
+        const rolePayload = await roleRes.json().catch(() => null);
 
-        if (staff) {
-          const role = Array.isArray(staff.role) ? staff.role[0] : staff.role;
+        if (!roleRes.ok || !rolePayload?.success) {
+          router.replace("/auth/login");
+          return;
+        }
+
+        const staff = rolePayload?.data?.staff;
+        const roleCode =
+          typeof rolePayload?.data?.role_code === "string" ? rolePayload.data.role_code : null;
+        if (roleCode) {
+          effectiveRole = roleCode;
+          setResolvedRoleCode(roleCode);
+        }
+        if (staff?.role && staff?.person) {
           setUserStaff({
             id: staff.id,
             is_active: staff.is_active,
             created_at: staff.created_at,
             auth_user_id: staff.auth_user_id,
-            role,
-            person: Array.isArray(staff.person) ? staff.person[0] : staff.person,
+            role: staff.role,
+            person: staff.person,
           });
         }
       } catch (_err) {
         console.error("Error fetching profile:", _err);
+        router.replace("/auth/login");
       } finally {
+        if (!effectiveRole) {
+          setResolvedRoleCode(sessionMetaRole);
+        }
         setRoleResolved(true);
       }
     };
 
     fetchProfile().finally(() => setProfileLoading(false));
+  }, [router]);
+
+  useEffect(() => {
+    if (!roleResolved) return;
+    if (isDoorRole(resolvedRoleCode || initialRole)) return;
     authedFetch("/api/admin/users/roles")
       .then((res) => res.json())
       .then((payload) => {
         if (payload?.success) setRoles(payload.data || []);
       })
       .catch(() => null);
-  }, [router]);
+  }, [initialRole, resolvedRoleCode, roleResolved]);
 
   const staffRoleCode =
-    (typeof userStaff?.role?.code === "string" ? userStaff.role.code : null) || initialRole || "";
+    (typeof userStaff?.role?.code === "string" ? userStaff.role.code : null) ||
+    resolvedRoleCode ||
+    initialRole ||
+    "";
   const isDoorSession = isDoorRole(staffRoleCode);
   const isDoorAllowedPath = pathname === DOOR_LANDING;
 

@@ -250,6 +250,8 @@ export async function POST(req: NextRequest) {
       .insert({
         table_id,
         event_id: effectiveEventId,
+        sale_origin: "table",
+        ticket_pricing_phase: null,
         product_id,
         doc_type: docType,
         document,
