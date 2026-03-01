@@ -1,7 +1,7 @@
-import { ComingSoon } from "../components/ComingSoon";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default function AsistenciaPage() {
-  return <ComingSoon kicker="Reportes" title="Asistencia" description="Visualiza y exporta la asistencia en breve desde este módulo." />;
+  redirect("/admin/reportes/mesas?report=event_attendance");
 }

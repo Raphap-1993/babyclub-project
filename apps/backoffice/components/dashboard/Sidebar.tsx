@@ -55,8 +55,16 @@ const menuItems = [
   {
     section: "REPORTES",
     items: [
-      { label: "Asistencia", href: "/admin/asistencia", icon: BarChart3 },
-      { label: "Ingresos", href: "/admin/ingresos", icon: BarChart3 },
+      {
+        label: "Módulo Reportes",
+        href: "/admin/reportes",
+        icon: BarChart3,
+        children: [
+          { label: "Asistencia y Ventas", href: "/admin/reportes/mesas" },
+          { label: "Promotores", href: "/admin/reportes/promotores" },
+          { label: "Logs", href: "/admin/logs" },
+        ],
+      },
     ],
   },
   {

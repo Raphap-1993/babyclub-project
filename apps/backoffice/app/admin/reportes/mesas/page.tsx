@@ -44,8 +44,17 @@ async function getReportOptions() {
 
 export const dynamic = "force-dynamic";
 
-export default async function ReporteMesasPage() {
+const allowedDefaultReports = new Set(["event_attendance", "event_sales"]);
+
+export default async function ReporteMesasPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ report?: string }>;
+}) {
   const options = await getReportOptions();
+  const params = searchParams ? await searchParams : {};
+  const reportParam = String(params?.report || "");
+  const defaultReport = allowedDefaultReports.has(reportParam) ? (reportParam as "event_attendance" | "event_sales") : "event_attendance";
 
   return (
     <AdminPage>
@@ -57,7 +66,7 @@ export default async function ReporteMesasPage() {
       <ReportWorkspace
         title="Reporte de eventos"
         description="Puedes alternar entre asistencia y ventas."
-        defaultReport="event_attendance"
+        defaultReport={defaultReport}
         allowReportSwitch
         organizers={options.organizers}
         events={options.events}
@@ -66,4 +75,3 @@ export default async function ReporteMesasPage() {
     </AdminPage>
   );
 }
-

@@ -12,7 +12,7 @@ export default async function AdminDashboard() {
     { label: "Escaneo QR", href: "/admin/scan", icon: QrCode },
     { label: "Ver Mesas", href: "/admin/tables", icon: Armchair },
     { label: "Productos Mesa", href: "/admin/table-products", icon: Package2 },
-    { label: "Reportes", href: "/admin/ingresos", icon: TrendingUp },
+    { label: "Reportes", href: "/admin/reportes", icon: TrendingUp },
   ];
 
   return (
