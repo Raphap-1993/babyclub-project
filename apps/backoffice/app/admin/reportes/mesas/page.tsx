@@ -68,6 +68,7 @@ export default async function ReporteMesasPage({
         description="Puedes alternar entre asistencia y ventas."
         defaultReport={defaultReport}
         allowReportSwitch
+        showDateRange={false}
         organizers={options.organizers}
         events={options.events}
         promoters={options.promoters}

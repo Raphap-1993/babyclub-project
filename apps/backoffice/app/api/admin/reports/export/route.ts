@@ -22,6 +22,60 @@ type NormalizedEvent = {
   organizer_slug: string;
 };
 
+function isMissingDeletedAtColumnError(error: any, tableName: string) {
+  if (!error) return false;
+  const haystack = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return haystack.includes(`${tableName}.deleted_at`) || haystack.includes("column deleted_at does not exist");
+}
+
+async function fetchScanLogs(
+  supabase: any,
+  {
+    select,
+    allowedEventIds,
+    fromIso,
+    toIso,
+    limit,
+  }: {
+    select: string;
+    allowedEventIds: string[];
+    fromIso: string;
+    toIso: string;
+    limit: number;
+  }
+) {
+  let scansQuery = applyNotDeleted(
+    supabase
+      .from("scan_logs")
+      .select(select)
+      .in("event_id", allowedEventIds)
+      .eq("result", "valid")
+      .order("created_at", { ascending: false })
+      .limit(limit)
+  );
+  if (fromIso) scansQuery = scansQuery.gte("created_at", fromIso);
+  if (toIso) scansQuery = scansQuery.lte("created_at", toIso);
+
+  let { data, error } = await scansQuery;
+
+  if (error && isMissingDeletedAtColumnError(error, "scan_logs")) {
+    let legacyQuery = supabase
+      .from("scan_logs")
+      .select(select)
+      .in("event_id", allowedEventIds)
+      .eq("result", "valid")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (fromIso) legacyQuery = legacyQuery.gte("created_at", fromIso);
+    if (toIso) legacyQuery = legacyQuery.lte("created_at", toIso);
+    const legacyResult = await legacyQuery;
+    data = legacyResult.data;
+    error = legacyResult.error;
+  }
+
+  return { data, error };
+}
+
 function toStartIso(dateValue: string | null) {
   if (!dateValue) return "";
   const raw = `${dateValue}T00:00:00.000Z`;
@@ -126,18 +180,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: codesError.message }, { status: 400 });
     }
 
-    let scansQuery = applyNotDeleted(
-      supabase
-        .from("scan_logs")
-        .select("id,event_id,result,created_at,code:codes(promoter_id),ticket:tickets(promoter_id)")
-        .in("event_id", allowedEventIds)
-        .eq("result", "valid")
-        .order("created_at", { ascending: false })
-        .limit(10000)
-    );
-    if (fromIso) scansQuery = scansQuery.gte("created_at", fromIso);
-    if (toIso) scansQuery = scansQuery.lte("created_at", toIso);
-    const { data: scansData, error: scansError } = await scansQuery;
+    const { data: scansData, error: scansError } = await fetchScanLogs(supabase, {
+      select: "id,event_id,result,created_at,code:codes(promoter_id),ticket:tickets(promoter_id)",
+      allowedEventIds,
+      fromIso,
+      toIso,
+      limit: 10000,
+    });
     if (scansError) {
       return NextResponse.json({ success: false, error: scansError.message }, { status: 400 });
     }
@@ -245,18 +294,13 @@ export async function GET(req: NextRequest) {
   }
 
   if (report === "event_attendance") {
-    let scansQuery = applyNotDeleted(
-      supabase
-        .from("scan_logs")
-        .select("id,event_id,ticket_id,code_id,result,created_at")
-        .in("event_id", allowedEventIds)
-        .eq("result", "valid")
-        .order("created_at", { ascending: false })
-        .limit(15000)
-    );
-    if (fromIso) scansQuery = scansQuery.gte("created_at", fromIso);
-    if (toIso) scansQuery = scansQuery.lte("created_at", toIso);
-    const { data: scansData, error: scansError } = await scansQuery;
+    const { data: scansData, error: scansError } = await fetchScanLogs(supabase, {
+      select: "id,event_id,ticket_id,code_id,result,created_at",
+      allowedEventIds,
+      fromIso,
+      toIso,
+      limit: 15000,
+    });
     if (scansError) {
       return NextResponse.json({ success: false, error: scansError.message }, { status: 400 });
     }

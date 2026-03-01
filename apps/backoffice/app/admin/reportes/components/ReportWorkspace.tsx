@@ -16,6 +16,7 @@ type ReportWorkspaceProps = {
   description: string;
   defaultReport: "promoter_performance" | "event_attendance" | "event_sales";
   allowReportSwitch?: boolean;
+  showDateRange?: boolean;
   organizers: Option[];
   events: Option[];
   promoters: Option[];
@@ -32,6 +33,7 @@ export default function ReportWorkspace({
   description,
   defaultReport,
   allowReportSwitch = false,
+  showDateRange = true,
   organizers,
   events,
   promoters,
@@ -65,13 +67,13 @@ export default function ReportWorkspace({
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     params.set("report", report);
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
+    if (showDateRange && from) params.set("from", from);
+    if (showDateRange && to) params.set("to", to);
     if (organizerId) params.set("organizer_id", organizerId);
     if (eventId) params.set("event_id", eventId);
     if (promoterId && report === "promoter_performance") params.set("promoter_id", promoterId);
     return params.toString();
-  }, [report, from, to, organizerId, eventId, promoterId]);
+  }, [report, from, to, organizerId, eventId, promoterId, showDateRange]);
 
   const runReport = async () => {
     setLoading(true);
@@ -145,14 +147,18 @@ export default function ReportWorkspace({
             </div>
           )}
 
-          <label className="space-y-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Desde</span>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Hasta</span>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
+          {showDateRange ? (
+            <>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Desde</span>
+                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Hasta</span>
+                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              </label>
+            </>
+          ) : null}
           <label className="space-y-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Organizador</span>
             <SelectNative
@@ -244,4 +250,3 @@ export default function ReportWorkspace({
     </Card>
   );
 }
-
