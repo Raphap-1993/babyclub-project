@@ -18,7 +18,7 @@ const getSessionRole = (user?: User | null) => {
   );
 };
 
-const DOOR_LANDING = "/admin/scan";
+const DOOR_LANDING = "/admin/door";
 const ROLE_LOOKUP_TIMEOUT_MS = 1200;
 
 const fetchStaffRoleCode = async (authUserId: string) => {

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatLimaFromDb } from "shared/limaTime";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { ensureEventSalesDefaults, isMissingEventSalesColumnsError } from "shared/eventSales";
 import { Eye, Edit, ArrowLeft } from "lucide-react";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -15,12 +16,23 @@ async function getEvent(id: string) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await applyNotDeleted(
+  let { data, error } = await applyNotDeleted(
     supabase
       .from("events")
-      .select("id,name,location,starts_at,entry_limit,capacity,is_active,header_image")
+      .select("id,name,location,starts_at,entry_limit,capacity,is_active,sale_status,sale_public_message,header_image")
       .eq("id", id)
   ).single();
+
+  if (error && isMissingEventSalesColumnsError(error)) {
+    const legacyResult = await applyNotDeleted(
+      supabase
+        .from("events")
+        .select("id,name,location,starts_at,entry_limit,capacity,is_active,header_image")
+        .eq("id", id)
+    ).single();
+    data = legacyResult.data as any;
+    error = legacyResult.error;
+  }
 
   if (error || !data) return null;
 
@@ -35,7 +47,7 @@ async function getEvent(id: string) {
       .limit(1)
   );
 
-  return { ...data, generalCode: codes?.[0]?.code ?? null };
+  return { ...ensureEventSalesDefaults(data as any), generalCode: codes?.[0]?.code ?? null };
 }
 
 export const dynamic = "force-dynamic";
@@ -115,6 +127,23 @@ export default async function EventDetailPage({
                     {event.is_active ? "Activo" : "Inactivo"}
                   </span>
                 </div>
+                <div className="mt-2">
+                  <span
+                    className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
+                      event.sale_status === "sold_out"
+                        ? "bg-rose-500/20 text-rose-300"
+                        : event.sale_status === "paused"
+                          ? "bg-amber-500/20 text-amber-200"
+                          : "bg-emerald-500/20 text-emerald-300"
+                    }`}
+                  >
+                    {event.sale_status === "sold_out"
+                      ? "Sold out web"
+                      : event.sale_status === "paused"
+                        ? "Venta web pausada"
+                        : "En venta web"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -149,6 +178,14 @@ export default async function EventDetailPage({
                 <code className="mt-2 block rounded bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-200">
                   {event.generalCode}
                 </code>
+              </div>
+            )}
+            {event.sale_public_message && (
+              <div className="border-t border-neutral-700 pt-4">
+                <p className="text-xs font-semibold uppercase text-neutral-400">Mensaje público web</p>
+                <p className="mt-2 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-200">
+                  {event.sale_public_message}
+                </p>
               </div>
             )}
           </div>

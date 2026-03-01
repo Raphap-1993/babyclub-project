@@ -41,6 +41,9 @@ type EventOption = {
   starts_at?: string | null;
   location?: string | null;
   is_active?: boolean | null;
+  closed_at?: string | null;
+  sale_status?: "on_sale" | "sold_out" | "paused" | null;
+  sale_public_message?: string | null;
 };
 
 type TicketSalePhase = "early_bird" | "all_night";
@@ -132,6 +135,32 @@ export default function CompraPage() {
 
   const buildFullName = (nombre: string, apellidoPaterno: string, apellidoMaterno: string) =>
     [nombre, apellidoPaterno, apellidoMaterno].map((part) => part.trim()).filter(Boolean).join(" ");
+
+  const resolveSaleBlock = (eventId?: string | null) => {
+    if (!eventId) return null;
+    const event = eventOptions.find((ev) => ev.id === eventId);
+    if (!event) return null;
+
+    if (event.is_active === false || event.closed_at) {
+      return {
+        status: "paused" as const,
+        message: event.sale_public_message || "La venta online para este evento no está disponible.",
+      };
+    }
+    if (event.sale_status === "sold_out") {
+      return {
+        status: "sold_out" as const,
+        message: event.sale_public_message || "Entradas agotadas. Este evento está sold out.",
+      };
+    }
+    if (event.sale_status === "paused") {
+      return {
+        status: "paused" as const,
+        message: event.sale_public_message || "La venta online está pausada temporalmente.",
+      };
+    }
+    return null;
+  };
 
   const resetTicketForm = () => {
     setTicketForm({
@@ -502,6 +531,10 @@ export default function CompraPage() {
       setError("Selecciona un pack de consumo");
       return;
     }
+    if (mesaSaleBlock) {
+      setError(mesaSaleBlock.message);
+      return;
+    }
     setShowSummary(true);
   };
 
@@ -516,6 +549,10 @@ export default function CompraPage() {
     }
     if (!selected || !validateDocument(form.doc_type as DocumentType, form.document) || !mesaNameComplete) {
       setModalError("Revisa los datos obligatorios: mesa, documento, nombres y apellidos.");
+      return;
+    }
+    if (mesaSaleBlock) {
+      setModalError(mesaSaleBlock.message);
       return;
     }
 
@@ -613,6 +650,10 @@ export default function CompraPage() {
       setTicketError("Ingresa documento, nombres y apellidos");
       return;
     }
+    if (ticketSaleBlock) {
+      setTicketError(ticketSaleBlock.message);
+      return;
+    }
     setShowTicketSummary(true);
   };
 
@@ -625,6 +666,10 @@ export default function CompraPage() {
     }
     if (!validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document) || !ticketNameComplete) {
       setTicketModalError("Ingresa documento, nombres y apellidos");
+      return;
+    }
+    if (ticketSaleBlock) {
+      setTicketModalError(ticketSaleBlock.message);
       return;
     }
     if (!ticketVoucherUrl) {
@@ -704,6 +749,8 @@ export default function CompraPage() {
   const mesaEventOptions = eventsFromTables.length > 0 ? eventsFromTables : eventOptions;
   const ticketEventOptions = eventOptions.length > 0 ? eventOptions : eventsFromTables;
   const ticketSelectedEvent = ticketEventOptions.find((ev) => ev.id === ticketEventId);
+  const ticketSaleBlock = resolveSaleBlock(ticketEventId);
+  const mesaSaleBlock = resolveSaleBlock(selectedEventId || tableInfo?.event_id || null);
   const ticketRequiresEvent = ticketEventOptions.length > 0;
   const firstTicketEventId = ticketEventOptions[0]?.id || "";
 
@@ -863,12 +910,16 @@ export default function CompraPage() {
                 >
                   <option value="">Selecciona el evento</option>
                   {ticketEventOptions.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
+                    <option key={ev.id} value={ev.id} disabled={Boolean(resolveSaleBlock(ev.id))}>
                       {ev.name || `Evento ${ev.id.slice(0, 6)}`}
+                      {resolveSaleBlock(ev.id)?.status === "sold_out" ? " (Sold out)" : resolveSaleBlock(ev.id)?.status === "paused" ? " (Pausado)" : ""}
                     </option>
                   ))}
                 </select>
                 {!ticketEventId && <p className="text-xs text-[#ff9a9a]">Selecciona el evento para continuar.</p>}
+                {ticketSaleBlock && (
+                  <p className="text-xs font-semibold text-[#ff9a9a]">{ticketSaleBlock.message}</p>
+                )}
               </div>
             )}
             <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
@@ -931,10 +982,10 @@ export default function CompraPage() {
             )}
             <button
               type="submit"
-              disabled={ticketLoading}
+              disabled={ticketLoading || Boolean(ticketSaleBlock)}
               className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
             >
-              {ticketLoading ? "Procesando..." : "Revisar pago y enviar"}
+              {ticketLoading ? "Procesando..." : ticketSaleBlock ? "Venta bloqueada" : "Revisar pago y enviar"}
             </button>
             <button
               type="button"
@@ -1067,12 +1118,16 @@ export default function CompraPage() {
                     >
                       <option value="">Selecciona el evento</option>
                       {mesaEventOptions.map((ev) => (
-                        <option key={ev.id} value={ev.id}>
+                        <option key={ev.id} value={ev.id} disabled={Boolean(resolveSaleBlock(ev.id))}>
                           {ev.name || `Evento ${ev.id.slice(0, 6)}`}
+                          {resolveSaleBlock(ev.id)?.status === "sold_out" ? " (Sold out)" : resolveSaleBlock(ev.id)?.status === "paused" ? " (Pausado)" : ""}
                         </option>
                       ))}
                     </select>
                     {!selectedEventId && <p className="text-xs text-[#ff9a9a]">Selecciona el evento para continuar.</p>}
+                    {mesaSaleBlock && (
+                      <p className="text-xs font-semibold text-[#ff9a9a]">{mesaSaleBlock.message}</p>
+                    )}
                   </div>
                 )}
 
@@ -1140,10 +1195,10 @@ export default function CompraPage() {
             {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || Boolean(mesaSaleBlock)}
               className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
             >
-              {loading ? "Procesando..." : "Revisar pago y enviar"}
+              {loading ? "Procesando..." : mesaSaleBlock ? "Reserva bloqueada" : "Revisar pago y enviar"}
             </button>
           </form>
         )}

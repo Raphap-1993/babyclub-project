@@ -32,6 +32,18 @@ describe("POST /api/tickets", () => {
           error: null,
         },
       ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
       "persons.select": [{ data: null, error: null }],
       "persons.insert": [{ data: { id: "person-1" }, error: null }],
       "tickets.select": [{ data: null, error: null }],
@@ -82,6 +94,18 @@ describe("POST /api/tickets", () => {
             expires_at: null,
             table_reservation_id: "res-1",
             type: "table",
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
           },
           error: null,
         },
@@ -146,6 +170,18 @@ describe("POST /api/tickets", () => {
           error: null,
         },
       ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
       "table_reservations.select": [
         {
           data: {
@@ -194,5 +230,64 @@ describe("POST /api/tickets", () => {
     expect(ticketInsertCall?.payload?.table_id).toBe("table-22");
     expect(ticketInsertCall?.payload?.product_id).toBe("prod-22");
     expect(ticketInsertCall?.payload?.table_reservation_id).toBe("res-2");
+  });
+
+  it("bloquea generación cuando el evento está sold out", async () => {
+    const { supabase } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-1",
+            code: "FREE-123",
+            event_id: "event-1",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 999,
+            uses: 0,
+            expires_at: null,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "sold_out",
+            sale_public_message: "Entradas agotadas",
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "FREE-123",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Ana",
+        apellido_paterno: "Perez",
+        apellido_materno: "Lopez",
+        email: "ana@example.com",
+        telefono: "+51999999999",
+        birthdate: "1999-01-01",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(payload.code).toBe("sales_blocked");
+    expect(payload.sale_status).toBe("sold_out");
   });
 });

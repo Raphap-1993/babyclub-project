@@ -115,6 +115,15 @@ const columns: ColumnDef<EventRow>[] = [
       if (event.closed_at) {
         badge = "🔒 Cerrado";
         badgeClass = "bg-neutral-700/50 text-neutral-300 border-neutral-600";
+      } else if (event.is_active !== true) {
+        badge = "⏸️ Inactivo";
+        badgeClass = "bg-neutral-600/30 text-neutral-300 border-neutral-600/50";
+      } else if (event.sale_status === "sold_out") {
+        badge = "🔥 Sold out";
+        badgeClass = "bg-rose-500/20 text-rose-300 border-rose-500/40";
+      } else if (event.sale_status === "paused") {
+        badge = "⏳ Pausado";
+        badgeClass = "bg-amber-500/20 text-amber-200 border-amber-500/40";
       } else if (event.is_active) {
         badge = "✅ Activo";
         badgeClass = "bg-green-500/20 text-green-400 border-green-500/30";
@@ -143,6 +152,8 @@ function ActionButtons({ event }: { event: EventRow }) {
   const [openCloseDialog, setOpenCloseDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const isClosed = event.closed_at !== null;
+  const currentSaleStatus = event.sale_status || "on_sale";
+  const isSoldOut = currentSaleStatus === "sold_out";
   const iconButtonBase =
     "inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors";
 
@@ -184,6 +195,43 @@ function ActionButtons({ event }: { event: EventRow }) {
     });
   };
 
+  const handleToggleSoldOut = async () => {
+    if (isClosed) return;
+
+    const nextStatus = isSoldOut ? "on_sale" : "sold_out";
+    const defaultMessage = isSoldOut
+      ? ""
+      : event.sale_public_message || "Entradas agotadas. Este evento está sold out.";
+    const promptLabel = isSoldOut
+      ? "Mensaje público opcional al reabrir venta (puedes dejar vacío):"
+      : "Mensaje público para la landing cuando esté sold out:";
+    const messageInput = window.prompt(promptLabel, defaultMessage);
+    if (messageInput === null) return;
+    const sale_public_message = messageInput.trim();
+    if (!isSoldOut && !sale_public_message) {
+      alert("Debes ingresar un mensaje público para sold out.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await authedFetch("/api/events/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: event.id,
+          sale_status: nextStatus,
+          sale_public_message: sale_public_message || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        window.location.href = window.location.href;
+      } else {
+        alert(data?.error || "No se pudo actualizar el estado comercial");
+      }
+    });
+  };
+
   return (
     <div className="flex items-center justify-end gap-1.5">
       <Link
@@ -200,6 +248,24 @@ function ActionButtons({ event }: { event: EventRow }) {
       >
         <Edit2 className="h-3.5 w-3.5" />
       </Link>
+
+      <Button
+        type="button"
+        disabled={pending || isClosed}
+        variant="ghost"
+        size="icon"
+        onClick={handleToggleSoldOut}
+        className={`${iconButtonBase} ${
+          isClosed
+            ? "border-neutral-700/80 bg-neutral-800/70 text-neutral-500 cursor-not-allowed"
+            : isSoldOut
+              ? "border-emerald-500/35 bg-emerald-500/15 text-emerald-300 hover:border-emerald-400/60 hover:bg-emerald-500/25"
+              : "border-rose-500/40 bg-rose-500/15 text-rose-300 hover:border-rose-400/70 hover:bg-rose-500/25"
+        }`}
+        title={isClosed ? "Evento cerrado: no aplica sold out comercial" : isSoldOut ? "Reabrir venta web" : "Marcar sold out"}
+      >
+        <Power className="h-3.5 w-3.5" />
+      </Button>
 
 
       <AlertDialog.Root open={openCloseDialog} onOpenChange={setOpenCloseDialog}>
@@ -227,7 +293,7 @@ function ActionButtons({ event }: { event: EventRow }) {
               ¿Cerrar evento?
             </AlertDialog.Title>
             <AlertDialog.Description className="mt-3 text-sm text-neutral-300">
-              Se cerrará el evento <span className="font-semibold text-neutral-100">{event.name}</span> y no se podrán vender más entradas. 
+              Se cerrará el evento <span className="font-semibold text-neutral-100">{event.name}</span> y se bloquearán nuevas ventas y reservas.
               <br />
               <br />
               Se desactivarán todos los códigos activos y se archivarán las reservaciones pendientes.

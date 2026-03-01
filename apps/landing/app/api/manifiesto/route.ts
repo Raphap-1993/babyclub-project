@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -35,21 +36,34 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const eventRes = await fetch(
-    `${supabaseUrl}/rest/v1/events?select=header_image,id,name,starts_at,location&id=eq.${encodeURIComponent(eventId)}&limit=1`,
+  const selectWithSales = "header_image,id,name,starts_at,location,is_active,closed_at,sale_status,sale_public_message";
+  const selectLegacy = "header_image,id,name,starts_at,location,is_active,closed_at";
+
+  let eventRes = await fetch(
+    `${supabaseUrl}/rest/v1/events?select=${encodeURIComponent(selectWithSales)}&id=eq.${encodeURIComponent(eventId)}&limit=1`,
     { headers }
   );
+  let eventData: any = await eventRes.json().catch(() => []);
+
+  if (!eventRes.ok && isMissingEventSalesColumnsError(eventData)) {
+    eventRes = await fetch(
+      `${supabaseUrl}/rest/v1/events?select=${encodeURIComponent(selectLegacy)}&id=eq.${encodeURIComponent(eventId)}&limit=1`,
+      { headers }
+    );
+    eventData = await eventRes.json().catch(() => []);
+  }
+
   if (!eventRes.ok) {
     return NextResponse.json(
       { error: "Tu código intenta seducir al sistema… pero no logra abrirle las puertas." },
       { status: 404 }
     );
   }
-  const eventData = await eventRes.json().catch(() => []);
   const url = eventData?.[0]?.header_image;
   const eventName = eventData?.[0]?.name;
   const eventStartsAt = eventData?.[0]?.starts_at;
   const eventLocation = eventData?.[0]?.location;
+  const saleDecision = evaluateEventSales(ensureEventSalesDefaults((eventData?.[0] || {}) as any));
 
   let cover_url: string | null = null;
   const coverRes = await fetch(
@@ -69,5 +83,9 @@ export async function GET(req: NextRequest) {
     event_name: eventName,
     event_starts_at: eventStartsAt,
     event_location: eventLocation,
+    sales_available: saleDecision.available,
+    sale_status: saleDecision.sale_status,
+    sale_block_reason: saleDecision.block_reason,
+    sale_public_message: saleDecision.public_message,
   });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { ensureEventSalesDefaultsList, isMissingEventSalesColumnsError } from "shared/eventSales";
 import { createSupabaseFetchWithTimeout, sanitizeSupabaseErrorMessage, withSupabaseRetry } from "../_utils/supabaseResilience";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -16,16 +17,32 @@ export async function GET() {
     global: { fetch: createSupabaseFetchWithTimeout() },
   });
 
-  const { data, error, retryable } = await withSupabaseRetry<any[]>("events.list_active", () =>
+  let { data, error, retryable } = await withSupabaseRetry<any[]>("events.list_active", () =>
     applyNotDeleted(
       supabase
         .from("events")
-        .select("id,name,starts_at,location,is_active")
+        .select("id,name,starts_at,location,is_active,closed_at,sale_status,sale_public_message")
         .eq("is_active", true)
         .order("starts_at", { ascending: true })
     ),
     1
   );
+
+  if (error && !retryable && isMissingEventSalesColumnsError(error)) {
+    const legacy = await withSupabaseRetry<any[]>("events.list_active_legacy_sales_columns", () =>
+      applyNotDeleted(
+        supabase
+          .from("events")
+          .select("id,name,starts_at,location,is_active,closed_at")
+          .eq("is_active", true)
+          .order("starts_at", { ascending: true })
+      ),
+      1
+    );
+    data = ensureEventSalesDefaultsList(legacy.data as any[] | null | undefined);
+    error = legacy.error;
+    retryable = legacy.retryable;
+  }
 
   if (error) {
     if (retryable) {
@@ -34,5 +51,5 @@ export async function GET() {
     return NextResponse.json({ events: [], error: sanitizeSupabaseErrorMessage(error) }, { status: 500 });
   }
 
-  return NextResponse.json({ events: data || [] });
+  return NextResponse.json({ events: ensureEventSalesDefaultsList(data as any[] | null | undefined) });
 }

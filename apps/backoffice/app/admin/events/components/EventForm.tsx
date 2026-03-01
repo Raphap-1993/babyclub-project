@@ -34,6 +34,8 @@ type EventRecord = {
   header_image: string;
   cover_image?: string;
   is_active: boolean;
+  sale_status?: "on_sale" | "sold_out" | "paused" | null;
+  sale_public_message?: string | null;
   code?: string;
   organizer_id?: string;
 };
@@ -47,6 +49,8 @@ type FormValues = {
   header_image: string;
   cover_image: string;
   is_active: boolean;
+  sale_status: "on_sale" | "sold_out" | "paused";
+  sale_public_message: string;
   code: string;
   organizer_id: string;
 };
@@ -60,6 +64,8 @@ const emptyForm: FormValues = {
   header_image: "",
   cover_image: "",
   is_active: true,
+  sale_status: "on_sale",
+  sale_public_message: "",
   code: "",
   organizer_id: "",
 };
@@ -124,6 +130,8 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
       header_image: form.header_image.trim(),
       cover_image: form.cover_image.trim(),
       is_active: Boolean(form.is_active),
+      sale_status: form.sale_status,
+      sale_public_message: form.sale_public_message.trim(),
       code: form.code.trim(),
       organizer_id: form.organizer_id,
     };
@@ -355,6 +363,41 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
           />
         </div>
 
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-neutral-300">Estado comercial web</label>
+              <select
+                value={form.sale_status}
+                onChange={(event) => updateField("sale_status", event.target.value as FormValues["sale_status"])}
+                className="w-full rounded-lg border border-neutral-600 bg-neutral-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-neutral-500/50 focus:border-neutral-500/50 transition-colors"
+              >
+                <option value="on_sale">En venta</option>
+                <option value="sold_out">Sold out</option>
+                <option value="paused">Pausado</option>
+              </select>
+              {errors.sale_status && <ErrorText message={errors.sale_status} />}
+            </div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-neutral-300">
+                Mensaje público {form.sale_status === "on_sale" ? "(opcional)" : "(recomendado)"}
+              </label>
+              <textarea
+                value={form.sale_public_message}
+                onChange={(event) => updateField("sale_public_message", event.target.value)}
+                rows={3}
+                placeholder={
+                  form.sale_status === "sold_out"
+                    ? "Ej: Evento sold out. Únete a la lista de espera."
+                    : form.sale_status === "paused"
+                      ? "Ej: Venta pausada temporalmente. Volvemos en breve."
+                      : "Mensaje opcional para la landing."
+                }
+                className="w-full rounded-lg border border-neutral-600 bg-neutral-700 px-3 py-2 text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-500/50 focus:border-neutral-500/50 transition-colors"
+              />
+              {errors.sale_public_message && <ErrorText message={errors.sale_public_message} />}
+            </div>
+          </div>
+
         {serverError && (
           <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
             <p className="text-sm text-red-300">{serverError}</p>
@@ -474,6 +517,8 @@ function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<Fo
     header_image: initialData.header_image ?? "",
     cover_image: initialData.cover_image ?? "",
     is_active: initialData.is_active ?? true,
+    sale_status: initialData.sale_status === "sold_out" || initialData.sale_status === "paused" ? initialData.sale_status : "on_sale",
+    sale_public_message: initialData.sale_public_message ?? "",
     code: initialData.code ?? "",
     organizer_id: initialData.organizer_id ?? "",
   };
@@ -513,6 +558,14 @@ function validate(values: FormValues): Partial<Record<keyof FormValues, string>>
     errors.code = "Código requerido (mínimo 3 caracteres)";
   }
 
+  if (!["on_sale", "sold_out", "paused"].includes(values.sale_status)) {
+    errors.sale_status = "Estado comercial inválido";
+  }
+
+  if (values.sale_status !== "on_sale" && !values.sale_public_message.trim()) {
+    errors.sale_public_message = "Agrega un mensaje público para este estado";
+  }
+
   // Organizador es obligatorio
   if (!values.organizer_id) {
     errors.organizer_id = "Debes seleccionar un organizador";
@@ -536,4 +589,3 @@ function slugify(input: string) {
   // Agregar fecha si tenemos starts_at
   return slug;
 }
-

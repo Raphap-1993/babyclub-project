@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import EventForm from "../../components/EventForm";
 import Link from "next/link";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { ensureEventSalesDefaults, isMissingEventSalesColumnsError } from "shared/eventSales";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -16,6 +17,8 @@ type EventRow = {
   header_image: string;
   cover_image?: string;
   is_active: boolean;
+  sale_status?: "on_sale" | "sold_out" | "paused" | null;
+  sale_public_message?: string | null;
   starts_at: string;
   entry_limit?: string | null;
   code?: string;
@@ -30,9 +33,24 @@ async function getEvent(id: string): Promise<EventRow | null> {
   });
 
   const eventQuery = applyNotDeleted(
-    supabase.from("events").select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active,organizer_id").eq("id", id)
+    supabase
+      .from("events")
+      .select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active,sale_status,sale_public_message,organizer_id")
+      .eq("id", id)
   );
-  const { data, error } = await eventQuery.maybeSingle();
+  let { data, error } = await eventQuery.maybeSingle();
+
+  if (error && isMissingEventSalesColumnsError(error)) {
+    const legacyQuery = applyNotDeleted(
+      supabase
+        .from("events")
+        .select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active,organizer_id")
+        .eq("id", id)
+    );
+    const legacyResult = await legacyQuery.maybeSingle();
+    data = legacyResult.data as any;
+    error = legacyResult.error;
+  }
 
   if (error || !data) return null;
 
@@ -51,7 +69,7 @@ async function getEvent(id: string): Promise<EventRow | null> {
   const code = codes?.code || "";
   const cover_image = coverRow?.value_text || "";
 
-  return { ...(data as EventRow), code, cover_image };
+  return { ...(ensureEventSalesDefaults(data as any) as EventRow), code, cover_image };
 }
 
 async function getOrganizers() {

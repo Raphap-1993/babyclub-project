@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
 import { createSupabaseFetchWithTimeout, sanitizeSupabaseErrorMessage, withSupabaseRetry } from "../_utils/supabaseResilience";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -84,6 +85,55 @@ export async function GET(req: NextRequest) {
 
   // Si existe configuración por evento en table_availability, la respetamos.
   if (eventId) {
+    let eventStateResult = await withSupabaseRetry<any>(
+      "tables.event_sale_state",
+      () =>
+        applyNotDeleted(
+          supabase
+            .from("events")
+            .select("id,is_active,closed_at,sale_status,sale_public_message")
+            .eq("id", eventId)
+            .limit(1)
+        ).maybeSingle(),
+      1
+    );
+    if (eventStateResult.error && !eventStateResult.retryable && isMissingEventSalesColumnsError(eventStateResult.error)) {
+      const legacyResult = await withSupabaseRetry<any>(
+        "tables.event_sale_state_legacy_sales_columns",
+        () =>
+          applyNotDeleted(
+            supabase
+              .from("events")
+              .select("id,is_active,closed_at")
+              .eq("id", eventId)
+              .limit(1)
+          ).maybeSingle(),
+        1
+      );
+      eventStateResult = {
+        ...legacyResult,
+        data: legacyResult.data ? ensureEventSalesDefaults(legacyResult.data as any) : legacyResult.data,
+      };
+    }
+    if (eventStateResult.error) {
+      if (eventStateResult.retryable) {
+        return NextResponse.json({ tables: [], warning: "temporarily_unavailable" });
+      }
+      return NextResponse.json({ tables: [], error: sanitizeSupabaseErrorMessage(eventStateResult.error) }, { status: 500 });
+    }
+    if (!eventStateResult.data) {
+      return NextResponse.json({ tables: [], error: "Evento no encontrado" }, { status: 404 });
+    }
+    const saleDecision = evaluateEventSales(ensureEventSalesDefaults(eventStateResult.data as any));
+    if (!saleDecision.available) {
+      return NextResponse.json({
+        tables: [],
+        sale_status: saleDecision.sale_status,
+        sale_block_reason: saleDecision.block_reason,
+        sale_public_message: saleDecision.public_message,
+      });
+    }
+
     const availabilityResult = await withSupabaseRetry<any[]>(
       "tables.event_availability",
       () =>
