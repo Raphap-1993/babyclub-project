@@ -308,12 +308,23 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
               <label className="block text-sm font-medium text-neutral-300">
                 Hora límite de ingreso (America/Lima)
               </label>
-              <ModernTimePicker
-                value={form.entry_limit}
-                onChange={(timeStr) => updateField("entry_limit", timeStr)}
-                placeholder="Hora límite"
-                timeIntervals={5}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-[220px] flex-1">
+                  <ModernTimePicker
+                    value={form.entry_limit}
+                    onChange={(timeStr) => updateField("entry_limit", timeStr)}
+                    placeholder="Hora límite"
+                    timeIntervals={5}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateField("entry_limit", "00:00")}
+                  className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-lg text-sm font-medium text-white transition-colors whitespace-nowrap"
+                >
+                  Medianoche (00:00)
+                </button>
+              </div>
               <p className="text-xs text-neutral-400">
                 Si es menor a la hora del evento, se asume día siguiente.
               </p>
