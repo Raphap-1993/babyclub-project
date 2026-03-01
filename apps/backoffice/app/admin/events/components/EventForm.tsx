@@ -312,6 +312,7 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                 value={form.entry_limit}
                 onChange={(timeStr) => updateField("entry_limit", timeStr)}
                 placeholder="Hora límite"
+                timeIntervals={5}
               />
               <p className="text-xs text-neutral-400">
                 Si es menor a la hora del evento, se asume día siguiente.

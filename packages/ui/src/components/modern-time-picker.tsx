@@ -10,6 +10,7 @@ export interface ModernTimePickerProps {
   onChange: (time: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  timeIntervals?: number;
 }
 
 export default function ModernTimePicker({
@@ -17,11 +18,14 @@ export default function ModernTimePicker({
   onChange,
   placeholder = "Seleccionar hora",
   disabled = false,
+  timeIntervals = 15,
 }: ModernTimePickerProps) {
   // Convertir string HH:mm a Date object
   const timeToDate = (timeStr: string): Date | null => {
     if (!timeStr) return null;
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    const parts = timeStr.split(":");
+    const hours = Number(parts[0] ?? "");
+    const minutes = Number(parts[1] ?? "");
     if (isNaN(hours) || isNaN(minutes)) return null;
     const date = new Date();
     date.setHours(hours, minutes, 0, 0);
@@ -133,7 +137,7 @@ export default function ModernTimePicker({
         onChange={(date: Date | null) => onChange(dateToTime(date))}
         showTimeSelect
         showTimeSelectOnly
-        timeIntervals={15}
+        timeIntervals={timeIntervals}
         timeCaption="Hora"
         dateFormat="h:mm aa"
         customInput={<CustomInput />}
