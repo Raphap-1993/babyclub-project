@@ -325,6 +325,16 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                   Medianoche (00:00)
                 </button>
               </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-400">Ingreso manual (HH:mm):</label>
+                <input
+                  type="time"
+                  step={300}
+                  value={form.entry_limit}
+                  onChange={(event) => updateField("entry_limit", event.target.value)}
+                  className="w-[140px] rounded-lg border border-neutral-600 bg-neutral-700 px-2 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-neutral-500/50"
+                />
+              </div>
               <p className="text-xs text-neutral-400">
                 Si es menor a la hora del evento, se asume día siguiente.
               </p>
