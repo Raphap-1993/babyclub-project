@@ -83,10 +83,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código expirado" }, { status: 400 });
   }
 
-  if (typeof codeRow.uses === "number" && typeof codeRow.max_uses === "number" && codeRow.uses >= codeRow.max_uses) {
-    return NextResponse.json({ success: false, error: "Código sin cupos" }, { status: 400 });
-  }
-
   let reservationContext: {
     id: string;
     table_id: string | null;
@@ -227,13 +223,48 @@ export async function POST(req: NextRequest) {
   }
   const finalPromoterId = promoter_id || codeRow?.promoter_id || null;
   const full_name = `${first_name} ${last_name}`.trim();
-  const qr_token = crypto.randomUUID();
+
+  // Enforce "1 code = 1 person": if this code is already linked, only that same person can reuse it.
+  const existingCodeTicketQuery = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,qr_token,person_id")
+      .eq("code_id", codeRow.id)
+  );
+  const { data: existingCodeTicket, error: existingCodeError } = await existingCodeTicketQuery
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingCodeError && existingCodeError.code !== "PGRST116") {
+    return NextResponse.json({ success: false, error: existingCodeError.message }, { status: 500 });
+  }
+
+  if (existingCodeTicket?.id && existingCodeTicket.qr_token) {
+    if (existingCodeTicket.person_id && existingCodeTicket.person_id !== person_id) {
+      return NextResponse.json(
+        { success: false, error: "Este código ya fue registrado por otra persona" },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      existing: true,
+      ticketId: existingCodeTicket.id,
+      qr: existingCodeTicket.qr_token,
+    });
+  }
+
+  if (typeof codeRow.uses === "number" && typeof codeRow.max_uses === "number" && codeRow.uses >= codeRow.max_uses) {
+    return NextResponse.json({ success: false, error: "Código sin cupos" }, { status: 400 });
+  }
 
   // Si ya tiene ticket ACTIVO (no borrado) para este evento, devolvemos el mismo QR/id
   const existingTicketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,qr_token")
+      .select("id,qr_token,code_id,table_id,product_id,table_reservation_id")
       .eq("event_id", eventId)
       .eq("person_id", person_id)
   );
@@ -246,6 +277,36 @@ export async function POST(req: NextRequest) {
   }
 
   if (existingTicket?.id && existingTicket.qr_token) {
+    if (existingTicket.code_id && existingTicket.code_id !== codeRow.id) {
+      return NextResponse.json(
+        { success: false, error: "Ya tienes un QR activo para este evento con otro código" },
+        { status: 409 }
+      );
+    }
+
+    if (!existingTicket.code_id) {
+      const { error: linkCodeError } = await supabase
+        .from("tickets")
+        .update({
+          code_id: codeRow.id,
+          table_id: existingTicket.table_id || reservationContext?.table_id || null,
+          product_id: existingTicket.product_id || reservationContext?.product_id || null,
+          table_reservation_id:
+            existingTicket.table_reservation_id ||
+            reservationContext?.id ||
+            (codeRow as any).table_reservation_id ||
+            null,
+        })
+        .eq("id", existingTicket.id);
+
+      if (linkCodeError) {
+        return NextResponse.json({ success: false, error: linkCodeError.message }, { status: 500 });
+      }
+
+      const nextUses = Math.max(Number(codeRow?.uses || 0), 1);
+      await supabase.from("codes").update({ uses: nextUses }).eq("id", codeRow.id);
+    }
+
     console.log("[/api/tickets] Ticket existente encontrado:", existingTicket.id);
     return NextResponse.json({
       success: true,
@@ -255,6 +316,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  const qr_token = crypto.randomUUID();
   console.log("[/api/tickets] No hay ticket existente, creando nuevo...");
 
   const { data: ticketData, error: ticketError } = await supabase

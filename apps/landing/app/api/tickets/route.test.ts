@@ -46,7 +46,10 @@ describe("POST /api/tickets", () => {
       ],
       "persons.select": [{ data: null, error: null }],
       "persons.insert": [{ data: { id: "person-1" }, error: null }],
-      "tickets.select": [{ data: null, error: null }],
+      "tickets.select": [
+        { data: null, error: null },
+        { data: null, error: null },
+      ],
       "tickets.insert": [{ data: { id: "ticket-1" }, error: null }],
       "codes.update": [{ data: null, error: null }],
     });
@@ -196,7 +199,10 @@ describe("POST /api/tickets", () => {
       ],
       "persons.select": [{ data: null, error: null }],
       "persons.insert": [{ data: { id: "person-22" }, error: null }],
-      "tickets.select": [{ data: null, error: null }],
+      "tickets.select": [
+        { data: null, error: null },
+        { data: null, error: null },
+      ],
       "tickets.insert": [{ data: { id: "ticket-22" }, error: null }],
       "codes.update": [{ data: null, error: null }],
     });
@@ -336,7 +342,10 @@ describe("POST /api/tickets", () => {
       ],
       "persons.select": [{ data: null, error: null }],
       "persons.insert": [{ data: { id: "person-33" }, error: null }],
-      "tickets.select": [{ data: null, error: null }],
+      "tickets.select": [
+        { data: null, error: null },
+        { data: null, error: null },
+      ],
       "tickets.insert": [{ data: { id: "ticket-33" }, error: null }],
       "codes.update": [{ data: null, error: null }],
     });
@@ -366,5 +375,88 @@ describe("POST /api/tickets", () => {
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
     expect(payload.ticketId).toBe("ticket-33");
+  });
+
+  it("bloquea el uso de un código ya vinculado a otra persona", async () => {
+    const { supabase } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-table-4",
+            code: "LOVEIS7897",
+            event_id: "event-1",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 1,
+            uses: 1,
+            expires_at: null,
+            table_reservation_id: "res-4",
+            type: "table",
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "sold_out",
+            sale_public_message: "Entradas agotadas",
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-4",
+            event_id: "event-1",
+            table_id: "table-44",
+            product_id: "prod-44",
+            status: "approved",
+          },
+          error: null,
+        },
+      ],
+      "persons.select": [{ data: { id: "person-current" }, error: null }],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-owner",
+            qr_token: "qr-owner",
+            person_id: "person-owner",
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "LOVEIS7897",
+        doc_type: "dni",
+        document: "77378843",
+        nombre: "Gianella",
+        apellido_paterno: "Brehaut",
+        apellido_materno: "Ojeda",
+        email: "gianella@example.com",
+        telefono: "+51904790266",
+        birthdate: "2001-09-01",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("otra persona");
   });
 });
