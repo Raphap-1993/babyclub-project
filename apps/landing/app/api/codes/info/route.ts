@@ -69,18 +69,38 @@ export async function GET(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,event_id,status,doc_type,document,dni,full_name,email,phone,person:persons(first_name,last_name,email,phone,doc_type,document,dni)"
+          "id,event_id,doc_type,document,dni,full_name,email,phone,is_active,person:persons(first_name,last_name,email,phone,doc_type,document,dni)"
         )
         .eq("code_id", data.id)
-        // Legacy rows may have status = null and must still be treated as active.
-        .or("status.is.null,status.neq.cancelled")
+        .eq("is_active", true)
         .order("created_at", { ascending: false })
-        .limit(2)
+        .limit(5)
     );
-    const { data: ticketsData } = await ticketsQuery;
+    let { data: ticketsData, error: ticketsError } = await ticketsQuery;
 
-    // Only prefill when the code has exactly one active ticket owner.
-    if (Array.isArray(ticketsData) && ticketsData.length === 1) {
+    if (
+      ticketsError &&
+      (String(ticketsError.message || "").includes("tickets.is_active") ||
+        String(ticketsError.details || "").includes("tickets.is_active"))
+    ) {
+      const legacyTicketsQuery = applyNotDeleted(
+        supabase
+          .from("tickets")
+          .select(
+            "id,event_id,doc_type,document,dni,full_name,email,phone,person:persons(first_name,last_name,email,phone,doc_type,document,dni)"
+          )
+          .eq("code_id", data.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+      );
+      const legacyResult = await legacyTicketsQuery;
+      ticketsData = legacyResult.data;
+      ticketsError = legacyResult.error;
+    }
+
+    // If duplicated historical tickets exist for one code, use the latest active one
+    // so the code remains operationally linked to a single visible owner in /registro.
+    if (!ticketsError && Array.isArray(ticketsData) && ticketsData.length > 0) {
       const ticketRow: any = ticketsData[0];
       const personRel = Array.isArray(ticketRow?.person) ? ticketRow.person[0] : ticketRow?.person;
       const fullName = String(ticketRow?.full_name || "").trim();

@@ -88,7 +88,7 @@ describe("GET /api/codes/info", () => {
     expect(payload.registered_person?.first_name).toBe("Gabriela");
   });
 
-  it("no retorna registered_person cuando hay más de un ticket activo para el mismo código", async () => {
+  it("si hay duplicados históricos para un código, toma el ticket más reciente como titular visible", async () => {
     const { supabase } = createSupabaseMock({
       "codes.select": [
         {
@@ -119,8 +119,46 @@ describe("GET /api/codes/info", () => {
       "tickets.select": [
         {
           data: [
-            { id: "ticket-a", event_id: "event-1", status: "active" },
-            { id: "ticket-b", event_id: "event-1", status: "active" },
+            {
+              id: "ticket-reciente",
+              event_id: "event-1",
+              doc_type: "dni",
+              document: "99999999",
+              dni: "99999999",
+              full_name: "Persona Reciente",
+              email: "reciente@example.com",
+              phone: "900000001",
+              is_active: true,
+              person: {
+                first_name: "Persona",
+                last_name: "Reciente",
+                email: "reciente@example.com",
+                phone: "900000001",
+                doc_type: "dni",
+                document: "99999999",
+                dni: "99999999",
+              },
+            },
+            {
+              id: "ticket-antiguo",
+              event_id: "event-1",
+              doc_type: "dni",
+              document: "11111111",
+              dni: "11111111",
+              full_name: "Persona Antigua",
+              email: "antigua@example.com",
+              phone: "900000002",
+              is_active: true,
+              person: {
+                first_name: "Persona",
+                last_name: "Antigua",
+                email: "antigua@example.com",
+                phone: "900000002",
+                doc_type: "dni",
+                document: "11111111",
+                dni: "11111111",
+              },
+            },
           ],
           error: null,
         },
@@ -138,10 +176,11 @@ describe("GET /api/codes/info", () => {
 
     expect(res.status).toBe(200);
     expect(payload.code).toBe("MULTI1234");
-    expect(payload.registered_person).toBeNull();
+    expect(payload.registered_person?.ticket_id).toBe("ticket-reciente");
+    expect(payload.registered_person?.document).toBe("99999999");
   });
 
-  it("incluye tickets legacy con status null para autocompletar datos del titular", async () => {
+  it("incluye tickets legacy sin columna is_active para autocompletar datos del titular", async () => {
     const { supabase, calls } = createSupabaseMock({
       "codes.select": [
         {
@@ -171,11 +210,17 @@ describe("GET /api/codes/info", () => {
       ],
       "tickets.select": [
         {
+          data: null,
+          error: {
+            message: "column tickets.is_active does not exist",
+            details: "",
+          },
+        },
+        {
           data: [
             {
               id: "ticket-legacy",
               event_id: "event-1",
-              status: null,
               doc_type: "dni",
               document: "12345678",
               dni: "12345678",
@@ -212,6 +257,6 @@ describe("GET /api/codes/info", () => {
     expect(payload.registered_person?.document).toBe("12345678");
 
     const ticketsCall = calls.find((call) => call.table === "tickets" && call.op === "select");
-    expect(ticketsCall?.filters?.some((f) => f.type === "or")).toBe(true);
+    expect(ticketsCall?.filters?.some((f) => f.type === "eq" && f.args[0] === "is_active")).toBe(true);
   });
 });
