@@ -17,20 +17,20 @@ export default async function AdminDashboard() {
 
   return (
     <main className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
           <p className="text-sm text-neutral-400">Métricas en tiempo real</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-3 xl:grid-cols-5">
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
-              <Link key={action.href} href={action.href}>
+              <Link key={action.href} href={action.href} className="w-full">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-rose-500/30 bg-neutral-800/80 hover:bg-rose-500/20 text-white hover:text-white hover:border-rose-500/50 transition-all"
+                  className="w-full justify-start border-rose-500/30 bg-neutral-800/80 text-white transition-all hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-white sm:justify-center lg:justify-start"
                 >
                   <Icon className="mr-2 h-4 w-4 text-rose-400" />
                   <span className="text-neutral-100">{action.label}</span>

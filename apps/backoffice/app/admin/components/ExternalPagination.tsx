@@ -30,7 +30,7 @@ export function ExternalPagination({
   const endItem = safeTotal === 0 ? 0 : Math.min(safePage * itemsPerPage, safeTotal);
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-neutral-700/30 bg-neutral-800/20 px-2 py-3 backdrop-blur-sm">
+    <div className="flex flex-col gap-3 rounded-lg border border-neutral-700/30 bg-neutral-800/20 px-2 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center text-xs text-neutral-400">
         <span>
           Mostrando <span className="font-medium text-neutral-300">{startItem}</span> a{" "}
@@ -39,7 +39,7 @@ export function ExternalPagination({
         </span>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:justify-end">
         <div className="flex items-center gap-2 text-xs">
           <label htmlFor="pageSize" className="text-neutral-400">
             Por página:
@@ -48,7 +48,7 @@ export function ExternalPagination({
             id="pageSize"
             value={itemsPerPage}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="h-8 min-w-[88px] text-xs"
+            className="h-8 min-w-[80px] text-xs"
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>
@@ -58,7 +58,7 @@ export function ExternalPagination({
           </SelectNative>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1 sm:ml-0">
           <Button
             type="button"
             variant="ghost"
@@ -91,4 +91,3 @@ export function ExternalPagination({
     </div>
   );
 }
-
