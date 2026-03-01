@@ -181,10 +181,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <ClientAuthGate>
-      <div className="flex min-h-screen bg-black text-white">
+      <div className="flex min-h-screen overflow-x-hidden bg-black text-white">
         {!isDoorSession ? <Sidebar /> : null}
         <main className={isDoorSession ? "flex-1" : "flex-1 md:ml-64"}>
-          <div className={isDoorSession ? "p-2 md:p-4" : "p-4 md:p-8"}>
+          <div className={isDoorSession ? "p-2 md:p-4" : "p-3 sm:p-4 md:p-6 lg:p-8"}>
             {children}
           </div>
         </main>

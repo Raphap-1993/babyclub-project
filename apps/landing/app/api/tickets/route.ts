@@ -153,7 +153,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
   }
   const saleDecision = evaluateEventSales(ensureEventSalesDefaults(eventRow as any));
-  if (!saleDecision.available) {
+  const codeType = String((codeRow as any)?.type || "").trim().toLowerCase();
+  const allowsRedemptionWhenSalesBlocked =
+    Boolean(reservationContext?.id || (codeRow as any)?.table_reservation_id) ||
+    codeType === "table" ||
+    codeType === "courtesy" ||
+    codeType === "promoter";
+
+  if (!saleDecision.available && !allowsRedemptionWhenSalesBlocked) {
     return NextResponse.json(
       {
         success: false,

@@ -436,6 +436,10 @@ function RegistroContent() {
 
   const aforoWidth = Math.max(0, Math.min(aforo, 100));
   const salesBlocked = saleGuard ? !saleGuard.available : false;
+  const codeType = String(codeInfo?.type || "").toLowerCase();
+  const canRedeemPrepaidCodeWhenSalesBlocked =
+    codeType === "table" || codeType === "courtesy" || codeType === "promoter";
+  const ticketGenerationBlocked = salesBlocked && !canRedeemPrepaidCodeWhenSalesBlocked;
   const salesBlockedMessage =
     saleGuard?.message ||
     (saleGuard?.status === "paused"
@@ -577,6 +581,11 @@ function RegistroContent() {
                   {saleGuard?.status === "paused" ? "Venta pausada" : "Sold out"}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-white">{salesBlockedMessage}</p>
+                {canRedeemPrepaidCodeWhenSalesBlocked && (
+                  <p className="mt-2 text-xs font-semibold text-emerald-200">
+                    Tu código ya fue emitido. Puedes generar tu QR normalmente.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -687,10 +696,10 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => createTicketAndRedirect()}
-                disabled={salesBlocked}
+                disabled={ticketGenerationBlocked}
                 className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition"
               >
-                {salesBlocked ? "Venta bloqueada" : existingTicketId ? "Ver mi QR" : "Generar QR"}
+                {ticketGenerationBlocked ? "Venta bloqueada" : existingTicketId ? "Ver mi QR" : "Generar QR"}
               </button>
               <button
                 type="button"
@@ -1555,7 +1564,7 @@ function RegistroContent() {
   async function createTicketAndRedirect(extraCodes?: string[]) {
     setError(null);
     if (extraCodes?.length) setReservationError(null);
-    if (salesBlocked) {
+    if (ticketGenerationBlocked) {
       setError(salesBlockedMessage);
       return;
     }
