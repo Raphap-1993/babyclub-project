@@ -24,8 +24,12 @@ type NormalizedEvent = {
 
 function isMissingDeletedAtColumnError(error: any, tableName: string) {
   if (!error) return false;
-  const haystack = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
-  return haystack.includes(`${tableName}.deleted_at`) || haystack.includes("column deleted_at does not exist");
+  const haystack =
+    `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return (
+    haystack.includes(`${tableName}.deleted_at`) ||
+    haystack.includes("column deleted_at does not exist")
+  );
 }
 
 async function fetchScanLogs(
@@ -42,7 +46,7 @@ async function fetchScanLogs(
     fromIso: string;
     toIso: string;
     limit: number;
-  }
+  },
 ) {
   let scansQuery = applyNotDeleted(
     supabase
@@ -51,7 +55,7 @@ async function fetchScanLogs(
       .in("event_id", allowedEventIds)
       .eq("result", "valid")
       .order("created_at", { ascending: false })
-      .limit(limit)
+      .limit(limit),
   );
   if (fromIso) scansQuery = scansQuery.gte("created_at", fromIso);
   if (toIso) scansQuery = scansQuery.lte("created_at", toIso);
@@ -98,9 +102,14 @@ function csvEscape(value: unknown) {
 
 type CsvColumn = { key: string; label: string };
 
-function toCsvFromColumns(columns: CsvColumn[], rows: Array<Record<string, unknown>>) {
+function toCsvFromColumns(
+  columns: CsvColumn[],
+  rows: Array<Record<string, unknown>>,
+) {
   const headers = columns.map((column) => column.label);
-  const body = rows.map((row) => columns.map((column) => csvEscape(row[column.key])).join(","));
+  const body = rows.map((row) =>
+    columns.map((column) => csvEscape(row[column.key])).join(","),
+  );
   return [headers.join(","), ...body].join("\n");
 }
 
@@ -119,17 +128,47 @@ function formatLimaDateTime(value: string | null) {
   }).format(date);
 }
 
+function isConfirmedScanLog(scan: any) {
+  const rawValue =
+    typeof scan?.raw_value === "string" ? scan.raw_value.trim() : "";
+  const ticketId =
+    typeof scan?.ticket_id === "string" ? scan.ticket_id.trim() : "";
+  const codeId = typeof scan?.code_id === "string" ? scan.code_id.trim() : "";
+
+  if (!rawValue) return false;
+  if (ticketId) return rawValue === ticketId;
+  if (codeId) return rawValue === codeId;
+  return false;
+}
+
+function getAdmissionKey(scan: any) {
+  const ticketId =
+    typeof scan?.ticket_id === "string" ? scan.ticket_id.trim() : "";
+  if (ticketId) return `ticket:${ticketId}`;
+  const codeId = typeof scan?.code_id === "string" ? scan.code_id.trim() : "";
+  if (codeId) return `code:${codeId}`;
+  return "";
+}
+
 export async function GET(req: NextRequest) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
-    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+    return NextResponse.json(
+      { success: false, error: guard.error },
+      { status: guard.status },
+    );
   }
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Supabase config missing" },
+      { status: 500 },
+    );
   }
 
   const search = req.nextUrl.searchParams;
-  const report = ((search.get("report") || "promoter_performance").trim() as ReportKind) || "promoter_performance";
+  const report =
+    ((search.get("report") || "promoter_performance").trim() as ReportKind) ||
+    "promoter_performance";
   const format = (search.get("format") || "json").trim().toLowerCase();
   const organizerId = (search.get("organizer_id") || "").trim();
   const eventId = (search.get("event_id") || "").trim();
@@ -137,8 +176,15 @@ export async function GET(req: NextRequest) {
   const fromIso = toStartIso(search.get("from"));
   const toIso = toEndIso(search.get("to"));
 
-  if (!["promoter_performance", "event_attendance", "event_sales"].includes(report)) {
-    return NextResponse.json({ success: false, error: "report inválido" }, { status: 400 });
+  if (
+    !["promoter_performance", "event_attendance", "event_sales"].includes(
+      report,
+    )
+  ) {
+    return NextResponse.json(
+      { success: false, error: "report inválido" },
+      { status: 400 },
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -150,7 +196,7 @@ export async function GET(req: NextRequest) {
       .from("events")
       .select("id,name,organizer_id,organizer:organizers(id,name,slug)")
       .order("starts_at", { ascending: true })
-      .limit(2000)
+      .limit(2000),
   );
   if (organizerId) {
     eventsQuery = eventsQuery.eq("organizer_id", organizerId);
@@ -160,11 +206,18 @@ export async function GET(req: NextRequest) {
   }
   const { data: events, error: eventsError } = await eventsQuery;
   if (eventsError) {
-    return NextResponse.json({ success: false, error: eventsError.message }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: eventsError.message },
+      { status: 400 },
+    );
   }
 
-  const normalizedEvents: NormalizedEvent[] = ((events || []) as EventRaw[]).map((event) => {
-    const organizerRel = Array.isArray(event.organizer) ? event.organizer[0] : event.organizer;
+  const normalizedEvents: NormalizedEvent[] = (
+    (events || []) as EventRaw[]
+  ).map((event) => {
+    const organizerRel = Array.isArray(event.organizer)
+      ? event.organizer[0]
+      : event.organizer;
     return {
       id: event.id,
       name: event.name,
@@ -179,7 +232,10 @@ export async function GET(req: NextRequest) {
   }
 
   const eventById = new Map<string, NormalizedEvent>(
-    normalizedEvents.map((event): [string, NormalizedEvent] => [event.id, event])
+    normalizedEvents.map((event): [string, NormalizedEvent] => [
+      event.id,
+      event,
+    ]),
   );
 
   if (report === "promoter_performance") {
@@ -189,32 +245,55 @@ export async function GET(req: NextRequest) {
         .select("id,event_id,promoter_id,created_at")
         .in("event_id", allowedEventIds)
         .order("created_at", { ascending: false })
-        .limit(10000)
+        .limit(10000),
     );
     if (fromIso) codesQuery = codesQuery.gte("created_at", fromIso);
     if (toIso) codesQuery = codesQuery.lte("created_at", toIso);
     const { data: codesData, error: codesError } = await codesQuery;
     if (codesError) {
-      return NextResponse.json({ success: false, error: codesError.message }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: codesError.message },
+        { status: 400 },
+      );
     }
 
-    const { data: scansData, error: scansError } = await fetchScanLogs(supabase, {
-      select: "id,event_id,result,created_at,code:codes(promoter_id),ticket:tickets(promoter_id)",
-      allowedEventIds,
-      fromIso,
-      toIso,
-      limit: 10000,
-    });
+    const { data: scansData, error: scansError } = await fetchScanLogs(
+      supabase,
+      {
+        select:
+          "id,event_id,ticket_id,code_id,raw_value,result,created_at,code:codes(promoter_id),ticket:tickets(promoter_id)",
+        allowedEventIds,
+        fromIso,
+        toIso,
+        limit: 10000,
+      },
+    );
     if (scansError) {
-      return NextResponse.json({ success: false, error: scansError.message }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: scansError.message },
+        { status: 400 },
+      );
     }
 
     const promoterIds = new Set<string>();
-    const counters = new Map<string, { event_id: string; promoter_id: string; codes_generated: number; scans_confirmed: number }>();
+    const counters = new Map<
+      string,
+      {
+        event_id: string;
+        promoter_id: string;
+        codes_generated: number;
+        scans_confirmed: number;
+      }
+    >();
     const ensureCounter = (event_id: string, promoter_id: string) => {
       const key = `${event_id}:${promoter_id}`;
       if (!counters.has(key)) {
-        counters.set(key, { event_id, promoter_id, codes_generated: 0, scans_confirmed: 0 });
+        counters.set(key, {
+          event_id,
+          promoter_id,
+          codes_generated: 0,
+          scans_confirmed: 0,
+        });
       }
       return counters.get(key)!;
     };
@@ -229,10 +308,17 @@ export async function GET(req: NextRequest) {
     }
 
     for (const scan of scansData || []) {
+      if (!isConfirmedScanLog(scan)) continue;
       const event_id = (scan as any)?.event_id as string | null;
-      const codeRel = Array.isArray((scan as any)?.code) ? (scan as any)?.code?.[0] : (scan as any)?.code;
-      const ticketRel = Array.isArray((scan as any)?.ticket) ? (scan as any)?.ticket?.[0] : (scan as any)?.ticket;
-      const promoter_id = (codeRel?.promoter_id || ticketRel?.promoter_id || "") as string;
+      const codeRel = Array.isArray((scan as any)?.code)
+        ? (scan as any)?.code?.[0]
+        : (scan as any)?.code;
+      const ticketRel = Array.isArray((scan as any)?.ticket)
+        ? (scan as any)?.ticket?.[0]
+        : (scan as any)?.ticket;
+      const promoter_id = (codeRel?.promoter_id ||
+        ticketRel?.promoter_id ||
+        "") as string;
       if (!event_id || !promoter_id) continue;
       if (promoterId && promoter_id !== promoterId) continue;
       promoterIds.add(promoter_id);
@@ -245,14 +331,24 @@ export async function GET(req: NextRequest) {
         ? await applyNotDeleted(
             supabase
               .from("promoters")
-              .select("id,code,organizer_id,person:persons(first_name,last_name)")
-              .in("id", promoterIdList)
+              .select(
+                "id,code,organizer_id,person:persons(first_name,last_name)",
+              )
+              .in("id", promoterIdList),
           )
         : { data: [] as any[] };
-    const promoterMap = new Map<string, { code: string; name: string; organizer_id: string | null }>();
+    const promoterMap = new Map<
+      string,
+      { code: string; name: string; organizer_id: string | null }
+    >();
     for (const promoter of promoterRows || []) {
-      const personRel = Array.isArray((promoter as any)?.person) ? (promoter as any)?.person?.[0] : (promoter as any)?.person;
-      const name = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
+      const personRel = Array.isArray((promoter as any)?.person)
+        ? (promoter as any)?.person?.[0]
+        : (promoter as any)?.person;
+      const name = [personRel?.first_name, personRel?.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
       promoterMap.set((promoter as any).id, {
         code: (promoter as any).code || "",
         name,
@@ -265,7 +361,11 @@ export async function GET(req: NextRequest) {
         const event = eventById.get(row.event_id);
         const promoter = promoterMap.get(row.promoter_id);
         const attendanceRate =
-          row.codes_generated > 0 ? Number(((row.scans_confirmed / row.codes_generated) * 100).toFixed(2)) : 0;
+          row.codes_generated > 0
+            ? Number(
+                ((row.scans_confirmed / row.codes_generated) * 100).toFixed(2),
+              )
+            : 0;
         return {
           organizer_id: event?.organizer_id || promoter?.organizer_id || "",
           organizer_name: event?.organizer_name || "",
@@ -280,8 +380,10 @@ export async function GET(req: NextRequest) {
         };
       })
       .sort((a, b) => {
-        if (a.organizer_name !== b.organizer_name) return a.organizer_name.localeCompare(b.organizer_name);
-        if (a.event_name !== b.event_name) return a.event_name.localeCompare(b.event_name);
+        if (a.organizer_name !== b.organizer_name)
+          return a.organizer_name.localeCompare(b.organizer_name);
+        if (a.event_name !== b.event_name)
+          return a.event_name.localeCompare(b.event_name);
         return a.promoter_name.localeCompare(b.promoter_name);
       });
 
@@ -296,13 +398,14 @@ export async function GET(req: NextRequest) {
           { key: "scans_confirmed", label: "Escaneos válidos" },
           { key: "attendance_rate_percent", label: "% de asistencia" },
         ],
-        rows as any
+        rows as any,
       );
       return new Response(csv, {
         status: 200,
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": 'attachment; filename="reporte-promotores.csv"',
+          "Content-Disposition":
+            'attachment; filename="reporte-promotores.csv"',
         },
       });
     }
@@ -311,18 +414,29 @@ export async function GET(req: NextRequest) {
   }
 
   if (report === "event_attendance") {
-    const { data: scansData, error: scansError } = await fetchScanLogs(supabase, {
-      select: "id,event_id,ticket_id,code_id,result,created_at,code:codes(code,type,promoter_id),ticket:tickets(promoter_id)",
-      allowedEventIds,
-      fromIso,
-      toIso,
-      limit: 15000,
-    });
+    const { data: scansData, error: scansError } = await fetchScanLogs(
+      supabase,
+      {
+        select:
+          "id,event_id,ticket_id,code_id,raw_value,result,created_at,code:codes(code,type,promoter_id),ticket:tickets(promoter_id)",
+        allowedEventIds,
+        fromIso,
+        toIso,
+        limit: 15000,
+      },
+    );
     if (scansError) {
-      return NextResponse.json({ success: false, error: scansError.message }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: scansError.message },
+        { status: 400 },
+      );
     }
 
-    const incrementCount = (counter: Map<string, number>, key: string, delta = 1) => {
+    const incrementCount = (
+      counter: Map<string, number>,
+      key: string,
+      delta = 1,
+    ) => {
       counter.set(key, (counter.get(key) || 0) + delta);
     };
     const normalizeTypeBucket = (codeType: string) => {
@@ -338,19 +452,20 @@ export async function GET(req: NextRequest) {
       string,
       {
         scans: number;
+        admissionSet: Set<string>;
         ticketSet: Set<string>;
         codeSet: Set<string>;
         freeScans: number;
-        freeTicketSet: Set<string>;
+        freeAdmissionSet: Set<string>;
         firstScanAt: string | null;
         lastScanAt: string | null;
         freeFirstScanAt: string | null;
         freeLastScanAt: string | null;
         typeScans: Map<string, number>;
         promoterScans: Map<string, number>;
-        promoterTicketSets: Map<string, Set<string>>;
-        withPromoterTicketSet: Set<string>;
-        withoutPromoterTicketSet: Set<string>;
+        promoterAdmissionSets: Map<string, Set<string>>;
+        withPromoterAdmissionSet: Set<string>;
+        withoutPromoterAdmissionSet: Set<string>;
         withoutPromoterScans: number;
         codeUsage: Map<string, number>;
       }
@@ -361,35 +476,46 @@ export async function GET(req: NextRequest) {
       if (!grouped.has(event_id)) {
         grouped.set(event_id, {
           scans: 0,
+          admissionSet: new Set<string>(),
           ticketSet: new Set<string>(),
           codeSet: new Set<string>(),
           freeScans: 0,
-          freeTicketSet: new Set<string>(),
+          freeAdmissionSet: new Set<string>(),
           firstScanAt: null,
           lastScanAt: null,
           freeFirstScanAt: null,
           freeLastScanAt: null,
           typeScans: new Map<string, number>(),
           promoterScans: new Map<string, number>(),
-          promoterTicketSets: new Map<string, Set<string>>(),
-          withPromoterTicketSet: new Set<string>(),
-          withoutPromoterTicketSet: new Set<string>(),
+          promoterAdmissionSets: new Map<string, Set<string>>(),
+          withPromoterAdmissionSet: new Set<string>(),
+          withoutPromoterAdmissionSet: new Set<string>(),
           withoutPromoterScans: 0,
           codeUsage: new Map<string, number>(),
         });
       }
       const row = grouped.get(event_id)!;
+      if (!isConfirmedScanLog(scan)) continue;
       row.scans += 1;
       const ticketId = (scan as any).ticket_id as string | null;
       const codeId = (scan as any).code_id as string | null;
       const createdAt = (scan as any).created_at as string | null;
-      const codeRel = Array.isArray((scan as any)?.code) ? (scan as any)?.code?.[0] : (scan as any)?.code;
-      const ticketRel = Array.isArray((scan as any)?.ticket) ? (scan as any)?.ticket?.[0] : (scan as any)?.ticket;
+      const admissionKey = getAdmissionKey(scan);
+      const codeRel = Array.isArray((scan as any)?.code)
+        ? (scan as any)?.code?.[0]
+        : (scan as any)?.code;
+      const ticketRel = Array.isArray((scan as any)?.ticket)
+        ? (scan as any)?.ticket?.[0]
+        : (scan as any)?.ticket;
       const codeType = String(codeRel?.type || "").toLowerCase();
       const typeBucket = normalizeTypeBucket(codeType);
-      const isFreeCode = typeBucket === "free" || typeBucket === "courtesy" || typeBucket === "promoter_legacy";
+      const isFreeCode =
+        typeBucket === "free" ||
+        typeBucket === "courtesy" ||
+        typeBucket === "promoter_legacy";
       incrementCount(row.typeScans, typeBucket, 1);
 
+      if (admissionKey) row.admissionSet.add(admissionKey);
       if (ticketId) row.ticketSet.add(ticketId);
       if (codeId) row.codeSet.add(codeId);
 
@@ -398,35 +524,41 @@ export async function GET(req: NextRequest) {
         incrementCount(row.codeUsage, codeValue, 1);
       }
 
-      const promoterId = String(codeRel?.promoter_id || ticketRel?.promoter_id || "").trim();
+      const promoterId = String(
+        codeRel?.promoter_id || ticketRel?.promoter_id || "",
+      ).trim();
       if (promoterId) {
         promoterIds.add(promoterId);
         incrementCount(row.promoterScans, promoterId, 1);
-        if (ticketId) {
-          if (!row.promoterTicketSets.has(promoterId)) {
-            row.promoterTicketSets.set(promoterId, new Set<string>());
+        if (admissionKey) {
+          if (!row.promoterAdmissionSets.has(promoterId)) {
+            row.promoterAdmissionSets.set(promoterId, new Set<string>());
           }
-          row.promoterTicketSets.get(promoterId)!.add(ticketId);
-          row.withPromoterTicketSet.add(ticketId);
+          row.promoterAdmissionSets.get(promoterId)!.add(admissionKey);
+          row.withPromoterAdmissionSet.add(admissionKey);
         }
       } else {
         row.withoutPromoterScans += 1;
-        if (ticketId) {
-          row.withoutPromoterTicketSet.add(ticketId);
+        if (admissionKey) {
+          row.withoutPromoterAdmissionSet.add(admissionKey);
         }
       }
 
       if (createdAt) {
-        if (!row.firstScanAt || createdAt < row.firstScanAt) row.firstScanAt = createdAt;
-        if (!row.lastScanAt || createdAt > row.lastScanAt) row.lastScanAt = createdAt;
+        if (!row.firstScanAt || createdAt < row.firstScanAt)
+          row.firstScanAt = createdAt;
+        if (!row.lastScanAt || createdAt > row.lastScanAt)
+          row.lastScanAt = createdAt;
       }
 
       if (isFreeCode) {
         row.freeScans += 1;
-        if (ticketId) row.freeTicketSet.add(ticketId);
+        if (admissionKey) row.freeAdmissionSet.add(admissionKey);
         if (createdAt) {
-          if (!row.freeFirstScanAt || createdAt < row.freeFirstScanAt) row.freeFirstScanAt = createdAt;
-          if (!row.freeLastScanAt || createdAt > row.freeLastScanAt) row.freeLastScanAt = createdAt;
+          if (!row.freeFirstScanAt || createdAt < row.freeFirstScanAt)
+            row.freeFirstScanAt = createdAt;
+          if (!row.freeLastScanAt || createdAt > row.freeLastScanAt)
+            row.freeLastScanAt = createdAt;
         }
       }
     }
@@ -435,15 +567,25 @@ export async function GET(req: NextRequest) {
     const { data: promoterRows } =
       promoterIdList.length > 0
         ? await applyNotDeleted(
-            supabase.from("promoters").select("id,code,person:persons(first_name,last_name)").in("id", promoterIdList)
+            supabase
+              .from("promoters")
+              .select("id,code,person:persons(first_name,last_name)")
+              .in("id", promoterIdList),
           )
         : { data: [] as any[] };
     const promoterLabelMap = new Map<string, string>();
     for (const promoter of promoterRows || []) {
-      const personRel = Array.isArray((promoter as any)?.person) ? (promoter as any)?.person?.[0] : (promoter as any)?.person;
-      const fullName = [personRel?.first_name, personRel?.last_name].filter(Boolean).join(" ").trim();
+      const personRel = Array.isArray((promoter as any)?.person)
+        ? (promoter as any)?.person?.[0]
+        : (promoter as any)?.person;
+      const fullName = [personRel?.first_name, personRel?.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
       const code = String((promoter as any)?.code || "").trim();
-      const label = [code, fullName].filter(Boolean).join(" - ") || String((promoter as any).id || "");
+      const label =
+        [code, fullName].filter(Boolean).join(" - ") ||
+        String((promoter as any).id || "");
       promoterLabelMap.set(String((promoter as any).id), label);
     }
 
@@ -451,7 +593,7 @@ export async function GET(req: NextRequest) {
       const event = eventById.get(event_id);
       const topPromoters = Array.from(metrics.promoterScans.entries())
         .map(([id, scans]) => {
-          const attendees = metrics.promoterTicketSets.get(id)?.size || 0;
+          const attendees = metrics.promoterAdmissionSets.get(id)?.size || 0;
           const label = promoterLabelMap.get(id) || id;
           return { id, scans, attendees, label };
         })
@@ -461,7 +603,9 @@ export async function GET(req: NextRequest) {
           return a.label.localeCompare(b.label);
         })
         .slice(0, 5)
-        .map((row) => `${row.label} (${row.attendees} pers. / ${row.scans} esc.)`)
+        .map(
+          (row) => `${row.label} (${row.attendees} pers. / ${row.scans} esc.)`,
+        )
         .join(" | ");
       const topCodes = Array.from(metrics.codeUsage.entries())
         .sort((a, b) => {
@@ -478,22 +622,25 @@ export async function GET(req: NextRequest) {
         event_id,
         event_name: event?.name || "",
         scans_confirmed: metrics.scans,
+        unique_admissions_confirmed: metrics.admissionSet.size,
         unique_tickets_scanned: metrics.ticketSet.size,
         unique_codes_scanned: metrics.codeSet.size,
         escaneos_qr_general: metrics.typeScans.get("general") || 0,
         escaneos_qr_cortesia: metrics.typeScans.get("courtesy") || 0,
         escaneos_qr_mesa: metrics.typeScans.get("table") || 0,
         escaneos_qr_free: metrics.typeScans.get("free") || 0,
-        escaneos_qr_promotor_legado: metrics.typeScans.get("promoter_legacy") || 0,
+        escaneos_qr_promotor_legado:
+          metrics.typeScans.get("promoter_legacy") || 0,
         escaneos_qr_sin_tipo: metrics.typeScans.get("unknown") || 0,
         promotores_activos: metrics.promoterScans.size,
-        asistentes_unicos_con_promotor: metrics.withPromoterTicketSet.size,
-        asistentes_unicos_sin_promotor: metrics.withoutPromoterTicketSet.size,
+        asistentes_unicos_con_promotor: metrics.withPromoterAdmissionSet.size,
+        asistentes_unicos_sin_promotor:
+          metrics.withoutPromoterAdmissionSet.size,
         escaneos_sin_promotor: metrics.withoutPromoterScans,
         top_promotores: topPromoters || "Sin promotor identificado",
         top_codigos_usados: topCodes || "Sin códigos identificables",
         free_qr_scans_confirmed: metrics.freeScans,
-        free_qr_unique_tickets_scanned: metrics.freeTicketSet.size,
+        free_qr_unique_tickets_scanned: metrics.freeAdmissionSet.size,
         first_scan_at_lima: formatLimaDateTime(metrics.firstScanAt),
         last_scan_at_lima: formatLimaDateTime(metrics.lastScanAt),
         free_qr_first_scan_at_lima: formatLimaDateTime(metrics.freeFirstScanAt),
@@ -507,34 +654,69 @@ export async function GET(req: NextRequest) {
           { key: "organizer_name", label: "Organizador" },
           { key: "event_name", label: "Evento" },
           { key: "scans_confirmed", label: "Escaneos válidos" },
+          {
+            key: "unique_admissions_confirmed",
+            label: "Admisiones únicas confirmadas",
+          },
           { key: "unique_tickets_scanned", label: "Tickets únicos" },
           { key: "unique_codes_scanned", label: "Códigos únicos" },
           { key: "escaneos_qr_general", label: "Escaneos QR general" },
           { key: "escaneos_qr_cortesia", label: "Escaneos QR cortesía" },
           { key: "escaneos_qr_mesa", label: "Escaneos QR mesa" },
           { key: "escaneos_qr_free", label: "Escaneos QR free" },
-          { key: "escaneos_qr_promotor_legado", label: "Escaneos QR promotor (legado)" },
-          { key: "escaneos_qr_sin_tipo", label: "Escaneos QR sin tipo identificado" },
-          { key: "promotores_activos", label: "Promotores activos con ingresos" },
-          { key: "asistentes_unicos_con_promotor", label: "Asistentes únicos con promotor" },
-          { key: "asistentes_unicos_sin_promotor", label: "Asistentes únicos sin promotor" },
+          {
+            key: "escaneos_qr_promotor_legado",
+            label: "Escaneos QR promotor (legado)",
+          },
+          {
+            key: "escaneos_qr_sin_tipo",
+            label: "Escaneos QR sin tipo identificado",
+          },
+          {
+            key: "promotores_activos",
+            label: "Promotores activos con ingresos",
+          },
+          {
+            key: "asistentes_unicos_con_promotor",
+            label: "Asistentes únicos con promotor",
+          },
+          {
+            key: "asistentes_unicos_sin_promotor",
+            label: "Asistentes únicos sin promotor",
+          },
           { key: "escaneos_sin_promotor", label: "Escaneos sin promotor" },
-          { key: "top_promotores", label: "Top promotores (asistencia/escaneos)" },
+          {
+            key: "top_promotores",
+            label: "Top promotores (asistencia/escaneos)",
+          },
           { key: "top_codigos_usados", label: "Top códigos usados" },
-          { key: "free_qr_scans_confirmed", label: "Escaneos QR free/cortesía" },
-          { key: "free_qr_unique_tickets_scanned", label: "Personas únicas QR free/cortesía" },
+          {
+            key: "free_qr_scans_confirmed",
+            label: "Escaneos QR free/cortesía",
+          },
+          {
+            key: "free_qr_unique_tickets_scanned",
+            label: "Personas únicas QR free/cortesía",
+          },
           { key: "first_scan_at_lima", label: "Primer ingreso (Lima)" },
           { key: "last_scan_at_lima", label: "Último ingreso (Lima)" },
-          { key: "free_qr_first_scan_at_lima", label: "Primer ingreso QR free/cortesía (Lima)" },
-          { key: "free_qr_last_scan_at_lima", label: "Último ingreso QR free/cortesía (Lima)" },
+          {
+            key: "free_qr_first_scan_at_lima",
+            label: "Primer ingreso QR free/cortesía (Lima)",
+          },
+          {
+            key: "free_qr_last_scan_at_lima",
+            label: "Último ingreso QR free/cortesía (Lima)",
+          },
         ],
-        rows as any
+        rows as any,
       );
       return new Response(csv, {
         status: 200,
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": 'attachment; filename="reporte-asistencia-eventos.csv"',
+          "Content-Disposition":
+            'attachment; filename="reporte-asistencia-eventos.csv"',
         },
       });
     }
@@ -553,10 +735,16 @@ export async function GET(req: NextRequest) {
   if (toIso) paymentsQuery = paymentsQuery.lte("created_at", toIso);
   const { data: paymentsData, error: paymentsError } = await paymentsQuery;
   if (paymentsError) {
-    return NextResponse.json({ success: false, error: paymentsError.message }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: paymentsError.message },
+      { status: 400 },
+    );
   }
 
-  const salesMap = new Map<string, { paid_count: number; total_amount: number; currency: string }>();
+  const salesMap = new Map<
+    string,
+    { paid_count: number; total_amount: number; currency: string }
+  >();
   for (const payment of paymentsData || []) {
     const event_id = (payment as any)?.event_id as string;
     if (!event_id) continue;
@@ -595,13 +783,14 @@ export async function GET(req: NextRequest) {
         { key: "total_amount_pen_est", label: "Ventas (S/)" },
         { key: "currency", label: "Moneda" },
       ],
-      rows as any
+      rows as any,
     );
     return new Response(csv, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="reporte-ventas-eventos.csv"',
+        "Content-Disposition":
+          'attachment; filename="reporte-ventas-eventos.csv"',
       },
     });
   }
