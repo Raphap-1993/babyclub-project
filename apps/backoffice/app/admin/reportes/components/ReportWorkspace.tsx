@@ -4,10 +4,23 @@ import { useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@repo/ui";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@repo/ui";
 
 type Option = { id: string; label: string; organizer_id?: string | null };
 
@@ -28,7 +41,12 @@ const REPORT_LABELS: Record<string, string> = {
   event_sales: "Ventas por evento",
 };
 
-const HIDDEN_UI_COLUMNS = new Set(["organizer_id", "event_id", "promoter_id", "total_amount_raw"]);
+const HIDDEN_UI_COLUMNS = new Set([
+  "organizer_id",
+  "event_id",
+  "promoter_id",
+  "total_amount_raw",
+]);
 
 const COLUMN_LABELS: Record<string, string> = {
   organizer_name: "Organizador",
@@ -37,6 +55,7 @@ const COLUMN_LABELS: Record<string, string> = {
   promoter_name: "Promotor",
   codes_generated: "Códigos generados",
   scans_confirmed: "Ingresos validados",
+  unique_admissions_confirmed: "Admisiones únicas confirmadas",
   attendance_rate_percent: "% de asistencia",
   unique_tickets_scanned: "Personas únicas",
   unique_codes_scanned: "Códigos únicos usados",
@@ -78,6 +97,7 @@ function formatReportValue(header: string, value: unknown) {
     [
       "codes_generated",
       "scans_confirmed",
+      "unique_admissions_confirmed",
       "unique_tickets_scanned",
       "unique_codes_scanned",
       "escaneos_qr_general",
@@ -130,13 +150,25 @@ export default function ReportWorkspace({
   const [error, setError] = useState<string | null>(null);
 
   const filteredEvents = useMemo(
-    () => (organizerId ? events.filter((event) => !event.organizer_id || event.organizer_id === organizerId) : events),
-    [organizerId, events]
+    () =>
+      organizerId
+        ? events.filter(
+            (event) =>
+              !event.organizer_id || event.organizer_id === organizerId,
+          )
+        : events,
+    [organizerId, events],
   );
 
   const filteredPromoters = useMemo(
-    () => (organizerId ? promoters.filter((promoter) => !promoter.organizer_id || promoter.organizer_id === organizerId) : promoters),
-    [organizerId, promoters]
+    () =>
+      organizerId
+        ? promoters.filter(
+            (promoter) =>
+              !promoter.organizer_id || promoter.organizer_id === organizerId,
+          )
+        : promoters,
+    [organizerId, promoters],
   );
 
   const tableHeaders = useMemo(() => {
@@ -146,16 +178,20 @@ export default function ReportWorkspace({
 
   const visibleHeaders = useMemo(
     () => tableHeaders.filter((header) => !HIDDEN_UI_COLUMNS.has(header)),
-    [tableHeaders]
+    [tableHeaders],
   );
 
   const attendanceSummary = useMemo(() => {
     if (report !== "event_attendance" || rows.length === 0) return null;
     const total = (key: string) =>
-      rows.reduce((acc, row) => acc + Number((row?.[key] as number | string | null | undefined) || 0), 0);
+      rows.reduce(
+        (acc, row) =>
+          acc + Number((row?.[key] as number | string | null | undefined) || 0),
+        0,
+      );
     return {
       ingresosValidados: total("scans_confirmed"),
-      personasUnicas: total("unique_tickets_scanned"),
+      personasUnicas: total("unique_admissions_confirmed"),
       promotoresActivos: total("promotores_activos"),
       ingresosQrFree: total("free_qr_scans_confirmed"),
     };
@@ -168,7 +204,8 @@ export default function ReportWorkspace({
     if (showDateRange && to) params.set("to", to);
     if (organizerId) params.set("organizer_id", organizerId);
     if (eventId) params.set("event_id", eventId);
-    if (promoterId && report === "promoter_performance") params.set("promoter_id", promoterId);
+    if (promoterId && report === "promoter_performance")
+      params.set("promoter_id", promoterId);
     return params.toString();
   }, [report, from, to, organizerId, eventId, promoterId, showDateRange]);
 
@@ -176,7 +213,10 @@ export default function ReportWorkspace({
     setLoading(true);
     setError(null);
     try {
-      const res = await authedFetch(`/api/admin/reports/export?${queryString}&format=json`, { cache: "no-store" as RequestCache });
+      const res = await authedFetch(
+        `/api/admin/reports/export?${queryString}&format=json`,
+        { cache: "no-store" as RequestCache },
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
         throw new Error(data?.error || "No se pudo generar el reporte");
@@ -194,7 +234,10 @@ export default function ReportWorkspace({
     setExporting(true);
     setError(null);
     try {
-      const res = await authedFetch(`/api/admin/reports/export?${queryString}&format=csv`, { cache: "no-store" as RequestCache });
+      const res = await authedFetch(
+        `/api/admin/reports/export?${queryString}&format=csv`,
+        { cache: "no-store" as RequestCache },
+      );
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
         throw new Error(payload?.error || "No se pudo exportar");
@@ -222,22 +265,35 @@ export default function ReportWorkspace({
     <Card className="border-[#2b2b2b]">
       <CardHeader className="border-b border-[#252525] pb-3 pt-3">
         <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription className="text-xs text-white/55">{description}</CardDescription>
+        <CardDescription className="text-xs text-white/55">
+          {description}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           {allowReportSwitch ? (
             <label className="space-y-1.5 xl:col-span-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Reporte</span>
-              <SelectNative value={report} onChange={(e) => setReport(e.target.value as typeof report)}>
-                <option value="promoter_performance">{REPORT_LABELS.promoter_performance}</option>
-                <option value="event_attendance">{REPORT_LABELS.event_attendance}</option>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                Reporte
+              </span>
+              <SelectNative
+                value={report}
+                onChange={(e) => setReport(e.target.value as typeof report)}
+              >
+                <option value="promoter_performance">
+                  {REPORT_LABELS.promoter_performance}
+                </option>
+                <option value="event_attendance">
+                  {REPORT_LABELS.event_attendance}
+                </option>
                 <option value="event_sales">{REPORT_LABELS.event_sales}</option>
               </SelectNative>
             </label>
           ) : (
             <div className="xl:col-span-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Reporte</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                Reporte
+              </span>
               <div className="mt-1 rounded-lg border border-[#303030] bg-[#101010] px-3 py-2 text-sm text-white/80">
                 {REPORT_LABELS[report]}
               </div>
@@ -247,17 +303,31 @@ export default function ReportWorkspace({
           {showDateRange ? (
             <>
               <label className="space-y-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Desde</span>
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                  Desde
+                </span>
+                <Input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
               </label>
               <label className="space-y-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Hasta</span>
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                  Hasta
+                </span>
+                <Input
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
               </label>
             </>
           ) : null}
           <label className="space-y-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Organizador</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+              Organizador
+            </span>
             <SelectNative
               value={organizerId}
               onChange={(e) => {
@@ -275,8 +345,13 @@ export default function ReportWorkspace({
             </SelectNative>
           </label>
           <label className="space-y-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Evento</span>
-            <SelectNative value={eventId} onChange={(e) => setEventId(e.target.value)}>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+              Evento
+            </span>
+            <SelectNative
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+            >
               <option value="">Todos</option>
               {filteredEvents.map((event) => (
                 <option key={event.id} value={event.id}>
@@ -287,8 +362,13 @@ export default function ReportWorkspace({
           </label>
           {report === "promoter_performance" ? (
             <label className="space-y-1.5 xl:col-span-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Promotor</span>
-              <SelectNative value={promoterId} onChange={(e) => setPromoterId(e.target.value)}>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                Promotor
+              </span>
+              <SelectNative
+                value={promoterId}
+                onChange={(e) => setPromoterId(e.target.value)}
+              >
                 <option value="">Todos</option>
                 {filteredPromoters.map((promoter) => (
                   <option key={promoter.id} value={promoter.id}>
@@ -301,13 +381,26 @@ export default function ReportWorkspace({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-white/60">Resultados cargados: {rows.length}</div>
+          <div className="text-xs text-white/60">
+            Resultados cargados: {rows.length}
+          </div>
           <div className="flex items-center gap-2">
-            <Button type="button" size="sm" onClick={runReport} disabled={loading}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={runReport}
+              disabled={loading}
+            >
               <Search className="h-4 w-4" />
               {loading ? "Consultando..." : "Consultar"}
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={exportCsv} disabled={exporting}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={exportCsv}
+              disabled={exporting}
+            >
               <Download className="h-4 w-4" />
               {exporting ? "Exportando..." : "Exportar CSV"}
             </Button>
@@ -320,11 +413,16 @@ export default function ReportWorkspace({
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
-              <strong>Personas únicas</strong> = asistentes reales (sin duplicados).{" "}
-              <strong>Códigos únicos usados</strong> = cantidad de códigos comerciales distintos que sí se usaron.{" "}
-              <strong>Top promotores</strong> = ranking por asistentes y escaneos validados.{" "}
-              <strong>Top códigos usados</strong> = códigos con más validaciones en puerta.{" "}
-              <strong>Primer/Último ingreso</strong> = horas reales de validación en zona horaria Lima.
+              <strong>Admisiones únicas confirmadas</strong> = asistentes reales
+              (sin duplicados), con ticket o código.{" "}
+              <strong>Tickets únicos</strong> = confirmaciones que sí tienen
+              ticket asociado. <strong>Códigos únicos usados</strong> = cantidad
+              de códigos comerciales distintos que sí se usaron.{" "}
+              <strong>Top promotores</strong> = ranking por asistentes y
+              escaneos validados. <strong>Top códigos usados</strong> = códigos
+              con más validaciones en puerta.{" "}
+              <strong>Primer/Último ingreso</strong> = horas reales de
+              validación en zona horaria Lima.
             </span>
           </div>
         ) : null}
@@ -332,20 +430,36 @@ export default function ReportWorkspace({
         {attendanceSummary ? (
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Ingresos validados</div>
-              <div className="text-lg font-semibold text-white">{attendanceSummary.ingresosValidados.toLocaleString("es-PE")}</div>
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                Ingresos validados
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {attendanceSummary.ingresosValidados.toLocaleString("es-PE")}
+              </div>
             </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Personas únicas</div>
-              <div className="text-lg font-semibold text-white">{attendanceSummary.personasUnicas.toLocaleString("es-PE")}</div>
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                Asistentes reales
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {attendanceSummary.personasUnicas.toLocaleString("es-PE")}
+              </div>
             </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Promotores activos</div>
-              <div className="text-lg font-semibold text-white">{attendanceSummary.promotoresActivos.toLocaleString("es-PE")}</div>
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                Promotores activos
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {attendanceSummary.promotoresActivos.toLocaleString("es-PE")}
+              </div>
             </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">Ingresos QR free/cortesía</div>
-              <div className="text-lg font-semibold text-white">{attendanceSummary.ingresosQrFree.toLocaleString("es-PE")}</div>
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                Ingresos QR free/cortesía
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {attendanceSummary.ingresosQrFree.toLocaleString("es-PE")}
+              </div>
             </div>
           </div>
         ) : null}
@@ -354,8 +468,10 @@ export default function ReportWorkspace({
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
-              <strong>Códigos generados</strong> son los QR/códigos emitidos para venta/gestión comercial del promotor.{" "}
-              <strong>Escaneos válidos</strong> son ingresos confirmados en puerta.
+              <strong>Códigos generados</strong> son los QR/códigos emitidos
+              para venta/gestión comercial del promotor.{" "}
+              <strong>Escaneos válidos</strong> son ingresos confirmados en
+              puerta.
             </span>
           </div>
         ) : null}
@@ -364,8 +480,9 @@ export default function ReportWorkspace({
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
-              <strong>Pagos confirmados</strong> son transacciones en estado pagado.{" "}
-              <strong>Ventas (S/)</strong> es el total acumulado convertido a soles desde el monto almacenado en centavos.
+              <strong>Pagos confirmados</strong> son transacciones en estado
+              pagado. <strong>Ventas (S/)</strong> es el total acumulado
+              convertido a soles desde el monto almacenado en centavos.
             </span>
           </div>
         ) : null}
@@ -373,7 +490,9 @@ export default function ReportWorkspace({
         <Table containerClassName="max-h-[55dvh] min-h-[220px]">
           <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
             <TableRow>
-              {visibleHeaders.length === 0 ? <TableHead>Resultado</TableHead> : null}
+              {visibleHeaders.length === 0 ? (
+                <TableHead>Resultado</TableHead>
+              ) : null}
               {visibleHeaders.map((header) => (
                 <TableHead key={header}>{prettifyHeader(header)}</TableHead>
               ))}
@@ -382,7 +501,9 @@ export default function ReportWorkspace({
           <TableBody>
             {visibleHeaders.length === 0 ? (
               <TableRow>
-                <TableCell className="py-10 text-center text-white/55">Ejecuta una consulta para ver resultados.</TableCell>
+                <TableCell className="py-10 text-center text-white/55">
+                  Ejecuta una consulta para ver resultados.
+                </TableCell>
               </TableRow>
             ) : (
               rows.map((row, index) => (
