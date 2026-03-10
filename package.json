@@ -15,7 +15,8 @@
     "typecheck:backoffice": "pnpm exec tsc --noEmit -p apps/backoffice/tsconfig.json",
     "db:check:landing": "node scripts/check-db-schema.js --env apps/landing/.env.local",
     "db:check:backoffice": "node scripts/check-db-schema.js --env apps/backoffice/.env.local",
-    "smoke:local": "bash scripts/smoke-public-api.sh \"http://localhost:3000\" \"${CODE:-}\""
+    "smoke:local": "bash scripts/smoke-public-api.sh \"http://localhost:3000\" \"${CODE:-}\"",
+    "audit:event-capacity": "node scripts/audit-event-capacity.js --latest-past"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.1",
