@@ -51,6 +51,7 @@ const HIDDEN_UI_COLUMNS = new Set([
   "event_id",
   "promoter_id",
   "total_amount_raw",
+  "sales_source",
 ]);
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -98,7 +99,7 @@ const COLUMN_LABELS: Record<string, string> = {
   last_no_show_event: "Último evento no-show",
   last_no_show_event_at_lima: "Fecha último no-show (Lima)",
   block_next_free_qr: "Bloquear siguiente QR free",
-  paid_count: "Pagos confirmados",
+  paid_count: "Ventas confirmadas",
   total_amount_pen_est: "Ventas (S/)",
   currency: "Moneda",
 };
@@ -585,9 +586,13 @@ export default function ReportWorkspace({
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
-              <strong>Pagos confirmados</strong> son transacciones en estado
-              pagado. <strong>Ventas (S/)</strong> es el total acumulado
-              convertido a soles desde el monto almacenado en centavos.
+              <strong>Ventas confirmadas</strong> usa pagos en estado pagado
+              cuando la tabla <code>payments</code> existe. En ambientes legacy,
+              cae a reservas aprobadas/confirmadas/pagadas como compatibilidad.{" "}
+              <strong>Ventas (S/)</strong> se calcula desde pagos reales o, en
+              fallback, desde el contexto comercial disponible de la reserva. Si
+              falta metadata histórica para derivar el monto con certeza, el
+              reporte deja ese valor vacío en vez de estimarlo.
             </span>
           </div>
         ) : null}
