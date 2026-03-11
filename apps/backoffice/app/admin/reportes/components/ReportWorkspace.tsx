@@ -27,7 +27,11 @@ type Option = { id: string; label: string; organizer_id?: string | null };
 type ReportWorkspaceProps = {
   title: string;
   description: string;
-  defaultReport: "promoter_performance" | "event_attendance" | "event_sales";
+  defaultReport:
+    | "promoter_performance"
+    | "event_attendance"
+    | "event_sales"
+    | "free_qr_no_show";
   allowReportSwitch?: boolean;
   showDateRange?: boolean;
   organizers: Option[];
@@ -39,6 +43,7 @@ const REPORT_LABELS: Record<string, string> = {
   promoter_performance: "Rendimiento de promotores",
   event_attendance: "Asistencia por evento",
   event_sales: "Ventas por evento",
+  free_qr_no_show: "No-show de QR free",
 };
 
 const HIDDEN_UI_COLUMNS = new Set([
@@ -53,10 +58,12 @@ const COLUMN_LABELS: Record<string, string> = {
   event_name: "Evento",
   promoter_code: "Código promotor",
   promoter_name: "Promotor",
-  codes_generated: "Códigos generados",
+  qrs_assigned: "QRs asignados",
+  qrs_entered: "Ingresaron",
+  codes_generated: "Códigos generados (auditoría)",
   scans_confirmed: "Ingresos validados",
   unique_admissions_confirmed: "Admisiones únicas confirmadas",
-  attendance_rate_percent: "% de asistencia",
+  attendance_rate_percent: "% de conversión",
   unique_tickets_scanned: "Personas únicas",
   unique_codes_scanned: "Códigos únicos usados",
   escaneos_qr_general: "QR general (escaneos)",
@@ -77,6 +84,20 @@ const COLUMN_LABELS: Record<string, string> = {
   last_scan_at_lima: "Último ingreso (Lima)",
   free_qr_first_scan_at_lima: "Primer ingreso QR free/cortesía",
   free_qr_last_scan_at_lima: "Último ingreso QR free/cortesía",
+  full_name: "Cliente",
+  doc_type: "Tipo doc.",
+  document: "Documento",
+  phone: "Teléfono",
+  free_qr_assigned: "QR free asignados",
+  free_qr_attended: "Asistió",
+  free_qr_no_show: "No asistió",
+  no_show_rate_percent: "% no-show",
+  last_free_qr_event: "Último evento free",
+  last_free_qr_status: "Estado último QR free",
+  last_free_qr_event_at_lima: "Fecha último evento free (Lima)",
+  last_no_show_event: "Último evento no-show",
+  last_no_show_event_at_lima: "Fecha último no-show (Lima)",
+  block_next_free_qr: "Bloquear siguiente QR free",
   paid_count: "Pagos confirmados",
   total_amount_pen_est: "Ventas (S/)",
   currency: "Moneda",
@@ -95,6 +116,8 @@ function formatReportValue(header: string, value: unknown) {
   if (value == null || value === "") return "—";
   if (
     [
+      "qrs_assigned",
+      "qrs_entered",
       "codes_generated",
       "scans_confirmed",
       "unique_admissions_confirmed",
@@ -112,12 +135,18 @@ function formatReportValue(header: string, value: unknown) {
       "escaneos_sin_promotor",
       "free_qr_scans_confirmed",
       "free_qr_unique_tickets_scanned",
+      "free_qr_assigned",
+      "free_qr_attended",
+      "free_qr_no_show",
       "paid_count",
     ].includes(header)
   ) {
     return Number(value).toLocaleString("es-PE");
   }
-  if (header === "attendance_rate_percent") {
+  if (
+    header === "attendance_rate_percent" ||
+    header === "no_show_rate_percent"
+  ) {
     const numeric = Number(value);
     return `${numeric.toLocaleString("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
   }
@@ -194,6 +223,25 @@ export default function ReportWorkspace({
       personasUnicas: total("unique_admissions_confirmed"),
       promotoresActivos: total("promotores_activos"),
       ingresosQrFree: total("free_qr_scans_confirmed"),
+    };
+  }, [report, rows]);
+
+  const freeQrNoShowSummary = useMemo(() => {
+    if (report !== "free_qr_no_show" || rows.length === 0) return null;
+    const total = (key: string) =>
+      rows.reduce(
+        (acc, row) =>
+          acc + Number((row?.[key] as number | string | null | undefined) || 0),
+        0,
+      );
+    const flagged = rows.filter(
+      (row) => String(row?.block_next_free_qr || "") === "Sí",
+    ).length;
+    return {
+      clientesMarcados: flagged,
+      qrsFreeAsignados: total("free_qr_assigned"),
+      asistieron: total("free_qr_attended"),
+      noShow: total("free_qr_no_show"),
     };
   }, [report, rows]);
 
@@ -287,6 +335,9 @@ export default function ReportWorkspace({
                   {REPORT_LABELS.event_attendance}
                 </option>
                 <option value="event_sales">{REPORT_LABELS.event_sales}</option>
+                <option value="free_qr_no_show">
+                  {REPORT_LABELS.free_qr_no_show}
+                </option>
               </SelectNative>
             </label>
           ) : (
@@ -427,6 +478,21 @@ export default function ReportWorkspace({
           </div>
         ) : null}
 
+        {report === "free_qr_no_show" ? (
+          <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
+            <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
+            <span>
+              <strong>QR free asignados</strong> = tickets free/cortesía de
+              eventos ya ocurridos. <strong>Asistió</strong> = tickets con
+              `used = true`. <strong>No asistió</strong> = tickets free de
+              eventos pasados que nunca fueron usados.{" "}
+              <strong>Bloquear siguiente QR free</strong> sigue una regla
+              estricta en esta primera versión: si la persona tiene al menos un
+              no-show histórico, queda marcada para revisión o bloqueo manual.
+            </span>
+          </div>
+        ) : null}
+
         {attendanceSummary ? (
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
@@ -464,14 +530,53 @@ export default function ReportWorkspace({
           </div>
         ) : null}
 
+        {freeQrNoShowSummary ? (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                Clientes marcados
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {freeQrNoShowSummary.clientesMarcados.toLocaleString("es-PE")}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                QR free asignados
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {freeQrNoShowSummary.qrsFreeAsignados.toLocaleString("es-PE")}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                Asistieron
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {freeQrNoShowSummary.asistieron.toLocaleString("es-PE")}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                No-show
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {freeQrNoShowSummary.noShow.toLocaleString("es-PE")}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {report === "promoter_performance" ? (
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
-              <strong>Códigos generados</strong> son los QR/códigos emitidos
-              para venta/gestión comercial del promotor.{" "}
-              <strong>Escaneos válidos</strong> son ingresos confirmados en
-              puerta.
+              <strong>QRs asignados</strong> = tickets activos del promotor para
+              el evento. <strong>Ingresaron</strong> = tickets marcados como
+              usados en puerta. <strong>% de conversión</strong> = ingresaron /
+              QRs asignados. <strong>Códigos generados (auditoría)</strong> se
+              mantiene solo para reconciliación histórica y no debe usarse como
+              KPI principal.
             </span>
           </div>
         ) : null}

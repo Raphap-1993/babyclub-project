@@ -16,8 +16,8 @@ type ReportModuleCard = {
 
 const reportModules: ReportModuleCard[] = [
   {
-    title: "Asistencia y Ventas",
-    description: "Reporte operativo por evento con asistencia y ventas, incluyendo exportación CSV.",
+    title: "Operación de Eventos",
+    description: "Reporte operativo por evento con asistencia, ventas y control de no-show de QR free.",
     href: "/admin/reportes/mesas",
     cta: "Abrir reporte",
     icon: BarChart3,
