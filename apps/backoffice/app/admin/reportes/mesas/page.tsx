@@ -44,7 +44,11 @@ async function getReportOptions() {
 
 export const dynamic = "force-dynamic";
 
-const allowedDefaultReports = new Set(["event_attendance", "event_sales"]);
+const allowedDefaultReports = new Set([
+  "event_attendance",
+  "event_sales",
+  "free_qr_no_show",
+]);
 
 export default async function ReporteMesasPage({
   searchParams,
@@ -54,18 +58,20 @@ export default async function ReporteMesasPage({
   const options = await getReportOptions();
   const params = searchParams ? await searchParams : {};
   const reportParam = String(params?.report || "");
-  const defaultReport = allowedDefaultReports.has(reportParam) ? (reportParam as "event_attendance" | "event_sales") : "event_attendance";
+  const defaultReport = allowedDefaultReports.has(reportParam)
+    ? (reportParam as "event_attendance" | "event_sales" | "free_qr_no_show")
+    : "event_attendance";
 
   return (
     <AdminPage>
       <AdminHeader
         kicker="Reportes / Operación"
-        title="Asistencia y Ventas por Evento"
-        description="Consulta métricas por organizador/evento y exporta en CSV."
+        title="Operación de Eventos"
+        description="Consulta asistencia, ventas y no-show de QR free por organizador/evento."
       />
       <ReportWorkspace
         title="Reporte de eventos"
-        description="Puedes alternar entre asistencia y ventas."
+        description="Puedes alternar entre asistencia, ventas y control de no-show de QR free."
         defaultReport={defaultReport}
         allowReportSwitch
         showDateRange={false}

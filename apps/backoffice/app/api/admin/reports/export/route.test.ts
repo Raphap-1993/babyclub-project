@@ -132,7 +132,7 @@ describe("GET /api/admin/reports/export", () => {
     ).toBe(false);
   });
 
-  it("promoter_performance: funciona con fallback de scan_logs y calcula métricas", async () => {
+  it("promoter_performance: usa tickets activos/usados como métrica canónica", async () => {
     const { supabase } = createSupabaseMock({
       "events.select": [
         {
@@ -165,39 +165,40 @@ describe("GET /api/admin/reports/export", () => {
           ],
           error: null,
         },
-      ],
-      "scan_logs.select": [
-        {
-          data: null,
-          error: {
-            message: "column scan_logs.deleted_at does not exist",
-            details: "",
-            hint: "",
-          },
-        },
         {
           data: [
             {
-              id: "scan-1",
-              event_id: "event-1",
-              ticket_id: "ticket-1",
-              code_id: "code-1",
-              raw_value: "ticket-1",
-              result: "valid",
-              created_at: "2026-03-01T01:00:00.000Z",
-              code: { promoter_id: "prom-1" },
-              ticket: null,
+              id: "code-1",
+              promoter_id: "prom-1",
             },
             {
-              id: "scan-precheck-ignored",
+              id: "code-2",
+              promoter_id: "prom-1",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-1",
               event_id: "event-1",
-              ticket_id: "ticket-1",
+              promoter_id: null,
               code_id: "code-1",
-              raw_value: "PROMO-QR",
-              result: "valid",
-              created_at: "2026-03-01T01:01:00.000Z",
-              code: { promoter_id: "prom-1" },
-              ticket: null,
+              is_active: true,
+              used: true,
+              created_at: "2026-03-01T01:00:00.000Z",
+            },
+            {
+              id: "ticket-2",
+              event_id: "event-1",
+              promoter_id: "prom-1",
+              code_id: "code-2",
+              is_active: true,
+              used: false,
+              created_at: "2026-03-01T01:10:00.000Z",
             },
           ],
           error: null,
@@ -234,9 +235,156 @@ describe("GET /api/admin/reports/export", () => {
     expect(payload.success).toBe(true);
     expect(payload.rows.length).toBe(1);
     expect(payload.rows[0].promoter_id).toBe("prom-1");
+    expect(payload.rows[0].qrs_assigned).toBe(2);
+    expect(payload.rows[0].qrs_entered).toBe(1);
     expect(payload.rows[0].codes_generated).toBe(2);
-    expect(payload.rows[0].scans_confirmed).toBe(1);
     expect(payload.rows[0].attendance_rate_percent).toBe(50);
+  });
+
+  it("free_qr_no_show: agrupa por cliente y marca bloqueo si tuvo no-show histórico", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: [
+            {
+              id: "event-1",
+              name: "LOVE IS A DRUG",
+              organizer_id: "org-1",
+              starts_at: "2025-03-01T03:00:00.000Z",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+            {
+              id: "event-2",
+              name: "NEON RITUAL",
+              organizer_id: "org-1",
+              starts_at: "2025-04-01T03:00:00.000Z",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+            {
+              id: "event-3",
+              name: "FUTURE PARTY",
+              organizer_id: "org-1",
+              starts_at: "2099-04-01T03:00:00.000Z",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-1",
+              event_id: "event-1",
+              person_id: "person-ana",
+              full_name: "Ana Perez",
+              doc_type: "dni",
+              document: "12345678",
+              dni: "12345678",
+              email: "ana@test.com",
+              phone: "999111222",
+              used: false,
+              is_active: true,
+              created_at: "2025-03-01T01:00:00.000Z",
+              code: { type: "courtesy" },
+            },
+            {
+              id: "ticket-2",
+              event_id: "event-2",
+              person_id: "person-ana",
+              full_name: "Ana Perez",
+              doc_type: "dni",
+              document: "12345678",
+              dni: "12345678",
+              email: "ana@test.com",
+              phone: "999111222",
+              used: true,
+              is_active: true,
+              created_at: "2025-04-01T01:00:00.000Z",
+              code: { type: "courtesy" },
+            },
+            {
+              id: "ticket-3",
+              event_id: "event-1",
+              person_id: "person-bob",
+              full_name: "Bob Diaz",
+              doc_type: "dni",
+              document: "87654321",
+              dni: "87654321",
+              email: "bob@test.com",
+              phone: "999333444",
+              used: false,
+              is_active: true,
+              created_at: "2025-03-01T01:10:00.000Z",
+              code: { type: "promoter" },
+            },
+            {
+              id: "ticket-4",
+              event_id: "event-3",
+              person_id: "person-carla",
+              full_name: "Carla Future",
+              doc_type: "dni",
+              document: "45678912",
+              dni: "45678912",
+              email: "carla@test.com",
+              phone: "999555666",
+              used: false,
+              is_active: true,
+              created_at: "2099-04-01T01:00:00.000Z",
+              code: { type: "courtesy" },
+            },
+            {
+              id: "ticket-5",
+              event_id: "event-1",
+              person_id: "person-diego",
+              full_name: "Diego General",
+              doc_type: "dni",
+              document: "45612378",
+              dni: "45612378",
+              email: "diego@test.com",
+              phone: "999777888",
+              used: false,
+              is_active: true,
+              created_at: "2025-03-01T01:20:00.000Z",
+              code: { type: "general" },
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL(
+        "http://localhost/api/admin/reports/export?report=free_qr_no_show&format=json",
+      ),
+      headers: new Headers({ Authorization: "Bearer token-123" }),
+    } as any;
+    const res = await GET(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.rows.length).toBe(2);
+    expect(payload.rows[0].full_name).toBe("Bob Diaz");
+    expect(payload.rows[0].free_qr_assigned).toBe(1);
+    expect(payload.rows[0].free_qr_attended).toBe(0);
+    expect(payload.rows[0].free_qr_no_show).toBe(1);
+    expect(payload.rows[0].no_show_rate_percent).toBe(100);
+    expect(payload.rows[0].block_next_free_qr).toBe("Sí");
+    expect(payload.rows[1].full_name).toBe("Ana Perez");
+    expect(payload.rows[1].free_qr_assigned).toBe(2);
+    expect(payload.rows[1].free_qr_attended).toBe(1);
+    expect(payload.rows[1].free_qr_no_show).toBe(1);
+    expect(payload.rows[1].no_show_rate_percent).toBe(50);
+    expect(payload.rows[1].last_free_qr_event).toBe("NEON RITUAL");
+    expect(payload.rows[1].last_free_qr_status).toBe("Asistió");
+    expect(payload.rows[1].last_no_show_event).toBe("LOVE IS A DRUG");
+    expect(payload.rows[1].block_next_free_qr).toBe("Sí");
   });
 
   it("event_sales: agrega pagos pagados por evento", async () => {
@@ -381,20 +529,27 @@ describe("GET /api/admin/reports/export", () => {
           ],
           error: null,
         },
-      ],
-      "scan_logs.select": [
         {
           data: [
             {
-              id: "scan-1",
+              id: "code-1",
+              promoter_id: "prom-1",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-1",
               event_id: "event-1",
-              ticket_id: "ticket-1",
+              promoter_id: null,
               code_id: "code-1",
-              raw_value: "ticket-1",
-              result: "valid",
+              is_active: true,
+              used: true,
               created_at: "2026-03-01T01:00:00.000Z",
-              code: { promoter_id: "prom-1" },
-              ticket: null,
             },
           ],
           error: null,
@@ -432,7 +587,7 @@ describe("GET /api/admin/reports/export", () => {
       "reporte-promotores.csv",
     );
     expect(csv.split("\n")[0]).toBe(
-      "Organizador,Evento,Código promotor,Promotor,Códigos generados,Escaneos válidos,% de asistencia",
+      "Organizador,Evento,Código promotor,Promotor,QRs asignados,Ingresaron,% de conversión,Códigos generados (auditoría)",
     );
   });
 
@@ -486,6 +641,67 @@ describe("GET /api/admin/reports/export", () => {
     );
     expect(csv.split("\n")[0]).toBe(
       "Organizador,Evento,Pagos confirmados,Ventas (S/),Moneda",
+    );
+  });
+
+  it("free_qr_no_show CSV: exporta encabezados homologados en español", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: [
+            {
+              id: "event-1",
+              name: "LOVE IS A DRUG",
+              organizer_id: "org-1",
+              starts_at: "2025-03-01T03:00:00.000Z",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-1",
+              event_id: "event-1",
+              person_id: "person-1",
+              full_name: "Ana Perez",
+              doc_type: "dni",
+              document: "12345678",
+              dni: "12345678",
+              email: "ana@test.com",
+              phone: "999111222",
+              used: false,
+              is_active: true,
+              created_at: "2025-03-01T01:00:00.000Z",
+              code: { type: "courtesy" },
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL(
+        "http://localhost/api/admin/reports/export?report=free_qr_no_show&format=csv",
+      ),
+      headers: new Headers({ Authorization: "Bearer token-123" }),
+    } as any;
+    const res = await GET(req);
+    const csv = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition") || "").toContain(
+      "reporte-no-show-qr-free.csv",
+    );
+    expect(csv.split("\n")[0]).toBe(
+      "Organizador,Cliente,Tipo doc.,Documento,Email,Teléfono,QR free asignados,Asistió,No asistió,% no-show,Último evento free,Estado último QR free,Fecha último evento free (Lima),Último evento no-show,Fecha último no-show (Lima),Bloquear siguiente QR free",
     );
   });
 });

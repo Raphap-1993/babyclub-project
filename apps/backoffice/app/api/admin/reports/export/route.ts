@@ -6,12 +6,17 @@ import { applyNotDeleted } from "shared/db/softDelete";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-type ReportKind = "promoter_performance" | "event_attendance" | "event_sales";
+type ReportKind =
+  | "promoter_performance"
+  | "event_attendance"
+  | "event_sales"
+  | "free_qr_no_show";
 type OrganizerRel = { id?: string; name?: string; slug?: string };
 type EventRaw = {
   id: string;
   name: string;
   organizer_id: string | null;
+  starts_at?: string | null;
   organizer?: OrganizerRel | OrganizerRel[] | null;
 };
 type NormalizedEvent = {
@@ -20,6 +25,7 @@ type NormalizedEvent = {
   organizer_id: string | null;
   organizer_name: string;
   organizer_slug: string;
+  starts_at: string | null;
 };
 
 function isMissingDeletedAtColumnError(error: any, tableName: string) {
@@ -150,6 +156,40 @@ function getAdmissionKey(scan: any) {
   return "";
 }
 
+function isFreeCodeType(codeType: string) {
+  return ["courtesy", "free", "promoter"].includes(codeType);
+}
+
+function normalizeTicketIdentityValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function buildTicketPersonKey(ticket: any) {
+  const personId = normalizeTicketIdentityValue(ticket?.person_id);
+  if (personId) return `person:${personId}`;
+
+  const docType = normalizeTicketIdentityValue(ticket?.doc_type).toLowerCase();
+  const document = normalizeTicketIdentityValue(ticket?.document).toLowerCase();
+  if (docType && document) return `doc:${docType}:${document}`;
+
+  const dni = normalizeTicketIdentityValue(ticket?.dni).toLowerCase();
+  if (dni) return `dni:${dni}`;
+
+  const email = normalizeTicketIdentityValue(ticket?.email).toLowerCase();
+  if (email) return `email:${email}`;
+
+  const phone = normalizeTicketIdentityValue(ticket?.phone)
+    .replace(/\s+/g, "")
+    .toLowerCase();
+  if (phone) return `phone:${phone}`;
+
+  const fullName = normalizeTicketIdentityValue(ticket?.full_name).toLowerCase();
+  if (fullName) return `name:${fullName}`;
+
+  const ticketId = normalizeTicketIdentityValue(ticket?.id);
+  return ticketId ? `ticket:${ticketId}` : "";
+}
+
 export async function GET(req: NextRequest) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
@@ -177,9 +217,12 @@ export async function GET(req: NextRequest) {
   const toIso = toEndIso(search.get("to"));
 
   if (
-    !["promoter_performance", "event_attendance", "event_sales"].includes(
-      report,
-    )
+    ![
+      "promoter_performance",
+      "event_attendance",
+      "event_sales",
+      "free_qr_no_show",
+    ].includes(report)
   ) {
     return NextResponse.json(
       { success: false, error: "report inválido" },
@@ -194,7 +237,7 @@ export async function GET(req: NextRequest) {
   let eventsQuery = applyNotDeleted(
     supabase
       .from("events")
-      .select("id,name,organizer_id,organizer:organizers(id,name,slug)")
+      .select("id,name,organizer_id,starts_at,organizer:organizers(id,name,slug)")
       .order("starts_at", { ascending: true })
       .limit(2000),
   );
@@ -224,6 +267,7 @@ export async function GET(req: NextRequest) {
       organizer_id: event.organizer_id,
       organizer_name: organizerRel?.name || "",
       organizer_slug: organizerRel?.slug || "",
+      starts_at: event.starts_at || null,
     };
   });
   const allowedEventIds = normalizedEvents.map((event) => event.id);
@@ -249,30 +293,55 @@ export async function GET(req: NextRequest) {
     );
     if (fromIso) codesQuery = codesQuery.gte("created_at", fromIso);
     if (toIso) codesQuery = codesQuery.lte("created_at", toIso);
-    const { data: codesData, error: codesError } = await codesQuery;
-    if (codesError) {
+    let ticketsQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("id,event_id,promoter_id,code_id,is_active,used,created_at")
+        .in("event_id", allowedEventIds)
+        .order("created_at", { ascending: false })
+        .limit(10000),
+    );
+    if (fromIso) ticketsQuery = ticketsQuery.gte("created_at", fromIso);
+    if (toIso) ticketsQuery = ticketsQuery.lte("created_at", toIso);
+
+    const [
+      { data: codesData, error: codesError },
+      { data: ticketsData, error: ticketsError },
+    ] = await Promise.all([codesQuery, ticketsQuery]);
+
+    if (codesError || ticketsError) {
       return NextResponse.json(
-        { success: false, error: codesError.message },
+        { success: false, error: codesError?.message || ticketsError?.message },
         { status: 400 },
       );
     }
 
-    const { data: scansData, error: scansError } = await fetchScanLogs(
-      supabase,
-      {
-        select:
-          "id,event_id,ticket_id,code_id,raw_value,result,created_at,code:codes(promoter_id),ticket:tickets(promoter_id)",
-        allowedEventIds,
-        fromIso,
-        toIso,
-        limit: 10000,
-      },
+    const codeIdsForTickets = Array.from(
+      new Set(
+        ((ticketsData || []) as any[])
+          .map((row) => (typeof row?.code_id === "string" ? row.code_id : ""))
+          .filter(Boolean),
+      ),
     );
-    if (scansError) {
+    const { data: codePromoterRows, error: codePromoterError } =
+      codeIdsForTickets.length > 0
+        ? await supabase
+            .from("codes")
+            .select("id,promoter_id")
+            .in("id", codeIdsForTickets)
+        : { data: [] as any[], error: null };
+    if (codePromoterError) {
       return NextResponse.json(
-        { success: false, error: scansError.message },
+        { success: false, error: codePromoterError.message },
         { status: 400 },
       );
+    }
+
+    const codePromoterMap = new Map<string, string>();
+    for (const row of codePromoterRows || []) {
+      if (typeof (row as any)?.id === "string" && typeof (row as any)?.promoter_id === "string") {
+        codePromoterMap.set((row as any).id, (row as any).promoter_id);
+      }
     }
 
     const promoterIds = new Set<string>();
@@ -282,7 +351,8 @@ export async function GET(req: NextRequest) {
         event_id: string;
         promoter_id: string;
         codes_generated: number;
-        scans_confirmed: number;
+        qrs_assigned: number;
+        qrs_entered: number;
       }
     >();
     const ensureCounter = (event_id: string, promoter_id: string) => {
@@ -292,7 +362,8 @@ export async function GET(req: NextRequest) {
           event_id,
           promoter_id,
           codes_generated: 0,
-          scans_confirmed: 0,
+          qrs_assigned: 0,
+          qrs_entered: 0,
         });
       }
       return counters.get(key)!;
@@ -307,22 +378,27 @@ export async function GET(req: NextRequest) {
       ensureCounter(event_id, promoter_id).codes_generated += 1;
     }
 
-    for (const scan of scansData || []) {
-      if (!isConfirmedScanLog(scan)) continue;
-      const event_id = (scan as any)?.event_id as string | null;
-      const codeRel = Array.isArray((scan as any)?.code)
-        ? (scan as any)?.code?.[0]
-        : (scan as any)?.code;
-      const ticketRel = Array.isArray((scan as any)?.ticket)
-        ? (scan as any)?.ticket?.[0]
-        : (scan as any)?.ticket;
-      const promoter_id = (codeRel?.promoter_id ||
-        ticketRel?.promoter_id ||
-        "") as string;
+    for (const ticket of ticketsData || []) {
+      const event_id = (ticket as any)?.event_id as string | null;
+      const directPromoterId =
+        typeof (ticket as any)?.promoter_id === "string"
+          ? (ticket as any).promoter_id
+          : "";
+      const codePromoterId =
+        typeof (ticket as any)?.code_id === "string"
+          ? codePromoterMap.get((ticket as any).code_id) || ""
+          : "";
+      const promoter_id = directPromoterId || codePromoterId;
       if (!event_id || !promoter_id) continue;
       if (promoterId && promoter_id !== promoterId) continue;
       promoterIds.add(promoter_id);
-      ensureCounter(event_id, promoter_id).scans_confirmed += 1;
+      const counter = ensureCounter(event_id, promoter_id);
+      if ((ticket as any)?.is_active !== false) {
+        counter.qrs_assigned += 1;
+      }
+      if ((ticket as any)?.used === true) {
+        counter.qrs_entered += 1;
+      }
     }
 
     const promoterIdList = Array.from(promoterIds);
@@ -361,9 +437,9 @@ export async function GET(req: NextRequest) {
         const event = eventById.get(row.event_id);
         const promoter = promoterMap.get(row.promoter_id);
         const attendanceRate =
-          row.codes_generated > 0
+          row.qrs_assigned > 0
             ? Number(
-                ((row.scans_confirmed / row.codes_generated) * 100).toFixed(2),
+                ((row.qrs_entered / row.qrs_assigned) * 100).toFixed(2),
               )
             : 0;
         return {
@@ -374,9 +450,10 @@ export async function GET(req: NextRequest) {
           promoter_id: row.promoter_id,
           promoter_code: promoter?.code || "",
           promoter_name: promoter?.name || "",
-          codes_generated: row.codes_generated,
-          scans_confirmed: row.scans_confirmed,
+          qrs_assigned: row.qrs_assigned,
+          qrs_entered: row.qrs_entered,
           attendance_rate_percent: attendanceRate,
+          codes_generated: row.codes_generated,
         };
       })
       .sort((a, b) => {
@@ -394,9 +471,10 @@ export async function GET(req: NextRequest) {
           { key: "event_name", label: "Evento" },
           { key: "promoter_code", label: "Código promotor" },
           { key: "promoter_name", label: "Promotor" },
-          { key: "codes_generated", label: "Códigos generados" },
-          { key: "scans_confirmed", label: "Escaneos válidos" },
-          { key: "attendance_rate_percent", label: "% de asistencia" },
+          { key: "qrs_assigned", label: "QRs asignados" },
+          { key: "qrs_entered", label: "Ingresaron" },
+          { key: "attendance_rate_percent", label: "% de conversión" },
+          { key: "codes_generated", label: "Códigos generados (auditoría)" },
         ],
         rows as any,
       );
@@ -406,6 +484,248 @@ export async function GET(req: NextRequest) {
           "Content-Type": "text/csv; charset=utf-8",
           "Content-Disposition":
             'attachment; filename="reporte-promotores.csv"',
+        },
+      });
+    }
+
+    return NextResponse.json({ success: true, report, rows });
+  }
+
+  if (report === "free_qr_no_show") {
+    let ticketsQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select(
+          "id,event_id,person_id,full_name,doc_type,document,dni,email,phone,used,is_active,created_at,code:codes(id,code,type,promoter_id)",
+        )
+        .in("event_id", allowedEventIds)
+        .order("created_at", { ascending: false })
+        .limit(15000),
+    );
+    if (fromIso) ticketsQuery = ticketsQuery.gte("created_at", fromIso);
+    if (toIso) ticketsQuery = ticketsQuery.lte("created_at", toIso);
+
+    const { data: ticketsData, error: ticketsError } = await ticketsQuery;
+    if (ticketsError) {
+      return NextResponse.json(
+        { success: false, error: ticketsError.message },
+        { status: 400 },
+      );
+    }
+
+    const now = Date.now();
+    const grouped = new Map<
+      string,
+      {
+        organizer_id: string;
+        organizer_name: string;
+        full_name: string;
+        doc_type: string;
+        document: string;
+        email: string;
+        phone: string;
+        free_qr_assigned: number;
+        free_qr_attended: number;
+        free_qr_no_show: number;
+        last_free_qr_event: string;
+        last_free_qr_status: string;
+        last_free_qr_event_at: string | null;
+        last_no_show_event: string;
+        last_no_show_event_at: string | null;
+        last_ticket_created_at: string | null;
+      }
+    >();
+
+    const updateStringField = (currentValue: string, nextValue: string) =>
+      currentValue || nextValue || "";
+
+    for (const ticket of ticketsData || []) {
+      const eventIdForTicket = normalizeTicketIdentityValue(
+        (ticket as any)?.event_id,
+      );
+      if (!eventIdForTicket) continue;
+
+      const event = eventById.get(eventIdForTicket);
+      const eventStartsAt = event?.starts_at || null;
+      if (eventStartsAt) {
+        const startsAtMs = new Date(eventStartsAt).getTime();
+        if (!Number.isNaN(startsAtMs) && startsAtMs > now) continue;
+      }
+
+      const codeRel = Array.isArray((ticket as any)?.code)
+        ? (ticket as any)?.code?.[0]
+        : (ticket as any)?.code;
+      const codeType = normalizeTicketIdentityValue(codeRel?.type).toLowerCase();
+      if (!isFreeCodeType(codeType)) continue;
+      if ((ticket as any)?.is_active === false) continue;
+
+      const organizerIdForTicket = event?.organizer_id || "";
+      const personKey = buildTicketPersonKey(ticket);
+      if (!personKey) continue;
+      const aggregateKey = `${organizerIdForTicket}:${personKey}`;
+
+      if (!grouped.has(aggregateKey)) {
+        grouped.set(aggregateKey, {
+          organizer_id: organizerIdForTicket,
+          organizer_name: event?.organizer_name || "",
+          full_name: "",
+          doc_type: "",
+          document: "",
+          email: "",
+          phone: "",
+          free_qr_assigned: 0,
+          free_qr_attended: 0,
+          free_qr_no_show: 0,
+          last_free_qr_event: "",
+          last_free_qr_status: "",
+          last_free_qr_event_at: null,
+          last_no_show_event: "",
+          last_no_show_event_at: null,
+          last_ticket_created_at: null,
+        });
+      }
+
+      const row = grouped.get(aggregateKey)!;
+      const ticketCreatedAt =
+        normalizeTicketIdentityValue((ticket as any)?.created_at) || null;
+      const used = (ticket as any)?.used === true;
+
+      row.organizer_name = updateStringField(
+        row.organizer_name,
+        event?.organizer_name || "",
+      );
+      row.full_name = updateStringField(
+        row.full_name,
+        normalizeTicketIdentityValue((ticket as any)?.full_name),
+      );
+      row.doc_type = updateStringField(
+        row.doc_type,
+        normalizeTicketIdentityValue((ticket as any)?.doc_type).toUpperCase(),
+      );
+      row.document = updateStringField(
+        row.document,
+        normalizeTicketIdentityValue((ticket as any)?.document) ||
+          normalizeTicketIdentityValue((ticket as any)?.dni),
+      );
+      row.email = updateStringField(
+        row.email,
+        normalizeTicketIdentityValue((ticket as any)?.email),
+      );
+      row.phone = updateStringField(
+        row.phone,
+        normalizeTicketIdentityValue((ticket as any)?.phone),
+      );
+      row.free_qr_assigned += 1;
+      if (used) {
+        row.free_qr_attended += 1;
+      } else {
+        row.free_qr_no_show += 1;
+      }
+
+      const shouldReplaceLastTicket =
+        !row.last_ticket_created_at ||
+        Boolean(ticketCreatedAt && ticketCreatedAt > row.last_ticket_created_at);
+      if (shouldReplaceLastTicket) {
+        row.last_ticket_created_at = ticketCreatedAt;
+        row.last_free_qr_event = event?.name || "";
+        row.last_free_qr_status = used ? "Asistió" : "No asistió";
+        row.last_free_qr_event_at = eventStartsAt;
+      }
+
+      if (!used) {
+        const shouldReplaceLastNoShow =
+          !row.last_no_show_event_at ||
+          Boolean(eventStartsAt && eventStartsAt > row.last_no_show_event_at);
+        if (shouldReplaceLastNoShow) {
+          row.last_no_show_event = event?.name || "";
+          row.last_no_show_event_at = eventStartsAt;
+        }
+      }
+    }
+
+    const rows = Array.from(grouped.values())
+      .map((row) => {
+        const noShowRate =
+          row.free_qr_assigned > 0
+            ? Number(
+                ((row.free_qr_no_show / row.free_qr_assigned) * 100).toFixed(2),
+              )
+            : 0;
+        return {
+          organizer_id: row.organizer_id,
+          organizer_name: row.organizer_name,
+          full_name: row.full_name,
+          doc_type: row.doc_type,
+          document: row.document,
+          email: row.email,
+          phone: row.phone,
+          free_qr_assigned: row.free_qr_assigned,
+          free_qr_attended: row.free_qr_attended,
+          free_qr_no_show: row.free_qr_no_show,
+          no_show_rate_percent: noShowRate,
+          last_free_qr_event: row.last_free_qr_event,
+          last_free_qr_status: row.last_free_qr_status,
+          last_free_qr_event_at_lima: formatLimaDateTime(
+            row.last_free_qr_event_at,
+          ),
+          last_no_show_event: row.last_no_show_event,
+          last_no_show_event_at_lima: formatLimaDateTime(
+            row.last_no_show_event_at,
+          ),
+          block_next_free_qr: row.free_qr_no_show > 0 ? "Sí" : "No",
+        };
+      })
+      .filter((row) => row.free_qr_assigned > 0)
+      .sort((a, b) => {
+        if (a.block_next_free_qr !== b.block_next_free_qr) {
+          return a.block_next_free_qr === "Sí" ? -1 : 1;
+        }
+        if (a.free_qr_no_show !== b.free_qr_no_show) {
+          return b.free_qr_no_show - a.free_qr_no_show;
+        }
+        if (a.no_show_rate_percent !== b.no_show_rate_percent) {
+          return b.no_show_rate_percent - a.no_show_rate_percent;
+        }
+        return a.full_name.localeCompare(b.full_name);
+      });
+
+    if (format === "csv") {
+      const csv = toCsvFromColumns(
+        [
+          { key: "organizer_name", label: "Organizador" },
+          { key: "full_name", label: "Cliente" },
+          { key: "doc_type", label: "Tipo doc." },
+          { key: "document", label: "Documento" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Teléfono" },
+          { key: "free_qr_assigned", label: "QR free asignados" },
+          { key: "free_qr_attended", label: "Asistió" },
+          { key: "free_qr_no_show", label: "No asistió" },
+          { key: "no_show_rate_percent", label: "% no-show" },
+          { key: "last_free_qr_event", label: "Último evento free" },
+          { key: "last_free_qr_status", label: "Estado último QR free" },
+          {
+            key: "last_free_qr_event_at_lima",
+            label: "Fecha último evento free (Lima)",
+          },
+          { key: "last_no_show_event", label: "Último evento no-show" },
+          {
+            key: "last_no_show_event_at_lima",
+            label: "Fecha último no-show (Lima)",
+          },
+          {
+            key: "block_next_free_qr",
+            label: "Bloquear siguiente QR free",
+          },
+        ],
+        rows as any,
+      );
+      return new Response(csv, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition":
+            'attachment; filename="reporte-no-show-qr-free.csv"',
         },
       });
     }
