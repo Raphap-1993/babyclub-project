@@ -69,7 +69,7 @@ export default async function ReportePromotoresPage() {
       <AdminHeader
         kicker="Reportes / Promotores"
         title="Rendimiento de Promotores"
-        description="Consulta códigos generados vs asistencias y exporta CSV desde backend."
+        description="Consulta QRs asignados vs asistencia real y exporta CSV desde backend."
       />
       <ReportWorkspace
         title="Reporte de promotores"

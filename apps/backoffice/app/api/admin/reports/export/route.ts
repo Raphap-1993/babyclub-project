@@ -28,6 +28,31 @@ type NormalizedEvent = {
   starts_at: string | null;
 };
 
+type PaymentRow = {
+  event_id?: string | null;
+  amount?: number | null;
+  currency_code?: string | null;
+};
+
+type ReservationSalesRow = {
+  event_id?: string | null;
+  status?: string | null;
+  sale_origin?: string | null;
+  ticket_pricing_phase?: string | null;
+  ticket_quantity?: number | null;
+  created_at?: string | null;
+  product?: { price?: number | null } | { price?: number | null }[] | null;
+  table?:
+    | { price?: number | null; min_consumption?: number | null }
+    | { price?: number | null; min_consumption?: number | null }[]
+    | null;
+};
+
+const TICKET_SALE_PRICES_PEN: Record<"early_bird" | "all_night", Record<1 | 2, number>> = {
+  early_bird: { 1: 15, 2: 25 },
+  all_night: { 1: 20, 2: 35 },
+};
+
 function isMissingDeletedAtColumnError(error: any, tableName: string) {
   if (!error) return false;
   const haystack =
@@ -35,6 +60,17 @@ function isMissingDeletedAtColumnError(error: any, tableName: string) {
   return (
     haystack.includes(`${tableName}.deleted_at`) ||
     haystack.includes("column deleted_at does not exist")
+  );
+}
+
+function isMissingTableInSchemaCacheError(error: any, tableName: string) {
+  if (!error) return false;
+  const haystack =
+    `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return (
+    haystack.includes(`could not find the table 'public.${tableName}'`) ||
+    haystack.includes(`table 'public.${tableName}'`) ||
+    haystack.includes(`public.${tableName}`)
   );
 }
 
@@ -188,6 +224,46 @@ function buildTicketPersonKey(ticket: any) {
 
   const ticketId = normalizeTicketIdentityValue(ticket?.id);
   return ticketId ? `ticket:${ticketId}` : "";
+}
+
+function pickRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return (value[0] as T) || null;
+  return (value as T) || null;
+}
+
+function resolveReservationAmountCents(reservation: ReservationSalesRow) {
+  const saleOrigin = normalizeTicketIdentityValue(reservation?.sale_origin).toLowerCase();
+
+  if (saleOrigin === "ticket") {
+    const pricingPhase = normalizeTicketIdentityValue(
+      reservation?.ticket_pricing_phase,
+    ).toLowerCase() as "early_bird" | "all_night" | "";
+    const quantity = Number(reservation?.ticket_quantity || 0) as 0 | 1 | 2;
+    if (
+      (pricingPhase === "early_bird" || pricingPhase === "all_night") &&
+      (quantity === 1 || quantity === 2)
+    ) {
+      return TICKET_SALE_PRICES_PEN[pricingPhase][quantity] * 100;
+    }
+    return null;
+  }
+
+  const productRel = pickRelation(reservation?.product);
+  const tableRel = pickRelation(reservation?.table);
+  const productPrice = Number(productRel?.price);
+  if (Number.isFinite(productPrice) && productPrice > 0) {
+    return Math.round(productPrice * 100);
+  }
+  const tablePrice = Number(tableRel?.price);
+  if (Number.isFinite(tablePrice) && tablePrice > 0) {
+    return Math.round(tablePrice * 100);
+  }
+  const minConsumption = Number(tableRel?.min_consumption);
+  if (Number.isFinite(minConsumption) && minConsumption > 0) {
+    return Math.round(minConsumption * 100);
+  }
+
+  return null;
 }
 
 export async function GET(req: NextRequest) {
@@ -436,6 +512,10 @@ export async function GET(req: NextRequest) {
       .map((row) => {
         const event = eventById.get(row.event_id);
         const promoter = promoterMap.get(row.promoter_id);
+        const promoterName =
+          promoter?.name ||
+          promoter?.code ||
+          `Promotor ${row.promoter_id.slice(0, 8)}`;
         const attendanceRate =
           row.qrs_assigned > 0
             ? Number(
@@ -449,7 +529,7 @@ export async function GET(req: NextRequest) {
           event_name: event?.name || "",
           promoter_id: row.promoter_id,
           promoter_code: promoter?.code || "",
-          promoter_name: promoter?.name || "",
+          promoter_name: promoterName,
           qrs_assigned: row.qrs_assigned,
           qrs_entered: row.qrs_entered,
           attendance_rate_percent: attendanceRate,
@@ -1054,30 +1134,92 @@ export async function GET(req: NextRequest) {
   if (fromIso) paymentsQuery = paymentsQuery.gte("created_at", fromIso);
   if (toIso) paymentsQuery = paymentsQuery.lte("created_at", toIso);
   const { data: paymentsData, error: paymentsError } = await paymentsQuery;
-  if (paymentsError) {
-    return NextResponse.json(
-      { success: false, error: paymentsError.message },
-      { status: 400 },
-    );
-  }
 
   const salesMap = new Map<
     string,
-    { paid_count: number; total_amount: number; currency: string }
-  >();
-  for (const payment of paymentsData || []) {
-    const event_id = (payment as any)?.event_id as string;
-    if (!event_id) continue;
-    if (!salesMap.has(event_id)) {
-      salesMap.set(event_id, {
-        paid_count: 0,
-        total_amount: 0,
-        currency: ((payment as any)?.currency_code as string) || "PEN",
-      });
+    {
+      paid_count: number;
+      total_amount: number;
+      amount_complete: boolean;
+      currency: string;
+      source: "payments" | "reservations_fallback";
     }
-    const row = salesMap.get(event_id)!;
-    row.paid_count += 1;
-    row.total_amount += Number((payment as any)?.amount || 0);
+  >();
+
+  if (paymentsError) {
+    if (!isMissingTableInSchemaCacheError(paymentsError, "payments")) {
+      return NextResponse.json(
+        { success: false, error: paymentsError.message },
+        { status: 400 },
+      );
+    }
+
+    let reservationsQuery = applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select(
+          "id,event_id,status,sale_origin,ticket_pricing_phase,ticket_quantity,created_at,product:table_products(price),table:tables(price,min_consumption)",
+        )
+        .in("event_id", allowedEventIds)
+        .in("status", ["approved", "confirmed", "paid"])
+        .order("created_at", { ascending: false })
+        .limit(15000),
+    );
+    if (fromIso) reservationsQuery = reservationsQuery.gte("created_at", fromIso);
+    if (toIso) reservationsQuery = reservationsQuery.lte("created_at", toIso);
+    const { data: reservationsData, error: reservationsError } =
+      await reservationsQuery;
+
+    if (reservationsError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "El ambiente no tiene la tabla payments y tampoco se pudo usar el fallback de reservas: " +
+            reservationsError.message,
+        },
+        { status: 400 },
+      );
+    }
+
+    for (const reservation of (reservationsData || []) as ReservationSalesRow[]) {
+      const event_id = normalizeTicketIdentityValue(reservation?.event_id);
+      if (!event_id) continue;
+      if (!salesMap.has(event_id)) {
+        salesMap.set(event_id, {
+          paid_count: 0,
+          total_amount: 0,
+          amount_complete: true,
+          currency: "PEN",
+          source: "reservations_fallback",
+        });
+      }
+      const row = salesMap.get(event_id)!;
+      row.paid_count += 1;
+      const derivedAmount = resolveReservationAmountCents(reservation);
+      if (typeof derivedAmount === "number" && Number.isFinite(derivedAmount)) {
+        row.total_amount += derivedAmount;
+      } else {
+        row.amount_complete = false;
+      }
+    }
+  } else {
+    for (const payment of (paymentsData || []) as PaymentRow[]) {
+      const event_id = normalizeTicketIdentityValue(payment?.event_id);
+      if (!event_id) continue;
+      if (!salesMap.has(event_id)) {
+        salesMap.set(event_id, {
+          paid_count: 0,
+          total_amount: 0,
+          amount_complete: true,
+          currency: normalizeTicketIdentityValue(payment?.currency_code) || "PEN",
+          source: "payments",
+        });
+      }
+      const row = salesMap.get(event_id)!;
+      row.paid_count += 1;
+      row.total_amount += Number(payment?.amount || 0);
+    }
   }
 
   const rows = Array.from(salesMap.entries()).map(([event_id, metrics]) => {
@@ -1088,9 +1230,12 @@ export async function GET(req: NextRequest) {
       event_id,
       event_name: event?.name || "",
       paid_count: metrics.paid_count,
-      total_amount_raw: metrics.total_amount,
-      total_amount_pen_est: Number((metrics.total_amount / 100).toFixed(2)),
+      total_amount_raw: metrics.amount_complete ? metrics.total_amount : null,
+      total_amount_pen_est: metrics.amount_complete
+        ? Number((metrics.total_amount / 100).toFixed(2))
+        : null,
       currency: metrics.currency,
+      sales_source: metrics.source,
     };
   });
 
@@ -1099,7 +1244,7 @@ export async function GET(req: NextRequest) {
       [
         { key: "organizer_name", label: "Organizador" },
         { key: "event_name", label: "Evento" },
-        { key: "paid_count", label: "Pagos confirmados" },
+        { key: "paid_count", label: "Ventas confirmadas" },
         { key: "total_amount_pen_est", label: "Ventas (S/)" },
         { key: "currency", label: "Moneda" },
       ],

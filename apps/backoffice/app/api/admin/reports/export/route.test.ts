@@ -445,6 +445,95 @@ describe("GET /api/admin/reports/export", () => {
     expect(payload.rows[0].paid_count).toBe(2);
     expect(payload.rows[0].total_amount_raw).toBe(1500);
     expect(payload.rows[0].total_amount_pen_est).toBe(15);
+    expect(payload.rows[0].sales_source).toBe("payments");
+  });
+
+  it("event_sales: cae a reservas confirmadas cuando payments no existe en schema cache", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: [
+            {
+              id: "event-1",
+              name: "LOVE IS A DRUG",
+              organizer_id: "org-1",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "payments.select": [
+        {
+          data: null,
+          error: {
+            message: "Could not find the table 'public.payments' in the schema cache",
+            details: "",
+            hint: "Perhaps you meant the table 'public.events'",
+          },
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: [
+            {
+              id: "res-1",
+              event_id: "event-1",
+              status: "approved",
+              sale_origin: "table",
+              ticket_pricing_phase: null,
+              ticket_quantity: 4,
+              created_at: "2026-03-01T00:00:00.000Z",
+              product: { price: 120 },
+              table: { price: 90, min_consumption: 100 },
+            },
+            {
+              id: "res-2",
+              event_id: "event-1",
+              status: "confirmed",
+              sale_origin: "ticket",
+              ticket_pricing_phase: "early_bird",
+              ticket_quantity: 2,
+              created_at: "2026-03-01T00:10:00.000Z",
+              product: null,
+              table: null,
+            },
+            {
+              id: "res-3",
+              event_id: "event-1",
+              status: "approved",
+              sale_origin: "ticket",
+              ticket_pricing_phase: null,
+              ticket_quantity: 1,
+              created_at: "2026-03-01T00:20:00.000Z",
+              product: null,
+              table: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL(
+        "http://localhost/api/admin/reports/export?report=event_sales&format=json",
+      ),
+      headers: new Headers({ Authorization: "Bearer token-123" }),
+    } as any;
+    const res = await GET(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.rows.length).toBe(1);
+    expect(payload.rows[0].paid_count).toBe(3);
+    expect(payload.rows[0].total_amount_raw).toBeNull();
+    expect(payload.rows[0].total_amount_pen_est).toBeNull();
+    expect(payload.rows[0].sales_source).toBe("reservations_fallback");
   });
 
   it("event_attendance CSV: exporta encabezados homologados en español", async () => {
@@ -640,7 +729,7 @@ describe("GET /api/admin/reports/export", () => {
       "reporte-ventas-eventos.csv",
     );
     expect(csv.split("\n")[0]).toBe(
-      "Organizador,Evento,Pagos confirmados,Ventas (S/),Moneda",
+      "Organizador,Evento,Ventas confirmadas,Ventas (S/),Moneda",
     );
   });
 
