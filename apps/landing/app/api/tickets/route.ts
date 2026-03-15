@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
+import { isAdult } from "shared/datetime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -369,10 +370,3 @@ export async function POST(req: NextRequest) {
   });
 }
 
-function isAdult(birthdate: Date) {
-  const now = new Date();
-  let age = now.getFullYear() - birthdate.getFullYear();
-  const m = now.getMonth() - birthdate.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birthdate.getDate())) age--;
-  return age >= 18;
-}
