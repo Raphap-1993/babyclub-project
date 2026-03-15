@@ -171,28 +171,10 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
   }
 }
 
-async function getOrganizers(): Promise<{ id: string; name: string }[]> {
-  if (!supabaseUrl || !supabaseServiceKey) return [];
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  
-  const { data } = await applyNotDeleted(
-    supabase
-      .from("organizers")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("name", { ascending: true })
-  );
-  
-  return data || [];
-}
-
 export const dynamic = "force-dynamic";
 
 export default async function ReservationsPage() {
   const { reservations, error } = await getReservations();
-  const organizers = await getOrganizers();
 
-  return <ModernReservationsClient initialReservations={reservations} organizers={organizers} error={error || null} />;
+  return <ModernReservationsClient initialReservations={reservations} error={error || null} />;
 }
