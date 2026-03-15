@@ -8,7 +8,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 type TicketSalePhase = "early_bird" | "all_night";
 
-const TICKET_PRICES: Record<TicketSalePhase, Record<1 | 2, number>> = {
+const TICKET_PRICES_FALLBACK: Record<TicketSalePhase, Record<1 | 2, number>> = {
   early_bird: { 1: 15, 2: 25 },
   all_night: { 1: 20, 2: 35 },
 };
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   const eventQuery = applyNotDeleted(
     supabase
       .from("events")
-      .select("id,is_active,closed_at,sale_status,sale_public_message")
+      .select("id,is_active,closed_at,sale_status,sale_public_message,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2")
       .eq("id", event_id)
   );
   let { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
@@ -131,10 +131,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: resError.message }, { status: 500 });
   }
 
+  const priceMap: Record<TicketSalePhase, Record<1 | 2, number>> = {
+    early_bird: {
+      1: Number((eventRow as any)?.early_bird_price_1) || TICKET_PRICES_FALLBACK.early_bird[1],
+      2: Number((eventRow as any)?.early_bird_price_2) || TICKET_PRICES_FALLBACK.early_bird[2],
+    },
+    all_night: {
+      1: Number((eventRow as any)?.all_night_price_1) || TICKET_PRICES_FALLBACK.all_night[1],
+      2: Number((eventRow as any)?.all_night_price_2) || TICKET_PRICES_FALLBACK.all_night[2],
+    },
+  };
+
   return NextResponse.json({
     success: true,
     reservationId: reservation?.id,
     pricing_phase: requestedTicketSalePhase,
-    amount: TICKET_PRICES[requestedTicketSalePhase][ticket_quantity as 1 | 2],
+    amount: priceMap[requestedTicketSalePhase][ticket_quantity as 1 | 2],
   });
 }
