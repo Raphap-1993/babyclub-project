@@ -147,6 +147,14 @@ function buildEventPayload(body: any): {
   if (!code) return { error: "Código es requerido" };
   if (!organizer_id) return { error: "Organizador es requerido" };
 
+  const marketing_capacity_raw = body?.marketing_capacity != null ? Number(body.marketing_capacity) : null;
+  const marketing_capacity = Number.isFinite(marketing_capacity_raw) && marketing_capacity_raw! > 0 ? marketing_capacity_raw : null;
+  const early_bird_enabled = typeof body?.early_bird_enabled === "boolean" ? body.early_bird_enabled : false;
+  const early_bird_price_1 = Number(body?.early_bird_price_1);
+  const early_bird_price_2 = Number(body?.early_bird_price_2);
+  const all_night_price_1  = Number(body?.all_night_price_1);
+  const all_night_price_2  = Number(body?.all_night_price_2);
+
   return {
     payload: {
       name,
@@ -154,11 +162,17 @@ function buildEventPayload(body: any): {
       starts_at: date_value.toUTC().toISO(),
       entry_limit,
       capacity,
+      marketing_capacity,
       header_image,
       is_active,
       sale_status: saleStatusRaw,
       sale_public_message: sale_public_message || null,
       organizer_id,
+      early_bird_enabled,
+      early_bird_price_1: Number.isFinite(early_bird_price_1) && early_bird_price_1 > 0 ? early_bird_price_1 : 15,
+      early_bird_price_2: Number.isFinite(early_bird_price_2) && early_bird_price_2 > 0 ? early_bird_price_2 : 25,
+      all_night_price_1:  Number.isFinite(all_night_price_1)  && all_night_price_1  > 0 ? all_night_price_1  : 20,
+      all_night_price_2:  Number.isFinite(all_night_price_2)  && all_night_price_2  > 0 ? all_night_price_2  : 35,
     },
     capacity,
     code: code || undefined, // undefined si está vacío

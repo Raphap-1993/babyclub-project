@@ -21,7 +21,7 @@ export async function GET() {
     applyNotDeleted(
       supabase
         .from("events")
-        .select("id,name,starts_at,location,is_active,closed_at,sale_status,sale_public_message")
+        .select("id,name,starts_at,location,is_active,closed_at,sale_status,sale_public_message,early_bird_enabled,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2")
         .eq("is_active", true)
         .order("starts_at", { ascending: true })
     ),

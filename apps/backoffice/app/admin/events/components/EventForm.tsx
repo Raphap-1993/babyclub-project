@@ -32,6 +32,11 @@ type EventRecord = {
   entry_limit?: string | null;
   capacity: number;
   marketing_capacity?: number | null;
+  early_bird_enabled?: boolean | null;
+  early_bird_price_1?: number | null;
+  early_bird_price_2?: number | null;
+  all_night_price_1?: number | null;
+  all_night_price_2?: number | null;
   header_image: string;
   cover_image?: string;
   is_active: boolean;
@@ -48,6 +53,11 @@ type FormValues = {
   entry_limit: string;
   capacity: string;
   marketing_capacity: string;
+  early_bird_enabled: boolean;
+  early_bird_price_1: string;
+  early_bird_price_2: string;
+  all_night_price_1: string;
+  all_night_price_2: string;
   header_image: string;
   cover_image: string;
   is_active: boolean;
@@ -64,6 +74,11 @@ const emptyForm: FormValues = {
   entry_limit: DEFAULT_ENTRY_LIMIT,
   capacity: "",
   marketing_capacity: "",
+  early_bird_enabled: false,
+  early_bird_price_1: "15",
+  early_bird_price_2: "25",
+  all_night_price_1: "20",
+  all_night_price_2: "35",
   header_image: "",
   cover_image: "",
   is_active: true,
@@ -131,6 +146,11 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
       entry_limit: entryLimit,
       capacity: Number(form.capacity || 0),
       marketing_capacity: form.marketing_capacity ? Number(form.marketing_capacity) : null,
+      early_bird_enabled: Boolean(form.early_bird_enabled),
+      early_bird_price_1: form.early_bird_price_1 ? Number(form.early_bird_price_1) : 15,
+      early_bird_price_2: form.early_bird_price_2 ? Number(form.early_bird_price_2) : 25,
+      all_night_price_1: form.all_night_price_1 ? Number(form.all_night_price_1) : 20,
+      all_night_price_2: form.all_night_price_2 ? Number(form.all_night_price_2) : 35,
       header_image: form.header_image.trim(),
       cover_image: form.cover_image.trim(),
       is_active: Boolean(form.is_active),
@@ -261,6 +281,56 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
             value={form.marketing_capacity}
             onChange={(val) => updateField("marketing_capacity", val)}
           />
+          </div>
+
+          {/* Precios de tickets */}
+          <div className="rounded-lg border border-neutral-600/50 bg-neutral-700/20 p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-neutral-200">Precios de tickets</p>
+              <Checkbox
+                label="Habilitar EARLY BABY"
+                checked={form.early_bird_enabled}
+                onChange={(checked) => updateField("early_bird_enabled", checked)}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field
+                label="EARLY BABY 1x (S/)"
+                type="number"
+                min={1}
+                step="0.01"
+                placeholder="15"
+                value={form.early_bird_price_1}
+                onChange={(val) => updateField("early_bird_price_1", val)}
+              />
+              <Field
+                label="EARLY BABY 2x (S/)"
+                type="number"
+                min={1}
+                step="0.01"
+                placeholder="25"
+                value={form.early_bird_price_2}
+                onChange={(val) => updateField("early_bird_price_2", val)}
+              />
+              <Field
+                label="ALL NIGHT 1x (S/)"
+                type="number"
+                min={1}
+                step="0.01"
+                placeholder="20"
+                value={form.all_night_price_1}
+                onChange={(val) => updateField("all_night_price_1", val)}
+              />
+              <Field
+                label="ALL NIGHT 2x (S/)"
+                type="number"
+                min={1}
+                step="0.01"
+                placeholder="35"
+                value={form.all_night_price_2}
+                onChange={(val) => updateField("all_night_price_2", val)}
+              />
+            </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -549,6 +619,11 @@ function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<Fo
     entry_limit: normalizeEntryLimit(initialData.entry_limit) || DEFAULT_ENTRY_LIMIT,
     capacity: initialData.capacity != null ? String(initialData.capacity) : "",
     marketing_capacity: initialData.marketing_capacity != null ? String(initialData.marketing_capacity) : "",
+    early_bird_enabled: initialData.early_bird_enabled ?? false,
+    early_bird_price_1: initialData.early_bird_price_1 != null ? String(initialData.early_bird_price_1) : "15",
+    early_bird_price_2: initialData.early_bird_price_2 != null ? String(initialData.early_bird_price_2) : "25",
+    all_night_price_1: initialData.all_night_price_1 != null ? String(initialData.all_night_price_1) : "20",
+    all_night_price_2: initialData.all_night_price_2 != null ? String(initialData.all_night_price_2) : "35",
     header_image: initialData.header_image ?? "",
     cover_image: initialData.cover_image ?? "",
     is_active: initialData.is_active ?? true,
