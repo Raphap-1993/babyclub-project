@@ -14,6 +14,12 @@ type EventRow = {
   name: string;
   location: string;
   capacity: number;
+  marketing_capacity?: number | null;
+  early_bird_enabled?: boolean | null;
+  early_bird_price_1?: number | null;
+  early_bird_price_2?: number | null;
+  all_night_price_1?: number | null;
+  all_night_price_2?: number | null;
   header_image: string;
   cover_image?: string;
   is_active: boolean;
@@ -35,7 +41,7 @@ async function getEvent(id: string): Promise<EventRow | null> {
   const eventQuery = applyNotDeleted(
     supabase
       .from("events")
-      .select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active,sale_status,sale_public_message,organizer_id")
+      .select("id,name,location,starts_at,entry_limit,capacity,marketing_capacity,early_bird_enabled,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2,header_image,is_active,sale_status,sale_public_message,organizer_id")
       .eq("id", id)
   );
   let { data, error } = await eventQuery.maybeSingle();
