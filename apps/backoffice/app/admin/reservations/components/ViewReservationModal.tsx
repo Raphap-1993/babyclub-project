@@ -16,9 +16,10 @@ interface ReservationDetail {
   voucher_url: string | null;
   status: string;
   codes: string[] | null;
-  friendly_code?: string | null; // ✅ Código amigable de reserva
+  friendly_code?: string | null;
+  sale_origin?: string | null;
   created_at: string;
-  table_name: string;
+  table_name: string | null;
   event_name: string;
   event_starts_at: string | null;
   event_location: string | null;
@@ -249,21 +250,23 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
 
                 {/* Right Column */}
                 <div className="space-y-4">
-                  {/* Mesa y Entradas */}
-                  <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Ticket className="h-4 w-4 text-purple-400" />
-                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Mesa</h3>
+                  {/* Mesa y Entradas — solo para reservas de mesa */}
+                  {reservation.sale_origin !== "ticket" && (
+                    <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Ticket className="h-4 w-4 text-purple-400" />
+                        <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Mesa</h3>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-base font-medium text-neutral-100">{reservation.table_name || "Sin mesa asignada"}</div>
+                        {(reservation.ticket_quantity ?? reservation.codes?.length) && (
+                          <div className="text-sm text-neutral-400">
+                            Entradas: {reservation.ticket_quantity ?? reservation.codes?.length}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <div className="text-base font-medium text-neutral-100">{reservation.table_name}</div>
-                      {(reservation.ticket_quantity ?? reservation.codes?.length) && (
-                        <div className="text-sm text-neutral-400">
-                          Entradas: {reservation.ticket_quantity ?? reservation.codes?.length}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Voucher */}
                   {reservation.voucher_url && (
