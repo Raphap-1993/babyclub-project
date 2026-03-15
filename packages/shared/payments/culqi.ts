@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { DateTime } from "luxon";
+
+const LIMA_TZ = "America/Lima";
 
 export type CulqiPaymentStatus = "pending" | "paid" | "failed" | "refunded" | "expired" | "canceled";
 
@@ -147,7 +150,7 @@ export function buildWebhookEventKey(provider: string, rawBody: string, eventId:
 }
 
 export function buildReceiptNumber(seed: string, now = new Date()) {
-  const date = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const date = DateTime.fromJSDate(now).setZone(LIMA_TZ).toFormat("yyyyLLdd");
   const suffix = seed.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase() || Math.random().toString(36).slice(2, 10).toUpperCase();
   return `BC-${date}-${suffix}`;
 }

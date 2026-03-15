@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
+import { isAdult } from "shared/datetime";
 
 const token = process.env.API_PERU_TOKEN || "";
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
     const data = payload?.data || payload || {};
     const birthdate = data?.fecha_nacimiento || data?.fechaNacimiento || null;
 
-    if (birthdate && !isAdult(birthdate)) {
+    if (birthdate && !isAdultFromString(birthdate)) {
       return NextResponse.json({ error: "Solo mayores de 18" }, { status: 403 });
     }
 
@@ -63,12 +64,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function isAdult(birthdate: string) {
+function isAdultFromString(birthdate: string): boolean {
   const dob = new Date(birthdate);
-  if (Number.isNaN(dob.getTime())) return true;
-  const now = new Date();
-  let age = now.getFullYear() - dob.getFullYear();
-  const m = now.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
-  return age >= 18;
+  if (Number.isNaN(dob.getTime())) return true; // fecha inválida → permitir paso
+  return isAdult(dob);
 }

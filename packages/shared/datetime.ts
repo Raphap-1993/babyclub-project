@@ -105,6 +105,12 @@ export function toUtcIsoFromLimaParts(parts: { year: number; month: number; day:
   });
 }
 
+export function isAdult(birthdate: Date, minAge = 18): boolean {
+  const now = DateTime.now().setZone(EVENT_TZ);
+  const dob = DateTime.fromJSDate(birthdate).setZone(EVENT_TZ);
+  return now.diff(dob, "years").years >= minAge;
+}
+
 function parseToLima(iso: string | null | undefined) {
   if (!iso) return null;
   const dt = DateTime.fromISO(iso, { setZone: true }).setZone(EVENT_TZ);
