@@ -31,6 +31,7 @@ type EventRecord = {
   starts_at: string;
   entry_limit?: string | null;
   capacity: number;
+  marketing_capacity?: number | null;
   header_image: string;
   cover_image?: string;
   is_active: boolean;
@@ -46,6 +47,7 @@ type FormValues = {
   starts_at: string;
   entry_limit: string;
   capacity: string;
+  marketing_capacity: string;
   header_image: string;
   cover_image: string;
   is_active: boolean;
@@ -61,6 +63,7 @@ const emptyForm: FormValues = {
   starts_at: "",
   entry_limit: DEFAULT_ENTRY_LIMIT,
   capacity: "",
+  marketing_capacity: "",
   header_image: "",
   cover_image: "",
   is_active: true,
@@ -127,6 +130,7 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
       starts_at: form.starts_at,
       entry_limit: entryLimit,
       capacity: Number(form.capacity || 0),
+      marketing_capacity: form.marketing_capacity ? Number(form.marketing_capacity) : null,
       header_image: form.header_image.trim(),
       cover_image: form.cover_image.trim(),
       is_active: Boolean(form.is_active),
@@ -241,13 +245,21 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
             </p>
           )}
           <Field
-            label="Capacidad"
+            label="Capacidad real"
             type="number"
             min={10}
-            placeholder="200"
+            placeholder="220"
             value={form.capacity}
             onChange={(val) => updateField("capacity", val)}
             error={errors.capacity}
+          />
+          <Field
+            label="Aforo marketing (barra visual)"
+            type="number"
+            min={1}
+            placeholder="Opcional — deja vacío para usar capacidad real"
+            value={form.marketing_capacity}
+            onChange={(val) => updateField("marketing_capacity", val)}
           />
           </div>
 
@@ -536,6 +548,7 @@ function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<Fo
     starts_at: initialData.starts_at ?? "",
     entry_limit: normalizeEntryLimit(initialData.entry_limit) || DEFAULT_ENTRY_LIMIT,
     capacity: initialData.capacity != null ? String(initialData.capacity) : "",
+    marketing_capacity: initialData.marketing_capacity != null ? String(initialData.marketing_capacity) : "",
     header_image: initialData.header_image ?? "",
     cover_image: initialData.cover_image ?? "",
     is_active: initialData.is_active ?? true,

@@ -29,29 +29,37 @@ export async function GET(req: NextRequest) {
   }
 
   const eventId = codeRow.event_id;
-  let capacity = typeof codeRow.max_uses === "number" ? codeRow.max_uses : 0;
-  if (!capacity && eventId) {
-    const eventQuery = applyNotDeleted(supabase.from("events").select("capacity").eq("id", eventId));
-    const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
-
-    if (eventError || !eventRow) {
-      return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
-    }
-
-    capacity = Number(eventRow.capacity) || 0;
+  if (!eventId) {
+    return NextResponse.json({ success: false, error: "Código sin evento asociado" }, { status: 404 });
   }
 
-  const { count: used, error: ticketsError } = await applyNotDeleted(
-    supabase.from("tickets").select("id", { count: "exact", head: true }).eq("code_id", codeRow.id)
-  );
+  const { data: eventRow, error: eventError } = await applyNotDeleted(
+    supabase.from("events").select("capacity,marketing_capacity").eq("id", eventId)
+  ).maybeSingle();
+
+  if (eventError || !eventRow) {
+    return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
+  }
+
+  // Fase B: la barra visual usa marketing_capacity si está configurada,
+  // si no, usa la capacidad real. El bloqueo de tickets usa siempre capacity real.
+  const displayCapacity =
+    typeof eventRow.marketing_capacity === "number" && eventRow.marketing_capacity > 0
+      ? eventRow.marketing_capacity
+      : Number(eventRow.capacity) || 0;
+
+  // Contar TODOS los tickets activos del evento (no solo del código)
+  const { data: countData, error: ticketsError } = await supabase.rpc("count_event_tickets", {
+    p_event_id: eventId,
+  });
 
   if (ticketsError) {
     return NextResponse.json({ success: false, error: ticketsError.message }, { status: 500 });
   }
 
-  const usedCount = used ?? 0;
-  const available = Math.max(capacity - usedCount, 0);
-  const percent = capacity > 0 ? Math.min(Math.round((usedCount / capacity) * 100), 100) : 0;
+  const usedCount = Number(countData ?? 0);
+  const available = Math.max(displayCapacity - usedCount, 0);
+  const percent = displayCapacity > 0 ? Math.min(Math.round((usedCount / displayCapacity) * 100), 100) : 0;
 
-  return NextResponse.json({ success: true, capacity, used: usedCount, available, percent });
+  return NextResponse.json({ success: true, capacity: displayCapacity, used: usedCount, available, percent });
 }

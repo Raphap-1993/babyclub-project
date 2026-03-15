@@ -79,6 +79,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código inactivo" }, { status: 400 });
   }
 
+  // Fase A — Aforo real del evento
+  // Verifica TODOS los tickets del evento antes de crear uno nuevo,
+  // sin importar qué código, reserva o cortesía los generó.
+  if (codeRow.event_id) {
+    const { data: eventCapRow } = await supabase
+      .from("events")
+      .select("capacity")
+      .eq("id", codeRow.event_id)
+      .maybeSingle();
+
+    if (eventCapRow?.capacity) {
+      const { data: countData } = await supabase.rpc("count_event_tickets", {
+        p_event_id: codeRow.event_id,
+      });
+      const totalTickets = Number(countData ?? 0);
+      if (totalTickets >= eventCapRow.capacity) {
+        return NextResponse.json(
+          { success: false, error: "Aforo del evento completo" },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   const now = Date.now();
   if (codeRow.expires_at && new Date(codeRow.expires_at).getTime() < now) {
     return NextResponse.json({ success: false, error: "Código expirado" }, { status: 400 });
