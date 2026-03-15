@@ -44,10 +44,9 @@ interface CreateReservationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  organizers: { id: string; name: string }[];
 }
 
-export default function CreateReservationModal({ isOpen, onClose, onSuccess, organizers }: CreateReservationModalProps) {
+export default function CreateReservationModal({ isOpen, onClose, onSuccess }: CreateReservationModalProps) {
   const [step, setStep] = useState(1);
   const [mode, setMode] = useState<Mode>("new_customer");
   const [loading, setLoading] = useState(false);
@@ -55,7 +54,6 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
   const [success, setSuccess] = useState(false);
 
   // Datos del formulario
-  const [selectedOrganizer, setSelectedOrganizer] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState("");
   const [tables, setTables] = useState<Table[]>([]);
@@ -96,10 +94,10 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
   }, [isOpen]);
 
   useEffect(() => {
-    if (selectedOrganizer) {
+    if (isOpen) {
       loadEvents();
     }
-  }, [selectedOrganizer]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (selectedEvent) {
@@ -121,7 +119,6 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
     setMode("new_customer");
     setError(null);
     setSuccess(false);
-    setSelectedOrganizer("");
     setSelectedEvent("");
     setSelectedTable("");
     setSelectedProduct("");
@@ -143,7 +140,7 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
 
   const loadEvents = async () => {
     try {
-      const response = await authedFetch(`/api/admin/events?organizer_id=${selectedOrganizer}`);
+      const response = await authedFetch(`/api/admin/events`);
       const data = await response.json();
       if (data.success && data.events) {
         setEvents(data.events);
@@ -335,7 +332,7 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
   };
 
   const validateStep2 = () => {
-    return Boolean(selectedOrganizer && selectedEvent && selectedTable && selectedProduct);
+    return Boolean(selectedEvent && selectedTable && selectedProduct);
   };
 
   // Obtener cantidad de entradas según la mesa seleccionada
@@ -819,52 +816,26 @@ export default function CreateReservationModal({ isOpen, onClose, onSuccess, org
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Organizador *
+                  Evento *
                 </label>
                 <SelectNative
-                  value={selectedOrganizer}
+                  value={selectedEvent}
                   onChange={(e) => {
-                    setSelectedOrganizer(e.target.value);
-                    setSelectedEvent("");
+                    setSelectedEvent(e.target.value);
                     setSelectedTable("");
                     setProducts([]);
                     setSelectedProduct("");
                   }}
                   className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
                 >
-                  <option value="">Seleccionar organizador</option>
-                  {organizers.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.name}
+                  <option value="">Seleccionar evento</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name} - {event.date}
                     </option>
                   ))}
                 </SelectNative>
               </div>
-
-              {selectedOrganizer && (
-                <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-2">
-                    Evento *
-                  </label>
-                  <SelectNative
-                    value={selectedEvent}
-                    onChange={(e) => {
-                      setSelectedEvent(e.target.value);
-                      setSelectedTable("");
-                      setProducts([]);
-                      setSelectedProduct("");
-                    }}
-                    className="h-10 border-neutral-700 bg-neutral-800 text-neutral-200 focus:ring-2 focus:ring-neutral-500"
-                  >
-                    <option value="">Seleccionar evento</option>
-                    {events.map((event) => (
-                      <option key={event.id} value={event.id}>
-                        {event.name} - {event.date}
-                      </option>
-                    ))}
-                  </SelectNative>
-                </div>
-              )}
 
               {selectedEvent && (
                 <div>

@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
 import { authedFetch } from "@/lib/authedFetch";
 
-export type OrganizerOption = { id: string; name: string };
 export type EventOption = { id: string; name: string; date?: string };
 
 type Product = {
@@ -36,14 +35,12 @@ export type TableRow = {
 const ALL_EVENTS_VALUE = "__all_events__";
 
 export default function ProductManager({
-  organizers,
   events,
   tables,
   selectedOrganizerId,
   selectedEventId,
   error,
 }: {
-  organizers: OrganizerOption[];
   events: EventOption[];
   tables: TableRow[];
   selectedOrganizerId: string;
@@ -259,28 +256,7 @@ export default function ProductManager({
             Trabaja por organizador para homologar catálogo de mesa con reservas y landing.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
-          <label className="space-y-1">
-            <span className="text-xs uppercase tracking-[0.12em] text-white/50">Organizador</span>
-            <SelectNative
-              value={currentOrganizerId}
-              onChange={(event) => {
-                const nextOrganizerId = event.target.value;
-                setCurrentOrganizerId(nextOrganizerId);
-                setCurrentEventId(ALL_EVENTS_VALUE);
-                navigateWithFilters(nextOrganizerId, ALL_EVENTS_VALUE);
-              }}
-              disabled={isRouting || saving || organizers.length === 0}
-            >
-              {organizers.length === 0 && <option value="">Sin organizadores</option>}
-              {organizers.map((organizer) => (
-                <option key={organizer.id} value={organizer.id}>
-                  {organizer.name}
-                </option>
-              ))}
-            </SelectNative>
-          </label>
-
+        <CardContent className="grid gap-3 md:grid-cols-2">
           <label className="space-y-1">
             <span className="text-xs uppercase tracking-[0.12em] text-white/50">Evento</span>
             <SelectNative

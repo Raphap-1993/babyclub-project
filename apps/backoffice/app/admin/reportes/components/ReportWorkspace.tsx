@@ -34,7 +34,6 @@ type ReportWorkspaceProps = {
     | "free_qr_no_show";
   allowReportSwitch?: boolean;
   showDateRange?: boolean;
-  organizers: Option[];
   events: Option[];
   promoters: Option[];
 };
@@ -164,7 +163,6 @@ export default function ReportWorkspace({
   defaultReport,
   allowReportSwitch = false,
   showDateRange = false,
-  organizers,
   events,
   promoters,
 }: ReportWorkspaceProps) {
@@ -376,26 +374,6 @@ export default function ReportWorkspace({
               </label>
             </>
           ) : null}
-          <label className="space-y-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
-              Organizador
-            </span>
-            <SelectNative
-              value={organizerId}
-              onChange={(e) => {
-                setOrganizerId(e.target.value);
-                setEventId("");
-                setPromoterId("");
-              }}
-            >
-              <option value="">Todos</option>
-              {organizers.map((organizer) => (
-                <option key={organizer.id} value={organizer.id}>
-                  {organizer.label}
-                </option>
-              ))}
-            </SelectNative>
-          </label>
           <label className="space-y-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
               Evento

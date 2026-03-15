@@ -14,7 +14,6 @@ import {
   Settings,
   Menu,
   X,
-  Building2,
   Package2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -38,7 +37,6 @@ const menuItems = [
   {
     section: "OPERACIONES",
     items: [
-      { label: "Organizadores", href: "/admin/organizers", icon: Building2 },
       { label: "Eventos", href: "/admin/events", icon: Calendar },
       {
         label: "Promotores",
