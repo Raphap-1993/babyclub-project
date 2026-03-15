@@ -59,10 +59,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: personError.message }, { status: 500 });
   }
 
+  const { data: orgData } = await supabase
+    .from("organizers")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (!orgData?.id) {
+    return NextResponse.json({ success: false, error: "No organizer found" }, { status: 404 });
+  }
+
   const person_id = personData?.id;
   const { data: promoterData, error } = await supabase
     .from("promoters")
-    .insert({ person_id, code: code || null, instagram, tiktok, notes, is_active })
+    .insert({ person_id, code: code || null, instagram, tiktok, notes, is_active, organizer_id: orgData.id })
     .select("id")
     .single();
   if (error) {

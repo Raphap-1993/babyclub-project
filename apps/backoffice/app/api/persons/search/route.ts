@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireStaffRole } from "shared/auth/requireStaff";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function GET(req: NextRequest) {
-  console.log('🔍 /api/persons/search called');
-  
+  const guard = await requireStaffRole(req);
+  if (!guard.ok) {
+    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error('❌ Supabase config missing:', { 
       hasUrl: !!supabaseUrl, 

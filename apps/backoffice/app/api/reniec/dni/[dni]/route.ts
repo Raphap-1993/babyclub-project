@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireStaffRole } from "shared/auth/requireStaff";
 
 const RENIEC_API_URL = process.env.RENIEC_API_URL || "";
 const RENIEC_API_TOKEN = process.env.RENIEC_API_TOKEN || "";
 
 export async function GET(
-  req: NextRequest, 
+  req: NextRequest,
   context: { params: Promise<{ dni: string }> }
 ) {
+  const guard = await requireStaffRole(req);
+  if (!guard.ok) {
+    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+
   const params = await context.params;
   const dni = params.dni;
 
