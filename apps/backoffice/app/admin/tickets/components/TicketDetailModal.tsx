@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { X, Download, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { authedFetch } from "@/lib/authedFetch";
 
 type TicketDetail = {
   id: string;
@@ -48,7 +49,7 @@ export default function TicketDetailModal({
       setShowEmailInput(false);
       setCustomEmail("");
       
-      fetch(`/api/tickets/${ticketId}`)
+      authedFetch(`/api/tickets/${ticketId}`)
         .then((res) => {
           if (!res.ok) throw new Error("Error al cargar el ticket");
           return res.json();
