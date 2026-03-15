@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       status,
       codes,
       ticket_quantity,
+      sale_origin,
       created_at,
       table_id,
       event_id
@@ -72,7 +73,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     codes: data.codes,
     ticket_quantity: data.ticket_quantity,
     created_at: data.created_at,
-    table_name: tableData.data?.name || "Mesa desconocida",
+    sale_origin: data.sale_origin || null,
+    table_name: tableData.data?.name || null,
     event_name: eventData.data?.name || "Evento desconocido",
     event_starts_at: eventData.data?.starts_at || null,
     event_location: eventData.data?.location || null,
