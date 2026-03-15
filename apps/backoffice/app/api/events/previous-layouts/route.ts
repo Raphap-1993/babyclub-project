@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { requireStaffRole } from "shared/auth/requireStaff";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,6 +14,11 @@ const supabase =
     : null;
 
 export async function GET(req: NextRequest) {
+  const guard = await requireStaffRole(req);
+  if (!guard.ok) {
+    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+
   if (!supabase) {
     return NextResponse.json(
       { success: false, error: "Supabase config missing" },
