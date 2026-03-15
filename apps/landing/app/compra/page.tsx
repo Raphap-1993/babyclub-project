@@ -192,7 +192,7 @@ export default function CompraPage() {
     setTicketModalError(null);
     setTicketUploading(false);
     setTicketQuantity(1);
-    setTicketPricingSelection(initialTicketPricingSelection);
+    setTicketPricingSelection("all_night");
   };
 
   const clearMesaInputs = () => {
