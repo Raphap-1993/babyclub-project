@@ -206,7 +206,7 @@ export default async function TableProductsPage({
                 </CardDescription>
                 <CardTitle className="mt-2 text-3xl">Gestión de Productos de Mesa</CardTitle>
                 <p className="mt-2 text-sm text-white/60">
-                  Flujo ordenado por organizador: selecciona organizador, evento y mesa antes de editar combos.
+                  Selecciona evento y mesa para editar combos.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -227,7 +227,6 @@ export default async function TableProductsPage({
         </Card>
 
         <ProductManager
-          organizers={organizers}
           events={events}
           tables={tables}
           selectedOrganizerId={selectedOrganizerId}

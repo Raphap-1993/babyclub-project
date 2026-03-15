@@ -36,9 +36,6 @@ function SearchAndDateFilters({
   onSearchChange,
   statusFilter,
   onStatusChange,
-  organizerFilter,
-  onOrganizerChange,
-  organizers,
   fromDate,
   onFromDateChange,
   toDate,
@@ -51,9 +48,6 @@ function SearchAndDateFilters({
   onSearchChange: (value: string) => void;
   statusFilter: string;
   onStatusChange: (value: string) => void;
-  organizerFilter: string;
-  onOrganizerChange: (value: string) => void;
-  organizers: { id: string; name: string }[];
   fromDate: string;
   onFromDateChange: (value: string) => void;
   toDate: string;
@@ -78,19 +72,6 @@ function SearchAndDateFilters({
           placeholder="Hasta" 
         />
 
-        <div className="relative">
-          <SelectNative
-            value={organizerFilter}
-            onChange={(e) => onOrganizerChange(e.target.value)}
-            className="h-10 border-neutral-700 bg-neutral-800/50 text-neutral-200"
-          >
-            <option value="all">Todos los organizadores</option>
-            {organizers.map((org) => (
-              <option key={org.id} value={org.id}>{org.name}</option>
-            ))}
-          </SelectNative>
-        </div>
-        
         <div className="relative">
           <SelectNative
             value={statusFilter}
@@ -330,25 +311,21 @@ const createColumns = (
 
 interface ModernReservationsClientProps {
   initialReservations: ReservationRow[];
-  organizers: { id: string; name: string }[];
   error?: string | null;
 }
 
 export default function ModernReservationsClient({
   initialReservations,
-  organizers,
   error,
 }: ModernReservationsClientProps) {
   const [reservations] = useState<ReservationRow[]>(initialReservations);
   const [filteredReservations, setFilteredReservations] = useState<ReservationRow[]>(initialReservations);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [organizerFilter, setOrganizerFilter] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [tempSearchQuery, setTempSearchQuery] = useState("");
   const [tempStatusFilter, setTempStatusFilter] = useState<string>("all");
-  const [tempOrganizerFilter, setTempOrganizerFilter] = useState<string>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewReservationId, setViewReservationId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -361,7 +338,7 @@ export default function ModernReservationsClient({
   const [pageSize, setPageSize] = useState(10);
 
   // Verificar si hay filtros activos
-  const hasActiveFilters = Boolean(searchQuery || statusFilter !== "all" || organizerFilter !== "all" || fromDate || toDate);
+  const hasActiveFilters = Boolean(searchQuery || statusFilter !== "all" || fromDate || toDate);
 
   // Recargar datos después de crear reserva
   const handleReservationCreated = async () => {
@@ -523,7 +500,6 @@ export default function ModernReservationsClient({
   const applyFilters = () => {
     setSearchQuery(tempSearchQuery);
     setStatusFilter(tempStatusFilter);
-    setOrganizerFilter(tempOrganizerFilter);
     // fromDate y toDate ya se actualizan directamente
   };
 
@@ -531,12 +507,10 @@ export default function ModernReservationsClient({
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
-    setOrganizerFilter("all");
     setFromDate("");
     setToDate("");
     setTempSearchQuery("");
     setTempStatusFilter("all");
-    setTempOrganizerFilter("all");
   };
 
   // Filtrar reservas
@@ -568,12 +542,6 @@ export default function ModernReservationsClient({
       });
     }
     
-    if (organizerFilter !== "all") {
-      filtered = filtered.filter(reservation => 
-        reservation.organizer_id === organizerFilter
-      );
-    }
-
     // Filtrar por fechas si están definidas
     if (fromDate) {
       filtered = filtered.filter(reservation => {
@@ -592,11 +560,11 @@ export default function ModernReservationsClient({
     }
     
     setFilteredReservations(filtered);
-  }, [reservations, searchQuery, statusFilter, organizerFilter, fromDate, toDate]);
+  }, [reservations, searchQuery, statusFilter, fromDate, toDate]);
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, statusFilter, organizerFilter, fromDate, toDate]);
+  }, [searchQuery, statusFilter, fromDate, toDate]);
 
   const columns = React.useMemo(
     () => createColumns(
@@ -657,9 +625,6 @@ export default function ModernReservationsClient({
         onSearchChange={setTempSearchQuery}
         statusFilter={tempStatusFilter}
         onStatusChange={setTempStatusFilter}
-        organizerFilter={tempOrganizerFilter}
-        onOrganizerChange={setTempOrganizerFilter}
-        organizers={organizers}
         fromDate={fromDate}
         onFromDateChange={setFromDate}
         toDate={toDate}
@@ -793,7 +758,6 @@ export default function ModernReservationsClient({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleReservationCreated}
-        organizers={organizers}
       />
 
       {/* Modal de visualización */}

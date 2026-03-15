@@ -75,7 +75,6 @@ export default async function ReporteMesasPage({
         defaultReport={defaultReport}
         allowReportSwitch
         showDateRange={false}
-        organizers={options.organizers}
         events={options.events}
         promoters={options.promoters}
       />
