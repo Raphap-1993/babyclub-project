@@ -1097,7 +1097,16 @@ function RegistroContent() {
                                       if (digitOnly) val = val.replace(/\D/g, "");
                                       const maxLen = reservation.doc_type === "dni" ? 8 : reservation.doc_type === "ruc" ? 11 : 12;
                                       if (val.length <= maxLen) {
-                                        setReservation((p) => ({ ...p, document: val }));
+                                        lastPersonLookup.current = null;
+                                        setReservation((p) => ({
+                                          ...p,
+                                          document: val,
+                                          nombre: "",
+                                          apellido_paterno: "",
+                                          apellido_materno: "",
+                                          email: "",
+                                          phone: "",
+                                        }));
                                       }
                                     }}
                                     inputMode={reservation.doc_type === "dni" || reservation.doc_type === "ruc" ? "numeric" : "text"}
@@ -1728,14 +1737,14 @@ function RegistroContent() {
       }));
       setReservation((prev) => ({
         ...prev,
-        doc_type: prev.doc_type || docType,
-        document: prev.document || dni,
-        dni: prev.dni || dni,
-        nombre: prev.nombre || p.first_name || "",
-        apellido_paterno: prev.apellido_paterno || apPat || "",
-        apellido_materno: prev.apellido_materno || apMat || "",
-        email: prev.email || p.email || "",
-        phone: prev.phone || p.phone || "",
+        doc_type: docType,
+        document: dni,
+        dni,
+        nombre: opts.force ? (p.first_name || "") : (prev.nombre || p.first_name || ""),
+        apellido_paterno: opts.force ? (apPat || "") : (prev.apellido_paterno || apPat || ""),
+        apellido_materno: opts.force ? (apMat || "") : (prev.apellido_materno || apMat || ""),
+        email: opts.force ? (p.email || "") : (prev.email || p.email || ""),
+        phone: opts.force ? (p.phone || "") : (prev.phone || p.phone || ""),
       }));
       // Solo aceptar el ticket si es del mismo evento que el código actual
       // Esto evita mostrar "Ver mi QR" con tickets de eventos anteriores
