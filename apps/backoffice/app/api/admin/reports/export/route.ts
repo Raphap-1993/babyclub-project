@@ -710,7 +710,7 @@ export async function GET(req: NextRequest) {
       supabase,
       {
         select:
-          "id,event_id,ticket_id,code_id,raw_value,result,created_at,code:codes(type,promoter_id),ticket:tickets(promoter_id)",
+          "id,event_id,ticket_id,code_id,raw_value,result,code:codes(type,promoter_id),ticket:tickets(promoter_id)",
         allowedEventIds,
         fromIso,
         toIso,
@@ -738,9 +738,6 @@ export async function GET(req: NextRequest) {
       {
         admissionSet: Set<string>;
         typeAdmissions: Map<string, Set<string>>;
-        activePromoterSet: Set<string>;
-        firstScanAt: string | null;
-        lastScanAt: string | null;
       }
     >();
 
@@ -750,16 +747,12 @@ export async function GET(req: NextRequest) {
         grouped.set(event_id, {
           admissionSet: new Set<string>(),
           typeAdmissions: new Map<string, Set<string>>(),
-          activePromoterSet: new Set<string>(),
-          firstScanAt: null,
-          lastScanAt: null,
         });
       }
       const row = grouped.get(event_id)!;
       if (!isConfirmedScanLog(scan)) continue;
 
       const admissionKey = getAdmissionKey(scan);
-      const createdAt = (scan as any).created_at as string | null;
       const codeRel = Array.isArray((scan as any)?.code)
         ? (scan as any)?.code?.[0]
         : (scan as any)?.code;
@@ -771,15 +764,18 @@ export async function GET(req: NextRequest) {
       const promoterId = String(
         codeRel?.promoter_id || ticketRel?.promoter_id || "",
       ).trim();
-
       const hasPromoter = Boolean(promoterId);
-      const bucket = hasPromoter
-        ? "promotor"
-        : typeBucket === "table"
+
+      const bucket =
+        typeBucket === "table"
           ? "mesa"
           : typeBucket === "courtesy" || typeBucket === "free"
             ? "cortesia"
-            : "general"; // includes direct purchases (no code) and explicit general codes
+            : typeBucket === "general"
+              ? "general"
+              : hasPromoter
+                ? "promotor"
+                : "general";
 
       if (admissionKey) {
         row.admissionSet.add(admissionKey);
@@ -787,16 +783,6 @@ export async function GET(req: NextRequest) {
           row.typeAdmissions.set(bucket, new Set<string>());
         }
         row.typeAdmissions.get(bucket)!.add(admissionKey);
-        if (hasPromoter) {
-          row.activePromoterSet.add(promoterId);
-        }
-      }
-
-      if (createdAt) {
-        if (!row.firstScanAt || createdAt < row.firstScanAt)
-          row.firstScanAt = createdAt;
-        if (!row.lastScanAt || createdAt > row.lastScanAt)
-          row.lastScanAt = createdAt;
       }
     }
 
@@ -811,9 +797,6 @@ export async function GET(req: NextRequest) {
         via_mesa: metrics.typeAdmissions.get("mesa")?.size || 0,
         via_promotor: metrics.typeAdmissions.get("promotor")?.size || 0,
         via_cortesia: metrics.typeAdmissions.get("cortesia")?.size || 0,
-        promotores_activos: metrics.activePromoterSet.size,
-        primer_ingreso: formatLimaDateTime(metrics.firstScanAt),
-        ultimo_ingreso: formatLimaDateTime(metrics.lastScanAt),
       };
     });
 
@@ -826,9 +809,6 @@ export async function GET(req: NextRequest) {
           { key: "via_mesa", label: "Vía QR mesa" },
           { key: "via_promotor", label: "Vía QR promotor" },
           { key: "via_cortesia", label: "Vía QR cortesía/free" },
-          { key: "promotores_activos", label: "Promotores activos" },
-          { key: "primer_ingreso", label: "Primer ingreso (Lima)" },
-          { key: "ultimo_ingreso", label: "Último ingreso (Lima)" },
         ],
         rows as any,
       );
