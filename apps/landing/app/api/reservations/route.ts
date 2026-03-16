@@ -53,8 +53,9 @@ export async function POST(req: NextRequest) {
   const event_id_body = typeof body?.event_id === "string" ? body.event_id : null;
   const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
   const promoter_id = typeof body?.promoter_id === "string" && body.promoter_id.trim() ? body.promoter_id.trim() : null;
+  const paymentMethod = typeof body?.payment_method === "string" ? body.payment_method : "yape";
 
-  if (!table_id || !full_name || !voucher_url) {
+  if (!table_id || !full_name || (paymentMethod !== "culqi" && !voucher_url)) {
     return NextResponse.json({ success: false, error: "table_id, full_name y voucher_url son requeridos" }, { status: 400 });
   }
   if (!validateDocument(docType, document)) {

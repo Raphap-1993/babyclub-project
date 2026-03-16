@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   const phone = typeof body?.telefono === "string" ? body.telefono.trim() : "";
   const voucher_url = typeof body?.voucher_url === "string" ? body.voucher_url.trim() : "";
+  const paymentMethod = typeof body?.payment_method === "string" ? body.payment_method : "yape";
   const quantityRaw = typeof body?.ticket_quantity === "number" ? body.ticket_quantity : parseInt(body?.ticket_quantity, 10);
   const ticket_quantity = Number.isFinite(quantityRaw) ? Math.floor(quantityRaw) : NaN;
   const pricingPhaseRaw =
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
   if (pricingPhaseRaw && pricingPhaseRaw !== "early_bird" && pricingPhaseRaw !== "all_night") {
     return NextResponse.json({ success: false, error: "pricing_phase inválido" }, { status: 400 });
   }
-  if (!voucher_url) {
+  if (paymentMethod !== "culqi" && !voucher_url) {
     return NextResponse.json({ success: false, error: "voucher_url es requerido" }, { status: 400 });
   }
   if (!validateDocument(docType, document)) {
