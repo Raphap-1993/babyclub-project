@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Building2,
   Calendar,
   BookOpen,
   ChevronDown,
@@ -68,6 +69,7 @@ const menuItems = [
   {
     section: "CONFIGURACIÓN",
     items: [
+      { label: "Organizadores", href: "/admin/organizers", icon: Building2 },
       { label: "Usuarios", href: "/admin/users", icon: Users },
       { label: "Seguridad", href: "/admin/seguridad", icon: Settings },
     ],
