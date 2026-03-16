@@ -7,6 +7,7 @@ import {
   resolveCulqiEventId,
   resolveCulqiEventName,
   resolveCulqiOrder,
+  verifyCulqiWebhookSignature,
 } from "shared/payments/culqi";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -33,8 +34,13 @@ export async function POST(req: NextRequest) {
   const eventName = resolveCulqiEventName(payload) || "unknown";
   const eventId = resolveCulqiEventId(payload);
   const eventKey = buildWebhookEventKey("culqi", rawBody, eventId);
-  // Signature is persisted for traceability. Add cryptographic verification once webhook signing spec is finalized.
   const signature = req.headers.get("x-culqi-signature") || null;
+  const signatureValid = verifyCulqiWebhookSignature(rawBody, signature);
+  // signatureValid === null means CULQI_WEBHOOK_SECRET not configured (skip in dev)
+  // signatureValid === false means signature mismatch — reject
+  if (signatureValid === false) {
+    return NextResponse.json({ success: false, error: "invalid_signature" }, { status: 401 });
+  }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -69,7 +75,7 @@ export async function POST(req: NextRequest) {
     if (orderId) {
       const { data: payment } = await supabase
         .from("payments")
-        .select("id,reservation_id,receipt_number")
+        .select("id,reservation_id,ticket_id,receipt_number")
         .eq("order_id", orderId)
         .limit(1)
         .maybeSingle();
@@ -127,6 +133,10 @@ export async function POST(req: NextRequest) {
         typeof orderData.metadata?.reservation_id === "string" ? orderData.metadata.reservation_id : null;
       const reservationId = payment?.reservation_id || reservationIdFromMeta || null;
 
+      const ticketIdFromMeta =
+        typeof orderData.metadata?.ticket_id === "string" ? orderData.metadata.ticket_id : null;
+      const ticketId = payment?.ticket_id || ticketIdFromMeta || null;
+
       if (paymentStatus === "paid" && reservationId) {
         const updateReservation = await supabase
           .from("table_reservations")
@@ -138,6 +148,27 @@ export async function POST(req: NextRequest) {
         if (updateReservation.error) {
           throw new Error(updateReservation.error.message);
         }
+      }
+
+      if (paymentStatus === "paid" && ticketId) {
+        const updateTicket = await supabase
+          .from("tickets")
+          .update({
+            payment_status: "paid",
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ticketId);
+        if (updateTicket.error) {
+          throw new Error(updateTicket.error.message);
+        }
+      }
+
+      if ((paymentStatus === "failed" || paymentStatus === "expired" || paymentStatus === "canceled") && ticketId) {
+        await supabase
+          .from("tickets")
+          .update({ payment_status: "failed", updated_at: new Date().toISOString() })
+          .eq("id", ticketId);
       }
 
       if (paymentStatus === "paid" && paymentId && !payment?.receipt_number) {
