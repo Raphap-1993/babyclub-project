@@ -62,6 +62,7 @@ type ScanSummary = {
   table_name?: string | null;
   product_name?: string | null;
   ticket_pricing_phase?: "early_bird" | "all_night" | null;
+  person_already_entered?: boolean;
 };
 
 export default function ScanClient({ events, simpleMode = false }: { events: Option[]; simpleMode?: boolean }) {
@@ -194,6 +195,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         table_name: payload.table_name ?? null,
         product_name: payload.product_name ?? null,
         ticket_pricing_phase: payload.ticket_pricing_phase ?? null,
+        person_already_entered: payload.person_already_entered ?? false,
       };
       setLastResult(nextSummary);
       setModal(nextSummary);
@@ -524,6 +526,19 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                   </div>
                 )}
               </div>
+
+              {/* Advertencia: el mismo DNI ya ingresó con otro ticket */}
+              {modal.person_already_entered && modal.result === "valid" && (
+                <div className="rounded-2xl border border-orange-500/40 bg-orange-500/15 p-4">
+                  <p className="text-sm font-bold text-orange-300 uppercase tracking-wide mb-1">
+                    ⚠️ DNI ya registró ingreso
+                  </p>
+                  <p className="text-xs text-orange-200/80">
+                    Este DNI ya fue confirmado en puerta con otro ticket para este evento.
+                    Puede tratarse de una entrada duplicada. Verificar con el portero antes de confirmar.
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Button
