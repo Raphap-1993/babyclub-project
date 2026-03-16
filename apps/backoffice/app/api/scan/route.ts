@@ -367,7 +367,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Verificar si el mismo DNI ya ingresó al evento con OTRO ticket
+  // Política: 1 ingreso por persona por evento.
+  // Si el mismo DNI ya tiene otro ticket used=true para este evento,
+  // el resultado se convierte en "duplicate" automáticamente.
+  // El portero no decide — la pantalla roja lo dice todo.
   let person_already_entered = false;
   if (result === "valid" && person?.dni) {
     const { data: otherUsed } = await applyNotDeleted(
@@ -380,7 +383,11 @@ export async function POST(req: NextRequest) {
         .neq("id", ticket_id ?? "")
         .limit(1)
     ).maybeSingle();
-    person_already_entered = Boolean(otherUsed?.id);
+    if (otherUsed?.id) {
+      person_already_entered = true;
+      result = "duplicate";
+      reason = "person_already_entered";
+    }
   }
 
   const reservationContext = reservation_id
