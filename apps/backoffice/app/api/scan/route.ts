@@ -367,6 +367,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Verificar si el mismo DNI ya ingresó al evento con OTRO ticket
+  let person_already_entered = false;
+  if (result === "valid" && person?.dni) {
+    const { data: otherUsed } = await applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("id")
+        .eq("event_id", event_id)
+        .eq("dni", person.dni)
+        .eq("used", true)
+        .neq("id", ticket_id ?? "")
+        .limit(1)
+    ).maybeSingle();
+    person_already_entered = Boolean(otherUsed?.id);
+  }
+
   const reservationContext = reservation_id
     ? await fetchReservationCommercialContext(supabase, reservation_id)
     : null;
@@ -409,5 +425,6 @@ export async function POST(req: NextRequest) {
     expired_at: reason === "entry_cutoff" ? entryCutoffIso : codeRow?.expires_at ?? null,
     person,
     ticket_used,
+    person_already_entered,
   });
 }
