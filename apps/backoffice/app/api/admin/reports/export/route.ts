@@ -795,7 +795,7 @@ export async function GET(req: NextRequest) {
         asistentes: metrics.admissionSet.size,
         via_general: metrics.typeAdmissions.get("general")?.size || 0,
         via_mesa: metrics.typeAdmissions.get("mesa")?.size || 0,
-        via_promotor: metrics.typeAdmissions.get("promotor")?.size || 0,
+
         via_cortesia: metrics.typeAdmissions.get("cortesia")?.size || 0,
       };
     });
@@ -807,7 +807,7 @@ export async function GET(req: NextRequest) {
           { key: "asistentes", label: "Asistentes" },
           { key: "via_general", label: "Vía QR general" },
           { key: "via_mesa", label: "Vía QR mesa" },
-          { key: "via_promotor", label: "Vía QR promotor" },
+
           { key: "via_cortesia", label: "Vía promotor/cortesía" },
         ],
         rows as any,
