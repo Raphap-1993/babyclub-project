@@ -137,6 +137,8 @@ function RegistroContent() {
   const [codeInfo, setCodeInfo] = useState<{
     type?: string | null;
     promoter_id?: string | null;
+    ticket_price?: number | null;
+    ticket_sale_phase?: string | null;
     registered_person?: {
       first_name?: string | null;
       last_name?: string | null;
@@ -168,10 +170,13 @@ function RegistroContent() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
   const [showReservationSent, setShowReservationSent] = useState(false);
+  // Payment method selection — 'yape' is always the default; 'culqi' is additional
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"yape" | "culqi">("yape");
   // Culqi checkout state
   const [culqiOrderId, setCulqiOrderId] = useState<string | null>(null);
   const [culqiPaymentId, setCulqiPaymentId] = useState<string | null>(null);
   const [culqiPendingMessage, setCulqiPendingMessage] = useState<string | null>(null);
+  const [culqiTicketId, setCulqiTicketId] = useState<string | null>(null);
   const [showCulqiConfirmed, setShowCulqiConfirmed] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [existingTicketId, setExistingTicketId] = useState<string | null>(null);
@@ -440,7 +445,15 @@ function RegistroContent() {
   const products = useMemo(() => getActiveProductsForTable(tableInfo), [tableInfo]);
   const selectedProductInfo = products.find((p) => p.id === selectedProduct) || products[0] || null;
 
-  const totalPrice = selectedProductInfo?.price ?? tableInfo?.price ?? tableInfo?.min_consumption ?? null;
+  const totalPrice =
+    selectedProductInfo?.price ??
+    tableInfo?.price ??
+    tableInfo?.min_consumption ??
+    (String(codeInfo?.type || "").toLowerCase() === "general" &&
+    typeof codeInfo?.ticket_price === "number" &&
+    codeInfo.ticket_price > 0
+      ? codeInfo.ticket_price
+      : null);
   const totalLabel = totalPrice != null ? formatCurrency(totalPrice) : null;
 
   useEffect(() => {
@@ -716,13 +729,58 @@ function RegistroContent() {
               )}
               {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
 
+              {/* Payment method selector for paid general codes */}
+              {CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && !existingTicketId && !ticketGenerationBlocked && (
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0b] p-3 text-sm text-white/80">
+                    Total a pagar: <span className="font-semibold text-white">{totalLabel}</span>
+                  </div>
+                  <div className="flex gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod("yape")}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                        selectedPaymentMethod === "yape"
+                          ? "bg-white/10 text-white"
+                          : "text-white/50 hover:text-white/80"
+                      }`}
+                    >
+                      📱 Yape / Plin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod("culqi")}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                        selectedPaymentMethod === "culqi"
+                          ? "bg-white/10 text-white"
+                          : "text-white/50 hover:text-white/80"
+                      }`}
+                    >
+                      💳 Tarjeta
+                    </button>
+                  </div>
+                  {selectedPaymentMethod === "yape" && (
+                    <div className="rounded-xl border border-white/10 bg-[#0b0b0b] p-3 text-xs text-white/70">
+                      Paga <span className="font-semibold text-white">{totalLabel}</span> con Yape/Plin al número{" "}
+                      <span className="font-semibold text-white">{yapeNumber}</span> ({yapeHolder}), luego genera tu QR.
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={() => createTicketAndRedirect()}
                 disabled={ticketGenerationBlocked}
                 className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition"
               >
-                {ticketGenerationBlocked ? "Venta bloqueada" : existingTicketId ? "Ver mi QR" : "Generar QR"}
+                {ticketGenerationBlocked
+                  ? "Venta bloqueada"
+                  : existingTicketId
+                  ? "Ver mi QR"
+                  : CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi"
+                  ? "Pagar con tarjeta"
+                  : "Generar QR"}
               </button>
               <button
                 type="button"
@@ -1202,17 +1260,8 @@ function RegistroContent() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>
-                {CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 ? (
-                  <>
-                    <h3 className="text-2xl font-semibold text-white">Recuento y pago online</h3>
-                    <p className="text-sm text-white/60">Confirma tu reserva y paga con tarjeta.</p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-2xl font-semibold text-white">Recuento y pago Yape</h3>
-                    <p className="text-sm text-white/60">Confirma tu reserva y adjunta el comprobante.</p>
-                  </>
-                )}
+                <h3 className="text-2xl font-semibold text-white">Recuento y pago</h3>
+                <p className="text-sm text-white/60">Confirma tu reserva y elige cómo pagar.</p>
               </div>
               <button
                 type="button"
@@ -1220,6 +1269,7 @@ function RegistroContent() {
                   setShowPaymentModal(false);
                   setModalError(null);
                   setCopyFeedback("idle");
+                  setSelectedPaymentMethod("yape");
                 }}
                 className="rounded-full px-3 py-1 text-xs font-semibold btn-smoke-outline transition"
               >
@@ -1251,8 +1301,36 @@ function RegistroContent() {
               </div>
             </div>
 
-            {/* Manual Yape flow — only shown when Culqi is disabled or price is null/0 */}
-            {!(CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0) && (
+            {/* Payment method selector — only shown when Culqi is configured and there is a price */}
+            {CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && (
+              <div className="flex gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethod("yape")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                    selectedPaymentMethod === "yape"
+                      ? "bg-white/10 text-white"
+                      : "text-white/50 hover:text-white/80"
+                  }`}
+                >
+                  📱 Yape / Plin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethod("culqi")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                    selectedPaymentMethod === "culqi"
+                      ? "bg-white/10 text-white"
+                      : "text-white/50 hover:text-white/80"
+                  }`}
+                >
+                  💳 Tarjeta
+                </button>
+              </div>
+            )}
+
+            {/* Manual Yape flow — shown when Culqi is not active or user selected Yape */}
+            {!(CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi") && (
               <>
                 <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1362,6 +1440,7 @@ function RegistroContent() {
                   setShowPaymentModal(false);
                   setModalError(null);
                   setCopyFeedback("idle");
+                  setSelectedPaymentMethod("yape");
                 }}
                 className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
@@ -1375,7 +1454,7 @@ function RegistroContent() {
               >
                 {reservationLoading
                   ? "Enviando..."
-                  : CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0
+                  : CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi"
                   ? "Continuar al pago"
                   : "Enviar reserva"}
               </button>
@@ -1401,16 +1480,24 @@ function RegistroContent() {
               publicKey={CULQI_PUBLIC_KEY}
               autoOpen={!culqiPendingMessage}
               onSuccess={() => {
+                const ticketId = culqiTicketId;
                 setCulqiOrderId(null);
                 setCulqiPaymentId(null);
                 setCulqiPendingMessage(null);
-                setShowCulqiConfirmed(true);
-                resetReservationForm();
-                setStep(1);
+                setCulqiTicketId(null);
+                if (ticketId) {
+                  router.push(`/ticket/${ticketId}`);
+                } else {
+                  setShowCulqiConfirmed(true);
+                  resetReservationForm();
+                  setStep(1);
+                }
               }}
               onClose={() => {
                 setCulqiPendingMessage(
-                  "Tu reserva está pendiente de pago. Completa el pago para confirmar."
+                  culqiTicketId
+                    ? "Tu entrada está pendiente de pago. Completa el pago para activar tu QR."
+                    : "Tu reserva está pendiente de pago. Completa el pago para confirmar."
                 );
               }}
             />
@@ -1564,7 +1651,7 @@ function RegistroContent() {
       return;
     }
     // Determine whether we are using Culqi for this reservation
-    const useCulqi = CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0;
+    const useCulqi = CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi";
 
     if (!useCulqi && !reservation.voucher_url) {
       const msg = "Sube tu comprobante de pago para continuar.";
@@ -1755,6 +1842,7 @@ function RegistroContent() {
       setError("Debes ser mayor de 18 años");
       return;
     }
+    const useCulqi = CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi";
     try {
       const res = await fetch("/api/tickets", {
         method: "POST",
@@ -1770,6 +1858,7 @@ function RegistroContent() {
           telefono: form.telefono,
           promoter_id: form.promoter_id || null,
           birthdate: form.birthdate,
+          with_payment: useCulqi,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1780,10 +1869,35 @@ function RegistroContent() {
       }
       setTicketId(data.ticketId);
       setExistingTicketId(data.ticketId);
-      // Trackear el event_id del ticket creado
       if (data.eventId || codeEventId) {
         setExistingTicketEventId(data.eventId || codeEventId);
       }
+
+      if (useCulqi && data.needsPayment && data.ticketId) {
+        // Culqi paid flow: create order and show checkout
+        const amountCentavos = Math.round((totalPrice as number) * 100);
+        const orderRes = await fetch("/api/payments/culqi/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ticket_id: data.ticketId,
+            amount: amountCentavos,
+            idempotency_key: `tkt-${data.ticketId}`,
+          }),
+        });
+        const orderData = await orderRes.json().catch(() => ({}));
+        if (!orderRes.ok || !orderData?.orderId) {
+          const msg = orderData?.error || "No se pudo iniciar el pago online";
+          setError(msg);
+          return;
+        }
+        setCulqiTicketId(data.ticketId);
+        setCulqiOrderId(orderData.orderId);
+        setCulqiPaymentId(orderData.paymentId);
+        setCulqiPendingMessage(null);
+        return; // CulqiCheckout mounts and auto-opens
+      }
+
       router.push(`/ticket/${data.ticketId}`);
     } catch (err: any) {
       const msg = err?.message || "Error al generar entrada";
