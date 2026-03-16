@@ -12,7 +12,7 @@ import {
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const paymentsEnabled = process.env.ENABLE_CULQI_PAYMENTS === "true";
+const paymentsEnabled = process.env.ENABLE_CULQI_PAYMENTS?.toLowerCase() === "true";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
