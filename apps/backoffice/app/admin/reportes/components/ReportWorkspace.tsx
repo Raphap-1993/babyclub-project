@@ -79,10 +79,6 @@ const COLUMN_LABELS: Record<string, string> = {
   no_show_rate_percent: "% no-show",
   last_free_qr_event: "Último evento free",
   last_free_qr_status: "Estado último QR free",
-  last_free_qr_event_at_lima: "Fecha último evento free (Lima)",
-  last_no_show_event: "Último evento no-show",
-  last_no_show_event_at_lima: "Fecha último no-show (Lima)",
-  block_next_free_qr: "Bloquear siguiente QR free",
   paid_count: "Ventas confirmadas",
   total_amount_pen_est: "Ventas (S/)",
   currency: "Moneda",
@@ -208,11 +204,7 @@ export default function ReportWorkspace({
           acc + Number((row?.[key] as number | string | null | undefined) || 0),
         0,
       );
-    const flagged = rows.filter(
-      (row) => String(row?.block_next_free_qr || "") === "Sí",
-    ).length;
     return {
-      clientesMarcados: flagged,
       qrsFreeAsignados: total("free_qr_assigned"),
       asistieron: total("free_qr_attended"),
       noShow: total("free_qr_no_show"),
@@ -485,14 +477,6 @@ export default function ReportWorkspace({
 
         {freeQrNoShowSummary ? (
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
-                Clientes marcados
-              </div>
-              <div className="text-lg font-semibold text-white">
-                {freeQrNoShowSummary.clientesMarcados.toLocaleString("es-PE")}
-              </div>
-            </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
               <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
                 QR free asignados
