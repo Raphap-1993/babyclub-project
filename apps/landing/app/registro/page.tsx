@@ -10,6 +10,10 @@ import { ScrollArea } from "@repo/ui/components/scroll-area";
 import TableMap from "./TableMap";
 import { buildMapSlotsFromTables, hasMapPosition } from "./tableSlotUtils";
 import { loadImageDimensions, optimizeImageUrl } from "../../lib/imageOptimization";
+import CulqiCheckout from "./CulqiCheckout";
+
+const CULQI_ENABLED = process.env.NEXT_PUBLIC_CULQI_ENABLED === "true";
+const CULQI_PUBLIC_KEY = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY ?? "";
 
 type TableInfo = {
   id: string;
@@ -164,6 +168,11 @@ function RegistroContent() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
   const [showReservationSent, setShowReservationSent] = useState(false);
+  // Culqi checkout state
+  const [culqiOrderId, setCulqiOrderId] = useState<string | null>(null);
+  const [culqiPaymentId, setCulqiPaymentId] = useState<string | null>(null);
+  const [culqiPendingMessage, setCulqiPendingMessage] = useState<string | null>(null);
+  const [showCulqiConfirmed, setShowCulqiConfirmed] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [existingTicketId, setExistingTicketId] = useState<string | null>(null);
   const [existingTicketEventId, setExistingTicketEventId] = useState<string | null>(null);
@@ -1193,8 +1202,17 @@ function RegistroContent() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>
-                <h3 className="text-2xl font-semibold text-white">Recuento y pago Yape</h3>
-                <p className="text-sm text-white/60">Confirma tu reserva y adjunta el comprobante.</p>
+                {CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 ? (
+                  <>
+                    <h3 className="text-2xl font-semibold text-white">Recuento y pago online</h3>
+                    <p className="text-sm text-white/60">Confirma tu reserva y paga con tarjeta.</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-2xl font-semibold text-white">Recuento y pago Yape</h3>
+                    <p className="text-sm text-white/60">Confirma tu reserva y adjunta el comprobante.</p>
+                  </>
+                )}
               </div>
               <button
                 type="button"
@@ -1209,7 +1227,8 @@ function RegistroContent() {
               </button>
             </div>
 
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
+            {/* Reservation summary — shown in both Culqi and manual flows */}
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
               <div className="flex items-center justify-between text-white">
                 <span className="font-semibold">Mesa</span>
                 <span className="font-semibold">{tableInfo?.name || "Por definir"}</span>
@@ -1232,104 +1251,109 @@ function RegistroContent() {
               </div>
             </div>
 
-            <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/60">Paga con Yape/Plin</p>
-                  <p className="text-2xl font-semibold leading-tight text-white">{yapeNumber}</p>
-                  <p className="text-xs text-white/60">Titular: {yapeHolder}</p>
+            {/* Manual Yape flow — only shown when Culqi is disabled or price is null/0 */}
+            {!(CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0) && (
+              <>
+                <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/60">Paga con Yape/Plin</p>
+                      <p className="text-2xl font-semibold leading-tight text-white">{yapeNumber}</p>
+                      <p className="text-xs text-white/60">Titular: {yapeHolder}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={copyYapeNumber}
+                      className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
+                    >
+                      {copyFeedback === "copied" ? "Copiado" : copyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
+                      <span className="text-[#f2f2f2]/70">(para abrir Yape)</span>
+                    </button>
+                  </div>
+                  {totalLabel && (
+                    <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                      Envía <span className="font-semibold text-white">{totalLabel}</span> al número indicado y adjunta el comprobante abajo.
+                    </div>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={copyYapeNumber}
-                  className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
-                >
-                  {copyFeedback === "copied" ? "Copiado" : copyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
-                  <span className="text-[#f2f2f2]/70">(para abrir Yape)</span>
-                </button>
-              </div>
-              {totalLabel && (
-                <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
-                  Envía <span className="font-semibold text-white">{totalLabel}</span> al número indicado y adjunta el comprobante abajo.
-                </div>
-              )}
-            </div>
 
-            <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
-              <label className="text-sm font-semibold text-white">Comprobante de pago</label>
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.add('border-[#e91e63]', 'bg-[#e91e63]/5');
-                }}
-                onDragLeave={(e) => {
-                  e.currentTarget.classList.remove('border-[#e91e63]', 'bg-[#e91e63]/5');
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.remove('border-[#e91e63]', 'bg-[#e91e63]/5');
-                  const file = e.dataTransfer.files[0];
-                  if (file && file.type.startsWith('image/')) {
-                    const fakeEvent = { target: { files: [file] } } as any;
-                    onVoucherChange(fakeEvent);
-                  }
-                }}
-                className="relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-white/20 bg-white/5 px-6 py-8 transition-all hover:border-white/40 hover:bg-white/10"
-              >
-                {uploadingVoucher ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-[#e91e63]" />
-                    <p className="text-sm text-white/80">Subiendo comprobante...</p>
+                <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+                  <label className="text-sm font-semibold text-white">Comprobante de pago</label>
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add('border-[#e91e63]', 'bg-[#e91e63]/5');
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('border-[#e91e63]', 'bg-[#e91e63]/5');
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-[#e91e63]', 'bg-[#e91e63]/5');
+                      const file = e.dataTransfer.files[0];
+                      if (file && file.type.startsWith('image/')) {
+                        const fakeEvent = { target: { files: [file] } } as any;
+                        onVoucherChange(fakeEvent);
+                      }
+                    }}
+                    className="relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-white/20 bg-white/5 px-6 py-8 transition-all hover:border-white/40 hover:bg-white/10"
+                  >
+                    {uploadingVoucher ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-[#e91e63]" />
+                        <p className="text-sm text-white/80">Subiendo comprobante...</p>
+                      </div>
+                    ) : reservation.voucher_url ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-400">
+                          <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                        </svg>
+                        <div className="text-center">
+                          <p className="text-sm font-semibold text-white">Comprobante subido</p>
+                          <a
+                            href={reservation.voucher_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-[#e91e63] underline-offset-2 hover:underline"
+                          >
+                            Ver archivo
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40">
+                          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+                          <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
+                          <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
+                        </svg>
+                        <div className="text-center">
+                          <p className="text-sm font-semibold text-white">Arrastra tu comprobante aquí</p>
+                          <p className="text-xs text-white/60">o haz click para seleccionar</p>
+                        </div>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={onVoucherChange}
+                      disabled={uploadingVoucher || reservationLoading}
+                      className="absolute inset-0 cursor-pointer opacity-0"
+                    />
                   </div>
-                ) : reservation.voucher_url ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-400">
-                      <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-                    </svg>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-white">Comprobante subido</p>
-                      <a
-                        href={reservation.voucher_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-[#e91e63] underline-offset-2 hover:underline"
-                      >
-                        Ver archivo
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40">
-                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-                      <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
-                      <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
-                    </svg>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-white">Arrastra tu comprobante aquí</p>
-                      <p className="text-xs text-white/60">o haz click para seleccionar</p>
-                    </div>
-                  </>
-                )}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={onVoucherChange}
-                  disabled={uploadingVoucher || reservationLoading}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-              </div>
-              <p className="text-xs text-white/60 text-center">
-                Formatos: JPG, PNG, WEBP • Máximo 5MB
-              </p>
-            </div>
+                  <p className="text-xs text-white/60 text-center">
+                    Formatos: JPG, PNG, WEBP • Máximo 5MB
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
+                  Validaremos el pago manualmente. Te confirmaremos por correo tu reserva en los próximos minutos.
+                </div>
+              </>
+            )}
 
             {modalError && <p className="text-xs font-semibold text-[#ff9a9a]">{modalError}</p>}
-
-            <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
-              Validaremos el pago manualmente. Te confirmaremos por correo tu reserva en los próximos minutos.
-            </div>
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
@@ -1349,9 +1373,58 @@ function RegistroContent() {
                 disabled={reservationLoading || uploadingVoucher}
                 className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-attention-red transition disabled:opacity-60"
               >
-                {reservationLoading ? "Enviando..." : "Enviar reserva"}
+                {reservationLoading
+                  ? "Enviando..."
+                  : CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0
+                  ? "Continuar al pago"
+                  : "Enviar reserva"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Culqi checkout overlay — rendered when we have a valid orderId from create-order */}
+      {culqiOrderId && culqiPaymentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6">
+          <div className="w-full max-w-sm space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)] text-white">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Pago online</p>
+            <h3 className="text-xl font-semibold">Completa tu pago</h3>
+            {culqiPendingMessage && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                {culqiPendingMessage}
+              </div>
+            )}
+            <CulqiCheckout
+              orderId={culqiOrderId!}
+              paymentId={culqiPaymentId!}
+              publicKey={CULQI_PUBLIC_KEY}
+              autoOpen={!culqiPendingMessage}
+              onSuccess={() => {
+                setCulqiOrderId(null);
+                setCulqiPaymentId(null);
+                setCulqiPendingMessage(null);
+                setShowCulqiConfirmed(true);
+                resetReservationForm();
+                setStep(1);
+              }}
+              onClose={() => {
+                setCulqiPendingMessage(
+                  "Tu reserva está pendiente de pago. Completa el pago para confirmar."
+                );
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setCulqiOrderId(null);
+                setCulqiPaymentId(null);
+                setCulqiPendingMessage(null);
+              }}
+              className="w-full rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
+            >
+              Cancelar y volver
+            </button>
           </div>
         </div>
       )}
@@ -1374,6 +1447,40 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => setShowReservationSent(false)}
+                className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Culqi payment confirmed modal */}
+      {showCulqiConfirmed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-md space-y-4 rounded-3xl border border-emerald-500/30 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-400">
+                  <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-400/80">Pago confirmado</p>
+                <h3 className="text-xl font-semibold">¡Reserva confirmada!</h3>
+                <p className="text-sm text-white/70">
+                  Tu pago fue procesado exitosamente. Recibirás un correo con los detalles y el QR de tu reserva.
+                </p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
+              Recibirás un correo desde BABY con tu QR de reserva. Si no lo ves, revisa tu carpeta de spam.
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCulqiConfirmed(false)}
                 className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
                 Entendido
@@ -1456,7 +1563,10 @@ function RegistroContent() {
       setReservationError(msg);
       return;
     }
-    if (!reservation.voucher_url) {
+    // Determine whether we are using Culqi for this reservation
+    const useCulqi = CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0;
+
+    if (!useCulqi && !reservation.voucher_url) {
       const msg = "Sube tu comprobante de pago para continuar.";
       setModalError(msg);
       setReservationError(msg);
@@ -1484,7 +1594,7 @@ function RegistroContent() {
           full_name: reservationFullName,
           email: reservation.email,
           phone: reservation.phone,
-          voucher_url: reservation.voucher_url,
+          voucher_url: useCulqi ? undefined : reservation.voucher_url,
           promoter_id: reservation.promoter_id || form.promoter_id || null,
         }),
       });
@@ -1493,7 +1603,33 @@ function RegistroContent() {
         const msg = data?.error || "No se pudo registrar la reserva";
         setReservationError(msg);
         setModalError(msg);
+      } else if (useCulqi && data.reservationId) {
+        // Culqi path: call create-order and show checkout
+        const reservationId: string = data.reservationId;
+        const amountCentavos = Math.round((totalPrice as number) * 100);
+        const orderRes = await fetch("/api/payments/culqi/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reservation_id: reservationId,
+            amount: amountCentavos,
+            idempotency_key: `res-${reservationId}`,
+          }),
+        });
+        const orderData = await orderRes.json().catch(() => ({}));
+        if (!orderRes.ok || !orderData?.orderId) {
+          const msg = orderData?.error || "No se pudo iniciar el pago online";
+          setReservationError(msg);
+          setModalError(msg);
+        } else {
+          setCulqiOrderId(orderData.orderId);
+          setCulqiPaymentId(orderData.paymentId);
+          setCulqiPendingMessage(null);
+          setShowPaymentModal(false);
+          // CulqiCheckout mounts and auto-opens — no additional action needed here
+        }
       } else {
+        // Manual (Yape) path
         setReservationCodes(data.codes || []);
         setShowPaymentModal(false);
         setShowReservationSent(true);
