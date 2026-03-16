@@ -455,14 +455,6 @@ function RegistroContent() {
       ? codeInfo.ticket_price
       : null);
   const totalLabel = totalPrice != null ? formatCurrency(totalPrice) : null;
-  // Precio exclusivo del código (sin precios de mesa) — usado en Step 1
-  const ticketPrice =
-    String(codeInfo?.type || "").toLowerCase() === "general" &&
-    typeof codeInfo?.ticket_price === "number" &&
-    codeInfo.ticket_price > 0
-      ? codeInfo.ticket_price
-      : null;
-  const ticketPriceLabel = ticketPrice != null ? formatCurrency(ticketPrice) : null;
 
   useEffect(() => {
     if (!selectedTable) {
@@ -737,44 +729,6 @@ function RegistroContent() {
               )}
               {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
 
-              {/* Payment method selector for paid general codes */}
-              {CULQI_ENABLED && typeof ticketPrice === "number" && ticketPrice > 0 && !existingTicketId && !ticketGenerationBlocked && (
-                <div className="space-y-2">
-                  <div className="rounded-xl border border-white/10 bg-[#0b0b0b] p-3 text-sm text-white/80">
-                    Total a pagar: <span className="font-semibold text-white">{ticketPriceLabel}</span>
-                  </div>
-                  <div className="flex gap-1.5 rounded-2xl border border-white/20 bg-white/5 p-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPaymentMethod("yape")}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                        selectedPaymentMethod === "yape"
-                          ? "bg-[#e91e63] text-white shadow-lg shadow-[#e91e63]/30"
-                          : "text-white/70 hover:text-white hover:bg-white/10"
-                      }`}
-                    >
-                      📱 Yape / Plin
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPaymentMethod("culqi")}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                        selectedPaymentMethod === "culqi"
-                          ? "bg-[#e91e63] text-white shadow-lg shadow-[#e91e63]/30"
-                          : "text-white/70 hover:text-white hover:bg-white/10"
-                      }`}
-                    >
-                      💳 Tarjeta
-                    </button>
-                  </div>
-                  {selectedPaymentMethod === "yape" && (
-                    <div className="rounded-xl border border-white/10 bg-[#0b0b0b] p-3 text-xs text-white/70">
-                      Paga <span className="font-semibold text-white">{ticketPriceLabel}</span> con Yape/Plin al número{" "}
-                      <span className="font-semibold text-white">{yapeNumber}</span> ({yapeHolder}), luego genera tu QR.
-                    </div>
-                  )}
-                </div>
-              )}
 
               <button
                 type="button"
@@ -786,8 +740,6 @@ function RegistroContent() {
                   ? "Venta bloqueada"
                   : existingTicketId
                   ? "Ver mi QR"
-                  : CULQI_ENABLED && typeof ticketPrice === "number" && ticketPrice > 0 && selectedPaymentMethod === "culqi"
-                  ? "Pagar con tarjeta"
                   : "Generar QR"}
               </button>
               <button
@@ -1850,7 +1802,7 @@ function RegistroContent() {
       setError("Debes ser mayor de 18 años");
       return;
     }
-    const useCulqi = CULQI_ENABLED && typeof ticketPrice === "number" && ticketPrice > 0 && selectedPaymentMethod === "culqi";
+    const useCulqi = false; // Tickets siempre son gratis — pago solo en reservas de mesa
     try {
       const res = await fetch("/api/tickets", {
         method: "POST",
@@ -1883,7 +1835,7 @@ function RegistroContent() {
 
       if (useCulqi && data.needsPayment && data.ticketId) {
         // Culqi paid flow: create order and show checkout
-        const amountCentavos = Math.round((ticketPrice as number) * 100);
+        const amountCentavos = 0; // useCulqi siempre es false — este bloque no se ejecuta
         const orderRes = await fetch("/api/payments/culqi/create-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
