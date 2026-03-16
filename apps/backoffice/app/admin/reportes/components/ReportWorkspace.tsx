@@ -54,7 +54,6 @@ const HIDDEN_UI_COLUMNS = new Set([
 ]);
 
 const COLUMN_LABELS: Record<string, string> = {
-  organizer_name: "Organizador",
   event_name: "Evento",
   promoter_code: "Código promotor",
   promoter_name: "Promotor",
