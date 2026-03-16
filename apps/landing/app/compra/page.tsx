@@ -90,6 +90,7 @@ export default function CompraPage() {
   const [layoutImageSize, setLayoutImageSize] = useState<{ width: number; height: number } | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showTicketSummary, setShowTicketSummary] = useState(false);
+  const [ticketConflictWarning, setTicketConflictWarning] = useState<{ total: number } | null>(null);
   const [showTicketConfirmation, setShowTicketConfirmation] = useState(false);
   const [showReservationConfirmation, setShowReservationConfirmation] = useState(false);
   const [mesaReservationId, setMesaReservationId] = useState<string | null>(null);
@@ -508,13 +509,14 @@ export default function CompraPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const handleOpenSummary = (e: React.FormEvent) => {
+  const handleOpenSummary = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setModalError(null);
     setSuccessCodes(null);
     setCopyFeedback("idle");
     setReservationSubmitted(false);
+    setTicketConflictWarning(null);
 
     if (mesaEventOptions.length > 0 && !selectedEventId) {
       setError("Selecciona el evento para esta reserva");
@@ -532,6 +534,24 @@ export default function CompraPage() {
       setError(mesaSaleBlock.message);
       return;
     }
+
+    // Verificar si el cliente ya tiene entradas compradas para este evento
+    const eventIdForCheck = selectedEventId || (tables.find((t) => t.id === selected)?.event_id) || "";
+    if (eventIdForCheck && form.document) {
+      try {
+        const checkRes = await fetch(
+          `/api/check-ticket-reservation?event_id=${encodeURIComponent(eventIdForCheck)}&document=${encodeURIComponent(form.document.trim().toLowerCase())}`
+        );
+        const checkData = await checkRes.json();
+        if (checkData.success && checkData.has_ticket_reservations && checkData.total_tickets > 0) {
+          setTicketConflictWarning({ total: checkData.total_tickets });
+          return; // Mostrar el warning en lugar de continuar
+        }
+      } catch (_) {
+        // Si el check falla, continuar igual (no bloquear)
+      }
+    }
+
     setShowSummary(true);
   };
 
@@ -1190,6 +1210,35 @@ export default function CompraPage() {
             </div>
 
             {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
+
+            {/* Warning: cliente ya tiene entradas compradas */}
+            {ticketConflictWarning && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+                <p className="text-sm font-semibold text-amber-300">
+                  ⚠️ Ya tienes {ticketConflictWarning.total} entrada{ticketConflictWarning.total !== 1 ? "s" : ""} compradas para este evento
+                </p>
+                <p className="text-xs text-amber-200/70">
+                  Si reservas una mesa, puede que estés pagando dos veces por las mismas entradas. ¿Querés continuar de todas formas?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setTicketConflictWarning(null); setShowSummary(true); }}
+                    className="flex-1 rounded-full px-4 py-2 text-sm font-semibold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition"
+                  >
+                    Continuar igual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTicketConflictWarning(null)}
+                    className="flex-1 rounded-full px-4 py-2 text-sm font-semibold bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 transition"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading || Boolean(mesaSaleBlock)}

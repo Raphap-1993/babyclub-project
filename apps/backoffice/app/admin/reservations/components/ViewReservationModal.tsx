@@ -6,6 +6,14 @@ import { formatLimaFromDb } from "shared/limaTime";
 import { authedFetch } from "@/lib/authedFetch";
 import { Button } from "@/components/ui/button";
 
+interface ConflictingTicket {
+  id: string;
+  friendly_code: string | null;
+  ticket_quantity: number | null;
+  status: string;
+  created_at: string;
+}
+
 interface ReservationDetail {
   id: string;
   full_name: string;
@@ -24,6 +32,7 @@ interface ReservationDetail {
   event_starts_at: string | null;
   event_location: string | null;
   ticket_quantity?: number | null;
+  conflicting_ticket_reservations?: ConflictingTicket[];
 }
 
 interface ViewReservationModalProps {
@@ -183,6 +192,38 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                   </div>
                 )}
               </div>
+
+              {/* Warning: entradas previas del mismo cliente para este evento */}
+              {reservation.sale_origin !== "ticket" &&
+                reservation.conflicting_ticket_reservations &&
+                reservation.conflicting_ticket_reservations.length > 0 && (
+                  <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-amber-300">
+                          Este cliente ya tiene{" "}
+                          {reservation.conflicting_ticket_reservations.reduce(
+                            (sum, r) => sum + (r.ticket_quantity || 0),
+                            0
+                          )}{" "}
+                          entrada{reservation.conflicting_ticket_reservations.reduce((s, r) => s + (r.ticket_quantity || 0), 0) !== 1 ? "s" : ""} compradas para este evento
+                        </p>
+                        <div className="space-y-1">
+                          {reservation.conflicting_ticket_reservations.map((r) => (
+                            <div key={r.id} className="text-xs text-amber-200/70 font-mono">
+                              {r.friendly_code || r.id.slice(0, 8)} — {r.ticket_quantity} entrada{r.ticket_quantity !== 1 ? "s" : ""} —{" "}
+                              <span className="capitalize">{r.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-amber-200/60">
+                          Considera anular la reserva de entradas si el cliente va a ingresar por mesa.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               {/* Grid Layout */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
