@@ -219,7 +219,6 @@ export async function POST(req: NextRequest) {
               codes: [], // Will update after creating individual codes
               ticket_quantity: requiredQrCount,
               notes: notes || null,
-              ticket_id: ticket.id,
               created_by_staff_id,
             })
             .select("id")
@@ -324,7 +323,6 @@ export async function POST(req: NextRequest) {
         ticket_quantity: ticketCount,
         codes: [], // Will update after creating individual codes
         notes: notes || null,
-        ticket_id: ticketResult.ticketId,
         created_by_staff_id,
       })
       .select("id")
