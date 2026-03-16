@@ -61,29 +61,15 @@ const COLUMN_LABELS: Record<string, string> = {
   qrs_assigned: "QRs asignados",
   qrs_entered: "Ingresaron",
   codes_generated: "Códigos generados (auditoría)",
-  scans_confirmed: "Ingresos validados",
-  unique_admissions_confirmed: "Admisiones únicas confirmadas",
   attendance_rate_percent: "% de conversión",
-  unique_tickets_scanned: "Personas únicas",
-  unique_codes_scanned: "Códigos únicos usados",
-  escaneos_qr_general: "QR general (escaneos)",
-  escaneos_qr_cortesia: "QR cortesía (escaneos)",
-  escaneos_qr_mesa: "QR mesa (escaneos)",
-  escaneos_qr_free: "QR free (escaneos)",
-  escaneos_qr_promotor_legado: "QR promotor legado (escaneos)",
-  escaneos_qr_sin_tipo: "QR sin tipo (escaneos)",
+  asistentes: "Asistentes",
+  via_general: "Vía QR general",
+  via_mesa: "Vía QR mesa",
+  via_promotor: "Vía QR promotor",
+  via_cortesia: "Vía QR cortesía/free",
   promotores_activos: "Promotores activos",
-  asistentes_unicos_con_promotor: "Personas únicas con promotor",
-  asistentes_unicos_sin_promotor: "Personas únicas sin promotor",
-  escaneos_sin_promotor: "Escaneos sin promotor",
-  top_promotores: "Top promotores",
-  top_codigos_usados: "Top códigos usados",
-  free_qr_scans_confirmed: "Escaneos QR free/cortesía",
-  free_qr_unique_tickets_scanned: "Personas únicas QR free/cortesía",
-  first_scan_at_lima: "Primer ingreso (Lima)",
-  last_scan_at_lima: "Último ingreso (Lima)",
-  free_qr_first_scan_at_lima: "Primer ingreso QR free/cortesía",
-  free_qr_last_scan_at_lima: "Último ingreso QR free/cortesía",
+  primer_ingreso: "Primer ingreso (Lima)",
+  ultimo_ingreso: "Último ingreso (Lima)",
   full_name: "Cliente",
   doc_type: "Tipo doc.",
   document: "Documento",
@@ -119,22 +105,12 @@ function formatReportValue(header: string, value: unknown) {
       "qrs_assigned",
       "qrs_entered",
       "codes_generated",
-      "scans_confirmed",
-      "unique_admissions_confirmed",
-      "unique_tickets_scanned",
-      "unique_codes_scanned",
-      "escaneos_qr_general",
-      "escaneos_qr_cortesia",
-      "escaneos_qr_mesa",
-      "escaneos_qr_free",
-      "escaneos_qr_promotor_legado",
-      "escaneos_qr_sin_tipo",
+      "asistentes",
+      "via_general",
+      "via_mesa",
+      "via_promotor",
+      "via_cortesia",
       "promotores_activos",
-      "asistentes_unicos_con_promotor",
-      "asistentes_unicos_sin_promotor",
-      "escaneos_sin_promotor",
-      "free_qr_scans_confirmed",
-      "free_qr_unique_tickets_scanned",
       "free_qr_assigned",
       "free_qr_attended",
       "free_qr_no_show",
@@ -218,10 +194,10 @@ export default function ReportWorkspace({
         0,
       );
     return {
-      ingresosValidados: total("scans_confirmed"),
-      personasUnicas: total("unique_admissions_confirmed"),
+      asistentes: total("asistentes"),
+      viaPromotor: total("via_promotor"),
+      viaCortesia: total("via_cortesia"),
       promotoresActivos: total("promotores_activos"),
-      ingresosQrFree: total("free_qr_scans_confirmed"),
     };
   }, [report, rows]);
 
@@ -443,16 +419,15 @@ export default function ReportWorkspace({
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
-              <strong>Admisiones únicas confirmadas</strong> = asistentes reales
-              (sin duplicados), con ticket o código.{" "}
-              <strong>Tickets únicos</strong> = confirmaciones que sí tienen
-              ticket asociado. <strong>Códigos únicos usados</strong> = cantidad
-              de códigos comerciales distintos que sí se usaron.{" "}
-              <strong>Top promotores</strong> = ranking por asistentes y
-              escaneos validados. <strong>Top códigos usados</strong> = códigos
-              con más validaciones en puerta.{" "}
-              <strong>Primer/Último ingreso</strong> = horas reales de
-              validación en zona horaria Lima.
+              Todas las columnas muestran <strong>personas únicas</strong>, no
+              escaneos. <strong>Asistentes</strong> = total de personas que
+              ingresaron al evento. <strong>Vía QR promotor</strong> = personas
+              cuyo ticket tenía un promotor asociado.{" "}
+              <strong>Vía QR cortesía/free</strong> = personas que ingresaron
+              con un QR gratuito sin promotor (courtesy o free).{" "}
+              <strong>Vía QR mesa</strong> = personas con reserva de mesa.{" "}
+              <strong>Vía QR general</strong> = compras directas sin promotor ni
+              beneficio especial.
             </span>
           </div>
         ) : null}
@@ -476,18 +451,26 @@ export default function ReportWorkspace({
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
               <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
-                Ingresos validados
+                Asistentes totales
               </div>
               <div className="text-lg font-semibold text-white">
-                {attendanceSummary.ingresosValidados.toLocaleString("es-PE")}
+                {attendanceSummary.asistentes.toLocaleString("es-PE")}
               </div>
             </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
               <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
-                Asistentes reales
+                Vía promotor
               </div>
               <div className="text-lg font-semibold text-white">
-                {attendanceSummary.personasUnicas.toLocaleString("es-PE")}
+                {attendanceSummary.viaPromotor.toLocaleString("es-PE")}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
+                Vía cortesía/free
+              </div>
+              <div className="text-lg font-semibold text-white">
+                {attendanceSummary.viaCortesia.toLocaleString("es-PE")}
               </div>
             </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
@@ -496,14 +479,6 @@ export default function ReportWorkspace({
               </div>
               <div className="text-lg font-semibold text-white">
                 {attendanceSummary.promotoresActivos.toLocaleString("es-PE")}
-              </div>
-            </div>
-            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
-                Ingresos QR free/cortesía
-              </div>
-              <div className="text-lg font-semibold text-white">
-                {attendanceSummary.ingresosQrFree.toLocaleString("es-PE")}
               </div>
             </div>
           </div>

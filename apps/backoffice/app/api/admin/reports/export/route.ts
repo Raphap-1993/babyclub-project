@@ -818,7 +818,7 @@ export async function GET(req: NextRequest) {
       supabase,
       {
         select:
-          "id,event_id,ticket_id,code_id,raw_value,result,created_at,code:codes(code,type,promoter_id),ticket:tickets(promoter_id)",
+          "id,event_id,ticket_id,code_id,raw_value,result,created_at,code:codes(type,promoter_id),ticket:tickets(promoter_id)",
         allowedEventIds,
         fromIso,
         toIso,
@@ -832,13 +832,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const incrementCount = (
-      counter: Map<string, number>,
-      key: string,
-      delta = 1,
-    ) => {
-      counter.set(key, (counter.get(key) || 0) + delta);
-    };
     const normalizeTypeBucket = (codeType: string) => {
       if (codeType === "general") return "general";
       if (codeType === "courtesy") return "courtesy";
@@ -851,56 +844,30 @@ export async function GET(req: NextRequest) {
     const grouped = new Map<
       string,
       {
-        scans: number;
         admissionSet: Set<string>;
-        ticketSet: Set<string>;
-        codeSet: Set<string>;
-        freeScans: number;
-        freeAdmissionSet: Set<string>;
+        typeAdmissions: Map<string, Set<string>>;
+        activePromoterSet: Set<string>;
         firstScanAt: string | null;
         lastScanAt: string | null;
-        freeFirstScanAt: string | null;
-        freeLastScanAt: string | null;
-        typeScans: Map<string, number>;
-        promoterScans: Map<string, number>;
-        promoterAdmissionSets: Map<string, Set<string>>;
-        withPromoterAdmissionSet: Set<string>;
-        withoutPromoterAdmissionSet: Set<string>;
-        withoutPromoterScans: number;
-        codeUsage: Map<string, number>;
       }
     >();
-    const promoterIds = new Set<string>();
+
     for (const scan of scansData || []) {
       const event_id = (scan as any).event_id as string;
       if (!grouped.has(event_id)) {
         grouped.set(event_id, {
-          scans: 0,
           admissionSet: new Set<string>(),
-          ticketSet: new Set<string>(),
-          codeSet: new Set<string>(),
-          freeScans: 0,
-          freeAdmissionSet: new Set<string>(),
+          typeAdmissions: new Map<string, Set<string>>(),
+          activePromoterSet: new Set<string>(),
           firstScanAt: null,
           lastScanAt: null,
-          freeFirstScanAt: null,
-          freeLastScanAt: null,
-          typeScans: new Map<string, number>(),
-          promoterScans: new Map<string, number>(),
-          promoterAdmissionSets: new Map<string, Set<string>>(),
-          withPromoterAdmissionSet: new Set<string>(),
-          withoutPromoterAdmissionSet: new Set<string>(),
-          withoutPromoterScans: 0,
-          codeUsage: new Map<string, number>(),
         });
       }
       const row = grouped.get(event_id)!;
       if (!isConfirmedScanLog(scan)) continue;
-      row.scans += 1;
-      const ticketId = (scan as any).ticket_id as string | null;
-      const codeId = (scan as any).code_id as string | null;
-      const createdAt = (scan as any).created_at as string | null;
+
       const admissionKey = getAdmissionKey(scan);
+      const createdAt = (scan as any).created_at as string | null;
       const codeRel = Array.isArray((scan as any)?.code)
         ? (scan as any)?.code?.[0]
         : (scan as any)?.code;
@@ -909,38 +876,29 @@ export async function GET(req: NextRequest) {
         : (scan as any)?.ticket;
       const codeType = String(codeRel?.type || "").toLowerCase();
       const typeBucket = normalizeTypeBucket(codeType);
-      const isFreeCode =
-        typeBucket === "free" ||
-        typeBucket === "courtesy" ||
-        typeBucket === "promoter_legacy";
-      incrementCount(row.typeScans, typeBucket, 1);
-
-      if (admissionKey) row.admissionSet.add(admissionKey);
-      if (ticketId) row.ticketSet.add(ticketId);
-      if (codeId) row.codeSet.add(codeId);
-
-      const codeValue = String(codeRel?.code || "").trim();
-      if (codeValue) {
-        incrementCount(row.codeUsage, codeValue, 1);
-      }
-
       const promoterId = String(
         codeRel?.promoter_id || ticketRel?.promoter_id || "",
       ).trim();
-      if (promoterId) {
-        promoterIds.add(promoterId);
-        incrementCount(row.promoterScans, promoterId, 1);
-        if (admissionKey) {
-          if (!row.promoterAdmissionSets.has(promoterId)) {
-            row.promoterAdmissionSets.set(promoterId, new Set<string>());
-          }
-          row.promoterAdmissionSets.get(promoterId)!.add(admissionKey);
-          row.withPromoterAdmissionSet.add(admissionKey);
+
+      const hasPromoter = Boolean(promoterId);
+      const bucket = hasPromoter
+        ? "promotor"
+        : typeBucket === "table"
+          ? "mesa"
+          : typeBucket === "courtesy" || typeBucket === "free"
+            ? "cortesia"
+            : typeBucket === "general" || typeBucket === "promoter_legacy"
+              ? "general"
+              : "sin_clasificar";
+
+      if (admissionKey) {
+        row.admissionSet.add(admissionKey);
+        if (!row.typeAdmissions.has(bucket)) {
+          row.typeAdmissions.set(bucket, new Set<string>());
         }
-      } else {
-        row.withoutPromoterScans += 1;
-        if (admissionKey) {
-          row.withoutPromoterAdmissionSet.add(admissionKey);
+        row.typeAdmissions.get(bucket)!.add(admissionKey);
+        if (hasPromoter) {
+          row.activePromoterSet.add(promoterId);
         }
       }
 
@@ -950,101 +908,23 @@ export async function GET(req: NextRequest) {
         if (!row.lastScanAt || createdAt > row.lastScanAt)
           row.lastScanAt = createdAt;
       }
-
-      if (isFreeCode) {
-        row.freeScans += 1;
-        if (admissionKey) row.freeAdmissionSet.add(admissionKey);
-        if (createdAt) {
-          if (!row.freeFirstScanAt || createdAt < row.freeFirstScanAt)
-            row.freeFirstScanAt = createdAt;
-          if (!row.freeLastScanAt || createdAt > row.freeLastScanAt)
-            row.freeLastScanAt = createdAt;
-        }
-      }
-    }
-
-    const promoterIdList = Array.from(promoterIds);
-    const { data: promoterRows } =
-      promoterIdList.length > 0
-        ? await applyNotDeleted(
-            supabase
-              .from("promoters")
-              .select("id,code,person:persons(first_name,last_name)")
-              .in("id", promoterIdList),
-          )
-        : { data: [] as any[] };
-    const promoterLabelMap = new Map<string, string>();
-    for (const promoter of promoterRows || []) {
-      const personRel = Array.isArray((promoter as any)?.person)
-        ? (promoter as any)?.person?.[0]
-        : (promoter as any)?.person;
-      const fullName = [personRel?.first_name, personRel?.last_name]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-      const code = String((promoter as any)?.code || "").trim();
-      const label =
-        [code, fullName].filter(Boolean).join(" - ") ||
-        String((promoter as any).id || "");
-      promoterLabelMap.set(String((promoter as any).id), label);
     }
 
     const rows = Array.from(grouped.entries()).map(([event_id, metrics]) => {
       const event = eventById.get(event_id);
-      const topPromoters = Array.from(metrics.promoterScans.entries())
-        .map(([id, scans]) => {
-          const attendees = metrics.promoterAdmissionSets.get(id)?.size || 0;
-          const label = promoterLabelMap.get(id) || id;
-          return { id, scans, attendees, label };
-        })
-        .sort((a, b) => {
-          if (a.attendees !== b.attendees) return b.attendees - a.attendees;
-          if (a.scans !== b.scans) return b.scans - a.scans;
-          return a.label.localeCompare(b.label);
-        })
-        .slice(0, 5)
-        .map(
-          (row) => `${row.label} (${row.attendees} pers. / ${row.scans} esc.)`,
-        )
-        .join(" | ");
-      const topCodes = Array.from(metrics.codeUsage.entries())
-        .sort((a, b) => {
-          if (a[1] !== b[1]) return b[1] - a[1];
-          return a[0].localeCompare(b[0]);
-        })
-        .slice(0, 5)
-        .map(([code, count]) => `${code} (${count})`)
-        .join(" | ");
-
       return {
         organizer_id: event?.organizer_id || "",
         organizer_name: event?.organizer_name || "",
         event_id,
         event_name: event?.name || "",
-        scans_confirmed: metrics.scans,
-        unique_admissions_confirmed: metrics.admissionSet.size,
-        unique_tickets_scanned: metrics.ticketSet.size,
-        unique_codes_scanned: metrics.codeSet.size,
-        escaneos_qr_general: metrics.typeScans.get("general") || 0,
-        escaneos_qr_cortesia: metrics.typeScans.get("courtesy") || 0,
-        escaneos_qr_mesa: metrics.typeScans.get("table") || 0,
-        escaneos_qr_free: metrics.typeScans.get("free") || 0,
-        escaneos_qr_promotor_legado:
-          metrics.typeScans.get("promoter_legacy") || 0,
-        escaneos_qr_sin_tipo: metrics.typeScans.get("unknown") || 0,
-        promotores_activos: metrics.promoterScans.size,
-        asistentes_unicos_con_promotor: metrics.withPromoterAdmissionSet.size,
-        asistentes_unicos_sin_promotor:
-          metrics.withoutPromoterAdmissionSet.size,
-        escaneos_sin_promotor: metrics.withoutPromoterScans,
-        top_promotores: topPromoters || "Sin promotor identificado",
-        top_codigos_usados: topCodes || "Sin códigos identificables",
-        free_qr_scans_confirmed: metrics.freeScans,
-        free_qr_unique_tickets_scanned: metrics.freeAdmissionSet.size,
-        first_scan_at_lima: formatLimaDateTime(metrics.firstScanAt),
-        last_scan_at_lima: formatLimaDateTime(metrics.lastScanAt),
-        free_qr_first_scan_at_lima: formatLimaDateTime(metrics.freeFirstScanAt),
-        free_qr_last_scan_at_lima: formatLimaDateTime(metrics.freeLastScanAt),
+        asistentes: metrics.admissionSet.size,
+        via_general: metrics.typeAdmissions.get("general")?.size || 0,
+        via_mesa: metrics.typeAdmissions.get("mesa")?.size || 0,
+        via_promotor: metrics.typeAdmissions.get("promotor")?.size || 0,
+        via_cortesia: metrics.typeAdmissions.get("cortesia")?.size || 0,
+        promotores_activos: metrics.activePromoterSet.size,
+        primer_ingreso: formatLimaDateTime(metrics.firstScanAt),
+        ultimo_ingreso: formatLimaDateTime(metrics.lastScanAt),
       };
     });
 
@@ -1053,61 +933,14 @@ export async function GET(req: NextRequest) {
         [
           { key: "organizer_name", label: "Organizador" },
           { key: "event_name", label: "Evento" },
-          { key: "scans_confirmed", label: "Escaneos válidos" },
-          {
-            key: "unique_admissions_confirmed",
-            label: "Admisiones únicas confirmadas",
-          },
-          { key: "unique_tickets_scanned", label: "Tickets únicos" },
-          { key: "unique_codes_scanned", label: "Códigos únicos" },
-          { key: "escaneos_qr_general", label: "Escaneos QR general" },
-          { key: "escaneos_qr_cortesia", label: "Escaneos QR cortesía" },
-          { key: "escaneos_qr_mesa", label: "Escaneos QR mesa" },
-          { key: "escaneos_qr_free", label: "Escaneos QR free" },
-          {
-            key: "escaneos_qr_promotor_legado",
-            label: "Escaneos QR promotor (legado)",
-          },
-          {
-            key: "escaneos_qr_sin_tipo",
-            label: "Escaneos QR sin tipo identificado",
-          },
-          {
-            key: "promotores_activos",
-            label: "Promotores activos con ingresos",
-          },
-          {
-            key: "asistentes_unicos_con_promotor",
-            label: "Asistentes únicos con promotor",
-          },
-          {
-            key: "asistentes_unicos_sin_promotor",
-            label: "Asistentes únicos sin promotor",
-          },
-          { key: "escaneos_sin_promotor", label: "Escaneos sin promotor" },
-          {
-            key: "top_promotores",
-            label: "Top promotores (asistencia/escaneos)",
-          },
-          { key: "top_codigos_usados", label: "Top códigos usados" },
-          {
-            key: "free_qr_scans_confirmed",
-            label: "Escaneos QR free/cortesía",
-          },
-          {
-            key: "free_qr_unique_tickets_scanned",
-            label: "Personas únicas QR free/cortesía",
-          },
-          { key: "first_scan_at_lima", label: "Primer ingreso (Lima)" },
-          { key: "last_scan_at_lima", label: "Último ingreso (Lima)" },
-          {
-            key: "free_qr_first_scan_at_lima",
-            label: "Primer ingreso QR free/cortesía (Lima)",
-          },
-          {
-            key: "free_qr_last_scan_at_lima",
-            label: "Último ingreso QR free/cortesía (Lima)",
-          },
+          { key: "asistentes", label: "Asistentes" },
+          { key: "via_general", label: "Vía QR general" },
+          { key: "via_mesa", label: "Vía QR mesa" },
+          { key: "via_promotor", label: "Vía QR promotor" },
+          { key: "via_cortesia", label: "Vía QR cortesía/free" },
+          { key: "promotores_activos", label: "Promotores activos" },
+          { key: "primer_ingreso", label: "Primer ingreso (Lima)" },
+          { key: "ultimo_ingreso", label: "Último ingreso (Lima)" },
         ],
         rows as any,
       );
