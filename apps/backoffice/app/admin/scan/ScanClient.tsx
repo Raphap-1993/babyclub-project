@@ -527,19 +527,6 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                 )}
               </div>
 
-              {/* Advertencia: el mismo DNI ya ingresó con otro ticket */}
-              {modal.person_already_entered && modal.result === "valid" && (
-                <div className="rounded-2xl border border-orange-500/40 bg-orange-500/15 p-4">
-                  <p className="text-sm font-bold text-orange-300 uppercase tracking-wide mb-1">
-                    ⚠️ DNI ya registró ingreso
-                  </p>
-                  <p className="text-xs text-orange-200/80">
-                    Este DNI ya fue confirmado en puerta con otro ticket para este evento.
-                    Puede tratarse de una entrada duplicada. Verificar con el portero antes de confirmar.
-                  </p>
-                </div>
-              )}
-
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Button
                   type="button"
@@ -641,6 +628,7 @@ function getResultBadgeVariant(result: ScanResult): "success" | "warning" | "dan
 
 function getResultTitle(result: string, reason?: string | null) {
   if (result === "expired" && reason === "entry_cutoff") return "Fuera de hora";
+  if (result === "duplicate" && reason === "person_already_entered") return "DNI ya ingresó al evento";
   switch (result) {
     case "valid":
       return "Código validado";
