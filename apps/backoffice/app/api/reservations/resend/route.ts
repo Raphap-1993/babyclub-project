@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,doc_type,document,status,codes,ticket_id,event_id,promoter_id,table:tables(id,name,event_id,event:events(id,name,starts_at,location)),event:event_id(id,name,starts_at,location)"
+      "id,full_name,email,phone,doc_type,document,status,codes,event_id,promoter_id,table:tables(id,name,event_id,event:events(id,name,starts_at,location)),event:event_id(id,name,starts_at,location)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -83,10 +83,11 @@ export async function POST(req: NextRequest) {
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];
 
-  let ticketId: string | null = (reservation as any).ticket_id || null;
+  let ticketId: string | null = null;
   let ticketCode: string | null = null;
 
-  if (!ticketId) {
+  // Reverse lookup: tickets es dueño de la relación (tickets.table_reservation_id)
+  {
     const { data: ticketByReservation } = await supabase
       .from("tickets")
       .select("id")
@@ -154,10 +155,6 @@ export async function POST(req: NextRequest) {
         ticketLookupError = err?.message || "No se pudo generar ticket";
       }
     }
-  }
-
-  if (ticketId && ticketId !== (reservation as any).ticket_id) {
-    await supabase.from("table_reservations").update({ ticket_id: ticketId }).eq("id", id);
   }
 
   const codesForEmail = Array.from(new Set([...codesList, ticketCode].filter(Boolean)));
