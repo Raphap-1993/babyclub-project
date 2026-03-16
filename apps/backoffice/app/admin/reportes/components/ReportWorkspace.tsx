@@ -61,7 +61,7 @@ const COLUMN_LABELS: Record<string, string> = {
   asistentes: "Asistentes",
   via_general: "Vía QR general",
   via_mesa: "Vía QR mesa",
-  via_promotor: "Vía QR promotor",
+
   via_cortesia: "Vía promotor/cortesía",
   full_name: "Cliente",
   doc_type: "Tipo doc.",
@@ -97,7 +97,6 @@ function formatReportValue(header: string, value: unknown) {
       "via_general",
       "via_mesa",
       "via_promotor",
-      "via_cortesia",
       "free_qr_assigned",
       "free_qr_attended",
       "free_qr_no_show",
@@ -182,7 +181,7 @@ export default function ReportWorkspace({
       );
     return {
       asistentes: total("asistentes"),
-      viaPromotor: total("via_promotor"),
+
       viaCortesia: total("via_cortesia"),
       viaGeneral: total("via_general"),
     };
@@ -437,14 +436,6 @@ export default function ReportWorkspace({
               </div>
               <div className="text-lg font-semibold text-white">
                 {attendanceSummary.asistentes.toLocaleString("es-PE")}
-              </div>
-            </div>
-            <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
-                Vía promotor
-              </div>
-              <div className="text-lg font-semibold text-white">
-                {attendanceSummary.viaPromotor.toLocaleString("es-PE")}
               </div>
             </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
