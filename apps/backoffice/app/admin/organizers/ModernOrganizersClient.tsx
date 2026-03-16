@@ -187,13 +187,23 @@ export default function ModernOrganizersClient({ initialOrganizers, error }: Pro
             >
               ← Dashboard
             </Link>
-            <Button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-400 hover:to-pink-500"
-            >
-              <Plus className="h-4 w-4" />
-              Crear organizador
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    onClick={() => setShowCreateModal(true)}
+                    disabled={organizers.length >= 1}
+                    className="bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-400 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Crear organizador
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {organizers.length >= 1 && (
+                <TooltipContent>Solo se permite un organizador</TooltipContent>
+              )}
+            </Tooltip>
           </>
         }
       />
