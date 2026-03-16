@@ -3,6 +3,20 @@ import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
 
+type TicketSalePhase = "early_bird" | "all_night";
+
+const TICKET_PRICES_FALLBACK: Record<TicketSalePhase, number> = {
+  early_bird: 15,
+  all_night: 20,
+};
+
+function resolveActiveTicketSalePhase(): TicketSalePhase {
+  const raw = (process.env.TICKET_SALE_PHASE || process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird")
+    .trim()
+    .toLowerCase();
+  return raw === "all_night" ? "all_night" : "early_bird";
+}
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -39,6 +53,8 @@ export async function GET(req: NextRequest) {
   let sale_block_reason: string | null = null;
   let sale_public_message: string | null = null;
   let sales_available = true;
+  let ticket_price: number | null = null;
+  let ticket_sale_phase: TicketSalePhase | null = null;
   let registered_person: {
     first_name: string | null;
     last_name: string | null;
@@ -54,7 +70,7 @@ export async function GET(req: NextRequest) {
     const eventQuery = applyNotDeleted(
       supabase
         .from("events")
-        .select("id,is_active,closed_at,sale_status,sale_public_message")
+        .select("id,is_active,closed_at,sale_status,sale_public_message,early_bird_price_1,all_night_price_1,early_bird_enabled")
         .eq("id", data.event_id)
     );
     let { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
@@ -70,6 +86,20 @@ export async function GET(req: NextRequest) {
     sale_block_reason = saleDecision.block_reason;
     sale_public_message = saleDecision.public_message;
     sales_available = saleDecision.available;
+
+    // Resolve ticket price for general codes
+    if (data.type === "general" && eventRow) {
+      const phase = resolveActiveTicketSalePhase();
+      ticket_sale_phase = phase;
+      const priceFromEvent =
+        phase === "early_bird"
+          ? (eventRow as any).early_bird_price_1
+          : (eventRow as any).all_night_price_1;
+      ticket_price =
+        typeof priceFromEvent === "number" && priceFromEvent > 0
+          ? priceFromEvent
+          : TICKET_PRICES_FALLBACK[phase];
+    }
   }
 
   if (data.id) {
@@ -140,6 +170,8 @@ export async function GET(req: NextRequest) {
     sale_status,
     sale_block_reason,
     sale_public_message,
+    ticket_price,
+    ticket_sale_phase,
     registered_person,
   });
 }
