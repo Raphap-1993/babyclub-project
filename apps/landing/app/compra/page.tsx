@@ -125,6 +125,14 @@ export default function CompraPage() {
   const yapeNumber = "950 144 641";
   const yapeHolder = "Kevin Andree Huansi Ruiz";
 
+  const friendlyCulqiError = (raw: string | undefined): string => {
+    if (!raw) return "No se pudo iniciar el pago online";
+    const r = raw.toLowerCase();
+    if (r.includes("culqi_secret_key") || r.includes("missing") || r.includes("payments_module_disabled") || r.includes("culqi_public_key"))
+      return "El pago con tarjeta está en proceso de implementación. Por ahora usa Yape / Plin.";
+    return raw;
+  };
+
   const formatPrice = (value?: number | null) => {
     if (value == null) return null;
     return `S/ ${value.toLocaleString("es-PE")}`;
@@ -621,7 +629,7 @@ export default function CompraPage() {
         });
         const orderData = await orderRes.json().catch(() => ({}));
         if (!orderRes.ok || !orderData?.orderId) {
-          setModalError(orderData?.error || "No se pudo iniciar el pago online");
+          setModalError(friendlyCulqiError(orderData?.error));
         } else {
           setMesaReservationId(data.reservationId);
           setCulqiOrderId(orderData.orderId);
@@ -765,7 +773,7 @@ export default function CompraPage() {
         });
         const orderData = await orderRes.json().catch(() => ({}));
         if (!orderRes.ok || !orderData?.orderId) {
-          setTicketModalError(orderData?.error || "No se pudo iniciar el pago online");
+          setTicketModalError(friendlyCulqiError(orderData?.error));
         } else {
           setTicketReservationId(data.reservationId);
           setCulqiOrderId(orderData.orderId);
