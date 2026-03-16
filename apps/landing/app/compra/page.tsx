@@ -6,6 +6,10 @@ import TableMap from "../registro/TableMap";
 import { buildMapSlotsFromTables } from "../registro/tableSlotUtils";
 import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
 import { loadImageDimensions, optimizeImageUrl } from "../../lib/imageOptimization";
+import CulqiCheckout from "../registro/CulqiCheckout";
+
+const CULQI_ENABLED = process.env.NEXT_PUBLIC_CULQI_ENABLED === "true";
+const CULQI_PUBLIC_KEY = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY ?? "";
 
 type TableRow = {
   id: string;
@@ -98,6 +102,12 @@ export default function CompraPage() {
   const [ticketModalError, setTicketModalError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
   const [ticketCopyFeedback, setTicketCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
+  // Payment method — 'yape' is always the default; 'culqi' is the additional option
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"yape" | "culqi">("yape");
+  const [selectedPaymentMethodTicket, setSelectedPaymentMethodTicket] = useState<"yape" | "culqi">("yape");
+  const [culqiOrderId, setCulqiOrderId] = useState<string | null>(null);
+  const [culqiPaymentId, setCulqiPaymentId] = useState<string | null>(null);
+  const [culqiFlowType, setCulqiFlowType] = useState<"mesa" | "ticket" | null>(null);
   const [reservationSubmitted, setReservationSubmitted] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [ticketEventId, setTicketEventId] = useState<string>("");
@@ -560,7 +570,9 @@ export default function CompraPage() {
     setError(null);
     setReservationSubmitted(false);
 
-    if (!form.voucher_url) {
+    const useCulqi = CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi";
+
+    if (!useCulqi && !form.voucher_url) {
       setModalError("Sube tu comprobante de pago para continuar.");
       return;
     }
@@ -589,12 +601,34 @@ export default function CompraPage() {
           product_id: selectedProduct || null,
           event_id: selectedEventId || tableInfo?.event_id || null,
           code: defaultCode,
-          voucher_url: form.voucher_url,
+          voucher_url: form.voucher_url || undefined,
+          payment_method: useCulqi ? "culqi" : "yape",
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
         setModalError(data?.error || "No se pudo registrar la reserva");
+      } else if (useCulqi && data.reservationId) {
+        const amountCentavos = Math.round((totalPrice as number) * 100);
+        const orderRes = await fetch("/api/payments/culqi/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reservation_id: data.reservationId,
+            amount: amountCentavos,
+            idempotency_key: `res-${data.reservationId}`,
+          }),
+        });
+        const orderData = await orderRes.json().catch(() => ({}));
+        if (!orderRes.ok || !orderData?.orderId) {
+          setModalError(orderData?.error || "No se pudo iniciar el pago online");
+        } else {
+          setMesaReservationId(data.reservationId);
+          setCulqiOrderId(orderData.orderId);
+          setCulqiPaymentId(orderData.paymentId);
+          setCulqiFlowType("mesa");
+          setShowSummary(false);
+        }
       } else {
         setSuccessCodes(data.codes || []);
         setReservationSubmitted(true);
@@ -689,13 +723,14 @@ export default function CompraPage() {
       setTicketModalError(ticketSaleBlock.message);
       return;
     }
-    if (!ticketVoucherUrl) {
+    const useCulqi = CULQI_ENABLED && selectedPaymentMethodTicket === "culqi";
+    if (!useCulqi && !ticketVoucherUrl) {
       setTicketModalError("Sube tu comprobante de pago para continuar.");
       return;
     }
     setTicketLoading(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         event_id: ticketEventId,
         doc_type: ticketForm.doc_type,
         document: ticketForm.document,
@@ -704,9 +739,10 @@ export default function CompraPage() {
         apellido_materno: ticketForm.apellido_materno,
         email: ticketForm.email,
         telefono: ticketForm.phone,
-        voucher_url: ticketVoucherUrl,
+        voucher_url: ticketVoucherUrl || undefined,
         ticket_quantity: ticketQuantity,
         pricing_phase: ticketPricingSelection,
+        payment_method: useCulqi ? "culqi" : "yape",
       };
       const res = await fetch("/api/ticket-reservations", {
         method: "POST",
@@ -716,6 +752,27 @@ export default function CompraPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
         setTicketModalError(data?.error || "No se pudo registrar la reserva");
+      } else if (useCulqi && data.reservationId && data.amount) {
+        const amountCentavos = Math.round((data.amount as number) * 100);
+        const orderRes = await fetch("/api/payments/culqi/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reservation_id: data.reservationId,
+            amount: amountCentavos,
+            idempotency_key: `tkt-res-${data.reservationId}`,
+          }),
+        });
+        const orderData = await orderRes.json().catch(() => ({}));
+        if (!orderRes.ok || !orderData?.orderId) {
+          setTicketModalError(orderData?.error || "No se pudo iniciar el pago online");
+        } else {
+          setTicketReservationId(data.reservationId);
+          setCulqiOrderId(orderData.orderId);
+          setCulqiPaymentId(orderData.paymentId);
+          setCulqiFlowType("ticket");
+          setShowTicketSummary(false);
+        }
       } else {
         setTicketReservationId(data.reservationId || null);
         setShowTicketSummary(false);
@@ -1256,17 +1313,37 @@ export default function CompraPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>
-                <h3 className="text-2xl font-semibold text-white">Recuento y pago Yape</h3>
-                <p className="text-sm text-white/60">Confirma tu pedido y sube el comprobante.</p>
+                <h3 className="text-2xl font-semibold text-white">Recuento y pago</h3>
+                <p className="text-sm text-white/60">Confirma tu pedido y elige cómo pagar.</p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowSummary(false)}
+                onClick={() => { setShowSummary(false); setSelectedPaymentMethod("yape"); }}
                 className="rounded-full px-3 py-1 text-xs font-semibold btn-smoke-outline transition"
               >
                 Editar datos
               </button>
             </div>
+
+            {/* Payment method selector */}
+            {CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && (
+              <div className="flex gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethod("yape")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethod === "yape" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                >
+                  📱 Yape / Plin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethod("culqi")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethod === "culqi" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                >
+                  💳 Tarjeta
+                </button>
+              </div>
+            )}
 
             <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
               <div className="flex items-center justify-between text-white">
@@ -1301,29 +1378,32 @@ export default function CompraPage() {
               )}
             </div>
 
-            <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/60">Paga con Yape/Plin</p>
-                  <p className="text-2xl font-semibold leading-tight text-white">{yapeNumber}</p>
-                  <p className="text-xs text-white/60">Titular: {yapeHolder}</p>
+            {!(CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi") && (
+              <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/60">Paga con Yape/Plin</p>
+                    <p className="text-2xl font-semibold leading-tight text-white">{yapeNumber}</p>
+                    <p className="text-xs text-white/60">Titular: {yapeHolder}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyYapeNumber}
+                    className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
+                  >
+                    {copyFeedback === "copied" ? "Copiado" : copyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
+                    <span className="text-[#f2f2f2]/70">(para abrir Yape)</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={copyYapeNumber}
-                  className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
-                >
-                  {copyFeedback === "copied" ? "Copiado" : copyFeedback === "error" ? "No se pudo copiar" : "Copiar número"}
-                  <span className="text-[#f2f2f2]/70">(para abrir Yape)</span>
-                </button>
+                {totalLabel && (
+                  <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                    Envía <span className="font-semibold text-white">{totalLabel}</span> al número indicado y adjunta el comprobante abajo.
+                  </div>
+                )}
               </div>
-              {totalLabel && (
-                <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
-                  Envía <span className="font-semibold text-white">{totalLabel}</span> al número indicado y adjunta el comprobante abajo.
-                </div>
-              )}
-            </div>
+            )}
 
+            {!(CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi") && (
             <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
               <label className="text-sm font-semibold text-white">Comprobante de pago</label>
               
@@ -1402,6 +1482,7 @@ export default function CompraPage() {
                 </a>
               )}
             </div>
+            )} {/* end yape/voucher block */}
 
             {modalError && <p className="text-xs font-semibold text-[#ff9a9a]">{modalError}</p>}
 
@@ -1431,7 +1512,7 @@ export default function CompraPage() {
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setShowSummary(false)}
+                onClick={() => { setShowSummary(false); setSelectedPaymentMethod("yape"); }}
                 className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
                 Volver al formulario
@@ -1442,7 +1523,13 @@ export default function CompraPage() {
                 disabled={loading || uploading || reservationSubmitted}
                 className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-attention-red transition disabled:opacity-60"
               >
-                {loading ? "Enviando..." : reservationSubmitted ? "Reserva enviada" : "Enviar reserva"}
+                {loading
+                  ? "Enviando..."
+                  : reservationSubmitted
+                  ? "Reserva enviada"
+                  : CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && selectedPaymentMethod === "culqi"
+                  ? "Continuar al pago"
+                  : "Enviar reserva"}
               </button>
             </div>
           </div>
@@ -1455,17 +1542,43 @@ export default function CompraPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Revisión</p>
-                <h3 className="text-2xl font-semibold text-white">Pago Yape</h3>
-                <p className="text-sm text-white/60">Confirma tus datos y paga con Yape/Plin.</p>
+                <h3 className="text-2xl font-semibold text-white">
+                  {CULQI_ENABLED && selectedPaymentMethodTicket === "culqi" ? "Recuento y pago" : "Pago Yape"}
+                </h3>
+                <p className="text-sm text-white/60">
+                  {CULQI_ENABLED && selectedPaymentMethodTicket === "culqi"
+                    ? "Confirma tu pedido y continúa al pago con tarjeta."
+                    : "Confirma tus datos y paga con Yape/Plin."}
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowTicketSummary(false)}
+                onClick={() => { setShowTicketSummary(false); setSelectedPaymentMethodTicket("yape"); }}
                 className="rounded-full px-3 py-1 text-xs font-semibold btn-smoke-outline transition"
               >
                 Editar datos
               </button>
             </div>
+
+            {/* Payment method selector */}
+            {CULQI_ENABLED && ticketPrice > 0 && (
+              <div className="flex gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethodTicket("yape")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethodTicket === "yape" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                >
+                  📱 Yape / Plin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethodTicket("culqi")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethodTicket === "culqi" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                >
+                  💳 Tarjeta
+                </button>
+              </div>
+            )}
 
             <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
               <div className="flex items-center justify-between text-white">
@@ -1496,6 +1609,7 @@ export default function CompraPage() {
               </div>
             </div>
 
+            {!(CULQI_ENABLED && ticketPrice > 0 && selectedPaymentMethodTicket === "culqi") && (
             <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1516,7 +1630,9 @@ export default function CompraPage() {
                 Envía S/ {ticketPrice} al número indicado y adjunta el comprobante abajo.
               </div>
             </div>
+            )}
 
+            {!(CULQI_ENABLED && ticketPrice > 0 && selectedPaymentMethodTicket === "culqi") && (
             <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
               <label className="text-sm font-semibold text-white">Comprobante de pago</label>
               
@@ -1598,18 +1714,21 @@ export default function CompraPage() {
                 </a>
               )}
             </div>
+            )}
 
             {ticketModalError && <p className="text-xs font-semibold text-[#ff9a9a]">{ticketModalError}</p>}
 
+            {!(CULQI_ENABLED && ticketPrice > 0 && selectedPaymentMethodTicket === "culqi") && (
             <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
               Recibimos tu solicitud de compra. El equipo BABY validará el pago y te enviaremos la confirmación a tu
               bandeja de correo.
             </div>
+            )}
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setShowTicketSummary(false)}
+                onClick={() => { setShowTicketSummary(false); setSelectedPaymentMethodTicket("yape"); }}
                 className="rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
               >
                 Volver al formulario
@@ -1620,7 +1739,11 @@ export default function CompraPage() {
                 disabled={ticketLoading}
                 className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-60"
               >
-                {ticketLoading ? "Enviando..." : "Enviar solicitud"}
+                {ticketLoading
+                  ? "Enviando..."
+                  : CULQI_ENABLED && ticketPrice > 0 && selectedPaymentMethodTicket === "culqi"
+                  ? "Continuar al pago"
+                  : "Enviar solicitud"}
               </button>
             </div>
           </div>
@@ -1723,6 +1846,28 @@ export default function CompraPage() {
             </div>
           </div>
         </div>
+      )}
+      {culqiOrderId && culqiPaymentId && CULQI_ENABLED && (
+        <CulqiCheckout
+          publicKey={CULQI_PUBLIC_KEY}
+          orderId={culqiOrderId}
+          paymentId={culqiPaymentId}
+          onSuccess={() => {
+            setCulqiOrderId(null);
+            setCulqiPaymentId(null);
+            if (culqiFlowType === "mesa") {
+              setShowReservationConfirmation(true);
+            } else {
+              setShowTicketConfirmation(true);
+            }
+            setCulqiFlowType(null);
+          }}
+          onClose={() => {
+            setCulqiOrderId(null);
+            setCulqiPaymentId(null);
+            setCulqiFlowType(null);
+          }}
+        />
       )}
     </main>
   );
