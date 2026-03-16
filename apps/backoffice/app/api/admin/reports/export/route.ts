@@ -914,7 +914,6 @@ export async function GET(req: NextRequest) {
       const event = eventById.get(event_id);
       return {
         organizer_id: event?.organizer_id || "",
-        organizer_name: event?.organizer_name || "",
         event_id,
         event_name: event?.name || "",
         asistentes: metrics.admissionSet.size,
@@ -931,7 +930,6 @@ export async function GET(req: NextRequest) {
     if (format === "csv") {
       const csv = toCsvFromColumns(
         [
-          { key: "organizer_name", label: "Organizador" },
           { key: "event_name", label: "Evento" },
           { key: "asistentes", label: "Asistentes" },
           { key: "via_general", label: "Vía QR general" },
