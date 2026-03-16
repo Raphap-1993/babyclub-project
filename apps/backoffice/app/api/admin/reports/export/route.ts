@@ -808,7 +808,7 @@ export async function GET(req: NextRequest) {
           { key: "via_general", label: "Vía QR general" },
           { key: "via_mesa", label: "Vía QR mesa" },
           { key: "via_promotor", label: "Vía QR promotor" },
-          { key: "via_cortesia", label: "Vía QR cortesía/free" },
+          { key: "via_cortesia", label: "Vía promotor/cortesía" },
         ],
         rows as any,
       );
