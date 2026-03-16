@@ -48,7 +48,7 @@ export async function archiveReservation(req: NextRequest) {
   });
 
   const reservationQuery = applyNotDeleted(
-    supabase.from("table_reservations").select("id,codes,ticket_id").eq("id", id).limit(1)
+    supabase.from("table_reservations").select("id,codes").eq("id", id).limit(1)
   );
   const { data: reservation, error: reservationError } = await reservationQuery.maybeSingle();
   if (reservationError) {
@@ -95,7 +95,7 @@ export async function archiveReservation(req: NextRequest) {
     }
   }
 
-  const ticketIds = uniqueStrings([(reservation as any).ticket_id || null]);
+  const ticketIds: string[] = [];
   const [ticketsByReservation, ticketsByCodes] = await Promise.all([
     supabase.from("tickets").select("id").eq("table_reservation_id", id).is("deleted_at", null),
     codeIds.length > 0

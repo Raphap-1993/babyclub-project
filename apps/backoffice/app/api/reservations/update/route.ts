@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,table_id,product_id,full_name,email,phone,doc_type,document,codes,ticket_quantity,event_id,ticket_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))"
+      "id,table_id,product_id,full_name,email,phone,doc_type,document,codes,ticket_quantity,event_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -193,9 +193,6 @@ export async function POST(req: NextRequest) {
       trace.push(`ticketId:${ticketIds[0]}`);
 
       const approvalUpdatePayload: Record<string, any> = { ...updateData };
-      if (!(reservation as any).ticket_id) {
-        approvalUpdatePayload.ticket_id = ticketIds[0];
-      }
       if (mergedCodes.length > 0) {
         approvalUpdatePayload.codes = mergedCodes;
       }
@@ -310,7 +307,7 @@ export async function POST(req: NextRequest) {
       trace.push("codes_deactivated:0");
     }
 
-    const ticketIds = uniqueStrings([(reservation as any).ticket_id || null]);
+    const ticketIds: string[] = [];
     if (codeIds.length > 0) {
       const { data: ticketsByCodes, error: ticketsByCodesError } = await supabase
         .from("tickets")
@@ -361,7 +358,6 @@ export async function POST(req: NextRequest) {
       previousStatus === "approved" ||
       previousStatus === "confirmed" ||
       previousStatus === "paid" ||
-      Boolean((reservation as any).ticket_id) ||
       codesResolved.length > 0;
 
     if (uniqueTicketIds.length === 0 && shouldHaveTickets) {
