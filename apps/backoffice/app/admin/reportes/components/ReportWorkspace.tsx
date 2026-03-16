@@ -30,7 +30,6 @@ type ReportWorkspaceProps = {
   defaultReport:
     | "promoter_performance"
     | "event_attendance"
-    | "event_sales"
     | "free_qr_no_show";
   allowReportSwitch?: boolean;
   showDateRange?: boolean;
@@ -41,7 +40,6 @@ type ReportWorkspaceProps = {
 const REPORT_LABELS: Record<string, string> = {
   promoter_performance: "Rendimiento de promotores",
   event_attendance: "Asistencia por evento",
-  event_sales: "Ventas por evento",
   free_qr_no_show: "No-show de QR free",
 };
 
@@ -298,7 +296,6 @@ export default function ReportWorkspace({
                 <option value="event_attendance">
                   {REPORT_LABELS.event_attendance}
                 </option>
-                <option value="event_sales">{REPORT_LABELS.event_sales}</option>
                 <option value="free_qr_no_show">
                   {REPORT_LABELS.free_qr_no_show}
                 </option>
@@ -514,20 +511,6 @@ export default function ReportWorkspace({
           </div>
         ) : null}
 
-        {report === "event_sales" ? (
-          <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
-            <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
-            <span>
-              <strong>Ventas confirmadas</strong> usa pagos en estado pagado
-              cuando la tabla <code>payments</code> existe. En ambientes legacy,
-              cae a reservas aprobadas/confirmadas/pagadas como compatibilidad.{" "}
-              <strong>Ventas (S/)</strong> se calcula desde pagos reales o, en
-              fallback, desde el contexto comercial disponible de la reserva. Si
-              falta metadata histórica para derivar el monto con certeza, el
-              reporte deja ese valor vacío en vez de estimarlo.
-            </span>
-          </div>
-        ) : null}
 
         <Table containerClassName="max-h-[55dvh] min-h-[220px]">
           <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">

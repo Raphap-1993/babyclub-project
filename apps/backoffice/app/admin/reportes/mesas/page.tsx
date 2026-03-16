@@ -46,7 +46,6 @@ export const dynamic = "force-dynamic";
 
 const allowedDefaultReports = new Set([
   "event_attendance",
-  "event_sales",
   "free_qr_no_show",
 ]);
 
@@ -59,7 +58,7 @@ export default async function ReporteMesasPage({
   const params = searchParams ? await searchParams : {};
   const reportParam = String(params?.report || "");
   const defaultReport = allowedDefaultReports.has(reportParam)
-    ? (reportParam as "event_attendance" | "event_sales" | "free_qr_no_show")
+    ? (reportParam as "event_attendance" | "free_qr_no_show")
     : "event_attendance";
 
   return (
