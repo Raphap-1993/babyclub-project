@@ -779,9 +779,7 @@ export async function GET(req: NextRequest) {
           ? "mesa"
           : typeBucket === "courtesy" || typeBucket === "free"
             ? "cortesia"
-            : typeBucket === "general" || typeBucket === "promoter_legacy"
-              ? "general"
-              : "sin_clasificar";
+            : "general"; // includes direct purchases (no code) and explicit general codes
 
       if (admissionKey) {
         row.admissionSet.add(admissionKey);
