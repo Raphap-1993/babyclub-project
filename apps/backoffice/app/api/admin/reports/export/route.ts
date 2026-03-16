@@ -745,21 +745,10 @@ export async function GET(req: NextRequest) {
           no_show_rate_percent: noShowRate,
           last_free_qr_event: row.last_free_qr_event,
           last_free_qr_status: row.last_free_qr_status,
-          last_free_qr_event_at_lima: formatLimaDateTime(
-            row.last_free_qr_event_at,
-          ),
-          last_no_show_event: row.last_no_show_event,
-          last_no_show_event_at_lima: formatLimaDateTime(
-            row.last_no_show_event_at,
-          ),
-          block_next_free_qr: row.free_qr_no_show > 0 ? "Sí" : "No",
         };
       })
       .filter((row) => row.free_qr_assigned > 0)
       .sort((a, b) => {
-        if (a.block_next_free_qr !== b.block_next_free_qr) {
-          return a.block_next_free_qr === "Sí" ? -1 : 1;
-        }
         if (a.free_qr_no_show !== b.free_qr_no_show) {
           return b.free_qr_no_show - a.free_qr_no_show;
         }
@@ -784,19 +773,6 @@ export async function GET(req: NextRequest) {
           { key: "no_show_rate_percent", label: "% no-show" },
           { key: "last_free_qr_event", label: "Último evento free" },
           { key: "last_free_qr_status", label: "Estado último QR free" },
-          {
-            key: "last_free_qr_event_at_lima",
-            label: "Fecha último evento free (Lima)",
-          },
-          { key: "last_no_show_event", label: "Último evento no-show" },
-          {
-            key: "last_no_show_event_at_lima",
-            label: "Fecha último no-show (Lima)",
-          },
-          {
-            key: "block_next_free_qr",
-            label: "Bloquear siguiente QR free",
-          },
         ],
         rows as any,
       );
