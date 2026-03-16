@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
   });
 
   const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
+  const withPayment = body?.with_payment === true;
   const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
   const documentRaw = typeof body?.document === "string" ? body.document : "";
   const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
   }
   const saleDecision = evaluateEventSales(ensureEventSalesDefaults(eventRow as any));
   const codeType = String((codeRow as any)?.type || "").trim().toLowerCase();
+  const requiresPayment = withPayment && codeType === "general";
   const allowsRedemptionWhenSalesBlocked =
     Boolean(reservationContext?.id || (codeRow as any)?.table_reservation_id) ||
     codeType === "table" ||
@@ -253,7 +255,7 @@ export async function POST(req: NextRequest) {
   const existingCodeTicketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,qr_token,person_id")
+      .select("id,qr_token,person_id,payment_status")
       .eq("code_id", codeRow.id)
   );
   const { data: existingCodeTicket, error: existingCodeError } = await existingCodeTicketQuery
@@ -273,11 +275,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isPending = (existingCodeTicket as any).payment_status === "pending";
     return NextResponse.json({
       success: true,
       existing: true,
       ticketId: existingCodeTicket.id,
       qr: existingCodeTicket.qr_token,
+      needsPayment: isPending,
     });
   }
 
@@ -289,7 +293,7 @@ export async function POST(req: NextRequest) {
   const existingTicketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,qr_token,code_id,table_id,product_id,table_reservation_id")
+      .select("id,qr_token,code_id,table_id,product_id,table_reservation_id,payment_status")
       .eq("event_id", eventId)
       .eq("person_id", person_id)
   );
@@ -333,11 +337,13 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("[/api/tickets] Ticket existente encontrado:", existingTicket.id);
+    const existingIsPending = (existingTicket as any).payment_status === "pending";
     return NextResponse.json({
       success: true,
       existing: true,
       ticketId: existingTicket.id,
       qr: existingTicket.qr_token,
+      needsPayment: existingIsPending,
     });
   }
 
@@ -361,6 +367,7 @@ export async function POST(req: NextRequest) {
       table_id: reservationContext?.table_id || null,
       product_id: reservationContext?.product_id || null,
       table_reservation_id: reservationContext?.id || (codeRow as any).table_reservation_id || null,
+      ...(requiresPayment ? { payment_status: "pending", is_active: false } : {}),
     })
     .select("id")
     .single();
@@ -391,6 +398,7 @@ export async function POST(req: NextRequest) {
     qr: qr_token,
     code: codeRow?.code || null,
     eventId,
+    needsPayment: requiresPayment,
   });
 }
 
