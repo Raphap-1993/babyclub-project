@@ -62,7 +62,7 @@ const COLUMN_LABELS: Record<string, string> = {
   via_general: "Vía QR general",
   via_mesa: "Vía QR mesa",
   via_promotor: "Vía QR promotor",
-  via_cortesia: "Vía QR cortesía/free",
+  via_cortesia: "Vía promotor/cortesía",
   full_name: "Cliente",
   doc_type: "Tipo doc.",
   document: "Documento",
@@ -405,8 +405,8 @@ export default function ReportWorkspace({
               escaneos. <strong>Asistentes</strong> = total de personas que
               ingresaron al evento. <strong>Vía QR promotor</strong> = personas
               cuyo ticket tenía un promotor asociado.{" "}
-              <strong>Vía QR cortesía/free</strong> = personas que ingresaron
-              con un QR gratuito sin promotor (courtesy o free).{" "}
+              <strong>Vía promotor/cortesía</strong> = personas que ingresaron
+              con un QR de cortesía o free (distribuidos por promotores).{" "}
               <strong>Vía QR mesa</strong> = personas con reserva de mesa.{" "}
               <strong>Vía QR general</strong> = compras directas sin promotor ni
               beneficio especial.
@@ -449,7 +449,7 @@ export default function ReportWorkspace({
             </div>
             <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2">
               <div className="text-[11px] uppercase tracking-[0.08em] text-white/60">
-                Vía cortesía/free
+                Vía promotor/cortesía
               </div>
               <div className="text-lg font-semibold text-white">
                 {attendanceSummary.viaCortesia.toLocaleString("es-PE")}
