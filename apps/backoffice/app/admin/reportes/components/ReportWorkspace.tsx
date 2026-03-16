@@ -59,7 +59,6 @@ const COLUMN_LABELS: Record<string, string> = {
   promoter_name: "Promotor",
   qrs_assigned: "QRs asignados",
   qrs_entered: "Ingresaron",
-  codes_generated: "Códigos generados (auditoría)",
   attendance_rate_percent: "% de conversión",
   asistentes: "Asistentes",
   via_general: "Vía QR general",
@@ -99,7 +98,6 @@ function formatReportValue(header: string, value: unknown) {
     [
       "qrs_assigned",
       "qrs_entered",
-      "codes_generated",
       "asistentes",
       "via_general",
       "via_mesa",
@@ -511,9 +509,7 @@ export default function ReportWorkspace({
               <strong>QRs asignados</strong> = tickets activos del promotor para
               el evento. <strong>Ingresaron</strong> = tickets marcados como
               usados en puerta. <strong>% de conversión</strong> = ingresaron /
-              QRs asignados. <strong>Códigos generados (auditoría)</strong> se
-              mantiene solo para reconciliación histórica y no debe usarse como
-              KPI principal.
+              QRs asignados.
             </span>
           </div>
         ) : null}

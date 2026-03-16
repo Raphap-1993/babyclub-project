@@ -524,7 +524,6 @@ export async function GET(req: NextRequest) {
             : 0;
         return {
           organizer_id: event?.organizer_id || promoter?.organizer_id || "",
-          organizer_name: event?.organizer_name || "",
           event_id: row.event_id,
           event_name: event?.name || "",
           promoter_id: row.promoter_id,
@@ -533,12 +532,9 @@ export async function GET(req: NextRequest) {
           qrs_assigned: row.qrs_assigned,
           qrs_entered: row.qrs_entered,
           attendance_rate_percent: attendanceRate,
-          codes_generated: row.codes_generated,
         };
       })
       .sort((a, b) => {
-        if (a.organizer_name !== b.organizer_name)
-          return a.organizer_name.localeCompare(b.organizer_name);
         if (a.event_name !== b.event_name)
           return a.event_name.localeCompare(b.event_name);
         return a.promoter_name.localeCompare(b.promoter_name);
@@ -547,14 +543,12 @@ export async function GET(req: NextRequest) {
     if (format === "csv") {
       const csv = toCsvFromColumns(
         [
-          { key: "organizer_name", label: "Organizador" },
           { key: "event_name", label: "Evento" },
           { key: "promoter_code", label: "Código promotor" },
           { key: "promoter_name", label: "Promotor" },
           { key: "qrs_assigned", label: "QRs asignados" },
           { key: "qrs_entered", label: "Ingresaron" },
           { key: "attendance_rate_percent", label: "% de conversión" },
-          { key: "codes_generated", label: "Códigos generados (auditoría)" },
         ],
         rows as any,
       );
