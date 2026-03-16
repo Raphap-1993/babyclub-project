@@ -27,6 +27,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Código no encontrado" }, { status: 404 });
   }
 
+  if (!data.is_active) {
+    return NextResponse.json({ error: "Código inactivo" }, { status: 400 });
+  }
+
+  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+    return NextResponse.json({ error: "Código expirado" }, { status: 400 });
+  }
+
   let sale_status: "on_sale" | "sold_out" | "paused" = "on_sale";
   let sale_block_reason: string | null = null;
   let sale_public_message: string | null = null;

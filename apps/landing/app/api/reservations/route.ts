@@ -303,25 +303,20 @@ export async function POST(req: NextRequest) {
       });
 
     let attempts = 0;
-    let codeType: "table" | "courtesy" = "table";
     while (attempts < 5) {
       attempts++;
-      const codesToInsert = buildCodes(codeType);
+      const codesToInsert = buildCodes("table");
       const { data: codes, error: codeError } = await supabase.from("codes").insert(codesToInsert).select("code");
       if (!codeError) {
         codesList = codes?.map((c: any) => c.code) || [];
         await supabase.from("table_reservations").update({ codes: codesList }).eq("id", reservationId);
         break;
       }
-      if (codeType === "table" && isCodesTypeCheckError(codeError)) {
-        codeType = "courtesy";
-        continue;
+      if (isCodesTypeCheckError(codeError)) {
+        return NextResponse.json({ success: false, error: "No se pudo generar los códigos de reserva. Actualiza migraciones de BD." }, { status: 500 });
       }
       if (codeError.code !== "23505" || attempts >= 5) {
-        const readableError = isCodesTypeCheckError(codeError)
-          ? "No se pudo generar los códigos de reserva en este ambiente. Actualiza migraciones de BD."
-          : codeError.message;
-        return NextResponse.json({ success: false, error: readableError }, { status: 500 });
+        return NextResponse.json({ success: false, error: codeError.message }, { status: 500 });
       }
     }
   }

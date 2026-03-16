@@ -33,7 +33,7 @@ export async function archiveTicket(req: Request) {
   // Incluir event_id para filtrar reservas solo del evento del ticket
   const { data: ticketRow, error: fetchError } = await supabase
     .from("tickets")
-    .select("id,event_id,email,phone")
+    .select("id,event_id,email,phone,code_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -48,6 +48,30 @@ export async function archiveTicket(req: Request) {
   }
 
   if (ticketRow) {
+    // Decrementar uses del código y reactivarlo si corresponde
+    const codeId = (ticketRow as any).code_id as string | null;
+    if (codeId) {
+      const { data: codeRow } = await supabase
+        .from("codes")
+        .select("uses,max_uses,is_active")
+        .eq("id", codeId)
+        .maybeSingle();
+      if (codeRow) {
+        const newUses = Math.max(0, (codeRow.uses ?? 1) - 1);
+        const shouldReactivate =
+          !codeRow.is_active &&
+          codeRow.max_uses != null &&
+          newUses < codeRow.max_uses;
+        await supabase
+          .from("codes")
+          .update({
+            uses: newUses,
+            ...(shouldReactivate ? { is_active: true } : {}),
+          })
+          .eq("id", codeId);
+      }
+    }
+
     const activeStatuses = ["pending", "approved", "confirmed", "paid"];
     const email = ticketRow.email || null;
     const phone = ticketRow.phone || null;
