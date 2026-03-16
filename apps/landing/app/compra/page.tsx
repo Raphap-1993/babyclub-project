@@ -1327,18 +1327,18 @@ export default function CompraPage() {
 
             {/* Payment method selector */}
             {CULQI_ENABLED && typeof totalPrice === "number" && totalPrice > 0 && (
-              <div className="flex gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2">
+              <div className="flex gap-1.5 rounded-2xl border border-white/20 bg-white/5 p-1.5">
                 <button
                   type="button"
                   onClick={() => setSelectedPaymentMethod("yape")}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethod === "yape" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${selectedPaymentMethod === "yape" ? "bg-[#e91e63] text-white shadow-lg shadow-[#e91e63]/30" : "text-white/70 hover:text-white hover:bg-white/10"}`}
                 >
                   📱 Yape / Plin
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedPaymentMethod("culqi")}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethod === "culqi" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${selectedPaymentMethod === "culqi" ? "bg-[#e91e63] text-white shadow-lg shadow-[#e91e63]/30" : "text-white/70 hover:text-white hover:bg-white/10"}`}
                 >
                   💳 Tarjeta
                 </button>
@@ -1562,18 +1562,18 @@ export default function CompraPage() {
 
             {/* Payment method selector */}
             {CULQI_ENABLED && ticketPrice > 0 && (
-              <div className="flex gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2">
+              <div className="flex gap-1.5 rounded-2xl border border-white/20 bg-white/5 p-1.5">
                 <button
                   type="button"
                   onClick={() => setSelectedPaymentMethodTicket("yape")}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethodTicket === "yape" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${selectedPaymentMethodTicket === "yape" ? "bg-[#e91e63] text-white shadow-lg shadow-[#e91e63]/30" : "text-white/70 hover:text-white hover:bg-white/10"}`}
                 >
                   📱 Yape / Plin
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedPaymentMethodTicket("culqi")}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${selectedPaymentMethodTicket === "culqi" ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"}`}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${selectedPaymentMethodTicket === "culqi" ? "bg-[#e91e63] text-white shadow-lg shadow-[#e91e63]/30" : "text-white/70 hover:text-white hover:bg-white/10"}`}
                 >
                   💳 Tarjeta
                 </button>
