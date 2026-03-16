@@ -51,13 +51,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   // Fetch relacionados en paralelo solo si existen IDs
-  const [tableData, eventData] = await Promise.all([
+  const isTableReservation = data.sale_origin !== "ticket";
+  const [tableData, eventData, conflictingTickets] = await Promise.all([
     data.table_id
       ? supabase.from("tables").select("name").eq("id", data.table_id).single()
       : Promise.resolve({ data: null }),
     data.event_id
       ? supabase.from("events").select("name,starts_at,location").eq("id", data.event_id).single()
       : Promise.resolve({ data: null }),
+    // Solo buscar conflictos si es reserva de mesa y hay documento + evento
+    isTableReservation && data.document && data.event_id
+      ? supabase
+          .from("table_reservations")
+          .select("id,friendly_code,ticket_quantity,status,created_at")
+          .eq("event_id", data.event_id)
+          .eq("document", data.document)
+          .eq("sale_origin", "ticket")
+          .neq("id", data.id)
+          .not("status", "eq", "rejected")
+      : Promise.resolve({ data: [] }),
   ]);
 
   const reservation = {
@@ -78,6 +90,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     event_name: eventData.data?.name || "Evento desconocido",
     event_starts_at: eventData.data?.starts_at || null,
     event_location: eventData.data?.location || null,
+    conflicting_ticket_reservations: (conflictingTickets.data || []) as Array<{
+      id: string;
+      friendly_code: string | null;
+      ticket_quantity: number | null;
+      status: string;
+      created_at: string;
+    }>,
   };
 
   return NextResponse.json({ success: true, reservation });
