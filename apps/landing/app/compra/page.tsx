@@ -8,7 +8,7 @@ import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/docu
 import { loadImageDimensions, optimizeImageUrl } from "../../lib/imageOptimization";
 import CulqiCheckout from "../registro/CulqiCheckout";
 
-const CULQI_ENABLED = process.env.NEXT_PUBLIC_CULQI_ENABLED === "true";
+const CULQI_ENABLED = process.env.NEXT_PUBLIC_CULQI_ENABLED?.toLowerCase() === "true";
 const CULQI_PUBLIC_KEY = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY ?? "";
 
 type TableRow = {
