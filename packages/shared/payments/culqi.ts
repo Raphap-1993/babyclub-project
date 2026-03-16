@@ -149,6 +149,28 @@ export function buildWebhookEventKey(provider: string, rawBody: string, eventId:
   return `${provider}:sha256:${hash}`;
 }
 
+/**
+ * Verifies the Culqi webhook signature using HMAC-SHA256.
+ * Culqi signs the raw body with CULQI_WEBHOOK_SECRET and sends it
+ * in the x-culqi-signature header.
+ *
+ * Returns true if valid, false if invalid.
+ * Returns null if CULQI_WEBHOOK_SECRET is not configured (skip verification).
+ */
+export function verifyCulqiWebhookSignature(
+  rawBody: string,
+  signature: string | null,
+): boolean | null {
+  const secret = process.env.CULQI_WEBHOOK_SECRET || "";
+  if (!secret) return null; // not configured — skip
+  if (!signature) return false;
+  const expected = createHash("sha256")
+    .update(secret)
+    .update(rawBody)
+    .digest("hex");
+  return signature === expected;
+}
+
 export function buildReceiptNumber(seed: string, now = new Date()) {
   const date = DateTime.fromJSDate(now).setZone(LIMA_TZ).toFormat("yyyyLLdd");
   const suffix = seed.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase() || Math.random().toString(36).slice(2, 10).toUpperCase();

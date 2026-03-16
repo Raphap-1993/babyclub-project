@@ -38,11 +38,8 @@ export async function POST(req: NextRequest) {
   }
 
   const reservationId = typeof body?.reservation_id === "string" ? body.reservation_id.trim() : "";
+  const ticketId = typeof body?.ticket_id === "string" ? body.ticket_id.trim() : "";
   const amount = Number(body?.amount);
-  const description =
-    typeof body?.description === "string" && body.description.trim()
-      ? body.description.trim()
-      : "Reserva de evento BabyClub";
   const currencyCode = body?.currency_code === "PEN" ? "PEN" : "PEN";
   const expirationMinutesRaw = Number(body?.expiration_minutes ?? 20);
   const expirationMinutes = Number.isFinite(expirationMinutesRaw) ? Math.min(Math.max(expirationMinutesRaw, 5), 60) : 20;
@@ -51,8 +48,8 @@ export async function POST(req: NextRequest) {
   const idempotencyKeyBody = typeof body?.idempotency_key === "string" ? body.idempotency_key.trim() : "";
   const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody;
 
-  if (!reservationId) {
-    return NextResponse.json({ success: false, error: "reservation_id es requerido" }, { status: 400 });
+  if (!reservationId && !ticketId) {
+    return NextResponse.json({ success: false, error: "reservation_id o ticket_id es requerido" }, { status: 400 });
   }
   if (!idempotencyKey) {
     return NextResponse.json({ success: false, error: "idempotency_key es requerido" }, { status: 400 });
@@ -61,6 +58,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "amount debe venir en centimos y ser entero > 0" }, { status: 400 });
   }
 
+  // Idempotency check — return existing order if already created
   const { data: existingPayment, error: existingPaymentError } = await supabase
     .from("payments")
     .select("id,order_id,status,amount,currency_code")
@@ -84,27 +82,74 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const { data: reservation, error: reservationError } = await supabase
-    .from("table_reservations")
-    .select("id,event_id,full_name,email,phone,status")
-    .eq("id", reservationId)
-    .limit(1)
-    .maybeSingle();
+  // Resolve customer and context from reservation or ticket
+  let customerFullName = "";
+  let customerEmail = "";
+  let customerPhone = "";
+  let eventId: string | null = null;
+  let defaultDescription = "Entrada al evento BabyClub";
+  let orderRefSuffix = "";
+  const paymentInsertExtra: Record<string, string | null> = {};
 
-  if (reservationError) {
-    return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
-  }
-  if (!reservation) {
-    return NextResponse.json({ success: false, error: "Reserva no encontrada" }, { status: 404 });
+  if (reservationId) {
+    const { data: reservation, error: reservationError } = await supabase
+      .from("table_reservations")
+      .select("id,event_id,full_name,email,phone,status")
+      .eq("id", reservationId)
+      .limit(1)
+      .maybeSingle();
+
+    if (reservationError) {
+      return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
+    }
+    if (!reservation) {
+      return NextResponse.json({ success: false, error: "Reserva no encontrada" }, { status: 404 });
+    }
+    if (reservation.status === "rejected") {
+      return NextResponse.json({ success: false, error: "La reserva fue rechazada y no puede pagarse" }, { status: 400 });
+    }
+
+    customerFullName = reservation.full_name || "";
+    customerEmail = reservation.email || "";
+    customerPhone = reservation.phone || "";
+    eventId = reservation.event_id || null;
+    defaultDescription = "Reserva de evento BabyClub";
+    orderRefSuffix = reservationId.slice(0, 6).toUpperCase();
+    paymentInsertExtra.reservation_id = reservation.id;
+  } else {
+    const { data: ticket, error: ticketError } = await supabase
+      .from("tickets")
+      .select("id,event_id,full_name,email,phone,is_active,payment_status")
+      .eq("id", ticketId)
+      .limit(1)
+      .maybeSingle();
+
+    if (ticketError) {
+      return NextResponse.json({ success: false, error: ticketError.message }, { status: 500 });
+    }
+    if (!ticket) {
+      return NextResponse.json({ success: false, error: "Ticket no encontrado" }, { status: 404 });
+    }
+    if (ticket.payment_status === "paid") {
+      return NextResponse.json({ success: false, error: "Este ticket ya fue pagado" }, { status: 400 });
+    }
+
+    customerFullName = ticket.full_name || "";
+    customerEmail = ticket.email || "";
+    customerPhone = ticket.phone || "";
+    eventId = ticket.event_id || null;
+    orderRefSuffix = ticketId.slice(0, 6).toUpperCase();
+    paymentInsertExtra.ticket_id = ticket.id;
   }
 
-  if (reservation.status === "rejected") {
-    return NextResponse.json({ success: false, error: "La reserva fue rechazada y no puede pagarse" }, { status: 400 });
-  }
+  const description =
+    typeof body?.description === "string" && body.description.trim()
+      ? body.description.trim()
+      : defaultDescription;
 
-  const names = splitName(reservation.full_name || "");
+  const names = splitName(customerFullName);
   const timestamp = Date.now();
-  const orderNumber = orderNumberInput || `BC-${timestamp}-${reservationId.slice(0, 6).toUpperCase()}`;
+  const orderNumber = orderNumberInput || `BC-${timestamp}-${orderRefSuffix}`;
   const expirationDateUnix = Math.floor((timestamp + expirationMinutes * 60_000) / 1000);
 
   let culqiOrder: any = null;
@@ -117,13 +162,13 @@ export async function POST(req: NextRequest) {
       customer: {
         firstName: names.firstName,
         lastName: names.lastName,
-        email: reservation.email || "no-email@babyclub.local",
-        phoneNumber: reservation.phone || "999999999",
+        email: customerEmail || "no-email@babyclub.local",
+        phoneNumber: customerPhone || "999999999",
       },
       expirationDateUnix,
       metadata: {
-        reservation_id: reservation.id,
-        event_id: reservation.event_id,
+        ...paymentInsertExtra,
+        event_id: eventId,
       },
     });
   } catch (err: any) {
@@ -141,17 +186,17 @@ export async function POST(req: NextRequest) {
       provider: "culqi",
       status: "pending",
       order_id: orderId,
-      event_id: reservation.event_id || null,
-      reservation_id: reservation.id,
+      event_id: eventId,
+      ...paymentInsertExtra,
       amount,
       currency_code: currencyCode,
-      customer_email: reservation.email || null,
-      customer_name: reservation.full_name || null,
-      customer_phone: reservation.phone || null,
+      customer_email: customerEmail || null,
+      customer_name: customerFullName || null,
+      customer_phone: customerPhone || null,
       idempotency_key: idempotencyKey,
       metadata: {
-        reservation_id: reservation.id,
-        event_id: reservation.event_id,
+        ...paymentInsertExtra,
+        event_id: eventId,
         order_number: orderNumber,
       },
       provider_payload: culqiOrder,
