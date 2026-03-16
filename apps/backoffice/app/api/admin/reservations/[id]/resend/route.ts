@@ -43,7 +43,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         document,
         status,
         codes,
-        ticket_id,
         ticket_quantity,
         event_id,
         promoter_id,
@@ -109,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   ]);
   const codeIds = uniqueStrings(resolvedCodeRows.map((row: any) => row.id));
 
-  const existingTicketIds = uniqueStrings([(reservation as any).ticket_id || null]);
+  const existingTicketIds: string[] = [];
   const { data: ticketsByReservation } = await supabase
     .from("tickets")
     .select("id")
@@ -175,9 +174,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const reservationPatch: Record<string, any> = {};
-  if (!(reservation as any).ticket_id) {
-    reservationPatch.ticket_id = finalTicketIds[0];
-  }
   if (finalCodes.length > 0) {
     reservationPatch.codes = finalCodes;
   }
