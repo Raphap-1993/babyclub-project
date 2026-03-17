@@ -566,6 +566,21 @@ export default function ModernReservationsClient({
     setPage(1);
   }, [searchQuery, statusFilter, fromDate, toDate]);
 
+  const getStatusConfig = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "approved":
+      case "confirmed":
+        return { label: "Aprobada", className: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" };
+      case "pending":
+        return { label: "Pendiente", className: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30" };
+      case "rejected":
+      case "cancelled":
+        return { label: "Rechazada", className: "bg-red-500/20 text-red-300 border border-red-500/30" };
+      default:
+        return { label: status || "—", className: "bg-neutral-500/20 text-neutral-300 border border-neutral-700" };
+    }
+  };
+
   const columns = React.useMemo(
     () => createColumns(
       (id: string) => setViewReservationId(id),
@@ -634,17 +649,116 @@ export default function ModernReservationsClient({
         hasActiveFilters={hasActiveFilters}
       />
 
-      {/* Tabla optimizada */}
-      <DataTable
-        columns={columns}
-        data={pagedReservations}
-        compact
-        maxHeight="55vh"
-        enableSorting
-        enableVirtualization={pagedReservations.length > 50}
-        showPagination={false}
-        emptyMessage="🔍 No se encontraron reservas con los filtros aplicados"
-      />
+      {/* Cards para mobile */}
+      <div className="md:hidden space-y-3">
+        {pagedReservations.length === 0 ? (
+          <div className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-8 text-center text-sm text-neutral-400">
+            🔍 No se encontraron reservas con los filtros aplicados
+          </div>
+        ) : pagedReservations.map((reservation) => {
+          const statusCfg = getStatusConfig(reservation.status);
+          const codesCount = Math.max(reservation.codes?.length || 0, reservation.ticket_quantity || 0);
+          const isApproved = ["approved", "confirmed"].includes((reservation.status || "").toLowerCase());
+          const isCancelled = ["rejected", "cancelled"].includes((reservation.status || "").toLowerCase());
+          return (
+            <div
+              key={reservation.id}
+              className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-4 space-y-3"
+            >
+              {/* Header: nombre + estado */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-neutral-100 truncate">{reservation.full_name}</p>
+                  {reservation.email && (
+                    <p className="text-xs text-neutral-400 truncate flex items-center gap-1 mt-0.5">
+                      <Mail className="h-3 w-3 flex-shrink-0" />{reservation.email}
+                    </p>
+                  )}
+                </div>
+                <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusCfg.className}`}>
+                  {statusCfg.label}
+                </span>
+              </div>
+
+              {/* Info secundaria */}
+              <div className="grid grid-cols-2 gap-2 text-xs text-neutral-300">
+                {reservation.phone && (
+                  <div className="flex items-center gap-1">
+                    <Phone className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                    {reservation.phone}
+                  </div>
+                )}
+                {codesCount > 0 && (
+                  <div className="flex items-center gap-1">
+                    <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                    {codesCount} entrada{codesCount !== 1 ? "s" : ""}
+                  </div>
+                )}
+                <div className="col-span-2 flex items-center gap-1 text-neutral-400">
+                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{reservation.event_name}</span>
+                  {reservation.table_name && (
+                    <span className="text-neutral-500">· {reservation.table_name}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Acciones */}
+              <div className="flex gap-2 pt-1">
+                <Button
+                  onClick={() => setViewReservationId(reservation.id)}
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 h-9 bg-neutral-700/40 text-neutral-200 hover:bg-neutral-700/60 text-xs"
+                >
+                  <Eye className="h-3.5 w-3.5 mr-1" />Ver
+                </Button>
+                <Button
+                  onClick={() => handleApproveReservation(reservation.id)}
+                  disabled={isApproved || isCancelled}
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 h-9 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-30 text-xs"
+                >
+                  <CheckCircle className="h-3.5 w-3.5 mr-1" />Aprobar
+                </Button>
+                <Button
+                  onClick={() => handleResendEmail(reservation.id)}
+                  disabled={!isApproved}
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 h-9 bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-30 text-xs"
+                >
+                  <Send className="h-3.5 w-3.5 mr-1" />Email
+                </Button>
+                <Button
+                  onClick={() => handleCancelReservation(reservation.id)}
+                  disabled={isCancelled}
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 h-9 bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-30 text-xs"
+                >
+                  <XCircle className="h-3.5 w-3.5 mr-1" />Anular
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tabla para desktop */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={pagedReservations}
+          compact
+          maxHeight="55vh"
+          enableSorting
+          enableVirtualization={pagedReservations.length > 50}
+          showPagination={false}
+          emptyMessage="🔍 No se encontraron reservas con los filtros aplicados"
+        />
+      </div>
 
       <ExternalPagination
         currentPage={currentPage}
