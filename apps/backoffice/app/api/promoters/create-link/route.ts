@@ -36,7 +36,6 @@ export async function POST(req: NextRequest) {
   const event_id = typeof body?.event_id === "string" ? body.event_id.trim() : "";
   const rawCode = typeof body?.code === "string" ? body.code : "";
   const code = cleanLinkCode(rawCode);
-  const notes = typeof body?.notes === "string" ? body.notes.trim() : null;
 
   if (!promoter_id) {
     return NextResponse.json({ success: false, error: "promoter_id es requerido" }, { status: 400 });
@@ -101,7 +100,6 @@ export async function POST(req: NextRequest) {
     is_active: true,
     max_uses: null, // unlimited
     uses: 0,
-    notes: notes || null,
   };
   if (organizerId) {
     insertPayload.organizer_id = organizerId;
