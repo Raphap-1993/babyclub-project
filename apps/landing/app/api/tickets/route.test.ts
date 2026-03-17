@@ -33,6 +33,7 @@ describe("POST /api/tickets", () => {
         },
       ],
       "events.select": [
+        { data: null, error: null }, // capacity check (no capacity → skip)
         {
           data: {
             id: "event-1",
@@ -174,6 +175,7 @@ describe("POST /api/tickets", () => {
         },
       ],
       "events.select": [
+        { data: null, error: null }, // capacity check (no capacity → skip)
         {
           data: {
             id: "event-1",
@@ -256,6 +258,7 @@ describe("POST /api/tickets", () => {
         },
       ],
       "events.select": [
+        { data: null, error: null }, // capacity check (no capacity → skip)
         {
           data: {
             id: "event-1",
@@ -317,6 +320,7 @@ describe("POST /api/tickets", () => {
         },
       ],
       "events.select": [
+        { data: null, error: null }, // capacity check (no capacity → skip)
         {
           data: {
             id: "event-1",
@@ -397,6 +401,7 @@ describe("POST /api/tickets", () => {
         },
       ],
       "events.select": [
+        { data: null, error: null }, // capacity check (no capacity → skip)
         {
           data: {
             id: "event-1",

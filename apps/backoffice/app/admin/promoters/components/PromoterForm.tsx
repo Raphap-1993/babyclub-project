@@ -5,6 +5,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { supabaseClient } from "@/lib/supabaseClient";
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (!supabaseClient) return {};
+  const { data } = await supabaseClient.auth.getSession();
+  const token = data?.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 type Props = {
   mode: "create" | "edit";
@@ -108,7 +116,7 @@ export default function PromoterForm({ mode, initialData }: Props) {
       });
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body,
       });
       const data = await res.json().catch(() => ({}));
