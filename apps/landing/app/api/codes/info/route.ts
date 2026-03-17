@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   });
 
   const codeQuery = applyNotDeleted(
-    supabase.from("codes").select("id,code,type,promoter_id,event_id,is_active,expires_at").eq("code", code)
+    supabase.from("codes").select("id,code,type,promoter_id,event_id,is_active,expires_at,uses,max_uses").eq("code", code)
   );
   const { data, error } = await codeQuery.maybeSingle();
 
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (data.id) {
+  if (data.id && data.type !== "promoter_link") {
     const ticketsQuery = applyNotDeleted(
       supabase
         .from("tickets")
