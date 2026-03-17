@@ -448,17 +448,81 @@ export default function ModernTicketsClient({
         </div>
       )}
 
-      {/* Tabla moderna ultra compacta */}
-      <DataTable
-        columns={columns}
-        data={initialTickets}
-        compact={true}
-        maxHeight="55vh"
-        enableSorting={true}
-        enableVirtualization={initialTickets.length > 100}
-        showPagination={false} // Usamos paginación externa
-        emptyMessage="🎫 No hay tickets que coincidan con los filtros aplicados"
-      />
+      {/* Cards para mobile */}
+      <div className="md:hidden space-y-3">
+        {initialTickets.length === 0 ? (
+          <div className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-8 text-center text-sm text-neutral-400">
+            🎫 No hay tickets que coincidan con los filtros aplicados
+          </div>
+        ) : initialTickets.map((ticket) => (
+          <div
+            key={ticket.id}
+            className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-4 space-y-3"
+          >
+            {/* Nombre + evento */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-semibold text-neutral-100 truncate">{ticket.full_name || "Sin nombre"}</p>
+                <p className="text-xs text-neutral-500 font-mono">{ticket.dni || "—"}</p>
+              </div>
+              {ticket.event_name && (
+                <span className="flex-shrink-0 text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-full px-2.5 py-1 font-medium truncate max-w-[130px]">
+                  {ticket.event_name}
+                </span>
+              )}
+            </div>
+
+            {/* Contacto + código */}
+            <div className="space-y-1 text-xs text-neutral-300">
+              {ticket.email && (
+                <div className="flex items-center gap-1.5">
+                  <Mail className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                  <span className="truncate">{ticket.email}</span>
+                </div>
+              )}
+              {ticket.phone && (
+                <div className="flex items-center gap-1.5">
+                  <Phone className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                  <span>{ticket.phone}</span>
+                </div>
+              )}
+              {ticket.code_value && (
+                <div className="flex items-center gap-1.5">
+                  <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                  <code className="font-mono bg-neutral-700/30 border border-neutral-600/30 px-1.5 py-0.5 rounded text-neutral-300">
+                    {ticket.code_value}
+                  </code>
+                </div>
+              )}
+              {ticket.created_at && (
+                <div className="flex items-center gap-1.5 text-neutral-500">
+                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                  <span>{new Date(ticket.created_at).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Acciones */}
+            <div className="pt-1">
+              <TicketActions id={ticket.id} compact={false} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabla para desktop */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={initialTickets}
+          compact={true}
+          maxHeight="55vh"
+          enableSorting={true}
+          enableVirtualization={initialTickets.length > 100}
+          showPagination={false}
+          emptyMessage="🎫 No hay tickets que coincidan con los filtros aplicados"
+        />
+      </div>
 
       {/* Paginación externa moderna */}
       <ExternalPagination
