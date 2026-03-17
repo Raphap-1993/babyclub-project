@@ -48,11 +48,11 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   if (staffErr || !staffRow) return NextResponse.json({ success: false, error: staffErr?.message || "Staff no encontrado" }, { status: 400 });
 
-  // Update person si se envían datos
-  if (first_name && last_name && dni) {
+  // Update person si se envían datos (DNI excluido — es identificador inmutable)
+  if (first_name && last_name) {
     const { error: personErr } = await supabase
       .from("persons")
-      .update({ first_name, last_name, dni, email, phone })
+      .update({ first_name, last_name, email, phone })
       .eq("id", staffRow.person_id);
     if (personErr) return NextResponse.json({ success: false, error: personErr.message }, { status: 400 });
   }
