@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Menu, X } from "lucide-react";
 import { ClientAuthGate } from "@/components/ClientAuthGate";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { authedFetch } from "@/lib/authedFetch";
@@ -59,6 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [profileModal, setProfileModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userStaff, setUserStaff] = useState<StaffUser | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -182,12 +184,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <ClientAuthGate>
       <div className="flex min-h-screen overflow-x-hidden bg-black text-white">
-        {!isDoorSession ? <Sidebar /> : null}
-        <main className={isDoorSession ? "flex-1" : "flex-1 md:ml-64"}>
-          <div className={isDoorSession ? "p-2 md:p-4" : "p-3 sm:p-4 md:p-6 lg:p-8"}>
+        {!isDoorSession ? (
+          <Sidebar open={mobileMenuOpen} setOpen={setMobileMenuOpen} />
+        ) : null}
+        <div className={isDoorSession ? "flex-1" : "flex flex-col flex-1 md:ml-64"}>
+          {/* Mobile topbar — solo visible en mobile, toma espacio real en el flujo */}
+          {!isDoorSession && (
+            <div className="md:hidden sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950/95 backdrop-blur-sm px-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-rose-400 to-rose-600">
+                  <span className="text-xs font-bold text-white">BC</span>
+                </div>
+                <span className="text-sm font-semibold text-white">BabyClub Access</span>
+              </div>
+              <button
+                onClick={() => setMobileMenuOpen((v) => !v)}
+                aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 touch-manipulation"
+              >
+                {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>
+            </div>
+          )}
+          <main className={isDoorSession ? "p-2 md:p-4" : "flex-1 p-3 sm:p-4 md:p-6 lg:p-8"}>
             {children}
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
       {!isDoorSession ? (
         <EditUserModal
