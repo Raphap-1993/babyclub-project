@@ -104,6 +104,7 @@ function RegistroContent() {
     }
   }, [coverUrl]);
   const [step, setStep] = useState<1 | 2>(1);
+  const [promoterLinkChoice, setPromoterLinkChoice] = useState<null | "ticket" | "mesa">(null);
   const initialFormState = {
     doc_type: "dni",
     document: "",
@@ -631,8 +632,52 @@ function RegistroContent() {
           </div>
         </div>
 
-        {step === 1 && (
+        {step === 1 && codeType === "promoter_link" && promoterLinkChoice === null && (
+          <div className="mx-auto max-w-md space-y-4 px-1">
+            <div className="text-center space-y-1">
+              <p className="text-xs uppercase tracking-widest text-white/50 font-semibold">Enlace de {code}</p>
+              <p className="text-xl font-bold text-white">¿Qué deseas hacer?</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPromoterLinkChoice("ticket")}
+              className="w-full rounded-2xl border border-white/15 bg-white/5 px-6 py-5 text-left transition hover:bg-white/10 focus:outline-none"
+            >
+              <p className="text-sm font-bold uppercase tracking-wide text-white">🎟 Obtener entrada</p>
+              <p className="mt-1 text-xs text-white/60">Genera tu QR de acceso al evento</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPromoterLinkChoice("mesa");
+                setStep(2);
+              }}
+              disabled={salesBlocked || tables.length === 0}
+              className="w-full rounded-2xl border border-rose-500/40 bg-rose-500/10 px-6 py-5 text-left transition hover:bg-rose-500/20 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <p className="text-sm font-bold uppercase tracking-wide text-rose-200">🍾 Reservar mesa</p>
+              <p className="mt-1 text-xs text-white/60">
+                {salesBlocked
+                  ? salesBlockedMessage
+                  : tables.length === 0
+                  ? "No hay mesas disponibles"
+                  : "Pago via Yape / Plin / Tarjeta"}
+              </p>
+            </button>
+          </div>
+        )}
+
+        {step === 1 && (codeType !== "promoter_link" || promoterLinkChoice === "ticket") && (
           <div className="mx-auto max-w-md">
+            {codeType === "promoter_link" && (
+              <button
+                type="button"
+                onClick={() => setPromoterLinkChoice(null)}
+                className="mb-3 flex items-center gap-1 text-xs text-white/50 hover:text-white/80 transition"
+              >
+                ← Cambiar opción
+              </button>
+            )}
             <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-4">
               <label className="block space-y-2 text-sm font-semibold text-white">
                 Tipo de documento
@@ -744,38 +789,44 @@ function RegistroContent() {
                   ? "Venta bloqueada"
                   : existingTicketId
                   ? "Ver mi QR"
+                  : codeType === "promoter_link"
+                  ? "Obtener entrada"
                   : "Generar QR"}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (salesBlocked) {
-                    setError(salesBlockedMessage);
-                    return;
-                  }
-                  if (tables.length === 0) {
-                    createTicketAndRedirect();
-                  } else {
-                    setReservation((prev) => ({
-                        ...prev,
-                        doc_type: form.doc_type as DocumentType,
-                        document: form.document,
-                        dni: form.document,
-                        nombre: form.nombre,
-                        apellido_paterno: form.apellido_paterno,
-                        apellido_materno: form.apellido_materno,
-                        email: form.email,
-                        phone: form.telefono,
-                      }));
-                      setStep(2);
-                    }
-                  }}
-                  disabled={salesBlocked}
-                  className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
-                >
-                  {salesBlocked ? "Reserva bloqueada" : tables.length > 0 ? "Reservar mesa (opcional)" : "No hay mesas disponibles"}
-                </button>
-              <p className="text-center text-xs text-white/60">Opcional: separa tu mesa y asigna tus tickets.</p>
+              {codeType !== "promoter_link" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (salesBlocked) {
+                        setError(salesBlockedMessage);
+                        return;
+                      }
+                      if (tables.length === 0) {
+                        createTicketAndRedirect();
+                      } else {
+                        setReservation((prev) => ({
+                          ...prev,
+                          doc_type: form.doc_type as DocumentType,
+                          document: form.document,
+                          dni: form.document,
+                          nombre: form.nombre,
+                          apellido_paterno: form.apellido_paterno,
+                          apellido_materno: form.apellido_materno,
+                          email: form.email,
+                          phone: form.telefono,
+                        }));
+                        setStep(2);
+                      }
+                    }}
+                    disabled={salesBlocked}
+                    className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
+                  >
+                    {salesBlocked ? "Reserva bloqueada" : tables.length > 0 ? "Reservar mesa (opcional)" : "No hay mesas disponibles"}
+                  </button>
+                  <p className="text-center text-xs text-white/60">Opcional: separa tu mesa y asigna tus tickets.</p>
+                </>
+              )}
             </form>
           </div>
         )}
@@ -792,6 +843,15 @@ function RegistroContent() {
               {/* Header compacto */}
               <div className="flex items-end justify-between gap-4">
                 <div>
+                  {codeType === "promoter_link" && (
+                    <button
+                      type="button"
+                      onClick={() => { setPromoterLinkChoice(null); setStep(1); }}
+                      className="mb-1 flex items-center gap-1 text-xs text-white/50 hover:text-white/80 transition"
+                    >
+                      ← Cambiar opción
+                    </button>
+                  )}
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Paso 2</p>
                   <h2 className="text-xl font-semibold text-white">Reserva de mesa</h2>
                 </div>
