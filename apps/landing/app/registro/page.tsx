@@ -1035,22 +1035,22 @@ function RegistroContent() {
                         {/* Packs - Solo cuando hay mesa seleccionada */}
                         {selectedTable && (
                           <Card className="bg-[#111111] border-[#e91e63]/30 border-2">
-                            <CardHeader className="p-2.5 pb-0 border-none">
-                              <CardTitle className="flex items-center justify-between text-sm">
+                            <CardHeader className="p-4 pb-2 border-none">
+                              <CardTitle className="flex items-center justify-between text-base">
                                 <div className="flex items-center gap-2">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#e91e63]">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#e91e63]">
                                     <circle cx="9" cy="21" r="1" />
                                     <circle cx="20" cy="21" r="1" />
                                     <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
                                   </svg>
                                   Pack incluido
                                 </div>
-                                <span className="text-[9px] font-normal text-white/50">Obligatorio</span>
+                                <span className="text-xs font-normal text-white/50">Obligatorio</span>
                               </CardTitle>
                             </CardHeader>
-                            <CardContent className="p-2.5">
+                            <CardContent className="p-4 pt-2">
                               {products.length > 0 ? (
-                                <div className="space-y-1.5">
+                                <div className="space-y-2.5">
                                   {products.map((p: any) => {
                                     const active = p.id === selectedProduct;
                                     return (
@@ -1058,33 +1058,33 @@ function RegistroContent() {
                                         key={p.id}
                                         type="button"
                                         onClick={() => setSelectedProduct(p.id)}
-                                        className={`w-full text-left rounded-md border p-2.5 transition ${
+                                        className={`w-full text-left rounded-lg border p-3.5 transition ${
                                           active
                                             ? "border-[#e91e63] bg-[#e91e63]/10 shadow-md ring-1 ring-[#e91e63]/20"
                                             : "border-white/10 bg-black/30 hover:border-white/20 hover:bg-black/40"
                                         }`}
                                       >
-                                        <div className="flex items-start justify-between gap-2 mb-1">
-                                          <div className="flex items-center gap-1.5 flex-1">
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                          <div className="flex items-center gap-2 flex-1">
                                             {active && (
-                                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-[#e91e63] shrink-0">
+                                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-[#e91e63] shrink-0">
                                                 <polyline points="20 6 9 17 4 12" />
                                               </svg>
                                             )}
-                                            <p className="text-xs font-semibold text-white">{p.name}</p>
+                                            <p className="text-sm font-semibold text-white">{p.name}</p>
                                           </div>
-                                          <p className="text-xs font-bold text-white whitespace-nowrap">{p.price != null ? formatCurrency(p.price) : "Incluido"}</p>
+                                          <p className="text-sm font-bold text-white whitespace-nowrap">{p.price != null ? formatCurrency(p.price) : "Incluido"}</p>
                                         </div>
                                         {Array.isArray(p.items) && p.items.length > 0 && (
-                                          <ul className="space-y-0.5 text-[10px] text-white/70">
+                                          <ul className="space-y-1 text-xs text-white/70">
                                             {p.items.slice(0, 3).map((it: string, idx: number) => (
-                                              <li key={idx} className="flex items-start gap-1.5">
-                                                <span className="mt-1 h-1 w-1 rounded-full bg-white/50 shrink-0" />
+                                              <li key={idx} className="flex items-start gap-2">
+                                                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-white/40 shrink-0" />
                                                 <span className="line-clamp-1">{it}</span>
                                               </li>
                                             ))}
                                             {p.items.length > 3 && (
-                                              <li className="text-[9px] text-white/50 ml-2.5">+{p.items.length - 3} más incluidos</li>
+                                              <li className="text-xs text-white/50 ml-3.5">+{p.items.length - 3} más incluidos</li>
                                             )}
                                           </ul>
                                         )}
@@ -1093,8 +1093,8 @@ function RegistroContent() {
                                   })}
                                 </div>
                               ) : (
-                                <div className="py-3 text-center">
-                                  <p className="text-[10px] text-white/50">No hay packs disponibles</p>
+                                <div className="py-4 text-center">
+                                  <p className="text-xs text-white/50">No hay packs disponibles</p>
                                 </div>
                               )}
                             </CardContent>
@@ -1106,7 +1106,7 @@ function RegistroContent() {
                           <button
                             type="button"
                             onClick={() => setActiveTab("datos")}
-                            className="w-full rounded-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wide btn-attention-red transition flex items-center justify-center gap-2"
+                            className="w-full rounded-lg px-4 py-3.5 text-sm font-bold uppercase tracking-wide btn-attention-red transition flex items-center justify-center gap-2"
                           >
                             Continuar con Datos
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
