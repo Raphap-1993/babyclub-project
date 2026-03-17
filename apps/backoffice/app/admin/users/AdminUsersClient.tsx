@@ -544,7 +544,70 @@ export default function AdminUsersClient({ roles, initialStaff }: { roles: Role[
           </span>
         </div>
 
-        <div className="max-h-[calc(100vh-23rem)] min-h-[300px] overflow-y-auto pr-1">
+        {/* Mobile cards */}
+        <div className="space-y-3 md:hidden">
+          {pagedStaff.length === 0 ? (
+            <p className="py-6 text-center text-sm text-neutral-500">No hay usuarios aún.</p>
+          ) : (
+            pagedStaff.map((item) => (
+              <div key={item.id} className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-100 truncate">
+                      {item.person.first_name} {item.person.last_name}
+                    </p>
+                    {item.person.dni ? (
+                      <p className="text-xs font-mono text-neutral-400 mt-0.5">{item.person.dni}</p>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 inline-flex h-7 items-center rounded-full border border-white/15 bg-black/40 px-3 text-xs font-semibold text-neutral-200">
+                    {item.role.name}
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs text-neutral-400">
+                  {item.person.email ? <div className="truncate">{item.person.email}</div> : null}
+                  {item.person.phone ? <div className="text-neutral-500">{item.person.phone}</div> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={item.is_active ? "outline" : "ghost"}
+                    size="sm"
+                    onClick={() => handleUpdate(item.id, item.role.code, !item.is_active)}
+                    disabled={saving === item.id}
+                    className={`h-7 px-2 text-xs ${item.is_active ? "border-emerald-500/40 text-emerald-300" : "text-neutral-300"}`}
+                  >
+                    {item.is_active ? "Activo" : "Inactivo"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setEditing(item)}
+                    className="h-7 w-7 text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200"
+                    title="Editar perfil"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(item.id)}
+                    disabled={deleting === item.id}
+                    className="h-7 w-7 text-neutral-400 hover:bg-red-700/20 hover:text-red-400 disabled:opacity-50"
+                    title="Eliminar usuario"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block max-h-[calc(100vh-23rem)] min-h-[300px] overflow-y-auto pr-1">
           <DataTable
             columns={columns}
             data={pagedStaff}

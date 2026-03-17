@@ -237,7 +237,59 @@ export default function PromotersClient({
         </div>
       ) : null}
 
-      <section className="rounded-xl border border-neutral-700/70 bg-neutral-900/40 p-1">
+      {/* Mobile cards */}
+      <div className="space-y-3 md:hidden">
+        {promoters.length === 0 ? (
+          <p className="py-10 text-center text-sm text-neutral-500">No hay promotores aún.</p>
+        ) : (
+          promoters.map((promoter) => (
+            <div key={promoter.id} className="rounded-2xl border border-neutral-700/70 bg-neutral-900/60 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-neutral-100 truncate">
+                    {promoter.person.first_name} {promoter.person.last_name}
+                  </p>
+                  {promoter.person.dni ? (
+                    <p className="text-xs font-mono text-neutral-400 mt-0.5">{promoter.person.dni}</p>
+                  ) : null}
+                </div>
+                <span
+                  className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${
+                    promoter.is_active
+                      ? "bg-green-500/20 text-green-400 border-green-500/30"
+                      : "bg-neutral-600/30 text-neutral-300 border-neutral-600/50"
+                  }`}
+                >
+                  {promoter.is_active ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+              <div className="space-y-1 text-xs text-neutral-400">
+                {promoter.person.email ? (
+                  <div className="flex items-center gap-1.5">
+                    <Mail className="h-3 w-3 text-neutral-500 shrink-0" />
+                    <span className="truncate">{promoter.person.email}</span>
+                  </div>
+                ) : null}
+                {promoter.person.phone ? (
+                  <div className="flex items-center gap-1.5">
+                    <Phone className="h-3 w-3 text-neutral-500 shrink-0" />
+                    <span>{promoter.person.phone}</span>
+                  </div>
+                ) : null}
+              </div>
+              {promoter.code ? (
+                <code className="inline-block rounded bg-neutral-700/40 px-2 py-0.5 text-xs text-neutral-200">
+                  {promoter.code}
+                </code>
+              ) : null}
+              <PromoterActions id={promoter.id} compact />
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <section className="hidden md:block rounded-xl border border-neutral-700/70 bg-neutral-900/40 p-1">
         <DataTable
           columns={promoterColumns}
           data={promoters}
