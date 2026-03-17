@@ -195,7 +195,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {!isDoorSession ? (
           <Sidebar open={mobileMenuOpen} setOpen={setMobileMenuOpen} />
         ) : null}
-        <div className={isDoorSession ? "flex-1" : "flex flex-col flex-1 md:ml-64"}>
+        <div className={isDoorSession ? "flex-1 min-w-0" : "flex flex-col flex-1 min-w-0 md:ml-64"}>
           {/* Mobile topbar — solo visible en mobile, toma espacio real en el flujo */}
           {!isDoorSession && (
             <div className="md:hidden sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950/95 backdrop-blur-sm px-4">
