@@ -50,20 +50,30 @@ function getPromoterDisplayName(promoter: PromoterData) {
   return fullName || promoter.code || `Promotor ${promoter.id.slice(0, 8)}`;
 }
 
+type PromoterLinkItem = {
+  id: string;
+  code: string;
+  event_id: string | null;
+  event_name: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
 async function getPageData(id: string): Promise<{
   promoter: PromoterData | null;
   events: EventOption[];
   recentBatches: BatchItem[];
+  promoterLinks: PromoterLinkItem[];
 }> {
   if (!supabaseUrl || !supabaseServiceKey) {
-    return { promoter: null, events: [], recentBatches: [] };
+    return { promoter: null, events: [], recentBatches: [], promoterLinks: [] };
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const [promoterRes, eventsRes, batchesRes] = await Promise.all([
+  const [promoterRes, eventsRes, batchesRes, linksRes] = await Promise.all([
     applyNotDeleted(
       supabase
         .from("promoters")
@@ -85,6 +95,15 @@ async function getPageData(id: string): Promise<{
         .eq("promoter_id", id)
         .order("created_at", { ascending: false })
         .limit(25),
+    ),
+    applyNotDeleted(
+      supabase
+        .from("codes")
+        .select("id,code,event_id,is_active,created_at,event:events(name)")
+        .eq("promoter_id", id)
+        .eq("type", "promoter_link")
+        .order("created_at", { ascending: false })
+        .limit(50),
     ),
   ]);
 
@@ -152,14 +171,26 @@ async function getPageData(id: string): Promise<{
       };
     }) || [];
 
-  return { promoter, events, recentBatches };
+  const promoterLinks: PromoterLinkItem[] = ((linksRes.data || []) as any[]).map((row) => {
+    const eventRel = Array.isArray(row.event) ? row.event[0] : row.event;
+    return {
+      id: row.id as string,
+      code: row.code as string,
+      event_id: row.event_id ?? null,
+      event_name: eventRel?.name ?? null,
+      is_active: row.is_active !== false,
+      created_at: row.created_at as string,
+    };
+  });
+
+  return { promoter, events, recentBatches, promoterLinks };
 }
 
 export const dynamic = "force-dynamic";
 
 export default async function PromoterCodesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { promoter, events, recentBatches } = await getPageData(id);
+  const { promoter, events, recentBatches, promoterLinks } = await getPageData(id);
 
   if (!promoter) return notFound();
 
@@ -181,7 +212,7 @@ export default async function PromoterCodesPage({ params }: { params: Promise<{ 
         }
       />
       <AdminPanel contentClassName="p-6">
-        <PromoterCodesClient promoter={promoter} events={events} recentBatches={recentBatches} />
+        <PromoterCodesClient promoter={promoter} events={events} recentBatches={recentBatches} promoterLinks={promoterLinks} />
       </AdminPanel>
     </AdminPage>
   );
