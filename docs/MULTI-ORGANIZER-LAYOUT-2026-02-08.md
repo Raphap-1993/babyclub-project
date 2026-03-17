@@ -1,5 +1,7 @@
 # Multi-Organizador: Layout Dinámico por Evento (Implementación 2026-02-08)
 
+> ⚠️ **Nota histórica (2026-03-17):** Este documento usa lenguaje "multi-organizer" que refleja una aspiración de diseño, no la implementación actual. El sistema es single-tenant: un deployment = un organizer. Ver ADR-007.
+
 **Status**: ✅ Implementado + Testado + Deployable  
 **Time**: ~2 horas (compressionado)  
 **Stack**: TypeScript, Supabase, Next.js, shadcn/ui, Drag-and-Drop

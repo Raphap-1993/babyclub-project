@@ -1,7 +1,9 @@
 # Multi-Evento y Organización (2026-02)
 
+> **Nota arquitectónica (2026-03-17):** Este sistema soporta **múltiples eventos por el mismo organizador**, no múltiples organizadores independientes en un mismo deployment. Un deployment = un organizer (definido por `NEXT_PUBLIC_ORGANIZER_ID`). Ver ADR-007.
+
 ## Resumen de funcionalidad
-BabyClub soporta **múltiples eventos al mes** de **múltiples organizadores** en la misma plataforma sin subdominios.
+BabyClub soporta **múltiples eventos al mes** para **un único organizador por deployment**. El mismo codebase puede desplegarse independientemente para otro organizer, pero no comparten deployment.
 
 ## Estructura de datos
 
@@ -184,10 +186,10 @@ create index idx_tickets_document_recent
 
 ## Seguridad
 
-### Aislamiento por organizer
-- [x] Cada staff solo ve eventos de su organizer
+### Filtro por organizer_id
+- [x] Queries filtran por el organizer_id del deployment (`NEXT_PUBLIC_ORGANIZER_ID`)
 - [x] Códigos/tickets/reservas siempre filtrados por evento.organizer_id
-- [x] Reportes agrupados por organizer
+- [x] Reportes agrupados por organizer_id del deployment
 
 ### Validaciones
 - [x] DNI válido según formato

@@ -1,5 +1,7 @@
 # SAAS READINESS 2026-03
 
+> **Contexto de arquitectura actual (2026-03-17):** El sistema es **single-tenant por deployment** — un deployment sirve a un único organizer identificado por `NEXT_PUBLIC_ORGANIZER_ID`. No existe aislamiento de tenant, membership table ni auth scoped por tenant. Esta auditoría documenta qué se necesitaría para evolucionar hacia un SaaS multi-tenant. Ver ADR-007.
+
 ## Objetivo
 Definir si BabyClub debe venderse como:
 - software a medida

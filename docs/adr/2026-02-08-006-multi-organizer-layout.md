@@ -1,5 +1,7 @@
 # ADR 2026-02-08-006: Multi-Organizador Layout Isolation
 
+> ⚠️ **Nota histórica (2026-03-17):** Este documento usa lenguaje "multi-organizer" que refleja una aspiración de diseño, no la implementación actual. El sistema es single-tenant: un deployment = un organizer. Ver ADR-007.
+
 **Date**: 2026-02-08  
 **Status**: Accepted  
 **Context**: Multiple event organizers (Colorimetría, BabyClub) need separate mesas layouts for same local physical space  
