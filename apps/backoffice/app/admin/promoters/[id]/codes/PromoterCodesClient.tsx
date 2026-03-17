@@ -502,7 +502,7 @@ export default function PromoterCodesClient({
               {generated.codes.map((code) => (
                 <div
                   key={code}
-                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm text-white/90"
+                  className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm text-white/90 break-all"
                 >
                   {code}
                 </div>
@@ -537,7 +537,7 @@ export default function PromoterCodesClient({
                     {link.event_name && (
                       <p className="text-xs text-white/55">{link.event_name}</p>
                     )}
-                    <p className="truncate max-w-xs font-mono text-[11px] text-white/40">{url}</p>
+                    <p className="font-mono text-[11px] text-white/40 break-all">{url}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={link.is_active ? "success" : "default"}>
@@ -600,28 +600,30 @@ export default function PromoterCodesClient({
                     </div>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2 text-xs text-white/65">
-                  <span>{formatDate(batch.created_at)}</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-white/65 shrink-0">
+                  <span className="whitespace-nowrap">{formatDate(batch.created_at)}</span>
                   <Badge variant={batch.is_active ? "success" : "default"}>
                     {batch.is_active ? "Activo" : "Inactivo"}
                   </Badge>
-                  {batch.latest_code ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyText(batch.latest_code || "")}
+                  <div className="flex items-center gap-1">
+                    {batch.latest_code ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyText(batch.latest_code || "")}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar
+                      </Button>
+                    ) : null}
+                    <Link
+                      href={`/admin/codes?event_id=${batch.event_id}&batch_id=${batch.id}`}
+                      className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
                     >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copiar
-                    </Button>
-                  ) : null}
-                  <Link
-                    href={`/admin/codes?event_id=${batch.event_id}&batch_id=${batch.id}`}
-                    className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-                  >
-                    Ver
-                  </Link>
+                      Ver
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))

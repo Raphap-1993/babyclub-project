@@ -487,9 +487,9 @@ export default function ModernTicketsClient({
                 </div>
               )}
               {ticket.code_value && (
-                <div className="flex items-center gap-1.5">
-                  <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0" />
-                  <code className="font-mono bg-neutral-700/30 border border-neutral-600/30 px-1.5 py-0.5 rounded text-neutral-300">
+                <div className="flex items-start gap-1.5">
+                  <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0 mt-0.5" />
+                  <code className="font-mono bg-neutral-700/30 border border-neutral-600/30 px-1.5 py-0.5 rounded text-neutral-300 break-all">
                     {ticket.code_value}
                   </code>
                 </div>
