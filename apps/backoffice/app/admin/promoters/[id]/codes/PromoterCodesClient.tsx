@@ -308,7 +308,7 @@ export default function PromoterCodesClient({
           </CardTitle>
           <CardDescription>
             Códigos friendly con prefijo legible por evento y promotor. Ejemplo:{" "}
-            <span className="font-mono text-white/80">{effectivePrefix}-ab12cd</span>
+            <span className="font-mono text-white/80 break-all">{effectivePrefix}-ab12cd</span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -474,7 +474,7 @@ export default function PromoterCodesClient({
         <Card className="border-[#252525] bg-[#101315]">
           <CardHeader>
             <CardTitle className="text-base">Lote generado</CardTitle>
-            <CardDescription className="font-mono">
+            <CardDescription className="font-mono break-all">
               batch: {generated.batchId}
               {generated.prefix ? ` · prefijo: ${generated.prefix}` : ""}
             </CardDescription>
@@ -578,7 +578,7 @@ export default function PromoterCodesClient({
                   <p className="text-sm font-semibold text-white">
                     {batch.event_name || "Evento"} · {batch.quantity} códigos
                   </p>
-                  <p className="font-mono text-xs text-white/65">
+                  <p className="font-mono text-xs text-white/65 break-all">
                     {batch.id}
                     {batch.prefix ? ` · ${batch.prefix}` : ""}
                   </p>
