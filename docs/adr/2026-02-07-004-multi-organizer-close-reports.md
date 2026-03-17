@@ -1,5 +1,7 @@
 # ADR 004: Multi-Organizador + Cierre de Evento + Reportes Backend
 
+> ⚠️ **Nota histórica (2026-03-17):** Este documento usa lenguaje "multi-organizer" que refleja una aspiración de diseño, no la implementación actual. El sistema es single-tenant: un deployment = un organizer. Ver ADR-007.
+
 Fecha: 2026-02-07  
 Estado: Aprobado
 
