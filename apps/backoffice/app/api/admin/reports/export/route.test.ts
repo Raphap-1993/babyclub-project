@@ -287,7 +287,7 @@ describe("GET /api/admin/reports/export", () => {
               used: false,
               is_active: true,
               created_at: "2025-03-01T01:00:00.000Z",
-              code: { type: "courtesy" },
+              code: { type: "general" },
             },
             {
               id: "ticket-2",
@@ -302,7 +302,7 @@ describe("GET /api/admin/reports/export", () => {
               used: true,
               is_active: true,
               created_at: "2025-04-01T01:00:00.000Z",
-              code: { type: "courtesy" },
+              code: { type: "general" },
             },
             {
               id: "ticket-3",
@@ -317,7 +317,7 @@ describe("GET /api/admin/reports/export", () => {
               used: false,
               is_active: true,
               created_at: "2025-03-01T01:10:00.000Z",
-              code: { type: "promoter" },
+              code: { type: "general" },
             },
             {
               id: "ticket-4",
@@ -332,7 +332,7 @@ describe("GET /api/admin/reports/export", () => {
               used: false,
               is_active: true,
               created_at: "2099-04-01T01:00:00.000Z",
-              code: { type: "courtesy" },
+              code: { type: "general" },
             },
             {
               id: "ticket-5",
@@ -347,6 +347,7 @@ describe("GET /api/admin/reports/export", () => {
               used: false,
               is_active: true,
               created_at: "2025-03-01T01:20:00.000Z",
+              payment_status: "paid",
               code: { type: "general" },
             },
           ],
@@ -765,7 +766,7 @@ describe("GET /api/admin/reports/export", () => {
               used: false,
               is_active: true,
               created_at: "2025-03-01T01:00:00.000Z",
-              code: { type: "courtesy" },
+              code: { type: "general" },
             },
           ],
           error: null,
@@ -790,7 +791,7 @@ describe("GET /api/admin/reports/export", () => {
       "reporte-no-show-qr-free.csv",
     );
     expect(csv.split("\n")[0]).toBe(
-      "Organizador,Cliente,Tipo doc.,Documento,Email,Teléfono,QR free asignados,Asistió,No asistió,% no-show,Último evento free,Estado último QR free,Fecha último evento free (Lima),Último evento no-show,Fecha último no-show (Lima),Bloquear siguiente QR free",
+      "Cliente,Tipo doc.,Documento,Email,Teléfono,QR asignado,Asistió,No asistió,% no-show,Evento",
     );
   });
 });

@@ -157,7 +157,7 @@ function getAdmissionKey(scan: any) {
 }
 
 function isFreeCodeType(codeType: string) {
-  return ["courtesy", "free", "promoter"].includes(codeType);
+  return codeType === "general";
 }
 
 function normalizeTicketIdentityValue(value: unknown) {
@@ -492,7 +492,7 @@ export async function GET(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,event_id,person_id,full_name,doc_type,document,dni,email,phone,used,is_active,created_at,code:codes(id,code,type,promoter_id)",
+          "id,event_id,person_id,full_name,doc_type,document,dni,email,phone,used,is_active,created_at,payment_status,code:codes(id,code,type,promoter_id)",
         )
         .in("event_id", allowedEventIds)
         .order("created_at", { ascending: false })
@@ -554,6 +554,7 @@ export async function GET(req: NextRequest) {
       const codeType = normalizeTicketIdentityValue(codeRel?.type).toLowerCase();
       if (!isFreeCodeType(codeType)) continue;
       if ((ticket as any)?.is_active === false) continue;
+      if ((ticket as any)?.payment_status) continue;
 
       const organizerIdForTicket = event?.organizer_id || "";
       const personKey = buildTicketPersonKey(ticket);
@@ -677,18 +678,16 @@ export async function GET(req: NextRequest) {
     if (format === "csv") {
       const csv = toCsvFromColumns(
         [
-          { key: "organizer_name", label: "Organizador" },
           { key: "full_name", label: "Cliente" },
           { key: "doc_type", label: "Tipo doc." },
           { key: "document", label: "Documento" },
           { key: "email", label: "Email" },
           { key: "phone", label: "Teléfono" },
-          { key: "free_qr_assigned", label: "QR free asignados" },
+          { key: "free_qr_assigned", label: "QR asignado" },
           { key: "free_qr_attended", label: "Asistió" },
           { key: "free_qr_no_show", label: "No asistió" },
           { key: "no_show_rate_percent", label: "% no-show" },
-          { key: "last_free_qr_event", label: "Último evento free" },
-          { key: "last_free_qr_status", label: "Estado último QR free" },
+          { key: "last_free_qr_event", label: "Evento" },
         ],
         rows as any,
       );

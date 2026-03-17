@@ -45,10 +45,12 @@ const REPORT_LABELS: Record<string, string> = {
 
 const HIDDEN_UI_COLUMNS = new Set([
   "organizer_id",
+  "organizer_name",
   "event_id",
   "promoter_id",
   "total_amount_raw",
   "sales_source",
+  "last_free_qr_status",
 ]);
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -67,11 +69,11 @@ const COLUMN_LABELS: Record<string, string> = {
   doc_type: "Tipo doc.",
   document: "Documento",
   phone: "Teléfono",
-  free_qr_assigned: "QR free asignados",
+  free_qr_assigned: "QR asignado",
   free_qr_attended: "Asistió",
   free_qr_no_show: "No asistió",
   no_show_rate_percent: "% no-show",
-  last_free_qr_event: "Último evento free",
+  last_free_qr_event: "Evento",
   last_free_qr_status: "Estado último QR free",
   paid_count: "Ventas confirmadas",
   total_amount_pen_est: "Ventas (S/)",
