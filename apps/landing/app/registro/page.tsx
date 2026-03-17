@@ -151,6 +151,7 @@ function RegistroContent() {
       ticket_event_id?: string | null;
     } | null;
   } | null>(null);
+  const [codeInfoLoading, setCodeInfoLoading] = useState(!!code);
   const [codeEventId, setCodeEventId] = useState<string | null>(null);
   const [eventInfo, setEventInfo] = useState<{ name?: string; starts_at?: string; location?: string } | null>(null);
   const [saleGuard, setSaleGuard] = useState<{
@@ -398,9 +399,9 @@ function RegistroContent() {
             if (data?.type === "promoter_link" && data?.promoter_id) {
               setForm((prev) => ({ ...prev, promoter_id: data.promoter_id }));
             }
-
+            setCodeInfoLoading(false);
           })
-          .catch(() => setCodeInfo(null))
+          .catch(() => { setCodeInfo(null); setCodeInfoLoading(false); })
       ]);
     }
     if (code) {
@@ -632,7 +633,13 @@ function RegistroContent() {
           </div>
         </div>
 
-        {step === 1 && codeType === "promoter_link" && promoterLinkChoice === null && (
+        {step === 1 && codeInfoLoading && (
+          <div className="mx-auto max-w-md flex justify-center py-12">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
+          </div>
+        )}
+
+        {step === 1 && !codeInfoLoading && codeType === "promoter_link" && promoterLinkChoice === null && (
           <div className="mx-auto max-w-md space-y-4 px-1">
             <div className="text-center space-y-1">
               <p className="text-xs uppercase tracking-widest text-white/50 font-semibold">Enlace de {code}</p>
@@ -654,8 +661,10 @@ function RegistroContent() {
             <button
               type="button"
               onClick={() => {
-                setPromoterLinkChoice("mesa");
-                setStep(2);
+                const pid = codeInfo?.promoter_id;
+                const params = new URLSearchParams({ tab: "mesa" });
+                if (pid) params.set("promoter_id", pid);
+                router.push(`/compra?${params.toString()}`);
               }}
               disabled={salesBlocked || tables.length === 0}
               className="w-full rounded-2xl border border-rose-500/40 bg-rose-500/10 px-6 py-5 text-left transition hover:bg-rose-500/20 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -672,7 +681,7 @@ function RegistroContent() {
           </div>
         )}
 
-        {step === 1 && (codeType !== "promoter_link" || promoterLinkChoice === "ticket") && (
+        {step === 1 && !codeInfoLoading && (codeType !== "promoter_link" || promoterLinkChoice === "ticket") && (
           <div className="mx-auto max-w-md">
             {codeType === "promoter_link" && (
               <button
