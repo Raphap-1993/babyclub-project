@@ -260,6 +260,7 @@ export async function POST(req: NextRequest) {
       .from("tickets")
       .select("id,qr_token,person_id,payment_status")
       .eq("code_id", codeRow.id)
+      .eq("is_active", true)
   );
   const { data: existingCodeTicket, error: existingCodeError } = await existingCodeTicketQuery
     .order("created_at", { ascending: false })
@@ -299,13 +300,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código sin cupos" }, { status: 400 });
   }
 
-  // Si ya tiene ticket ACTIVO (no borrado) para este evento, devolvemos el mismo QR/id
+  // Si ya tiene ticket ACTIVO (no borrado, is_active=true) para este evento, devolvemos el mismo QR/id.
+  // Tickets con is_active=false (pago pendiente/abandonado) se ignoran para no bloquear el registro.
   const existingTicketQuery = applyNotDeleted(
     supabase
       .from("tickets")
       .select("id,qr_token,code_id,table_id,product_id,table_reservation_id,payment_status")
       .eq("event_id", eventId)
       .eq("person_id", person_id)
+      .eq("is_active", true)
   );
   const { data: existingTicket, error: existingError } = await existingTicketQuery
     .limit(1)
@@ -317,10 +320,16 @@ export async function POST(req: NextRequest) {
 
   if (existingTicket?.id && existingTicket.qr_token) {
     if (existingTicket.code_id && existingTicket.code_id !== codeRow.id) {
-      return NextResponse.json(
-        { success: false, error: "Ya tienes un QR activo para este evento con otro código" },
-        { status: 409 }
-      );
+      // Person already has a ticket for this event with a different code — return their existing QR
+      console.log("[/api/tickets] Persona ya registrada en evento con otro código, retornando QR existente:", existingTicket.id);
+      const existingIsPending = (existingTicket as any).payment_status === "pending";
+      return NextResponse.json({
+        success: true,
+        existing: true,
+        ticketId: existingTicket.id,
+        qr: existingTicket.qr_token,
+        needsPayment: existingIsPending,
+      });
     }
 
     if (!existingTicket.code_id) {
