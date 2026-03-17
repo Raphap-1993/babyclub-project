@@ -704,21 +704,21 @@ export default function ModernReservationsClient({
               </div>
 
               {/* Acciones */}
-              <div className="flex gap-2 pt-1">
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 <Button
                   onClick={() => setViewReservationId(reservation.id)}
                   variant="ghost"
                   size="sm"
-                  className="flex-1 h-9 bg-neutral-700/40 text-neutral-200 hover:bg-neutral-700/60 text-xs"
+                  className="h-9 bg-neutral-700/40 text-neutral-200 hover:bg-neutral-700/60 text-xs justify-center"
                 >
-                  <Eye className="h-3.5 w-3.5 mr-1" />Ver
+                  <Eye className="h-3.5 w-3.5 mr-1" />Ver detalle
                 </Button>
                 <Button
                   onClick={() => handleApproveReservation(reservation.id)}
                   disabled={isApproved || isCancelled}
                   variant="ghost"
                   size="sm"
-                  className="flex-1 h-9 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-30 text-xs"
+                  className="h-9 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-30 text-xs justify-center"
                 >
                   <CheckCircle className="h-3.5 w-3.5 mr-1" />Aprobar
                 </Button>
@@ -727,16 +727,16 @@ export default function ModernReservationsClient({
                   disabled={!isApproved}
                   variant="ghost"
                   size="sm"
-                  className="flex-1 h-9 bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-30 text-xs"
+                  className="h-9 bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-30 text-xs justify-center"
                 >
-                  <Send className="h-3.5 w-3.5 mr-1" />Email
+                  <Send className="h-3.5 w-3.5 mr-1" />Reenviar email
                 </Button>
                 <Button
                   onClick={() => handleCancelReservation(reservation.id)}
                   disabled={isCancelled}
                   variant="ghost"
                   size="sm"
-                  className="flex-1 h-9 bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-30 text-xs"
+                  className="h-9 bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-30 text-xs justify-center"
                 >
                   <XCircle className="h-3.5 w-3.5 mr-1" />Anular
                 </Button>

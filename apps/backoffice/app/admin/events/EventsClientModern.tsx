@@ -530,16 +530,80 @@ export default function EventsClient({
         hasActiveFilters={hasActiveFilters}
       />
 
-      <DataTable
-        columns={columnsWithMemo}
-        data={events}
-        compact
-        maxHeight="55vh"
-        enableSorting
-        enableVirtualization={events.length > 50}
-        showPagination={false}
-        emptyMessage="🎭 No hay eventos aún. ¡Crea el primero y empieza a organizar!"
-      />
+      {/* Mobile cards */}
+      <div className="space-y-3 md:hidden">
+        {events.length === 0 ? (
+          <p className="py-10 text-center text-sm text-neutral-500">
+            🎭 No hay eventos aún. ¡Crea el primero y empieza a organizar!
+          </p>
+        ) : (
+          events.map((event) => {
+            let badge = "";
+            let badgeClass = "";
+            if (event.closed_at) {
+              badge = "🔒 Cerrado";
+              badgeClass = "bg-neutral-700/50 text-neutral-300 border-neutral-600";
+            } else if (event.sale_status === "sold_out") {
+              badge = "🔥 Sold out";
+              badgeClass = "bg-rose-500/20 text-rose-300 border-rose-500/40";
+            } else if (event.sale_status === "paused") {
+              badge = "⏳ Pausado";
+              badgeClass = "bg-amber-500/20 text-amber-200 border-amber-500/40";
+            } else if (event.is_active) {
+              badge = "✅ Activo";
+              badgeClass = "bg-green-500/20 text-green-400 border-green-500/30";
+            } else {
+              badge = "⏸️ Inactivo";
+              badgeClass = "bg-neutral-600/30 text-neutral-300 border-neutral-600/50";
+            }
+            return (
+              <div key={event.id} className="rounded-2xl border border-neutral-700/70 bg-neutral-900/60 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-100 truncate">{event.name}</p>
+                    {event.location ? (
+                      <p className="text-xs text-neutral-400 truncate mt-0.5">{event.location}</p>
+                    ) : null}
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${badgeClass}`}>
+                    {badge}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {formatLimaFromDb(event.starts_at ?? "")}
+                  </span>
+                  {event.capacity ? (
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {event.capacity}
+                    </span>
+                  ) : null}
+                  {event.code ? (
+                    <CodeDisplay className="text-xs px-1.5 py-0.5">{event.code}</CodeDisplay>
+                  ) : null}
+                </div>
+                <ActionButtons event={event} />
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columnsWithMemo}
+          data={events}
+          compact
+          maxHeight="55vh"
+          enableSorting
+          enableVirtualization={events.length > 50}
+          showPagination={false}
+          emptyMessage="🎭 No hay eventos aún. ¡Crea el primero y empieza a organizar!"
+        />
+      </div>
 
       <ExternalPagination
         currentPage={pagination.page}
