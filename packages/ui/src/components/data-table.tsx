@@ -42,7 +42,7 @@ const Table = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <table
     ref={ref}
-    className={cn("w-full caption-bottom text-sm table-fixed", className)}
+    className={cn("w-full caption-bottom text-sm table-fixed min-w-[640px]", className)}
     {...props}
   />
 ));
@@ -293,7 +293,7 @@ export function DataTable<TData, TValue>({
     // Renderizado normal para pocos datos
     return (
       <TableWrapper className={className} compact={compact} maxHeight={maxHeight}>
-        <div className="overflow-auto" style={{ maxHeight }}>
+        <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight }}>
           <Table>
             <TableHeader compact={compact}>
               {table.getHeaderGroups().map((headerGroup) => (
