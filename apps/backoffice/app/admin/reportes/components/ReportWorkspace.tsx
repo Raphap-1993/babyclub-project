@@ -506,7 +506,7 @@ export default function ReportWorkspace({
         ) : null}
 
 
-        <Table containerClassName="max-h-[55dvh] min-h-[220px] overflow-y-auto" className="min-w-[640px]">
+        <Table containerClassName="max-h-[55dvh] min-h-[220px] overflow-auto" className="min-w-[640px]">
           <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
             <TableRow>
               {visibleHeaders.length === 0 ? (
