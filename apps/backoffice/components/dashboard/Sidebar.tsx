@@ -14,6 +14,7 @@ import {
   Users,
   Settings,
   Package2,
+  Database,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -70,6 +71,12 @@ const menuItems = [
       { label: "Organizadores", href: "/admin/organizers", icon: Building2 },
       { label: "Usuarios", href: "/admin/users", icon: Users },
       { label: "Seguridad", href: "/admin/seguridad", icon: Settings },
+    ],
+  },
+  {
+    section: "UTILIDADES",
+    items: [
+      { label: "Backup BD", href: "/admin/utilidades/backup", icon: Database },
     ],
   },
 ];
