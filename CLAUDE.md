@@ -68,7 +68,7 @@ docs/                → 93+ docs de arquitectura, ADRs, changelogs
   - Landing: crear cliente con `supabase/ssr` o `@supabase/supabase-js` según sea server/client
   - Backoffice: `lib/supabaseClient.ts` (singleton)
 - **Toda escritura que marque como eliminado usa soft delete:** `packages/shared/db/softDelete.ts`
-- **Multi-tenant:** filtrar siempre por `organizer_id` en queries que lo requieran.
+- **Single-organizer:** `NEXT_PUBLIC_ORGANIZER_ID` identifica el único organizador activo en este deployment. No es multi-tenant — un deployment sirve a un solo organizer. Las queries filtran por `organizer_id` como medida de consistencia, no como mecanismo de aislamiento de tenant.
 
 ### Auth y roles
 
@@ -164,7 +164,7 @@ Tarea para /database:
 - Tabla afectada: [nombre]
 - Cambio: [describir]
 - Nueva migración: supabase/migrations/[timestamp]_[nombre].sql
-- Multi-tenant: ¿requiere filtro organizer_id? [sí/no]
+- organizer_id: ¿la query debe filtrarse por NEXT_PUBLIC_ORGANIZER_ID? [sí/no]
 ```
 
 #### `/performance`
@@ -277,7 +277,7 @@ pnpm build                  # Turbo: build todas las apps/packages
 ### Supabase query (server-side)
 
 ```typescript
-// Siempre filtrar por organizer_id en tablas multi-tenant
+// Filtrar por organizer_id (single-organizer: usar NEXT_PUBLIC_ORGANIZER_ID del env, no un param externo)
 const { data, error } = await supabase
   .from("events")
   .select("*")
@@ -363,8 +363,8 @@ SUPABASE_ANON_KEY
 NEXT_PUBLIC_SUPABASE_URL       # Backoffice
 NEXT_PUBLIC_SUPABASE_ANON_KEY  # Backoffice
 
-# Multi-tenant
-NEXT_PUBLIC_ORGANIZER_ID       # ID del organizador activo
+# Single-organizer (un deployment = un organizer)
+NEXT_PUBLIC_ORGANIZER_ID       # UUID del único organizador activo en este deployment. Cambiar requiere redesploy.
 
 # Pagos
 PAYMENT_METHOD                 # reservation | izipay | culqi
@@ -389,7 +389,7 @@ RATE_LIMIT_SCAN_PER_MIN
 [ ] pnpm test pasa
 [ ] Si hay cambio de schema: nueva migración en supabase/migrations/
 [ ] Si hay nueva lógica compartida: va en packages/shared/, no duplicada en apps/
-[ ] Multi-tenant: queries nuevas filtran por organizer_id donde aplica
+[ ] Si una query filtra por organizer_id, verificar que use NEXT_PUBLIC_ORGANIZER_ID del env, no un param externo
 [ ] No hay service_role_key expuesta en código client-side
 [ ] No hay console.log de debug
 [ ] Fechas: usando limaTime helpers, no new Date() crudo
