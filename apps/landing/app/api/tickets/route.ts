@@ -251,7 +251,10 @@ export async function POST(req: NextRequest) {
   const finalPromoterId = promoter_id || codeRow?.promoter_id || null;
   const full_name = `${first_name} ${last_name}`.trim();
 
-  // Enforce "1 code = 1 person": if this code is already linked, only that same person can reuse it.
+  // Enforce "1 code = 1 person" ONLY for single-use codes (max_uses === 1).
+  // Multi-use codes (max_uses > 1 or null) allow different people to register with the same code.
+  const isSingleUseCode = typeof codeRow.max_uses === "number" && codeRow.max_uses === 1;
+
   const existingCodeTicketQuery = applyNotDeleted(
     supabase
       .from("tickets")
@@ -268,21 +271,28 @@ export async function POST(req: NextRequest) {
   }
 
   if (existingCodeTicket?.id && existingCodeTicket.qr_token) {
-    if (existingCodeTicket.person_id && existingCodeTicket.person_id !== person_id) {
+    const isDifferentPerson = existingCodeTicket.person_id && existingCodeTicket.person_id !== person_id;
+
+    if (isSingleUseCode && isDifferentPerson) {
+      // Single-use code already claimed by someone else
       return NextResponse.json(
         { success: false, error: "Este código ya fue registrado por otra persona" },
         { status: 409 }
       );
     }
 
-    const isPending = (existingCodeTicket as any).payment_status === "pending";
-    return NextResponse.json({
-      success: true,
-      existing: true,
-      ticketId: existingCodeTicket.id,
-      qr: existingCodeTicket.qr_token,
-      needsPayment: isPending,
-    });
+    if (!isDifferentPerson) {
+      // Same person re-entering: return their existing ticket
+      const isPending = (existingCodeTicket as any).payment_status === "pending";
+      return NextResponse.json({
+        success: true,
+        existing: true,
+        ticketId: existingCodeTicket.id,
+        qr: existingCodeTicket.qr_token,
+        needsPayment: isPending,
+      });
+    }
+    // Different person + multi-use code: fall through to create a new ticket
   }
 
   if (typeof codeRow.uses === "number" && typeof codeRow.max_uses === "number" && codeRow.uses >= codeRow.max_uses) {
