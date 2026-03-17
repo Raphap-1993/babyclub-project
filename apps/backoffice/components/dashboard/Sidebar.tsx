@@ -193,7 +193,7 @@ export function Sidebar({ open, setOpen }: { open: boolean; setOpen: (v: boolean
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
+        <nav className="flex-1 min-h-0 space-y-6 overflow-y-auto px-4 py-6">
           {menuItems.map((section) => (
             <div key={section.section}>
               <button
