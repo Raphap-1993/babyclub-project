@@ -85,7 +85,7 @@ export default function TicketDetailModal({
     setError(null);
 
     try {
-      const res = await fetch("/api/tickets/send-email", {
+      const res = await authedFetch("/api/tickets/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
