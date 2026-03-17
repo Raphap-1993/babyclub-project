@@ -104,7 +104,7 @@ export default function EditUserModal({
         </div>
         <form className="space-y-3" onSubmit={handleSubmit}>
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="DNI" name="dni" value={form.dni} onChange={handleChange} required />
+            <Field label="DNI" name="dni" value={form.dni} onChange={handleChange} readOnly />
             <Field label="Teléfono" name="phone" value={form.phone} onChange={handleChange} />
             <Field label="Nombre" name="first_name" value={form.first_name} onChange={handleChange} required />
             <Field label="Apellido" name="last_name" value={form.last_name} onChange={handleChange} required />
@@ -161,7 +161,7 @@ export default function EditUserModal({
   );
 }
 
-function Field({ label, name, value, onChange, type = "text", required }: { label: string; name: string; value: string; onChange: (e: ChangeEvent<any>) => void; type?: string; required?: boolean }) {
+function Field({ label, name, value, onChange, type = "text", required, readOnly }: { label: string; name: string; value: string; onChange: (e: ChangeEvent<any>) => void; type?: string; required?: boolean; readOnly?: boolean }) {
   return (
     <label className="flex flex-col gap-1 text-sm font-semibold text-white">
       <span className="text-xs uppercase tracking-[0.12em] text-white/50">{label}</span>
@@ -171,7 +171,8 @@ function Field({ label, name, value, onChange, type = "text", required }: { labe
         onChange={onChange}
         type={type}
         required={required}
-        className="h-10 rounded-2xl border-[#292929] bg-black text-sm text-white focus:border-white"
+        readOnly={readOnly}
+        className={`h-10 rounded-2xl border-[#292929] bg-black text-sm text-white focus:border-white${readOnly ? " cursor-not-allowed opacity-50" : ""}`}
       />
     </label>
   );
