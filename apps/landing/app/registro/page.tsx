@@ -572,18 +572,20 @@ function RegistroContent() {
           <h1 className="text-2xl lg:text-3xl font-semibold">Registro</h1>
           
           <div className="mx-auto max-w-md space-y-3">
-            <div className="flex flex-col items-center gap-2 lg:gap-3">
-              <div className="flex items-center gap-2 text-[10px] lg:text-xs font-semibold text-white/80">
-                <span>AFORO</span>
-                <span className="text-white">{aforoWidth}%</span>
+            {codeType !== "promoter_link" && (
+              <div className="flex flex-col items-center gap-2 lg:gap-3">
+                <div className="flex items-center gap-2 text-[10px] lg:text-xs font-semibold text-white/80">
+                  <span>AFORO</span>
+                  <span className="text-white">{aforoWidth}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-[#e91e63] shadow-[0_0_12px_rgba(233,30,99,0.55)]"
+                    style={{ width: `${aforoWidth}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-[#e91e63] shadow-[0_0_12px_rgba(233,30,99,0.55)]"
-                  style={{ width: `${aforoWidth}%` }}
-                />
-              </div>
-            </div>
+            )}
             
             {eventInfo?.name && (
               <div className="rounded-xl border border-white/10 bg-gradient-to-br from-[#0a0a0a] to-[#111111] p-4">
