@@ -13,8 +13,6 @@ import {
   Ticket,
   Users,
   Settings,
-  Menu,
-  X,
   Package2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -76,9 +74,8 @@ const menuItems = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(
@@ -161,15 +158,6 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile Toggle */}
-      <button
-        onClick={() => setOpen(!open)}
-        aria-label={open ? "Cerrar menú" : "Abrir menú"}
-        className="fixed right-3 top-3 z-50 flex h-11 w-11 items-center justify-center rounded-lg bg-neutral-800 touch-manipulation md:hidden"
-      >
-        {open ? <X size={20} /> : <Menu size={20} />}
-      </button>
-
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-neutral-700 bg-gradient-to-b from-neutral-950 to-neutral-900 transition-transform duration-300 ${
