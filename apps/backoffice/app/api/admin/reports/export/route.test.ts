@@ -791,7 +791,7 @@ describe("GET /api/admin/reports/export", () => {
       "reporte-no-show-qr-free.csv",
     );
     expect(csv.split("\n")[0]).toBe(
-      "Cliente,Tipo doc.,Documento,Email,Teléfono,QR asignado,Asistió,No asistió,% no-show,Evento",
+      "Cliente,Tipo doc.,Documento,Email,Teléfono,Asistió,Evento",
     );
   });
 });

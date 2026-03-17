@@ -120,6 +120,17 @@ export function Sidebar() {
   }, [pathname]);
 
   useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  useEffect(() => {
     setExpandedSections((prev) => {
       const next = { ...prev };
       let changed = false;
@@ -153,7 +164,8 @@ export function Sidebar() {
       {/* Mobile Toggle */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed right-4 top-4 z-50 rounded-lg bg-neutral-800 p-2 md:hidden"
+        aria-label={open ? "Cerrar menú" : "Abrir menú"}
+        className="fixed right-3 top-3 z-50 flex h-11 w-11 items-center justify-center rounded-lg bg-neutral-800 touch-manipulation md:hidden"
       >
         {open ? <X size={20} /> : <Menu size={20} />}
       </button>

@@ -51,6 +51,10 @@ const HIDDEN_UI_COLUMNS = new Set([
   "total_amount_raw",
   "sales_source",
   "last_free_qr_status",
+  "free_qr_assigned",
+  "free_qr_attended",
+  "free_qr_no_show",
+  "no_show_rate_percent",
 ]);
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -74,6 +78,7 @@ const COLUMN_LABELS: Record<string, string> = {
   free_qr_no_show: "No asistió",
   no_show_rate_percent: "% no-show",
   last_free_qr_event: "Evento",
+  asistio: "Asistió",
   last_free_qr_status: "Estado último QR free",
   paid_count: "Ventas confirmadas",
   total_amount_pen_est: "Ventas (S/)",
