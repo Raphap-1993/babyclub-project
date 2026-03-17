@@ -34,34 +34,63 @@ export default function TicketActions({ id, compact = true }: { id: string; comp
 
   return (
     <>
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200"
-          title="Ver ticket"
-        >
-          <Eye className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          type="button"
-          onClick={onDelete}
-          disabled={pending}
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-neutral-400 hover:bg-red-700/20 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Eliminar ticket"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-        {error && (
-          <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded">
-            {error}
-          </div>
-        )}
-      </div>
+      {compact ? (
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200"
+            title="Ver ticket"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            onClick={onDelete}
+            disabled={pending}
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-neutral-400 hover:bg-red-700/20 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Eliminar ticket"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+          {error && (
+            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded">
+              {error}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            variant="outline"
+            size="sm"
+            className="w-full text-xs border-neutral-600 text-neutral-200 hover:bg-neutral-800"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Ver detalle
+          </Button>
+          <Button
+            type="button"
+            onClick={onDelete}
+            disabled={pending}
+            variant="outline"
+            size="sm"
+            className="w-full text-xs border-red-800/50 text-red-400 hover:bg-red-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Eliminar
+          </Button>
+          {error && (
+            <p className="col-span-2 text-xs text-red-400">{error}</p>
+          )}
+        </div>
+      )}
 
       <TicketDetailModal ticketId={id} open={modalOpen} onOpenChange={setModalOpen} />
     </>
