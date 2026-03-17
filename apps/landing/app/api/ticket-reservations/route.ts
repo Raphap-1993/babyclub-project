@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   const event_id = typeof body?.event_id === "string" ? body.event_id.trim() : "";
+  const promoter_id = typeof body?.promoter_id === "string" && body.promoter_id.trim() ? body.promoter_id.trim() : null;
   const docTypeRaw = typeof body?.doc_type === "string" ? (body.doc_type as DocumentType) : "dni";
   const documentRaw = typeof body?.document === "string" ? body.document : "";
   const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
       voucher_url,
       status: "pending",
       ticket_quantity,
+      promoter_id: promoter_id || null,
     })
     .select("id")
     .single();

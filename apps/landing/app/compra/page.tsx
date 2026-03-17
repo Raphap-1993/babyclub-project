@@ -1,7 +1,8 @@
 /* Compra de mesas/tickets con upload de voucher */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import TableMap from "../registro/TableMap";
 import { buildMapSlotsFromTables } from "../registro/tableSlotUtils";
 import { DOCUMENT_TYPES, validateDocument, type DocumentType } from "shared/document";
@@ -58,6 +59,16 @@ type EventOption = {
 type TicketSalePhase = "early_bird" | "all_night";
 
 export default function CompraPage() {
+  return (
+    <Suspense>
+      <CompraContent />
+    </Suspense>
+  );
+}
+
+function CompraContent() {
+  const searchParams = useSearchParams();
+  const promoterIdFromUrl = searchParams.get("promoter_id") || null;
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [form, setForm] = useState({
@@ -611,6 +622,7 @@ export default function CompraPage() {
           code: defaultCode,
           voucher_url: form.voucher_url || undefined,
           payment_method: useCulqi ? "culqi" : "yape",
+          promoter_id: promoterIdFromUrl || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -751,6 +763,7 @@ export default function CompraPage() {
         ticket_quantity: ticketQuantity,
         pricing_phase: ticketPricingSelection,
         payment_method: useCulqi ? "culqi" : "yape",
+        promoter_id: promoterIdFromUrl || undefined,
       };
       const res = await fetch("/api/ticket-reservations", {
         method: "POST",
