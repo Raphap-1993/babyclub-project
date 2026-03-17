@@ -957,38 +957,33 @@ function RegistroContent() {
                             </CardContent>
                           </Card>
                         ) : (
-                          <Card className="bg-gradient-to-br from-[#e91e63]/10 to-transparent border-[#e91e63]/30">
-                            <CardContent className="p-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex-1">
-                                  <p className="text-[9px] font-semibold uppercase tracking-wider text-white/50 mb-1">Mesa seleccionada</p>
-                                  <p className="text-lg font-bold text-white mb-2">{tableInfo?.name}</p>
-                                  <div className="flex gap-2 text-[10px]">
-                                    <div className="flex items-center gap-1">
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/50">
-                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                                        <circle cx="9" cy="7" r="4" />
-                                      </svg>
-                                      <span className="text-white/70">{tableInfo?.ticket_count ?? 0} tickets</span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#e91e63]">
-                                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                                      </svg>
-                                      <span className="text-white font-semibold">{totalLabel || formatCurrency(getDisplayPriceForTable(tableInfo))}</span>
-                                    </div>
-                                  </div>
-                                </div>
+                          <Card className="bg-gradient-to-br from-[#e91e63]/15 to-[#e91e63]/5 border-[#e91e63]/50 shadow-lg shadow-[#e91e63]/10">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3 mb-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-[#e91e63]/80">Mesa seleccionada</p>
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setSelectedTable("");
                                     setSelectedProduct("");
                                   }}
-                                  className="rounded-md px-2 py-1 text-[10px] font-semibold text-white/60 hover:text-white hover:bg-white/10 transition"
+                                  className="rounded-md px-2.5 py-1 text-xs font-semibold text-white/60 hover:text-white hover:bg-white/10 transition shrink-0"
                                 >
                                   Cambiar
                                 </button>
+                              </div>
+                              <p className="text-3xl font-extrabold text-white mb-3 leading-none">{tableInfo?.name}</p>
+                              <div className="flex items-center gap-3">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/60">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                    <circle cx="9" cy="7" r="4" />
+                                  </svg>
+                                  {tableInfo?.ticket_count ?? 0} tickets
+                                </span>
+                                <span className="text-xl font-extrabold text-[#e91e63]">
+                                  {totalLabel || formatCurrency(getDisplayPriceForTable(tableInfo))}
+                                </span>
                               </div>
                             </CardContent>
                           </Card>
@@ -1224,8 +1219,8 @@ function RegistroContent() {
                               )}
                             </div>
 
-                            {/* Nombre completo en 2 columnas */}
-                            <div className="grid grid-cols-2 gap-1.5">
+                            {/* Nombre completo en columna única */}
+                            <div className="space-y-2">
                               <Field
                                 label="Nombres"
                                 value={reservation.nombre}
