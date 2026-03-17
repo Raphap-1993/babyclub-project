@@ -195,7 +195,7 @@ function RegistroContent() {
     return formatDateInput(d);
   }, []);
   const hidePromoterSelect = useMemo(
-    () => ["courtesy", "table"].includes((codeInfo?.type || "").toLowerCase()),
+    () => ["courtesy", "table", "promoter_link"].includes((codeInfo?.type || "").toLowerCase()),
     [codeInfo]
   );
   const yapeNumber = "950 144 641";
@@ -392,6 +392,10 @@ function RegistroContent() {
                 message: typeof data?.sale_public_message === "string" ? data.sale_public_message : null,
                 reason: typeof data?.sale_block_reason === "string" ? data.sale_block_reason : null,
               });
+            }
+            // Auto-assign promoter when using a promoter_link code
+            if (data?.type === "promoter_link" && data?.promoter_id) {
+              setForm((prev) => ({ ...prev, promoter_id: data.promoter_id }));
             }
 
           })
