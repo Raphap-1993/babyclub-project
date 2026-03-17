@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Copy, ExternalLink, Sparkles, TicketPlus } from "lucide-react";
+import { Copy, ExternalLink, Link2, Sparkles, TicketPlus } from "lucide-react";
 import { supabaseClient } from "@/lib/supabaseClient";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -107,6 +107,14 @@ export default function PromoterCodesClient({
   const [generated, setGenerated] = useState<GeneratedBatch | null>(null);
   const [batches, setBatches] = useState<BatchItem[]>(recentBatches);
 
+  // Promoter link state
+  const [linkEventId, setLinkEventId] = useState(events[0]?.id ?? "");
+  const [linkCode, setLinkCode] = useState("");
+  const [linkNotes, setLinkNotes] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [createdLink, setCreatedLink] = useState<{ code: string; url: string } | null>(null);
+
   const promoterName = useMemo(() => {
     const person = promoter.person;
     const fullName = [person?.first_name, person?.last_name].filter(Boolean).join(" ").trim();
@@ -199,6 +207,53 @@ export default function PromoterCodesClient({
       setError(err?.message || "Error inesperado al generar códigos");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCreateLink(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!linkEventId) {
+      setLinkError("Selecciona un evento.");
+      return;
+    }
+    const cleanedCode = linkCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+    if (!cleanedCode || cleanedCode.length < 2) {
+      setLinkError("El código debe tener al menos 2 caracteres (letras y números).");
+      return;
+    }
+
+    setLinkLoading(true);
+    setLinkError(null);
+    setCreatedLink(null);
+
+    try {
+      const response = await fetch("/api/promoters/create-link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({
+          promoter_id: promoter.id,
+          event_id: linkEventId,
+          code: cleanedCode,
+          notes: linkNotes.trim() || null,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "No se pudo crear el link directo");
+      }
+
+      const baseUrl = process.env.NEXT_PUBLIC_LANDING_URL || "https://babyclubaccess.com";
+      const url = `${baseUrl}/registro?code=${encodeURIComponent(payload.code)}`;
+      setCreatedLink({ code: payload.code, url });
+      setLinkCode("");
+    } catch (err: any) {
+      setLinkError(err?.message || "Error inesperado al crear el link");
+    } finally {
+      setLinkLoading(false);
     }
   }
 
@@ -307,6 +362,86 @@ export default function PromoterCodesClient({
             </div>
 
             {error ? <p className="text-sm text-red-300">{error}</p> : null}
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="border-[#252525]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Link2 className="h-4 w-4 text-blue-300" />
+            Crear link directo de promotor
+          </CardTitle>
+          <CardDescription>
+            Un código único y memorable que el promotor comparte como link.{" "}
+            <span className="font-mono text-white/70">
+              /registro?code=WILLIAMS
+            </span>{" "}
+            · Usos ilimitados · Auto-asigna al promotor.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreateLink} className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Evento</span>
+                <SelectNative value={linkEventId} onChange={(e) => setLinkEventId(e.target.value)}>
+                  <option value="">Selecciona evento</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name}
+                    </option>
+                  ))}
+                </SelectNative>
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                  Código del link
+                </span>
+                <Input
+                  value={linkCode}
+                  onChange={(e) => setLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
+                  placeholder={promoter.code?.toUpperCase() || "WILLIAMS"}
+                  maxLength={32}
+                />
+              </label>
+            </div>
+
+            <label className="block space-y-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Notas internas</span>
+              <textarea
+                rows={2}
+                value={linkNotes}
+                onChange={(e) => setLinkNotes(e.target.value)}
+                placeholder="Opcional, para control operativo"
+                className="w-full rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#a60c2f]/50"
+              />
+            </label>
+
+            <Button type="submit" disabled={linkLoading}>
+              {linkLoading ? "Creando..." : "Crear link directo"}
+            </Button>
+
+            {linkError ? <p className="text-sm text-red-300">{linkError}</p> : null}
+
+            {createdLink ? (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-3 space-y-2">
+                <p className="text-sm font-semibold text-emerald-300">Link creado</p>
+                <div className="flex items-center gap-2 rounded border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm text-white/90">
+                  <span className="flex-1 truncate">{createdLink.url}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyText(createdLink.url)}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copiar
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </form>
         </CardContent>
       </Card>
