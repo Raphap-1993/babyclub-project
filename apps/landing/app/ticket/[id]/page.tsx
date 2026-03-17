@@ -166,55 +166,27 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  if (ticket.table_reservation_id) {
-    const reservationByIdQuery = applyNotDeleted(
-      supabase
-        .from("table_reservations")
-        .select("codes,status,full_name,email,phone,document")
-        .eq("id", ticket.table_reservation_id)
-        .limit(1)
-    );
-    const { data: reservationById } = await reservationByIdQuery.maybeSingle();
-    const status = String((reservationById as any)?.status || "").toLowerCase();
-    const activeStatuses = new Set(["approved", "confirmed", "paid"]);
-    if (
-      reservationById &&
-      activeStatuses.has(status) &&
-      Array.isArray((reservationById as any).codes) &&
-      isReservationOwner(ticket, reservationById as any)
-    ) {
-      return ((reservationById as any).codes as any[]).map((code) => String(code || "").trim()).filter(Boolean);
-    }
-    return [];
-  }
+  if (!ticket.table_reservation_id) return [];
 
-  const email = ticket.email;
-  const phone = ticket.phone;
-  const filters = [email ? `email.eq.${email}` : "", phone ? `phone.eq.${phone}` : ""].filter(Boolean);
-  if (filters.length === 0) return [];
-
-  let query = supabase
-    .from("table_reservations")
-    .select("codes,status,created_at,event_id,full_name,email,phone,document")
-    .or(filters.join(","))
-    .order("created_at", { ascending: false })
-    .limit(5);
-  if (ticket.event_id) {
-    query = query.eq("event_id", ticket.event_id);
-  }
-
-  const { data, error } = await query;
-
-  if (error || !data) return [];
+  const reservationByIdQuery = applyNotDeleted(
+    supabase
+      .from("table_reservations")
+      .select("codes,status,full_name,email,phone,document")
+      .eq("id", ticket.table_reservation_id)
+      .limit(1)
+  );
+  const { data: reservationById } = await reservationByIdQuery.maybeSingle();
+  const status = String((reservationById as any)?.status || "").toLowerCase();
   const activeStatuses = new Set(["approved", "confirmed", "paid"]);
-  // Priorizar la reserva más reciente con códigos y estado activo
-  const valid = (data as any[]).find((r) => {
-    const status = (r?.status || "").toLowerCase();
-    if (!activeStatuses.has(status)) return false;
-    if (!Array.isArray(r.codes) || r.codes.length === 0) return false;
-    return isReservationOwner(ticket, r);
-  });
-  return valid?.codes || [];
+  if (
+    reservationById &&
+    activeStatuses.has(status) &&
+    Array.isArray((reservationById as any).codes) &&
+    isReservationOwner(ticket, reservationById as any)
+  ) {
+    return ((reservationById as any).codes as any[]).map((code) => String(code || "").trim()).filter(Boolean);
+  }
+  return [];
 }
 
 export const dynamic = "force-dynamic";
