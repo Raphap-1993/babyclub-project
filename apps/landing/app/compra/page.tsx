@@ -69,6 +69,7 @@ export default function CompraPage() {
 function CompraContent() {
   const searchParams = useSearchParams();
   const promoterIdFromUrl = searchParams.get("promoter_id") || null;
+  const tabFromUrl = searchParams.get("tab");
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [form, setForm] = useState({
@@ -91,7 +92,7 @@ function CompraContent() {
     phone: "",
   });
   const [selectedProduct, setSelectedProduct] = useState<string>("");
-  const [mode, setMode] = useState<"mesa" | "ticket">("ticket");
+  const [mode, setMode] = useState<"mesa" | "ticket">(tabFromUrl === "mesa" ? "mesa" : "ticket");
   const [uploading, setUploading] = useState(false);
   const [ticketUploading, setTicketUploading] = useState(false);
   const [loading, setLoading] = useState(false);
