@@ -40,7 +40,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       sale_origin,
       created_at,
       table_id,
-      event_id
+      event_id,
+      promoter_id
       `
     )
     .eq("id", id)
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Fetch relacionados en paralelo solo si existen IDs
   const isTableReservation = data.sale_origin !== "ticket";
-  const [tableData, eventData, conflictingTickets] = await Promise.all([
+  const [tableData, eventData, conflictingTickets, promoterData] = await Promise.all([
     data.table_id
       ? supabase.from("tables").select("name").eq("id", data.table_id).single()
       : Promise.resolve({ data: null }),
@@ -70,6 +71,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           .neq("id", data.id)
           .not("status", "eq", "rejected")
       : Promise.resolve({ data: [] }),
+    data.promoter_id
+      ? supabase
+          .from("promoters")
+          .select("id,code,person:persons(first_name,last_name)")
+          .eq("id", data.promoter_id)
+          .single()
+      : Promise.resolve({ data: null }),
   ]);
 
   const reservation = {
@@ -90,6 +98,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     event_name: eventData.data?.name || "Evento desconocido",
     event_starts_at: eventData.data?.starts_at || null,
     event_location: eventData.data?.location || null,
+    promoter: promoterData.data
+      ? {
+          code: (promoterData.data as any).code || null,
+          name: (() => {
+            const person = (promoterData.data as any).person;
+            if (!person) return null;
+            return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || null;
+          })(),
+        }
+      : null,
     conflicting_ticket_reservations: (conflictingTickets.data || []) as Array<{
       id: string;
       friendly_code: string | null;

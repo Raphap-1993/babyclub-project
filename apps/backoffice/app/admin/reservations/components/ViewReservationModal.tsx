@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Calendar, MapPin, Ticket, FileText, User, Mail, Phone, CreditCard, Check, Clock, XCircle, Send } from "lucide-react";
+import { X, Calendar, MapPin, Ticket, FileText, User, Mail, Phone, CreditCard, Check, Clock, XCircle, Send, UserRound } from "lucide-react";
 import { formatLimaFromDb } from "shared/limaTime";
 import { authedFetch } from "@/lib/authedFetch";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ interface ReservationDetail {
   event_starts_at: string | null;
   event_location: string | null;
   ticket_quantity?: number | null;
+  promoter?: { name: string | null; code: string | null } | null;
   conflicting_ticket_reservations?: ConflictingTicket[];
 }
 
@@ -287,6 +288,28 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                       )}
                     </div>
                   </div>
+
+                  {/* Promotor — solo si la reserva vino de un link de promotor */}
+                  {reservation.promoter && (
+                    <div className="bg-violet-500/10 rounded-lg p-4 border border-violet-500/25">
+                      <div className="flex items-center gap-2 mb-3">
+                        <UserRound className="h-4 w-4 text-violet-400" />
+                        <h3 className="text-sm font-semibold text-violet-300 uppercase tracking-wide">Promotor</h3>
+                      </div>
+                      <div className="space-y-1">
+                        {reservation.promoter.name && (
+                          <div className="text-base font-medium text-neutral-100">
+                            {reservation.promoter.name}
+                          </div>
+                        )}
+                        {reservation.promoter.code && (
+                          <div className="inline-block rounded bg-neutral-700/60 px-2 py-0.5 font-mono text-xs text-violet-200">
+                            {reservation.promoter.code}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Right Column */}
