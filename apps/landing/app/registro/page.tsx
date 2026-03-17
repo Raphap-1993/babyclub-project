@@ -640,11 +640,16 @@ function RegistroContent() {
             </div>
             <button
               type="button"
-              onClick={() => setPromoterLinkChoice("ticket")}
+              onClick={() => {
+                const pid = codeInfo?.promoter_id;
+                const params = new URLSearchParams();
+                if (pid) params.set("promoter_id", pid);
+                router.push(`/compra${params.toString() ? "?" + params.toString() : ""}`);
+              }}
               className="w-full rounded-2xl border border-white/15 bg-white/5 px-6 py-5 text-left transition hover:bg-white/10 focus:outline-none"
             >
               <p className="text-sm font-bold uppercase tracking-wide text-white">🎟 Obtener entrada</p>
-              <p className="mt-1 text-xs text-white/60">Genera tu QR de acceso al evento</p>
+              <p className="mt-1 text-xs text-white/60">Compra tu entrada al evento (Yape / Plin / Tarjeta)</p>
             </button>
             <button
               type="button"
