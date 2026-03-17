@@ -40,7 +40,7 @@ export default function BackupClient() {
       const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `backup_babyclub_${timestamp}.json`;
+      anchor.download = `backup_babyclub_${timestamp}.sql`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -87,8 +87,9 @@ export default function BackupClient() {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-amber-300">Datos sensibles</p>
             <p className="text-xs text-amber-200/70">
-              El backup contiene datos personales (DNI, email, teléfono). Manéjalo con cuidado
-              y compártelo solo con personal autorizado.
+              El backup contiene datos personales (DNI, email, teléfono). El archivo .sql
+              es restaurable directamente en Supabase. Manéjalo con cuidado y compártelo
+              solo con personal autorizado.
             </p>
           </div>
         </CardContent>
@@ -102,8 +103,9 @@ export default function BackupClient() {
             Exportar base de datos
           </CardTitle>
           <CardDescription className="text-xs text-white/55">
-            Genera un archivo JSON con todos los registros del sistema: eventos, tickets,
-            códigos, promotores, reservas, mesas y más. Máximo 10,000 filas por tabla.
+            Genera un archivo <span className="font-mono text-white/70">.sql</span> restaurable
+            directamente en Supabase o con <span className="font-mono text-white/70">psql</span>.
+            Incluye INSERT statements ordenados por dependencias FK. Máximo 50,000 filas por tabla.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -159,7 +161,7 @@ export default function BackupClient() {
             ) : (
               <>
                 <Download className="h-4 w-4" />
-                Descargar backup JSON
+                Descargar backup SQL
               </>
             )}
           </Button>
