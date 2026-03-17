@@ -43,6 +43,15 @@ type BatchItem = {
   preview_codes: string[];
 };
 
+type PromoterLinkItem = {
+  id: string;
+  code: string;
+  event_id: string | null;
+  event_name: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
 type GeneratedBatch = {
   batchId: string;
   codes: string[];
@@ -92,10 +101,12 @@ export default function PromoterCodesClient({
   promoter,
   events,
   recentBatches,
+  promoterLinks: initialPromoterLinks,
 }: {
   promoter: PromoterData;
   events: EventOption[];
   recentBatches: BatchItem[];
+  promoterLinks: PromoterLinkItem[];
 }) {
   const [eventId, setEventId] = useState(events[0]?.id ?? "");
   const [quantity, setQuantity] = useState(20);
@@ -114,6 +125,7 @@ export default function PromoterCodesClient({
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [createdLink, setCreatedLink] = useState<{ code: string; url: string } | null>(null);
+  const [promoterLinks, setPromoterLinks] = useState<PromoterLinkItem[]>(initialPromoterLinks);
 
   const promoterName = useMemo(() => {
     const person = promoter.person;
@@ -250,6 +262,18 @@ export default function PromoterCodesClient({
       const url = `${baseUrl}/registro?code=${encodeURIComponent(payload.code)}`;
       setCreatedLink({ code: payload.code, url });
       setLinkCode("");
+      const selectedEventName = events.find((e) => e.id === linkEventId)?.name ?? null;
+      setPromoterLinks((prev) => [
+        {
+          id: payload.id,
+          code: payload.code,
+          event_id: linkEventId || null,
+          event_name: selectedEventName,
+          is_active: true,
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
     } catch (err: any) {
       setLinkError(err?.message || "Error inesperado al crear el link");
     } finally {
@@ -487,6 +511,54 @@ export default function PromoterCodesClient({
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="border-[#252525]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Link2 className="h-4 w-4 text-blue-300" />
+            Links directos activos
+          </CardTitle>
+          <CardDescription>Códigos de tipo promoter_link creados para este promotor.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {promoterLinks.length === 0 ? (
+            <p className="text-sm text-white/60">Aún no hay links directos creados.</p>
+          ) : (
+            promoterLinks.map((link) => {
+              const baseUrl = process.env.NEXT_PUBLIC_LANDING_URL || "https://babyclubaccess.com";
+              const url = `${baseUrl}/registro?code=${encodeURIComponent(link.code)}`;
+              return (
+                <div
+                  key={link.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                >
+                  <div className="space-y-0.5">
+                    <p className="font-mono text-sm font-semibold text-emerald-200">{link.code}</p>
+                    {link.event_name && (
+                      <p className="text-xs text-white/55">{link.event_name}</p>
+                    )}
+                    <p className="truncate max-w-xs font-mono text-[11px] text-white/40">{url}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={link.is_active ? "success" : "default"}>
+                      {link.is_active ? "Activo" : "Inactivo"}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyText(url)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copiar link
+                    </Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="border-[#252525]">
         <CardHeader>
