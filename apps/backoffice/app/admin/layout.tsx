@@ -61,6 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const [profileModal, setProfileModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [topbarLogoUrl, setTopbarLogoUrl] = useState<string | null>(null);
   const [userStaff, setUserStaff] = useState<StaffUser | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -132,6 +133,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [router]);
 
   useEffect(() => {
+    fetch("/api/branding")
+      .then((res) => res.json())
+      .then((data) => { if (data?.logo_url) setTopbarLogoUrl(data.logo_url); })
+      .catch(() => null);
+  }, []);
+
+  useEffect(() => {
     if (!roleResolved) return;
     if (isDoorRole(resolvedRoleCode || initialRole)) return;
     authedFetch("/api/admin/users/roles")
@@ -192,10 +200,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {!isDoorSession && (
             <div className="md:hidden sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950/95 backdrop-blur-sm px-4">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-rose-400 to-rose-600">
-                  <span className="text-xs font-bold text-white">BC</span>
-                </div>
-                <span className="text-sm font-semibold text-white">BabyClub Access</span>
+                {topbarLogoUrl ? (
+                  <img
+                    src={topbarLogoUrl}
+                    alt="Logo"
+                    className="h-8 w-auto max-w-[140px] object-contain"
+                  />
+                ) : (
+                  <>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-rose-400 to-rose-600">
+                      <span className="text-xs font-bold text-white">BC</span>
+                    </div>
+                    <span className="text-sm font-semibold text-white">BabyClub Access</span>
+                  </>
+                )}
               </div>
               <button
                 onClick={() => setMobileMenuOpen((v) => !v)}

@@ -29,7 +29,7 @@ const widthMap: Record<NonNullable<AdminPageProps["maxWidth"]>, string> = {
 
 export function AdminPage({ children, maxWidth = "7xl" }: AdminPageProps) {
   return (
-    <div className="relative text-white">
+    <div className="relative overflow-x-hidden text-white">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_16%_16%,rgba(166,12,47,0.08),transparent_32%),radial-gradient(circle_at_84%_0%,rgba(255,255,255,0.04),transparent_30%),radial-gradient(circle_at_50%_108%,rgba(255,255,255,0.04),transparent_42%)]" />
       <div className={`mx-auto w-full space-y-3 ${widthMap[maxWidth]}`}>{children}</div>
     </div>

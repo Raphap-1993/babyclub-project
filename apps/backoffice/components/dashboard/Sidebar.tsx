@@ -160,7 +160,7 @@ export function Sidebar({ open, setOpen }: { open: boolean; setOpen: (v: boolean
     <>
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-neutral-700 bg-gradient-to-b from-neutral-950 to-neutral-900 transition-transform duration-300 ${
+        className={`fixed top-14 bottom-0 left-0 z-40 flex w-64 transform flex-col border-r border-neutral-700 bg-gradient-to-b from-neutral-950 to-neutral-900 transition-transform duration-300 md:top-0 md:bottom-auto md:inset-y-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
