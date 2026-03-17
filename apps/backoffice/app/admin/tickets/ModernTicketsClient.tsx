@@ -127,7 +127,7 @@ function TicketFilters({
       </div>
 
       {/* Acciones */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"
           onClick={onSubmit}
@@ -408,7 +408,7 @@ export default function ModernTicketsClient({
   const columns = createTicketsColumns();
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <ScreenHeader
         icon={TicketIcon}
         kicker="Tickets Management"
@@ -534,6 +534,6 @@ export default function ModernTicketsClient({
         itemLabel="tickets"
       />
 
-    </main>
+    </div>
   );
 }
