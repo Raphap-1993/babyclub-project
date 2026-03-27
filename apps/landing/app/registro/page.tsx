@@ -123,6 +123,7 @@ function RegistroContent() {
     document: "",
     dni: "",
     nombre: "",
+    apellidos: "",
     apellido_paterno: "",
     apellido_materno: "",
     email: "",
@@ -256,13 +257,24 @@ function RegistroContent() {
     setReservationError(null);
   };
 
+  const splitApellidos = (value: string) => {
+    const parts = value.split(/\s+/).filter(Boolean);
+    return {
+      apellido_paterno: parts[0] || "",
+      apellido_materno: parts.slice(1).join(" ") || "",
+    };
+  };
+
+  const buildApellidos = (apellidoPaterno: string, apellidoMaterno: string) =>
+    [apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ");
+
   const handleChange = (field: keyof typeof form) => (value: string) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       if (field === "apellidos") {
-        const parts = value.trim().split(/\s+/);
-        next.apellido_paterno = parts[0] || "";
-        next.apellido_materno = parts.slice(1).join(" ") || "";
+        const { apellido_paterno, apellido_materno } = splitApellidos(value);
+        next.apellido_paterno = apellido_paterno;
+        next.apellido_materno = apellido_materno;
       }
       return next;
     });
@@ -300,12 +312,14 @@ function RegistroContent() {
       const nombreFromForm = form.nombre.trim();
       const apellidoPaternoFromForm = form.apellido_paterno.trim();
       const apellidoMaternoFromForm = form.apellido_materno.trim();
+      const apellidosFromForm = form.apellidos || buildApellidos(form.apellido_paterno, form.apellido_materno);
       return {
         ...prev,
         doc_type: prev.doc_type || form.doc_type || "dni",
         document: prev.document || form.document || "",
         dni: prev.dni || form.document || "",
         nombre: prev.nombre || nombreFromForm,
+        apellidos: prev.apellidos || apellidosFromForm,
         apellido_paterno: prev.apellido_paterno || apellidoPaternoFromForm,
         apellido_materno: prev.apellido_materno || apellidoMaternoFromForm,
         email: prev.email || form.email,
@@ -313,7 +327,17 @@ function RegistroContent() {
         promoter_id: prev.promoter_id || form.promoter_id || "",
       };
     });
-  }, [form.doc_type, form.document, form.nombre, form.apellido_paterno, form.apellido_materno, form.email, form.telefono, form.promoter_id]);
+  }, [
+    form.doc_type,
+    form.document,
+    form.nombre,
+    form.apellidos,
+    form.apellido_paterno,
+    form.apellido_materno,
+    form.email,
+    form.telefono,
+    form.promoter_id,
+  ]);
 
   // Auto-búsqueda de persona cuando el documento es válido (paso 2)
   useEffect(() => {
@@ -827,6 +851,7 @@ function RegistroContent() {
                           document: form.document,
                           dni: form.document,
                           nombre: form.nombre,
+                          apellidos: form.apellidos || buildApellidos(form.apellido_paterno, form.apellido_materno),
                           apellido_paterno: form.apellido_paterno,
                           apellido_materno: form.apellido_materno,
                           email: form.email,
@@ -1177,6 +1202,7 @@ function RegistroContent() {
                                           ...p,
                                           document: val,
                                           nombre: "",
+                                          apellidos: "",
                                           apellido_paterno: "",
                                           apellido_materno: "",
                                           email: "",
@@ -1229,13 +1255,14 @@ function RegistroContent() {
                               />
                               <Field
                                 label="Apellidos"
-                                value={[reservation.apellido_paterno, reservation.apellido_materno].filter(Boolean).join(" ")}
+                                value={reservation.apellidos}
                                 onChange={(v) => {
-                                  const parts = v.trim().split(/\s+/);
+                                  const { apellido_paterno, apellido_materno } = splitApellidos(v);
                                   setReservation((p) => ({
                                     ...p,
-                                    apellido_paterno: parts[0] || "",
-                                    apellido_materno: parts.slice(1).join(" ") || "",
+                                    apellidos: v,
+                                    apellido_paterno,
+                                    apellido_materno,
                                   }));
                                 }}
                                 placeholder="Paterno y materno"
@@ -1816,6 +1843,7 @@ function RegistroContent() {
         document: dni,
         dni,
         nombre: opts.force ? (p.first_name || "") : (prev.nombre || p.first_name || ""),
+        apellidos: opts.force ? apellidosCompletos : (prev.apellidos || apellidosCompletos),
         apellido_paterno: opts.force ? (apPat || "") : (prev.apellido_paterno || apPat || ""),
         apellido_materno: opts.force ? (apMat || "") : (prev.apellido_materno || apMat || ""),
         email: opts.force ? (p.email || "") : (prev.email || p.email || ""),
