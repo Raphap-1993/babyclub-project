@@ -1,7 +1,7 @@
 /* Compra de mesas/tickets con upload de voucher */
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import TableMap from "../registro/TableMap";
 import { buildMapSlotsFromTables } from "../registro/tableSlotUtils";
@@ -82,6 +82,7 @@ function CompraContent() {
     phone: "",
     voucher_url: "",
   });
+  const [formApellidosInput, setFormApellidosInput] = useState("");
   const [ticketForm, setTicketForm] = useState({
     doc_type: "dni",
     document: "",
@@ -91,6 +92,9 @@ function CompraContent() {
     email: "",
     phone: "",
   });
+  const [ticketApellidosInput, setTicketApellidosInput] = useState("");
+  const formRef = useRef(form);
+  const ticketFormRef = useRef(ticketForm);
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [mode, setMode] = useState<"mesa" | "ticket">(tabFromUrl === "mesa" ? "mesa" : "ticket");
   const [uploading, setUploading] = useState(false);
@@ -158,6 +162,25 @@ function CompraContent() {
     };
   };
 
+  const splitSurnameInput = (value: string) => {
+    const parts = value.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+    return {
+      apellido_paterno: parts[0] || "",
+      apellido_materno: parts.slice(1).join(" ") || "",
+    };
+  };
+
+  const joinSurnameInput = (apellidoPaterno: string, apellidoMaterno: string) =>
+    [apellidoPaterno, apellidoMaterno].map((part) => part.trim()).filter(Boolean).join(" ");
+
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+
+  useEffect(() => {
+    ticketFormRef.current = ticketForm;
+  }, [ticketForm]);
+
   const buildFullName = (nombre: string, apellidoPaterno: string, apellidoMaterno: string) =>
     [nombre, apellidoPaterno, apellidoMaterno].map((part) => part.trim()).filter(Boolean).join(" ");
 
@@ -197,6 +220,7 @@ function CompraContent() {
       email: "",
       phone: "",
     });
+    setTicketApellidosInput("");
     setTicketError(null);
     setTicketReservationId(null);
   };
@@ -212,6 +236,7 @@ function CompraContent() {
       phone: "",
       voucher_url: "",
     });
+    setFormApellidosInput("");
     setError(null);
     setSuccessCodes(null);
     setMesaReservationId(null);
@@ -458,25 +483,31 @@ function CompraContent() {
       const { apellidoPaterno, apellidoMaterno } = splitLastName(person.last_name || "");
       const nombre = person.first_name || "";
       if (target === "ticket") {
-        setTicketForm((prev) => ({
-          ...prev,
-          nombre: prev.nombre || nombre,
-          apellido_paterno: prev.apellido_paterno || apellidoPaterno,
-          apellido_materno: prev.apellido_materno || apellidoMaterno,
-          email: prev.email || person.email || "",
-          phone: prev.phone || person.phone || "",
-        }));
+        const currentTicketForm = ticketFormRef.current;
+        const nextForm = {
+          ...currentTicketForm,
+          nombre: currentTicketForm.nombre || nombre,
+          apellido_paterno: currentTicketForm.apellido_paterno || apellidoPaterno,
+          apellido_materno: currentTicketForm.apellido_materno || apellidoMaterno,
+          email: currentTicketForm.email || person.email || "",
+          phone: currentTicketForm.phone || person.phone || "",
+        };
+        setTicketForm(nextForm);
+        setTicketApellidosInput(joinSurnameInput(nextForm.apellido_paterno, nextForm.apellido_materno));
       } else {
-        setForm((prev) => ({
-          ...prev,
-          doc_type: prev.doc_type || docType,
-          document: prev.document || document,
-          nombre: prev.nombre || nombre,
-          apellido_paterno: prev.apellido_paterno || apellidoPaterno,
-          apellido_materno: prev.apellido_materno || apellidoMaterno,
-          email: prev.email || person.email || "",
-          phone: prev.phone || person.phone || "",
-        }));
+        const currentForm = formRef.current;
+        const nextForm = {
+          ...currentForm,
+          doc_type: currentForm.doc_type || docType,
+          document: currentForm.document || document,
+          nombre: currentForm.nombre || nombre,
+          apellido_paterno: currentForm.apellido_paterno || apellidoPaterno,
+          apellido_materno: currentForm.apellido_materno || apellidoMaterno,
+          email: currentForm.email || person.email || "",
+          phone: currentForm.phone || person.phone || "",
+        };
+        setForm(nextForm);
+        setFormApellidosInput(joinSurnameInput(nextForm.apellido_paterno, nextForm.apellido_materno));
       }
     } catch (_err) {
       // ignore
@@ -514,27 +545,35 @@ function CompraContent() {
   // sincronia de datos entre solo entrada y reserva
   useEffect(() => {
     if (mode === "mesa") {
-      setForm((prev) => ({
-        ...prev,
-        doc_type: prev.doc_type || ticketForm.doc_type,
-        document: prev.document || ticketForm.document,
-        nombre: prev.nombre || ticketForm.nombre,
-        apellido_paterno: prev.apellido_paterno || ticketForm.apellido_paterno,
-        apellido_materno: prev.apellido_materno || ticketForm.apellido_materno,
-        email: prev.email || ticketForm.email,
-        phone: prev.phone || ticketForm.phone,
-      }));
+      const currentForm = formRef.current;
+      const currentTicketForm = ticketFormRef.current;
+      const nextForm = {
+        ...currentForm,
+        doc_type: currentForm.doc_type || currentTicketForm.doc_type,
+        document: currentForm.document || currentTicketForm.document,
+        nombre: currentForm.nombre || currentTicketForm.nombre,
+        apellido_paterno: currentForm.apellido_paterno || currentTicketForm.apellido_paterno,
+        apellido_materno: currentForm.apellido_materno || currentTicketForm.apellido_materno,
+        email: currentForm.email || currentTicketForm.email,
+        phone: currentForm.phone || currentTicketForm.phone,
+      };
+      setForm(nextForm);
+      setFormApellidosInput(joinSurnameInput(nextForm.apellido_paterno, nextForm.apellido_materno));
     } else if (mode === "ticket") {
-      setTicketForm((prev) => ({
-        ...prev,
-        doc_type: prev.doc_type || form.doc_type,
-        document: prev.document || form.document,
-        nombre: prev.nombre || form.nombre,
-        apellido_paterno: prev.apellido_paterno || form.apellido_paterno,
-        apellido_materno: prev.apellido_materno || form.apellido_materno,
-        email: prev.email || form.email,
-        phone: prev.phone || form.phone,
-      }));
+      const currentForm = formRef.current;
+      const currentTicketForm = ticketFormRef.current;
+      const nextTicketForm = {
+        ...currentTicketForm,
+        doc_type: currentTicketForm.doc_type || currentForm.doc_type,
+        document: currentTicketForm.document || currentForm.document,
+        nombre: currentTicketForm.nombre || currentForm.nombre,
+        apellido_paterno: currentTicketForm.apellido_paterno || currentForm.apellido_paterno,
+        apellido_materno: currentTicketForm.apellido_materno || currentForm.apellido_materno,
+        email: currentTicketForm.email || currentForm.email,
+        phone: currentTicketForm.phone || currentForm.phone,
+      };
+      setTicketForm(nextTicketForm);
+      setTicketApellidosInput(joinSurnameInput(nextTicketForm.apellido_paterno, nextTicketForm.apellido_materno));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
@@ -1045,24 +1084,25 @@ function CompraContent() {
                 allowClear
                 onClear={resetTicketForm}
               />
-              <Field
-                label="Nombres"
-                value={ticketForm.nombre}
-                onChange={(v) => setTicketForm((p) => ({ ...p, nombre: v }))}
-                required
-              />
+            <Field
+              label="Nombres"
+              value={ticketForm.nombre}
+              onChange={(v) => setTicketForm((p) => ({ ...p, nombre: v }))}
+              required
+            />
             </div>
             <Field
               label="Apellidos"
-              value={[ticketForm.apellido_paterno, ticketForm.apellido_materno].filter(Boolean).join(' ')}
+              value={ticketApellidosInput}
               onChange={(v) => {
-                const parts = v.trim().split(/\s+/);
+                const parts = splitSurnameInput(v);
+                setTicketApellidosInput(v);
                 setTicketForm((p) => ({
                   ...p,
-                  apellido_paterno: parts[0] || '',
-                  apellido_materno: parts.slice(1).join(' ') || '',
+                  ...parts,
                 }));
               }}
+              onBlur={() => setTicketApellidosInput(joinSurnameInput(ticketForm.apellido_paterno, ticketForm.apellido_materno))}
               placeholder="Apellido paterno y materno"
               required
             />
@@ -1086,16 +1126,20 @@ function CompraContent() {
             <button
               type="button"
               onClick={() => {
-                setForm((prev) => ({
-                  ...prev,
-                  doc_type: prev.doc_type || ticketForm.doc_type,
-                  document: prev.document || ticketForm.document,
-                  nombre: prev.nombre || ticketForm.nombre,
-                  apellido_paterno: prev.apellido_paterno || ticketForm.apellido_paterno,
-                  apellido_materno: prev.apellido_materno || ticketForm.apellido_materno,
-                  email: prev.email || ticketForm.email,
-                  phone: prev.phone || ticketForm.phone,
-                }));
+                const currentForm = formRef.current;
+                const currentTicketForm = ticketFormRef.current;
+                const nextForm = {
+                  ...currentForm,
+                  doc_type: currentForm.doc_type || currentTicketForm.doc_type,
+                  document: currentForm.document || currentTicketForm.document,
+                  nombre: currentForm.nombre || currentTicketForm.nombre,
+                  apellido_paterno: currentForm.apellido_paterno || currentTicketForm.apellido_paterno,
+                  apellido_materno: currentForm.apellido_materno || currentTicketForm.apellido_materno,
+                  email: currentForm.email || currentTicketForm.email,
+                  phone: currentForm.phone || currentTicketForm.phone,
+                };
+                setForm(nextForm);
+                setFormApellidosInput(joinSurnameInput(nextForm.apellido_paterno, nextForm.apellido_materno));
                 setMode("mesa");
               }}
               className="relative w-full overflow-hidden rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
@@ -1259,15 +1303,16 @@ function CompraContent() {
 
                 <Field
                   label="Apellidos (paterno y materno)"
-                  value={[form.apellido_paterno, form.apellido_materno].filter(Boolean).join(' ')}
+                  value={formApellidosInput}
                   onChange={(v) => {
-                    const parts = v.trim().split(/\s+/);
+                    const parts = splitSurnameInput(v);
+                    setFormApellidosInput(v);
                     setForm((p) => ({
                       ...p,
-                      apellido_paterno: parts[0] || '',
-                      apellido_materno: parts.slice(1).join(' ') || '',
+                      ...parts,
                     }));
                   }}
+                  onBlur={() => setFormApellidosInput(joinSurnameInput(form.apellido_paterno, form.apellido_materno))}
                   placeholder="Ej: García López"
                   required
                 />
@@ -1909,6 +1954,7 @@ function Field({
   error,
   allowClear = false,
   onClear,
+  onBlur,
 }: {
   label: string;
   value: string;
@@ -1923,6 +1969,7 @@ function Field({
   error?: string;
   allowClear?: boolean;
   onClear?: () => void;
+  onBlur?: () => void;
 }) {
   const showClear = allowClear && value.length > 0;
   return (
@@ -1942,6 +1989,7 @@ function Field({
           placeholder={placeholder}
           type={type}
           required={required}
+          onBlur={onBlur}
           inputMode={inputMode}
           maxLength={maxLength}
           className={`w-full rounded-xl border bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none ${
