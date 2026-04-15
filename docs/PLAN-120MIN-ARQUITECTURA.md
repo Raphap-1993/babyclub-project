@@ -98,6 +98,6 @@ Duracion: 120 minutos
    - Mitigacion: correlation_id + auditoria por accion critica
 
 ## Entregables minimos de hoy
-- `AGENTS.md` actualizado con core de negocio y roles
+- `README.md` y `docs/ARCHITECTURE_V2.md` actualizados con core de negocio y criterios operativos
 - `docs/AUDIT-2026-02.md` como linea base de auditoria
 - Este plan (`docs/PLAN-120MIN-ARQUITECTURA.md`) como guia de ejecucion inmediata

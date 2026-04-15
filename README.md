@@ -65,7 +65,7 @@ bash scripts/smoke-public-api.sh "https://babyclubaccess.com" "CODIGO_DE_PRUEBA"
 ```
 
 ## Documentacion de arquitectura
-- `AGENTS.md`
+- `docs/ARCHITECTURE_V2.md`
 - `docs/AUDIT-2026-02.md`
 - `docs/ARCHITECTURE_V2.md`
 - `docs/STRANGLER_PLAN.md`

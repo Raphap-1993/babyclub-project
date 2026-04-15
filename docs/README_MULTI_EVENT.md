@@ -297,7 +297,7 @@ Estas 3 decisiones definen todo:
 
 ## 🔗 Referencias
 
-- **Código**: `AGENTS.md` (framework de trabajo)
+- **Código**: `docs/ARCHITECTURE_V2.md` (framework de trabajo)
 - **Arquitectura actual**: `docs/ARCHITECTURE_V2.md`
 - **Plan de migración**: `docs/STRANGLER_PLAN.md`
 - **Migraciones BD**: `supabase/migrations/`
@@ -307,4 +307,3 @@ Estas 3 decisiones definen todo:
 **Última actualización**: 2026-02-08  
 **Autor**: Análisis Técnico (GitHub Copilot CLI + Equipo)  
 **Estado**: Listo para revisión con PM + Arquitecto
-

@@ -318,7 +318,7 @@ async function getTables(orgId: string, eventId: string) {
 2. **El negocio ya lo requiere** - Colorimetría, BabyClub, etc.
 3. **Evita deuda técnica** - Mejor hacerlo bien ahora
 4. **Mejor UX** - Contexto claro para admins
-5. **Alineado con AGENTS.md** - "Multi-marca/multi-organizador en la misma plataforma"
+5. **Alineado con la documentacion tecnica del proyecto** - "Multi-marca/multi-organizador en la misma plataforma"
 
 ### Plan de Ejecución (Strangler Pattern)
 

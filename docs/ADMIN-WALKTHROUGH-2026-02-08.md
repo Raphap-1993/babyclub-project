@@ -361,7 +361,7 @@ Después del evento:
 
 - **Docs técnicas**: `MIGRACION-EXITOSA-2026-02-08.md`
 - **ADR arquitectura**: `docs/adr/2026-02-08-006-multi-organizer-layout.md`
-- **Esquema BD**: Ver `AGENTS.md` → "Decisiones operativas"
+- **Esquema BD**: Ver la documentacion tecnica del proyecto → "Decisiones operativas"
 
 ---
 
