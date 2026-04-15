@@ -24,7 +24,7 @@ El proyecto es y continuará siendo **single-tenant, single-organizer por deploy
 ## Consecuencias
 
 - No se implementará multi-tenancy en este ciclo.
-- La documentación se actualiza para reflejar esta realidad (CLAUDE.md, docs/MULTI-EVENT-SYSTEM.md, docs/SAAS-READINESS-2026-03.md).
+- La documentación se actualiza para reflejar esta realidad (README.md, docs/MULTI-EVENT-SYSTEM.md, docs/SAAS-READINESS-2026-03.md).
 - Los documentos que usan lenguaje "multi-organizer" se marcan con nota histórica.
 - Si en el futuro se necesita multi-tenant verdadero, se requerirá:
   - Tabla `organizer_memberships` (staff ↔ organizer scoping)
@@ -35,7 +35,7 @@ El proyecto es y continuará siendo **single-tenant, single-organizer por deploy
 
 ## Archivos afectados
 
-- `CLAUDE.md`
+- `README.md`
 - `docs/MULTI-EVENT-SYSTEM.md`
 - `docs/SAAS-READINESS-2026-03.md`
 - `docs/MULTI-ORGANIZER-LAYOUT-2026-02-08.md` (nota histórica)
