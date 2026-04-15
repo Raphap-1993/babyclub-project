@@ -168,7 +168,7 @@ Está repetido en:
 2. `/ticket/[id]` - ❌ NUEVO BUG (reservas vigentes)
 3. Probablemente otros endpoints
 
-## Lección para el equipo (AGENTS.md)
+## Lección para el equipo
 
 **Regla**: En multi-evento, SIEMPRE filtrar por `event_id` cuando busques datos de usuario.
 

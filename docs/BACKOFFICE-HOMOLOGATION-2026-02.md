@@ -279,7 +279,7 @@ A: Prop `expandedContent` permite contenido personalizado:
 Ver documentación en:
 - `docs/ARCHITECTURE_V2.md` - Contexto general
 - `docs/STRANGLER_PLAN.md` - Roadmap de migración
-- `AGENTS.md` - Principios del equipo
+- `docs/ARCHITECTURE_V2.md` - Principios del equipo
 
 ---
 **Documento vivo.** Última actualización: 8 feb 2026

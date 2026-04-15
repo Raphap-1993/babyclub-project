@@ -528,7 +528,7 @@ DROP INDEX IF EXISTS codes_one_active_general_per_event;
 - [BUG-2026-02-08-EVENT-CODE-ARCHITECTURE.md](./BUG-2026-02-08-EVENT-CODE-ARCHITECTURE.md)
 - [CODES-SYSTEM-REDESIGN-2026-02.md](./CODES-SYSTEM-REDESIGN-2026-02.md)
 - [DB-GOVERNANCE-2026-02.md](./DB-GOVERNANCE-2026-02.md)
-- [AGENTS.md](../AGENTS.md) - Sección "Principios de trabajo"
+- [docs/ARCHITECTURE_V2.md](./ARCHITECTURE_V2.md) - Sección "Principios de trabajo"
 
 ---
 

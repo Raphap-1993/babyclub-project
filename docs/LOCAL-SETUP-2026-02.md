@@ -60,7 +60,7 @@ CODE=ABC123 pnpm smoke:local
 5. Runbook de release/rollback para evento
 
 ## 6) Referencias del repo
-- `AGENTS.md`
+- `docs/ARCHITECTURE_V2.md`
 - `docs/AUDIT-2026-02.md`
 - `docs/EVENT-LAUNCH-CHECKLIST-2026-02.md`
 - `docs/RBAC-MATRIX-2026-02.md`

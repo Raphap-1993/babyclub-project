@@ -539,7 +539,7 @@ CREATE TABLE public.codes (
 ### B. Referencias cruzadas
 
 - Ver: `docs/BUG-2026-02-08-EVENT-CODE-ARCHITECTURE.md` (problema original detectado)
-- Ver: `AGENTS.md` (marco de trabajo y roles)
+- Ver: `docs/ARCHITECTURE_V2.md` (marco de arquitectura y decisiones)
 - Ver: `docs/STRANGLER_PLAN.md` (estrategia de migración V1→V2)
 - Ver: `supabase/migrations/2025-02-11-add-code-batches.sql` (función generate_codes_batch)
 

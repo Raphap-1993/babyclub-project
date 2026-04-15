@@ -40,7 +40,7 @@ Conclusiones del snapshot:
 - El evento excedio el aforo real en ingresos confirmados: `130 > 119`.
 - La cifra de scans validos no representa personas que ingresaron: `385` logs validos se explican por `255` pre-checks + `130` confirmaciones.
 
-## Semaforo por checklist del AGENTS
+## Semaforo por checklist tecnico
 | Area | Estado | Evidencia | Comentario |
 |---|---|---|---|
 | 1) Dominio y limites de modulos | Rojo | `apps/landing/app/api/tickets/route.ts:259`, `apps/landing/app/api/reservations/route.ts:213`, `apps/backoffice/app/api/admin/reservations/route.ts:293`, `apps/backoffice/app/api/scan/route.ts:224` | La logica de cupo/admision esta fragmentada entre `codes`, `tickets`, `table_reservations` y `scan_logs`. |
@@ -166,7 +166,7 @@ Conclusiones del snapshot:
   - `scripts/run-migration.mjs:11`
 - Impacto:
   - Riesgo operativo inmediato.
-  - Incumple el principio del AGENTS: “Secretos gestionados por ambiente, nunca en repo”.
+  - Incumple el principio de documentacion tecnica: “Secretos gestionados por ambiente, nunca en repo”.
 
 ## Top 5 riesgos actuales
 | Riesgo | Severidad | Owner sugerido | Fecha objetivo |

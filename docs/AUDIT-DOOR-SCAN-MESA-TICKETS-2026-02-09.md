@@ -235,7 +235,7 @@ Cuando se escanea un QR válido:
 </div>
 ```
 
-**SLA Objetivo**: ≤ 2 segundos (confirmado en `docs/AGENTS.md`)
+**SLA Objetivo**: ≤ 2 segundos (confirmado en la documentacion tecnica del proyecto)
 
 ---
 
@@ -414,7 +414,7 @@ El sistema actual está **LISTO PARA PRODUCCIÓN** en el módulo de escaneo de p
 
 ## 📚 Documentos Relacionados
 
-- [AGENTS.md](../AGENTS.md) - Reglas de negocio y SLA
+- [docs/ARCHITECTURE_V2.md](./ARCHITECTURE_V2.md) - Reglas de negocio y SLA
 - [AUDIT-RESERVATIONS-EMAILS-2026-02-09.md](./AUDIT-RESERVATIONS-EMAILS-2026-02-09.md) - Auditoría de correos
 - [CHANGELOG-2026-02-09-api-peru-optimization.md](./CHANGELOG-2026-02-09-api-peru-optimization.md) - Optimizaciones de performance
 - [FLUJO-RESERVAS-END-TO-END-2026-02.md](./FLUJO-RESERVAS-END-TO-END-2026-02.md) - Flujo completo de reservas
