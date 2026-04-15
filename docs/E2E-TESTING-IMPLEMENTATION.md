@@ -2,7 +2,7 @@
 
 ## 📝 Resumen Ejecutivo
 
-Se ha implementado una suite completa de pruebas end-to-end (E2E) para la landing de BabyClub siguiendo las mejores prácticas de la industria y alineado con los principios definidos en `AGENTS.md`.
+Se ha implementado una suite completa de pruebas end-to-end (E2E) para la landing de BabyClub siguiendo las mejores prácticas de la industria y alineado con la documentacion tecnica del proyecto.
 
 ### ✅ Entregables
 
@@ -264,7 +264,7 @@ pnpm test:e2e -g "debe generar QR con DNI válido"
 
 ### Definition of Done (DoD)
 
-Según `AGENTS.md`, una historia se considera terminada cuando:
+Segun la documentacion tecnica del proyecto, una historia se considera terminada cuando:
 
 - ✅ Tests E2E pasan para el flujo modificado
 - ✅ No se rompen tests existentes
@@ -284,7 +284,7 @@ pnpm test:e2e
 pnpm test:e2e:report
 ```
 
-### Roles (según AGENTS.md)
+### Roles de trabajo
 
 - **Developers**: Escriben tests junto con features
 - **QA**: Define estrategia, revisa cobertura, ejecuta regresión

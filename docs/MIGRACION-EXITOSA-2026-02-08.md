@@ -208,7 +208,7 @@ ALTER TABLE public.tables DROP COLUMN IF EXISTS organizer_id;
 
 - **ADR**: `docs/adr/2026-02-08-006-multi-organizer-layout.md`
 - **Architecture**: `docs/ARCHITECTURE_V2.md`
-- **AGENTS**: `AGENTS.md` (roles y responsabilidades)
+- **Documentacion tecnica**: `docs/ARCHITECTURE_V2.md` (roles y responsabilidades)
 
 ---
 

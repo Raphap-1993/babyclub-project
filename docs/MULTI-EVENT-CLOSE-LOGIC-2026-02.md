@@ -104,7 +104,7 @@ También necesita validar que el evento está activo ANTES de permitir crear un 
 - deleted_at (timestamptz)
 ```
 
-## Reglas de negocio confirmadas (AGENTS.md + ARCHITECTURE_V2.md)
+## Reglas de negocio confirmadas (documentacion tecnica + ARCHITECTURE_V2.md)
 
 ### Multi-evento
 - Un usuario PUEDE tener múltiples tickets en eventos diferentes

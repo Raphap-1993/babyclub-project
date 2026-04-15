@@ -246,7 +246,7 @@ Si algo falla en Cutover:
 
 ### Documentación a Actualizar
 - [ ] README.md (feature multi-evento)
-- [ ] AGENTS.md (si es cambio de arquitectura)
+- [ ] docs/ARCHITECTURE_V2.md (si es cambio de arquitectura)
 - [ ] ADR (Architecture Decision Record)
 - [ ] Runbooks operativos
 - [ ] Tests documentation
@@ -313,4 +313,3 @@ Consecuencias:
 - Referencia: `MESAS_LAYOUT_REFERENCE.md` (cómo funciona hoy)
 - Código: `/apps/backoffice/app/admin/tables/layout/LayoutEditor.tsx`
 - API: `/apps/backoffice/app/api/layout`, `/api/tables`
-

@@ -1,6 +1,6 @@
 # Resumen Completo: Bugs Multi-Evento (2026-02-08)
 
-## Análisis realizado siguiendo AGENTS.md
+## Análisis realizado siguiendo la documentacion tecnica del proyecto
 
 En esta sesión se identificaron y corrigieron **2 bugs críticos en el flujo multi-evento** que afectaban la experiencia de usuario cuando se cierran eventos.
 
@@ -253,7 +253,7 @@ create index idx_table_reservations_event_contact
 
 ---
 
-## Seguimiento de AGENTS.md
+## Seguimiento de la documentacion tecnica del proyecto
 
 ✅ **Definition of Done cumplido**:
 - ✅ Cambios pequeños, reversibles y medibles
