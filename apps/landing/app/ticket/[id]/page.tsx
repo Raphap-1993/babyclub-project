@@ -7,6 +7,7 @@ import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { getEntryCutoffDisplay } from "shared/entryLimit";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { isReservationOwner } from "./reservationOwnership";
+import { LegalFooterLinks } from "../../legal/LegalFooterLinks";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -29,8 +30,16 @@ type TicketView = {
     promoter_id?: string | null;
     table_reservation_id?: string | null;
   };
-  event: { name: string; location: string | null; starts_at: string; entry_limit?: string | null };
-  promoter?: { code: string | null; person?: { first_name: string; last_name: string } | null } | null;
+  event: {
+    name: string;
+    location: string | null;
+    starts_at: string;
+    entry_limit?: string | null;
+  };
+  promoter?: {
+    code: string | null;
+    person?: { first_name: string; last_name: string } | null;
+  } | null;
   reservation_codes?: string[] | null;
   table_name?: string | null;
   product_name?: string | null;
@@ -46,16 +55,22 @@ async function getTicket(id: string): Promise<TicketView | null> {
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,event_id,table_reservation_id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,location,starts_at,entry_limit),promoter:promoters(code,person:persons(first_name,last_name))"
+      "id,event_id,table_reservation_id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,location,starts_at,entry_limit),promoter:promoters(code,person:persons(first_name,last_name))",
     )
     .eq("id", id)
     .maybeSingle();
 
   if (error || !data) return null;
 
-  const codeRel = Array.isArray((data as any).code) ? (data as any).code?.[0] : (data as any).code;
-  const eventRel = Array.isArray((data as any).event) ? (data as any).event?.[0] : (data as any).event;
-  const promoterRel = Array.isArray((data as any).promoter) ? (data as any).promoter?.[0] : (data as any).promoter;
+  const codeRel = Array.isArray((data as any).code)
+    ? (data as any).code?.[0]
+    : (data as any).code;
+  const eventRel = Array.isArray((data as any).event)
+    ? (data as any).event?.[0]
+    : (data as any).event;
+  const promoterRel = Array.isArray((data as any).promoter)
+    ? (data as any).promoter?.[0]
+    : (data as any).promoter;
   const promoterPerson = promoterRel?.person
     ? Array.isArray(promoterRel.person)
       ? promoterRel.person[0]
@@ -65,10 +80,15 @@ async function getTicket(id: string): Promise<TicketView | null> {
   const normalized: TicketView = {
     id: data.id as string,
     event_id: (data as any).event_id ?? null,
-    table_reservation_id: (data as any).table_reservation_id ?? codeRel?.table_reservation_id ?? null,
+    table_reservation_id:
+      (data as any).table_reservation_id ??
+      codeRel?.table_reservation_id ??
+      null,
     qr_token: data.qr_token as string,
     full_name: (data as any).full_name ?? null,
-    doc_type: (data as any).doc_type ?? ((data as any).document || (data as any).dni ? "dni" : null),
+    doc_type:
+      (data as any).doc_type ??
+      ((data as any).document || (data as any).dni ? "dni" : null),
     document: (data as any).document ?? (data as any).dni ?? null,
     dni: (data as any).dni ?? null,
     email: (data as any).email ?? null,
@@ -78,7 +98,10 @@ async function getTicket(id: string): Promise<TicketView | null> {
       type: codeRel?.type ?? null,
       expires_at: codeRel?.expires_at ?? null,
       promoter_id: codeRel?.promoter_id ?? null,
-      table_reservation_id: (data as any).table_reservation_id ?? codeRel?.table_reservation_id ?? null,
+      table_reservation_id:
+        (data as any).table_reservation_id ??
+        codeRel?.table_reservation_id ??
+        null,
     },
     event: {
       name: eventRel?.name ?? "",
@@ -90,7 +113,10 @@ async function getTicket(id: string): Promise<TicketView | null> {
       ? {
           code: promoterRel?.code ?? null,
           person: promoterPerson
-            ? { first_name: promoterPerson.first_name ?? "", last_name: promoterPerson.last_name ?? "" }
+            ? {
+                first_name: promoterPerson.first_name ?? "",
+                last_name: promoterPerson.last_name ?? "",
+              }
             : null,
         }
       : null,
@@ -104,18 +130,20 @@ async function getTicket(id: string): Promise<TicketView | null> {
   // Verificar si existe tabla/producto directamente en el ticket (para tickets de reserva)
   const { data: ticketReservation } = await supabase
     .from("tickets")
-    .select("table_id,product_id,table:tables(name),product:table_products(name,items)")
+    .select(
+      "table_id,product_id,table:tables(name),product:table_products(name,items)",
+    )
     .eq("id", id)
     .maybeSingle();
 
   if (ticketReservation) {
-    const tableRel = Array.isArray(ticketReservation.table) 
-      ? ticketReservation.table[0] 
+    const tableRel = Array.isArray(ticketReservation.table)
+      ? ticketReservation.table[0]
       : (ticketReservation as any).table;
-    const prodRel = Array.isArray(ticketReservation.product) 
-      ? ticketReservation.product[0] 
+    const prodRel = Array.isArray(ticketReservation.product)
+      ? ticketReservation.product[0]
       : (ticketReservation as any).product;
-    
+
     if (tableRel || prodRel) {
       normalized.table_name = tableRel?.name || null;
       normalized.product_name = prodRel?.name || null;
@@ -131,7 +159,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
         .from("table_reservations")
         .select("codes,table:tables(name),product:table_products(name,items)")
         .eq("id", normalized.table_reservation_id)
-        .limit(1)
+        .limit(1),
     );
     const { data: reservationRow } = await reservationQuery.maybeSingle();
     if (reservationRow) {
@@ -146,12 +174,19 @@ async function getTicket(id: string): Promise<TicketView | null> {
           ? (reservationRow as any).product[0]
           : (reservationRow as any).product;
         normalized.product_name = productRel?.name || null;
-        normalized.product_items = Array.isArray(productRel?.items) ? productRel.items : null;
+        normalized.product_items = Array.isArray(productRel?.items)
+          ? productRel.items
+          : null;
       }
       const codesFromReservation = Array.isArray((reservationRow as any).codes)
-        ? ((reservationRow as any).codes as any[]).map((value) => String(value || "").trim()).filter(Boolean)
+        ? ((reservationRow as any).codes as any[])
+            .map((value) => String(value || "").trim())
+            .filter(Boolean)
         : [];
-      if (!normalized.reservation_codes || normalized.reservation_codes.length === 0) {
+      if (
+        !normalized.reservation_codes ||
+        normalized.reservation_codes.length === 0
+      ) {
         normalized.reservation_codes = codesFromReservation;
       }
     }
@@ -173,7 +208,7 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
       .from("table_reservations")
       .select("codes,status,full_name,email,phone,document")
       .eq("id", ticket.table_reservation_id)
-      .limit(1)
+      .limit(1),
   );
   const { data: reservationById } = await reservationByIdQuery.maybeSingle();
   const status = String((reservationById as any)?.status || "").toLowerCase();
@@ -184,28 +219,46 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
     Array.isArray((reservationById as any).codes) &&
     isReservationOwner(ticket, reservationById as any)
   ) {
-    return ((reservationById as any).codes as any[]).map((code) => String(code || "").trim()).filter(Boolean);
+    return ((reservationById as any).codes as any[])
+      .map((code) => String(code || "").trim())
+      .filter(Boolean);
   }
   return [];
 }
 
 export const dynamic = "force-dynamic";
 
-export default async function TicketPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TicketPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const ticket = await getTicket(id);
   if (!ticket) return notFound();
 
-  const promoterName =
-    ticket.promoter?.person ? `${ticket.promoter.person.first_name} ${ticket.promoter.person.last_name}`.trim() : null;
+  const promoterName = ticket.promoter?.person
+    ? `${ticket.promoter.person.first_name} ${ticket.promoter.person.last_name}`.trim()
+    : null;
   const extraCodes = await getReservationCodesFor(ticket);
   const codeType = (ticket.code.type || "").toLowerCase();
-  const isPromoterCode = Boolean(ticket.code.promoter_id || ticket.promoter?.code);
-  const hasTableContext = Boolean(ticket.table_name || ticket.product_name || ticket.table_reservation_id);
+  const isPromoterCode = Boolean(
+    ticket.code.promoter_id || ticket.promoter?.code,
+  );
+  const hasTableContext = Boolean(
+    ticket.table_name || ticket.product_name || ticket.table_reservation_id,
+  );
   const showAdditionalInfo = codeType === "general" || codeType === "free";
-  const expiresAt = ticket.code.expires_at ? new Date(ticket.code.expires_at) : null;
-  const expiresLabel = expiresAt ? formatLimaFromDb(expiresAt.toISOString()) : null;
-  const entryCutoff = getEntryCutoffDisplay(ticket.event.starts_at, ticket.event.entry_limit);
+  const expiresAt = ticket.code.expires_at
+    ? new Date(ticket.code.expires_at)
+    : null;
+  const expiresLabel = expiresAt
+    ? formatLimaFromDb(expiresAt.toISOString())
+    : null;
+  const entryCutoff = getEntryCutoffDisplay(
+    ticket.event.starts_at,
+    ticket.event.entry_limit,
+  );
   const entryLimitLabel = entryCutoff
     ? entryCutoff.isNextDay
       ? `${entryCutoff.timeLabel} (${entryCutoff.dateLabel})`
@@ -231,7 +284,9 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
       <div className="w-full max-w-xl space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">BABY</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+              BABY
+            </p>
             <h1 className="text-3xl font-semibold">Entrada generada</h1>
           </div>
           <div className="flex items-center gap-3">
@@ -259,6 +314,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
         </div>
 
         <EmailSender ticketId={ticket.id} defaultEmail={ticket.email} />
+        <LegalFooterLinks className="pb-2" compact />
       </div>
     </main>
   );
@@ -284,8 +340,15 @@ function VerticalTicket({
 }) {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(ticket.qr_token)}`;
   const docValue = ticket.document || ticket.dni || "—";
-  const docTypeLabel = (ticket.doc_type || (ticket.dni ? "dni" : "")).toUpperCase();
-  const documentLabel = docValue === "—" ? "—" : docTypeLabel ? `${docTypeLabel} · ${docValue}` : docValue;
+  const docTypeLabel = (
+    ticket.doc_type || (ticket.dni ? "dni" : "")
+  ).toUpperCase();
+  const documentLabel =
+    docValue === "—"
+      ? "—"
+      : docTypeLabel
+        ? `${docTypeLabel} · ${docValue}`
+        : docValue;
 
   return (
     <div className="relative overflow-hidden rounded-[36px] border border-white/30 bg-[#0c0c0c] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.5)]">
@@ -314,8 +377,12 @@ function VerticalTicket({
                 key={warn.title}
                 className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-50"
               >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">{warn.title}</p>
-                <p className="text-xs leading-relaxed text-amber-50/90">{warn.body}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+                  {warn.title}
+                </p>
+                <p className="text-xs leading-relaxed text-amber-50/90">
+                  {warn.body}
+                </p>
               </div>
             ))}
           </div>
@@ -326,7 +393,9 @@ function VerticalTicket({
         <div className="rounded-2xl border border-white/20 bg-[#0a0a0a] p-4">
           <p className="text-sm font-semibold text-white/70">Evento</p>
           <h2 className="text-2xl font-bold">{ticket.event.name}</h2>
-          <p className="text-sm text-white/60">{ticket.event.location || "Por definir"}</p>
+          <p className="text-sm text-white/60">
+            {ticket.event.location || "Por definir"}
+          </p>
           <p className="text-sm text-white/60">{eventDateTime}</p>
         </div>
 
@@ -336,12 +405,18 @@ function VerticalTicket({
           <Info label="Email" value={ticket.email || "—"} />
           <Info label="Teléfono" value={ticket.phone || "—"} />
           <Info label="Promotor" value={promoterName || "Sin promotor"} />
-          {!ticket.table_name && ticket.table_reservation_id && <Info label="Origen" value="Reserva de mesa" />}
+          {!ticket.table_name && ticket.table_reservation_id && (
+            <Info label="Origen" value="Reserva de mesa" />
+          )}
           {ticket.table_name && <Info label="Mesa" value={ticket.table_name} />}
           {ticket.product_name && (
             <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0a0a0a] p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Pack</p>
-              <p className="text-sm font-semibold text-white">{ticket.product_name}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">
+                Pack
+              </p>
+              <p className="text-sm font-semibold text-white">
+                {ticket.product_name}
+              </p>
               {ticket.product_items && ticket.product_items.length > 0 && (
                 <ul className="mt-2 space-y-1 text-xs text-white/70 list-disc pl-4">
                   {ticket.product_items.map((item) => (
@@ -353,10 +428,15 @@ function VerticalTicket({
           )}
           {extraCodes && extraCodes.length > 0 && (
             <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0a0a0a] p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Códigos de mesa</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">
+                Códigos de mesa
+              </p>
               <div className="space-y-1 mt-2">
                 {extraCodes.map((c) => (
-                  <div key={c} className="rounded-xl bg-black/30 px-3 py-2 font-mono text-xs text-white">
+                  <div
+                    key={c}
+                    className="rounded-xl bg-black/30 px-3 py-2 font-mono text-xs text-white"
+                  >
                     {c}
                   </div>
                 ))}
@@ -372,7 +452,9 @@ function VerticalTicket({
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">
+        {label}
+      </p>
       <p className="text-sm font-semibold text-white break-words">{value}</p>
     </div>
   );
@@ -387,7 +469,9 @@ function AdditionalInfo() {
 
   return (
     <div className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/50">Info</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/50">
+        Info
+      </p>
       <div className="mt-2 space-y-1 text-xs text-white/80">
         {lines.map((line) => (
           <p key={line} className="leading-relaxed">

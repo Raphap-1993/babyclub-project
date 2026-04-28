@@ -7,6 +7,11 @@ import { createSupabaseFetchWithTimeout, sanitizeSupabaseErrorMessage, withSupab
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ACTIVE_RESERVATION_STATUSES = new Set(["pending", "approved", "confirmed", "paid"]);
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
+function isPlaceholderOrganizerId(value?: string | null) {
+  return !value || value === ZERO_UUID;
+}
 
 function isMissingLayoutColumns(message?: string | null) {
   const text = (message || "").toLowerCase();
@@ -30,8 +35,32 @@ export async function GET(req: NextRequest) {
   });
 
   const searchParams = req.nextUrl.searchParams;
-  const organizerId = searchParams.get("organizer_id") || process.env.NEXT_PUBLIC_ORGANIZER_ID;
-  const eventId = searchParams.get("event_id");
+  const eventId = searchParams.get("event_id")?.trim() || "";
+  const explicitOrganizerId = searchParams.get("organizer_id")?.trim() || "";
+  const configuredOrganizerId = process.env.NEXT_PUBLIC_ORGANIZER_ID?.trim() || "";
+  let organizerId = explicitOrganizerId || configuredOrganizerId;
+
+  if (eventId && isPlaceholderOrganizerId(organizerId)) {
+    const eventOrganizerQuery = applyNotDeleted(
+      supabase.from("events").select("organizer_id").eq("id", eventId).limit(1)
+    );
+    const { data: eventOrganizer } = await eventOrganizerQuery.maybeSingle();
+    organizerId = eventOrganizer?.organizer_id || organizerId;
+  }
+
+  if (isPlaceholderOrganizerId(organizerId)) {
+    const organizerQuery = applyNotDeleted(
+      supabase
+        .from("organizers")
+        .select("id")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true })
+        .limit(1)
+    );
+    const { data: fallbackOrganizer } = await organizerQuery.maybeSingle();
+    organizerId = fallbackOrganizer?.id || "";
+  }
 
   const withOrganizerFilter = (query: any) => {
     if (!organizerId) return query;

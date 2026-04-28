@@ -1,9 +1,21 @@
 #!/bin/bash
 # Script para ejecutar migración usando la API de Supabase
 
-SUPABASE_URL="https://wtwnhqbbcocpnqqsybln.supabase.co"
-SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0d25ocWJiY29jcG5xcXN5YmxuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzgyNzI0OSwiZXhwIjoyMDc5NDAzMjQ5fQ.cTRQr0H56DEsEu4YsTPDf5PyzPcLiXlZxt5OBDJ0cKg"
+set -euo pipefail
+
+SUPABASE_URL="${SUPABASE_URL:-}"
+SERVICE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
 SQL_FILE="supabase/migrations/2026-02-08-table-availability-parallel.sql"
+
+if [[ -z "$SUPABASE_URL" || -z "$SERVICE_KEY" ]]; then
+  echo "❌ Faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY en el entorno"
+  exit 1
+fi
+
+if [[ "${ALLOW_REMOTE_DB:-false}" != "true" && "$SUPABASE_URL" != http://127.0.0.1:* && "$SUPABASE_URL" != http://localhost:* ]]; then
+  echo "❌ Seguridad: este script no ejecuta SQL contra un Supabase remoto salvo que ALLOW_REMOTE_DB=true"
+  exit 1
+fi
 
 echo "🚀 Ejecutando migración: $SQL_FILE"
 echo ""

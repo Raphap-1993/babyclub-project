@@ -1,26 +1,42 @@
 /**
  * Ejecutar migración table_availability
- * 
+ *
  * Este script crea la tabla table_availability y configura triggers
  * sin eliminar event_id de la tabla tables (implementación gradual)
  */
 
-import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
-import path from 'path';
+import { createClient } from "@supabase/supabase-js";
+import fs from "fs";
+import path from "path";
 
-const SUPABASE_URL = 'https://wtwnhqbbcocpnqqsybln.supabase.co';
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0d25ocWJiY29jcG5xcXN5YmxuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzgyNzI0OSwiZXhwIjoyMDc5NDAzMjQ5fQ.cTRQr0H56DEsEu4YsTPDf5PyzPcLiXlZxt5OBDJ0cKg';
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+if (!SUPABASE_URL || !SERVICE_KEY) {
+  console.error("❌ Faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY");
+  process.exit(1);
+}
+
+if (
+  process.env.ALLOW_REMOTE_DB !== "true" &&
+  !SUPABASE_URL.startsWith("http://127.0.0.1:") &&
+  !SUPABASE_URL.startsWith("http://localhost:")
+) {
+  console.error(
+    "❌ Seguridad: este script no ejecuta SQL contra un Supabase remoto salvo que ALLOW_REMOTE_DB=true",
+  );
+  process.exit(1);
+}
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
 async function runMigration() {
-  console.log('🚀 Iniciando migración table_availability...\n');
-  
+  console.log("🚀 Iniciando migración table_availability...\n");
+
   try {
     // Paso 1: Crear tabla
-    console.log('1️⃣ Creando tabla table_availability...');
-    const { error: createError } = await supabase.rpc('exec', {
+    console.log("1️⃣ Creando tabla table_availability...");
+    const { error: createError } = await supabase.rpc("exec", {
       sql: `
         CREATE TABLE IF NOT EXISTS table_availability (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -35,29 +51,29 @@ async function runMigration() {
           deleted_at TIMESTAMPTZ,
           CONSTRAINT unique_table_event UNIQUE(table_id, event_id)
         );
-      `
+      `,
     });
-    
+
     if (createError) {
-      console.log('ℹ️ Tabla ya existe o error:', createError.message);
+      console.log("ℹ️ Tabla ya existe o error:", createError.message);
     } else {
-      console.log('✅ Tabla creada');
+      console.log("✅ Tabla creada");
     }
-    
+
     // Paso 2: Crear índices
-    console.log('\n2️⃣ Creando índices...');
-    await supabase.rpc('exec', {
+    console.log("\n2️⃣ Creando índices...");
+    await supabase.rpc("exec", {
       sql: `
         CREATE INDEX IF NOT EXISTS idx_table_availability_table_id ON table_availability(table_id) WHERE deleted_at IS NULL;
         CREATE INDEX IF NOT EXISTS idx_table_availability_event_id ON table_availability(event_id) WHERE deleted_at IS NULL;
         CREATE INDEX IF NOT EXISTS idx_table_availability_deleted ON table_availability(deleted_at);
-      `
+      `,
     });
-    console.log('✅ Índices creados');
-    
+    console.log("✅ Índices creados");
+
     // Paso 3: Migrar datos existentes
-    console.log('\n3️⃣ Migrando datos existentes...');
-    const { data: migrated } = await supabase.rpc('exec', {
+    console.log("\n3️⃣ Migrando datos existentes...");
+    const { data: migrated } = await supabase.rpc("exec", {
       sql: `
         INSERT INTO table_availability (table_id, event_id, is_available, created_at, updated_at)
         SELECT 
@@ -75,25 +91,24 @@ async function runMigration() {
             AND ta.event_id = tables.event_id
           )
         RETURNING table_id;
-      `
+      `,
     });
-    console.log('✅ Datos migrados');
-    
+    console.log("✅ Datos migrados");
+
     // Paso 4: Verificar
-    console.log('\n4️⃣ Verificando migración...');
+    console.log("\n4️⃣ Verificando migración...");
     const { data: count } = await supabase
-      .from('table_availability')
-      .select('*', { count: 'exact', head: true });
+      .from("table_availability")
+      .select("*", { count: "exact", head: true });
     console.log(`✅ Registros en table_availability: ${count}`);
-    
-    console.log('\n🎉 Migración completada exitosamente!');
-    console.log('\n📝 Próximos pasos:');
-    console.log('   1. Crear APIs para gestionar disponibilidad por evento');
-    console.log('   2. Crear pantalla de configuración');
-    console.log('   3. Actualizar queries de reservas');
-    
+
+    console.log("\n🎉 Migración completada exitosamente!");
+    console.log("\n📝 Próximos pasos:");
+    console.log("   1. Crear APIs para gestionar disponibilidad por evento");
+    console.log("   2. Crear pantalla de configuración");
+    console.log("   3. Actualizar queries de reservas");
   } catch (error) {
-    console.error('\n❌ Error:', error);
+    console.error("\n❌ Error:", error);
     process.exit(1);
   }
 }

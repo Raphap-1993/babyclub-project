@@ -2,8 +2,13 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LegalFooterLinks } from "./legal/LegalFooterLinks";
 
-export default function AccessCodeClient({ initialLogoUrl }: { initialLogoUrl: string | null }) {
+export default function AccessCodeClient({
+  initialLogoUrl,
+}: {
+  initialLogoUrl: string | null;
+}) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +26,15 @@ export default function AccessCodeClient({ initialLogoUrl }: { initialLogoUrl: s
     const value = code.trim();
     setLoading(true);
     try {
-      const res = await fetch(`/api/manifiesto?code=${encodeURIComponent(value)}`, { method: "GET" });
+      const res = await fetch(
+        `/api/manifiesto?code=${encodeURIComponent(value)}`,
+        { method: "GET" },
+      );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        const errorMsg = data?.error ||
-            "Tu código intenta seducir al sistema… pero no logra abrirle las puertas.";
+        const errorMsg =
+          data?.error ||
+          "Tu código intenta seducir al sistema… pero no logra abrirle las puertas.";
         setErrorMessage(errorMsg);
         setShowErrorModal(true);
         return;
@@ -77,19 +86,24 @@ export default function AccessCodeClient({ initialLogoUrl }: { initialLogoUrl: s
           >
             {loading ? "Validando..." : "Entrar"}
           </button>
-          {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
+          {error && (
+            <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>
+          )}
         </form>
 
         <div className="text-center text-sm text-white/70">
           ¿Sin código?{" "}
-          <a href="/compra" className="font-semibold text-[#e91e63] underline-offset-4 hover:underline">
+          <a
+            href="/compra"
+            className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+          >
             Comprar Entrada
           </a>
         </div>
       </div>
 
-      <footer className="pointer-events-none absolute bottom-6 text-xs font-semibold tracking-wide text-white/30">
-        © 2025 BABYCLUB
+      <footer className="absolute bottom-6 max-w-[min(92vw,720px)] px-4">
+        <LegalFooterLinks />
       </footer>
 
       {showErrorModal && (
@@ -97,11 +111,23 @@ export default function AccessCodeClient({ initialLogoUrl }: { initialLogoUrl: s
           <div className="w-full max-w-md space-y-4 rounded-3xl border border-[#e91e63]/20 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(233,30,99,0.3)]">
             <div className="space-y-2 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#e91e63]/10 border border-[#e91e63]/30">
-                <svg className="h-7 w-7 text-[#e91e63]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <svg
+                  className="h-7 w-7 text-[#e91e63]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-white">Código inválido</h3>
+              <h3 className="text-xl font-semibold text-white">
+                Código inválido
+              </h3>
               <p className="text-sm leading-relaxed text-[#ff9a9a]">
                 {errorMessage}
               </p>

@@ -20,7 +20,12 @@ describe("POST /api/scan", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
     (requireStaffRole as any).mockResolvedValue({
       ok: true,
-      context: { user: { id: "user-1" }, staffId: "staff-1", role: "door", staff: {} },
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "door",
+        staff: {},
+      },
     });
   });
 
@@ -28,7 +33,11 @@ describe("POST /api/scan", () => {
     const { supabase } = createSupabaseMock({
       "events.select": [
         {
-          data: { id: "event-1", starts_at: "2099-02-01T04:00:00.000Z", entry_limit: null },
+          data: {
+            id: "event-1",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+          },
           error: null,
         },
       ],
@@ -72,6 +81,7 @@ describe("POST /api/scan", () => {
             product_id: "prod-1",
             sale_origin: "table",
             ticket_pricing_phase: null,
+            ticket_type_label: null,
             table: { name: "Mesa Diamante" },
             product: { name: "Pack Premium" },
           },
@@ -106,7 +116,11 @@ describe("POST /api/scan", () => {
     const { supabase } = createSupabaseMock({
       "events.select": [
         {
-          data: { id: "event-2", starts_at: "2099-02-01T04:00:00.000Z", entry_limit: null },
+          data: {
+            id: "event-2",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+          },
           error: null,
         },
       ],
@@ -137,6 +151,7 @@ describe("POST /api/scan", () => {
             product_id: null,
             sale_origin: "ticket",
             ticket_pricing_phase: "early_bird",
+            ticket_type_label: "1 QR EARLY BABY",
             table: null,
             product: null,
           },
@@ -162,15 +177,20 @@ describe("POST /api/scan", () => {
     expect(payload.success).toBe(true);
     expect(payload.result).toBe("valid");
     expect(payload.qr_kind).toBe("ticket_early");
-    expect(payload.qr_kind_label).toBe("Entrada EARLY");
+    expect(payload.qr_kind_label).toBe("1 QR EARLY BABY");
     expect(payload.ticket_pricing_phase).toBe("early_bird");
+    expect(payload.ticket_type_label).toBe("1 QR EARLY BABY");
   });
 
   it("mantiene clasificación de entrada general cuando no hay reserva comercial", async () => {
     const { supabase } = createSupabaseMock({
       "events.select": [
         {
-          data: { id: "event-3", starts_at: "2099-02-01T04:00:00.000Z", entry_limit: null },
+          data: {
+            id: "event-3",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+          },
           error: null,
         },
       ],

@@ -56,4 +56,52 @@ describe("buildMapSlotsFromTables", () => {
     expect(mesa3!.x).toBeGreaterThan(120);
     expect(mesa3!.x).toBeLessThan(132);
   });
+
+  it("ignora mesas legacy-only cuando ya existe layout de backoffice", () => {
+    const slots = buildMapSlotsFromTables([
+      {
+        id: "mesa-1",
+        name: "Mesa 1",
+        layout_x: 243,
+        layout_y: 77,
+        layout_size: 40,
+        pos_x: 22,
+        pos_y: 9,
+        pos_w: 4,
+        pos_h: 6,
+      },
+      {
+        id: "mesa-legacy",
+        name: "Mesa legacy",
+        layout_x: null,
+        layout_y: null,
+        layout_size: null,
+        pos_x: 80,
+        pos_y: 20,
+        pos_w: 4,
+        pos_h: 6,
+      },
+    ] as any);
+
+    expect(slots.map((slot) => slot.id)).toEqual(["mesa-1"]);
+  });
+
+  it("mantiene fallback legacy si no hay layout de backoffice", () => {
+    const slots = buildMapSlotsFromTables([
+      {
+        id: "mesa-legacy",
+        name: "Mesa legacy",
+        layout_x: null,
+        layout_y: null,
+        layout_size: null,
+        pos_x: 80,
+        pos_y: 20,
+        pos_w: 4,
+        pos_h: 6,
+      },
+    ] as any);
+
+    expect(slots).toHaveLength(1);
+    expect(slots[0].id).toBe("mesa-legacy");
+  });
 });

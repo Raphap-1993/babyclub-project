@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import ManifestUploader from "./ManifestUploader";
 import ModernDatePicker from "@repo/ui/components/modern-date-picker";
 import ModernTimePicker from "@repo/ui/components/modern-time-picker";
-import { EVENT_ZONE, toLimaPartsFromDb, toUTCISOFromLimaParts } from "shared/limaTime";
+import {
+  EVENT_ZONE,
+  toLimaPartsFromDb,
+  toUTCISOFromLimaParts,
+} from "shared/limaTime";
 import { DEFAULT_ENTRY_LIMIT, normalizeEntryLimit } from "shared/entryLimit";
 import { DateTime } from "luxon";
 import { supabaseClient } from "@/lib/supabaseClient";
@@ -32,11 +36,6 @@ type EventRecord = {
   entry_limit?: string | null;
   capacity: number;
   marketing_capacity?: number | null;
-  early_bird_enabled?: boolean | null;
-  early_bird_price_1?: number | null;
-  early_bird_price_2?: number | null;
-  all_night_price_1?: number | null;
-  all_night_price_2?: number | null;
   header_image: string;
   cover_image?: string;
   is_active: boolean;
@@ -53,11 +52,6 @@ type FormValues = {
   entry_limit: string;
   capacity: string;
   marketing_capacity: string;
-  early_bird_enabled: boolean;
-  early_bird_price_1: string;
-  early_bird_price_2: string;
-  all_night_price_1: string;
-  all_night_price_2: string;
   header_image: string;
   cover_image: string;
   is_active: boolean;
@@ -74,11 +68,6 @@ const emptyForm: FormValues = {
   entry_limit: DEFAULT_ENTRY_LIMIT,
   capacity: "",
   marketing_capacity: "",
-  early_bird_enabled: false,
-  early_bird_price_1: "15",
-  early_bird_price_2: "25",
-  all_night_price_1: "20",
-  all_night_price_2: "35",
   header_image: "",
   cover_image: "",
   is_active: true,
@@ -88,18 +77,27 @@ const emptyForm: FormValues = {
   organizer_id: "",
 };
 
-export default function EventForm({ mode, initialData, organizers }: EventFormProps) {
+export default function EventForm({
+  mode,
+  initialData,
+  organizers,
+}: EventFormProps) {
   const router = useRouter();
 
   const [form, setForm] = useState<FormValues>(() => ({
     ...emptyForm,
     ...normalizeInitial(initialData),
   }));
-  const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof FormValues, string>>
+  >({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [codeTouched, setCodeTouched] = useState(false);
-  const dateTimeParts = useMemo(() => toDateTimeParts12(form.starts_at), [form.starts_at]);
+  const dateTimeParts = useMemo(
+    () => toDateTimeParts12(form.starts_at),
+    [form.starts_at],
+  );
   const codeSuggestion = useMemo(() => slugify(form.name), [form.name]);
 
   useEffect(() => {
@@ -116,12 +114,18 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
 
   // Código debe ser ingresado manualmente (no auto-fill)
 
-  const isValid = useMemo(() => Object.keys(validate(form)).length === 0, [form]);
+  const isValid = useMemo(
+    () => Object.keys(validate(form)).length === 0,
+    [form],
+  );
   const showReadyBadge = isValid && !isSubmitting;
 
   const header = mode === "edit" ? "Actualizar evento" : "Nuevo evento";
 
-  const updateField = <K extends keyof FormValues>(field: K, value: FormValues[K]) => {
+  const updateField = <K extends keyof FormValues>(
+    field: K,
+    value: FormValues[K],
+  ) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -137,7 +141,8 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
     setIsSubmitting(true);
     setServerError(null);
 
-    const entryLimit = normalizeEntryLimit(form.entry_limit) || DEFAULT_ENTRY_LIMIT;
+    const entryLimit =
+      normalizeEntryLimit(form.entry_limit) || DEFAULT_ENTRY_LIMIT;
     const payload = {
       id: initialData?.id,
       name: form.name.trim(),
@@ -145,12 +150,9 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
       starts_at: form.starts_at,
       entry_limit: entryLimit,
       capacity: Number(form.capacity || 0),
-      marketing_capacity: form.marketing_capacity ? Number(form.marketing_capacity) : null,
-      early_bird_enabled: Boolean(form.early_bird_enabled),
-      early_bird_price_1: form.early_bird_price_1 ? Number(form.early_bird_price_1) : 15,
-      early_bird_price_2: form.early_bird_price_2 ? Number(form.early_bird_price_2) : 25,
-      all_night_price_1: form.all_night_price_1 ? Number(form.all_night_price_1) : 20,
-      all_night_price_2: form.all_night_price_2 ? Number(form.all_night_price_2) : 35,
+      marketing_capacity: form.marketing_capacity
+        ? Number(form.marketing_capacity)
+        : null,
       header_image: form.header_image.trim(),
       cover_image: form.cover_image.trim(),
       is_active: Boolean(form.is_active),
@@ -161,11 +163,12 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
     };
 
     try {
-      const endpoint = mode === "edit" ? "/api/events/update" : "/api/events/create";
+      const endpoint =
+        mode === "edit" ? "/api/events/update" : "/api/events/create";
       const authHeaders = await getAuthHeaders();
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           ...authHeaders,
         },
@@ -199,7 +202,9 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
           {showReadyBadge && (
             <div className="flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/50 rounded-lg">
               <div className="w-2 h-2 bg-green-400 rounded-full" />
-              <span className="text-sm font-medium text-green-300">Cambios listos</span>
+              <span className="text-sm font-medium text-green-300">
+                Cambios listos
+              </span>
             </div>
           )}
         </div>
@@ -208,129 +213,81 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
       <div className="p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-2">
-          <Field
-            label="Nombre"
-            placeholder="BABY Deluxe"
-            value={form.name}
-            onChange={(val) => updateField("name", val)}
-            error={errors.name}
-            required
-          />
-          <Field
-            label="Ubicación"
-            placeholder="Av. Siempre Viva 123"
-            value={form.location}
-            onChange={(val) => updateField("location", val)}
-          />
-
-          {/* Campo Organizador */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-300 mb-2">
-              Organizador <span className="text-red-400">*</span>
-            </label>
-            <select
-              name="organizer_id"
-              value={form.organizer_id}
-              onChange={(e) => updateField("organizer_id", e.target.value)}
-              className={`w-full px-4 py-2.5 bg-neutral-800 border ${
-                errors.organizer_id ? "border-red-500" : "border-neutral-600"
-              } rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:border-transparent`}
+            <Field
+              label="Nombre"
+              placeholder="BABY Deluxe"
+              value={form.name}
+              onChange={(val) => updateField("name", val)}
+              error={errors.name}
               required
-            >
-              <option value="">-- Selecciona organizador --</option>
-              {organizers.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name}
-                </option>
-              ))}
-            </select>
-            {errors.organizer_id && (
-              <p className="text-xs text-red-400 mt-1">{errors.organizer_id}</p>
+            />
+            <Field
+              label="Ubicación"
+              placeholder="Av. Siempre Viva 123"
+              value={form.location}
+              onChange={(val) => updateField("location", val)}
+            />
+
+            {/* Campo Organizador */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-neutral-300 mb-2">
+                Organizador <span className="text-red-400">*</span>
+              </label>
+              <select
+                name="organizer_id"
+                value={form.organizer_id}
+                onChange={(e) => updateField("organizer_id", e.target.value)}
+                className={`w-full px-4 py-2.5 bg-neutral-800 border ${
+                  errors.organizer_id ? "border-red-500" : "border-neutral-600"
+                } rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:border-transparent`}
+                required
+              >
+                <option value="">-- Selecciona organizador --</option>
+                {organizers.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+              {errors.organizer_id && (
+                <p className="text-xs text-red-400 mt-1">
+                  {errors.organizer_id}
+                </p>
+              )}
+            </div>
+
+            <Field
+              label="Código del evento"
+              placeholder={codeSuggestion || "baby-deluxe-0227"}
+              value={form.code}
+              onChange={(val) => {
+                setCodeTouched(true);
+                updateField("code", val);
+              }}
+              error={errors.code}
+            />
+            {!codeTouched && codeSuggestion && (
+              <p className="text-xs text-neutral-400 -mt-1">
+                💡 Sugerencia: {codeSuggestion}
+              </p>
             )}
-          </div>
-
-          <Field
-            label="Código del evento"
-            placeholder={codeSuggestion || "baby-deluxe-0227"}
-            value={form.code}
-            onChange={(val) => {
-              setCodeTouched(true);
-              updateField("code", val);
-            }}
-            error={errors.code}
-          />
-          {!codeTouched && codeSuggestion && (
-            <p className="text-xs text-neutral-400 -mt-1">
-              💡 Sugerencia: {codeSuggestion}
-            </p>
-          )}
-          <Field
-            label="Capacidad real"
-            type="number"
-            min={10}
-            placeholder="220"
-            value={form.capacity}
-            onChange={(val) => updateField("capacity", val)}
-            error={errors.capacity}
-          />
-          <Field
-            label="Aforo marketing (barra visual)"
-            type="number"
-            min={1}
-            placeholder="Opcional — deja vacío para usar capacidad real"
-            value={form.marketing_capacity}
-            onChange={(val) => updateField("marketing_capacity", val)}
-          />
-          </div>
-
-          {/* Precios de tickets */}
-          <div className="rounded-lg border border-neutral-600/50 bg-neutral-700/20 p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-neutral-200">Precios de tickets</p>
-              <Checkbox
-                label="Habilitar EARLY BABY"
-                checked={form.early_bird_enabled}
-                onChange={(checked) => updateField("early_bird_enabled", checked)}
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field
-                label="EARLY BABY 1x (S/)"
-                type="number"
-                min={1}
-                step="0.01"
-                placeholder="15"
-                value={form.early_bird_price_1}
-                onChange={(val) => updateField("early_bird_price_1", val)}
-              />
-              <Field
-                label="EARLY BABY 2x (S/)"
-                type="number"
-                min={1}
-                step="0.01"
-                placeholder="25"
-                value={form.early_bird_price_2}
-                onChange={(val) => updateField("early_bird_price_2", val)}
-              />
-              <Field
-                label="ALL NIGHT 1x (S/)"
-                type="number"
-                min={1}
-                step="0.01"
-                placeholder="20"
-                value={form.all_night_price_1}
-                onChange={(val) => updateField("all_night_price_1", val)}
-              />
-              <Field
-                label="ALL NIGHT 2x (S/)"
-                type="number"
-                min={1}
-                step="0.01"
-                placeholder="35"
-                value={form.all_night_price_2}
-                onChange={(val) => updateField("all_night_price_2", val)}
-              />
-            </div>
+            <Field
+              label="Capacidad real"
+              type="number"
+              min={10}
+              placeholder="220"
+              value={form.capacity}
+              onChange={(val) => updateField("capacity", val)}
+              error={errors.capacity}
+            />
+            <Field
+              label="Aforo marketing (barra visual)"
+              type="number"
+              min={1}
+              placeholder="Opcional — deja vacío para usar capacidad real"
+              value={form.marketing_capacity}
+              onChange={(val) => updateField("marketing_capacity", val)}
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -343,7 +300,12 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                   <ModernDatePicker
                     value={dateTimeParts.datePart || ""}
                     onChange={(dateStr) => {
-                      const nextIso = toIsoFromParts12(dateStr, dateTimeParts.hour12, dateTimeParts.minute, dateTimeParts.period);
+                      const nextIso = toIsoFromParts12(
+                        dateStr,
+                        dateTimeParts.hour12,
+                        dateTimeParts.minute,
+                        dateTimeParts.period,
+                      );
                       updateField("starts_at", nextIso);
                     }}
                     placeholder="Seleccionar fecha"
@@ -351,20 +313,27 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                 </div>
                 <div className="flex-1 flex gap-2">
                   <ModernTimePicker
-                    value={dateTimeParts.hour12 && dateTimeParts.minute ? (() => {
-                      const h24 = to24h(Number(dateTimeParts.hour12), dateTimeParts.period);
-                      return `${h24.toString().padStart(2, '0')}:${dateTimeParts.minute}`;
-                    })() : ""}
+                    value={
+                      dateTimeParts.hour12 && dateTimeParts.minute
+                        ? (() => {
+                            const h24 = to24h(
+                              Number(dateTimeParts.hour12),
+                              dateTimeParts.period,
+                            );
+                            return `${h24.toString().padStart(2, "0")}:${dateTimeParts.minute}`;
+                          })()
+                        : ""
+                    }
                     onChange={(timeStr) => {
-                      const [hour24, minute] = timeStr.split(':');
+                      const [hour24, minute] = timeStr.split(":");
                       const h24 = Number(hour24);
-                      const period = h24 >= 12 ? 'PM' : 'AM';
+                      const period = h24 >= 12 ? "PM" : "AM";
                       const hour12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
                       const nextIso = toIsoFromParts12(
                         dateTimeParts.datePart,
-                        String(hour12).padStart(2, '0'),
+                        String(hour12).padStart(2, "0"),
                         minute,
-                        period
+                        period,
                       );
                       updateField("starts_at", nextIso);
                     }}
@@ -373,7 +342,10 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                   <button
                     type="button"
                     onClick={() => {
-                      const nowIso = DateTime.now().setZone(EVENT_ZONE).toUTC().toISO();
+                      const nowIso = DateTime.now()
+                        .setZone(EVENT_ZONE)
+                        .toUTC()
+                        .toISO();
                       if (nowIso) updateField("starts_at", nowIso);
                     }}
                     className="px-2 py-2 bg-neutral-600 hover:bg-neutral-500 border border-neutral-500 rounded-lg text-xs font-medium text-white transition-colors whitespace-nowrap"
@@ -382,10 +354,12 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-neutral-400">Se guarda en UTC en la BD.</p>
+              <p className="text-xs text-neutral-400">
+                Se guarda en UTC en la BD.
+              </p>
               {errors.starts_at && <ErrorText message={errors.starts_at} />}
             </div>
-            
+
             <div className="space-y-2">
               <label className="block text-sm font-medium text-neutral-300">
                 Hora límite de ingreso (America/Lima)
@@ -408,12 +382,16 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-neutral-400">Ingreso manual (HH:mm):</label>
+                <label className="text-xs text-neutral-400">
+                  Ingreso manual (HH:mm):
+                </label>
                 <input
                   type="time"
                   step={300}
                   value={form.entry_limit}
-                  onChange={(event) => updateField("entry_limit", event.target.value)}
+                  onChange={(event) =>
+                    updateField("entry_limit", event.target.value)
+                  }
                   className="w-[140px] rounded-lg border border-neutral-600 bg-neutral-700 px-2 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-neutral-500/50"
                 />
               </div>
@@ -436,7 +414,11 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
               />
               {form.header_image && (
                 <div className="overflow-hidden rounded-lg border border-neutral-600 bg-neutral-700 p-2">
-                  <img src={form.header_image} alt="Manifiesto" className="h-32 w-full rounded-md object-cover" />
+                  <img
+                    src={form.header_image}
+                    alt="Manifiesto"
+                    className="h-32 w-full rounded-md object-cover"
+                  />
                 </div>
               )}
             </div>
@@ -453,26 +435,37 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
               />
               {form.cover_image && (
                 <div className="overflow-hidden rounded-lg border border-neutral-600 bg-neutral-700 p-2">
-                  <img src={form.cover_image} alt="Cover" className="h-32 w-full rounded-md object-cover" />
+                  <img
+                    src={form.cover_image}
+                    alt="Cover"
+                    className="h-32 w-full rounded-md object-cover"
+                  />
                 </div>
               )}
             </div>
           </div>
 
-<div className="flex items-center gap-4">
-          <Checkbox
-            label="Evento activo"
-            checked={form.is_active}
-            onChange={(checked) => updateField("is_active", checked)}
-          />
-        </div>
+          <div className="flex items-center gap-4">
+            <Checkbox
+              label="Evento activo"
+              checked={form.is_active}
+              onChange={(checked) => updateField("is_active", checked)}
+            />
+          </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-neutral-300">Estado comercial web</label>
+              <label className="block text-sm font-medium text-neutral-300">
+                Estado comercial web
+              </label>
               <select
                 value={form.sale_status}
-                onChange={(event) => updateField("sale_status", event.target.value as FormValues["sale_status"])}
+                onChange={(event) =>
+                  updateField(
+                    "sale_status",
+                    event.target.value as FormValues["sale_status"],
+                  )
+                }
                 className="w-full rounded-lg border border-neutral-600 bg-neutral-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-neutral-500/50 focus:border-neutral-500/50 transition-colors"
               >
                 <option value="on_sale">En venta</option>
@@ -483,11 +476,16 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
             </div>
             <div className="space-y-1">
               <label className="block text-sm font-medium text-neutral-300">
-                Mensaje público {form.sale_status === "on_sale" ? "(opcional)" : "(recomendado)"}
+                Mensaje público{" "}
+                {form.sale_status === "on_sale"
+                  ? "(opcional)"
+                  : "(recomendado)"}
               </label>
               <textarea
                 value={form.sale_public_message}
-                onChange={(event) => updateField("sale_public_message", event.target.value)}
+                onChange={(event) =>
+                  updateField("sale_public_message", event.target.value)
+                }
                 rows={3}
                 placeholder={
                   form.sale_status === "sold_out"
@@ -498,29 +496,37 @@ export default function EventForm({ mode, initialData, organizers }: EventFormPr
                 }
                 className="w-full rounded-lg border border-neutral-600 bg-neutral-700 px-3 py-2 text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-500/50 focus:border-neutral-500/50 transition-colors"
               />
-              {errors.sale_public_message && <ErrorText message={errors.sale_public_message} />}
+              {errors.sale_public_message && (
+                <ErrorText message={errors.sale_public_message} />
+              )}
             </div>
           </div>
 
-        {serverError && (
-          <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
-            <p className="text-sm text-red-300">{serverError}</p>
-          </div>
-        )}
+          {serverError && (
+            <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
+              <p className="text-sm text-red-300">{serverError}</p>
+            </div>
+          )}
 
-        <div className="flex items-center gap-4 pt-4 border-t border-neutral-700">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-2 bg-gradient-to-r from-neutral-500 to-neutral-600 text-white rounded-lg hover:from-neutral-400 hover:to-neutral-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? "Guardando..." : mode === "edit" ? "Guardar cambios" : "Crear evento"}
-          </button>
-          <p className="text-sm text-neutral-400">Se guardará directamente en Supabase.</p>
-        </div>
-      </form>
+          <div className="flex items-center gap-4 pt-4 border-t border-neutral-700">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2 bg-gradient-to-r from-neutral-500 to-neutral-600 text-white rounded-lg hover:from-neutral-400 hover:to-neutral-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting
+                ? "Guardando..."
+                : mode === "edit"
+                  ? "Guardar cambios"
+                  : "Crear evento"}
+            </button>
+            <p className="text-sm text-neutral-400">
+              Se guardará directamente en Supabase.
+            </p>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
   );
 }
 
@@ -536,10 +542,23 @@ type FieldProps = {
   error?: string;
 };
 
-function Field({ label, value, onChange, placeholder, type = "text", required, min, step, error }: FieldProps) {
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  required,
+  min,
+  step,
+  error,
+}: FieldProps) {
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-neutral-300" htmlFor={label}>
+      <label
+        className="block text-sm font-medium text-neutral-300"
+        htmlFor={label}
+      >
         {label}
         {required && <span className="text-red-400 ml-1">*</span>}
       </label>
@@ -583,7 +602,12 @@ function ErrorText({ message }: { message: string }) {
   return <p className="text-sm text-red-400">{message}</p>;
 }
 
-function toDateTimeParts12(iso: string): { datePart: string; hour12: string; minute: string; period: "AM" | "PM" } {
+function toDateTimeParts12(iso: string): {
+  datePart: string;
+  hour12: string;
+  minute: string;
+  period: "AM" | "PM";
+} {
   if (!iso) return { datePart: "", hour12: "12", minute: "00", period: "AM" };
   try {
     const parsed = toLimaPartsFromDb(iso);
@@ -598,7 +622,12 @@ function toDateTimeParts12(iso: string): { datePart: string; hour12: string; min
   }
 }
 
-function toIsoFromParts12(datePart: string, hour12: string, minute: string, period: "AM" | "PM") {
+function toIsoFromParts12(
+  datePart: string,
+  hour12: string,
+  minute: string,
+  period: "AM" | "PM",
+) {
   if (!datePart) return "";
   const hour12Num = Number(hour12) || 12;
   const minuteNum = Number(minute) || 0;
@@ -610,24 +639,30 @@ function toIsoFromParts12(datePart: string, hour12: string, minute: string, peri
   });
 }
 
-function normalizeInitial(initialData?: Partial<EventRecord> | null): Partial<FormValues> {
+function normalizeInitial(
+  initialData?: Partial<EventRecord> | null,
+): Partial<FormValues> {
   if (!initialData) return {};
+
   return {
     name: initialData.name ?? "",
     location: initialData.location ?? "",
     starts_at: initialData.starts_at ?? "",
-    entry_limit: normalizeEntryLimit(initialData.entry_limit) || DEFAULT_ENTRY_LIMIT,
+    entry_limit:
+      normalizeEntryLimit(initialData.entry_limit) || DEFAULT_ENTRY_LIMIT,
     capacity: initialData.capacity != null ? String(initialData.capacity) : "",
-    marketing_capacity: initialData.marketing_capacity != null ? String(initialData.marketing_capacity) : "",
-    early_bird_enabled: initialData.early_bird_enabled ?? false,
-    early_bird_price_1: initialData.early_bird_price_1 != null ? String(initialData.early_bird_price_1) : "15",
-    early_bird_price_2: initialData.early_bird_price_2 != null ? String(initialData.early_bird_price_2) : "25",
-    all_night_price_1: initialData.all_night_price_1 != null ? String(initialData.all_night_price_1) : "20",
-    all_night_price_2: initialData.all_night_price_2 != null ? String(initialData.all_night_price_2) : "35",
+    marketing_capacity:
+      initialData.marketing_capacity != null
+        ? String(initialData.marketing_capacity)
+        : "",
     header_image: initialData.header_image ?? "",
     cover_image: initialData.cover_image ?? "",
     is_active: initialData.is_active ?? true,
-    sale_status: initialData.sale_status === "sold_out" || initialData.sale_status === "paused" ? initialData.sale_status : "on_sale",
+    sale_status:
+      initialData.sale_status === "sold_out" ||
+      initialData.sale_status === "paused"
+        ? initialData.sale_status
+        : "on_sale",
     sale_public_message: initialData.sale_public_message ?? "",
     code: initialData.code ?? "",
     organizer_id: initialData.organizer_id ?? "",
@@ -653,15 +688,19 @@ function toInputDate(limaDate: string) {
   return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function validate(values: FormValues): Partial<Record<keyof FormValues, string>> {
+function validate(
+  values: FormValues,
+): Partial<Record<keyof FormValues, string>> {
   const errors: Partial<Record<keyof FormValues, string>> = {};
 
   if (!values.name.trim()) errors.name = "Nombre requerido";
   if (!values.starts_at) errors.starts_at = "Selecciona fecha y hora";
-  if (!normalizeEntryLimit(values.entry_limit)) errors.entry_limit = "Hora límite inválida";
+  if (!normalizeEntryLimit(values.entry_limit))
+    errors.entry_limit = "Hora límite inválida";
 
   const capacity = Number(values.capacity);
-  if (!Number.isFinite(capacity) || capacity < 10) errors.capacity = "Capacidad mínima 10";
+  if (!Number.isFinite(capacity) || capacity < 10)
+    errors.capacity = "Capacidad mínima 10";
 
   // Código es obligatorio y debe tener mínimo 3 caracteres
   if (!values.code || values.code.length < 3) {
@@ -689,13 +728,13 @@ function slugify(input: string) {
   const parts = input.split(/\s+/);
   const slug = parts
     .slice(0, 2) // Primeras 2 palabras
-    .map(w => w.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+    .map((w) => w.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
     .join("-")
     .toUpperCase()
     .replace(/[^A-Z0-9-]/g, "")
     .replace(/^-+|-+$/g, "")
     .slice(0, 20);
-  
+
   // Agregar fecha si tenemos starts_at
   return slug;
 }

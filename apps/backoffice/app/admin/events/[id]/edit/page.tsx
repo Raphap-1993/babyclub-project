@@ -4,7 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 import EventForm from "../../components/EventForm";
 import Link from "next/link";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { ensureEventSalesDefaults, isMissingEventSalesColumnsError } from "shared/eventSales";
+import {
+  ensureEventSalesDefaults,
+  isMissingEventSalesColumnsError,
+} from "shared/eventSales";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -15,11 +18,6 @@ type EventRow = {
   location: string;
   capacity: number;
   marketing_capacity?: number | null;
-  early_bird_enabled?: boolean | null;
-  early_bird_price_1?: number | null;
-  early_bird_price_2?: number | null;
-  all_night_price_1?: number | null;
-  all_night_price_2?: number | null;
   header_image: string;
   cover_image?: string;
   is_active: boolean;
@@ -41,8 +39,10 @@ async function getEvent(id: string): Promise<EventRow | null> {
   const eventQuery = applyNotDeleted(
     supabase
       .from("events")
-      .select("id,name,location,starts_at,entry_limit,capacity,marketing_capacity,early_bird_enabled,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2,header_image,is_active,sale_status,sale_public_message,organizer_id")
-      .eq("id", id)
+      .select(
+        "id,name,location,starts_at,entry_limit,capacity,marketing_capacity,header_image,is_active,sale_status,sale_public_message,organizer_id",
+      )
+      .eq("id", id),
   );
   let { data, error } = await eventQuery.maybeSingle();
 
@@ -50,8 +50,10 @@ async function getEvent(id: string): Promise<EventRow | null> {
     const legacyQuery = applyNotDeleted(
       supabase
         .from("events")
-        .select("id,name,location,starts_at,entry_limit,capacity,header_image,is_active,organizer_id")
-        .eq("id", id)
+        .select(
+          "id,name,location,starts_at,entry_limit,capacity,header_image,is_active,organizer_id",
+        )
+        .eq("id", id),
     );
     const legacyResult = await legacyQuery.maybeSingle();
     data = legacyResult.data as any;
@@ -68,14 +70,23 @@ async function getEvent(id: string): Promise<EventRow | null> {
     .maybeSingle();
 
   const codeQuery = applyNotDeleted(
-    supabase.from("codes").select("id,code").eq("event_id", id).eq("type", "general").eq("is_active", true)
+    supabase
+      .from("codes")
+      .select("id,code")
+      .eq("event_id", id)
+      .eq("type", "general")
+      .eq("is_active", true),
   );
   const { data: codes } = await codeQuery.maybeSingle();
 
   const code = codes?.code || "";
   const cover_image = coverRow?.value_text || "";
 
-  return { ...(ensureEventSalesDefaults(data as any) as EventRow), code, cover_image };
+  return {
+    ...(ensureEventSalesDefaults(data as any) as EventRow),
+    code,
+    cover_image,
+  };
 }
 
 async function getOrganizers() {
@@ -92,17 +103,28 @@ async function getOrganizers() {
   return data || [];
 }
 
-export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditEventPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
-  const [event, organizers] = await Promise.all([getEvent(id), getOrganizers()]);
+  const [event, organizers] = await Promise.all([
+    getEvent(id),
+    getOrganizers(),
+  ]);
   if (!event || organizers.length === 0) {
     return (
       <div className="min-h-screen bg-neutral-950 p-6">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-neutral-400 mb-1">EDITAR</p>
-              <h1 className="text-2xl font-semibold text-white">Evento no encontrado</h1>
+              <p className="text-sm font-medium text-neutral-400 mb-1">
+                EDITAR
+              </p>
+              <h1 className="text-2xl font-semibold text-white">
+                Evento no encontrado
+              </h1>
             </div>
             <Link
               href="/admin/events"
@@ -113,12 +135,26 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-8 text-center">
             <div className="text-neutral-400 mb-4">
-              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="mx-auto h-12 w-12"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-white mb-2">No se pudo encontrar el evento</h3>
-            <p className="text-neutral-400">El evento que intentas editar no existe o ha sido eliminado.</p>
+            <h3 className="text-lg font-medium text-white mb-2">
+              No se pudo encontrar el evento
+            </h3>
+            <p className="text-neutral-400">
+              El evento que intentas editar no existe o ha sido eliminado.
+            </p>
           </div>
         </div>
       </div>

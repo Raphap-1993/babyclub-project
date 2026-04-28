@@ -2,15 +2,16 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { Button } from "@repo/ui";
-import { TrendingUp, Calendar, QrCode, Armchair, Package2 } from "lucide-react";
+import { TrendingUp, Calendar, QrCode, Building2, Package2, BadgeDollarSign } from "lucide-react";
 import TicketsSummaryCard from "@/components/dashboard/TicketsSummaryCard";
 import PromotersSummaryCard from "@/components/dashboard/PromotersSummaryCard";
 
 export default async function AdminDashboard() {
   const quickActions = [
     { label: "Crear Evento", href: "/admin/events/create", icon: Calendar },
+    { label: "Entradas/Precios", href: "/admin/ticket-types", icon: BadgeDollarSign },
     { label: "Escaneo QR", href: "/admin/scan", icon: QrCode },
-    { label: "Ver Mesas", href: "/admin/tables", icon: Armchair },
+    { label: "Mesas/Croquis", href: "/admin/organizers", icon: Building2 },
     { label: "Productos Mesa", href: "/admin/table-products", icon: Package2 },
     { label: "Reportes", href: "/admin/reportes", icon: TrendingUp },
   ];
@@ -22,7 +23,7 @@ export default async function AdminDashboard() {
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
           <p className="text-sm text-neutral-400">Métricas en tiempo real</p>
         </div>
-        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-3 xl:grid-cols-6">
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (

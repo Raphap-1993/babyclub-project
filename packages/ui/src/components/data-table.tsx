@@ -12,13 +12,21 @@ import {
   type Table as TanstackTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import {
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { cn } from "../utils";
 
 // Componentes base de tabla compacta y moderna
 const TableWrapper = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { 
+  React.HTMLAttributes<HTMLDivElement> & {
     compact?: boolean;
     maxHeight?: string;
   }
@@ -28,7 +36,7 @@ const TableWrapper = React.forwardRef<
     className={cn(
       "w-full overflow-hidden rounded-xl border border-neutral-700/60 bg-neutral-900/90 backdrop-blur-sm shadow-xl ring-1 ring-neutral-700/20",
       compact && "shadow-md",
-      className
+      className,
     )}
     style={{ maxHeight }}
     {...props}
@@ -42,7 +50,10 @@ const Table = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <table
     ref={ref}
-    className={cn("w-full caption-bottom text-sm table-fixed min-w-[640px]", className)}
+    className={cn(
+      "w-full caption-bottom text-sm table-fixed min-w-[640px]",
+      className,
+    )}
     {...props}
   />
 ));
@@ -57,7 +68,7 @@ const TableHeader = React.forwardRef<
     className={cn(
       "bg-gradient-to-r from-neutral-800/90 via-neutral-800/90 to-neutral-700/90 border-b border-neutral-600/60 sticky top-0 z-10 backdrop-blur-sm",
       compact && "bg-neutral-800/95",
-      className
+      className,
     )}
     {...props}
   />
@@ -85,7 +96,7 @@ const TableRow = React.forwardRef<
     className={cn(
       "border-b border-neutral-700/30 transition-all duration-150 hover:bg-gradient-to-r hover:from-neutral-800/40 hover:via-neutral-800/25 hover:to-transparent data-[state=selected]:bg-neutral-800/50",
       compact ? "h-8" : "h-12",
-      className
+      className,
     )}
     {...props}
   />
@@ -94,41 +105,56 @@ TableRow.displayName = "TableRow";
 
 const TableHead = React.forwardRef<
   HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement> & { 
+  React.ThHTMLAttributes<HTMLTableCellElement> & {
     compact?: boolean;
     sortable?: boolean;
     sorted?: "asc" | "desc" | false;
     onSort?: () => void;
   }
->(({ className, compact = false, sortable = false, sorted = false, onSort, children, style, ...props }, ref) => (
-  <th
-    ref={ref}
-    className={cn(
-      "text-left align-middle font-semibold text-neutral-300 border-r border-neutral-600/20 last:border-r-0 overflow-hidden",
-      compact ? "h-8 px-2 text-xs" : "h-10 px-3 text-xs",
-      sortable && "cursor-pointer hover:text-neutral-100 select-none transition-colors",
-      className
-    )}
-    onClick={sortable ? onSort : undefined}
-    style={style}
-    {...props}
-  >
-    <div className="flex items-center gap-1 truncate">
-      {children}
-      {sortable && (
-        <div className="flex flex-col -space-y-1 flex-shrink-0">
-          {sorted === "asc" ? (
-            <ChevronUp className="h-3 w-3 text-rose-400" />
-          ) : sorted === "desc" ? (
-            <ChevronDown className="h-3 w-3 text-rose-400" />
-          ) : (
-            <ChevronsUpDown className="h-3 w-3 text-neutral-500" />
-          )}
-        </div>
+>(
+  (
+    {
+      className,
+      compact = false,
+      sortable = false,
+      sorted = false,
+      onSort,
+      children,
+      style,
+      ...props
+    },
+    ref,
+  ) => (
+    <th
+      ref={ref}
+      className={cn(
+        "text-left align-middle font-semibold text-neutral-300 border-r border-neutral-600/20 last:border-r-0 overflow-hidden",
+        compact ? "h-8 px-2 text-xs" : "h-10 px-3 text-xs",
+        sortable &&
+          "cursor-pointer hover:text-neutral-100 select-none transition-colors",
+        className,
       )}
-    </div>
-  </th>
-));
+      onClick={sortable ? onSort : undefined}
+      style={style}
+      {...props}
+    >
+      <div className="flex items-center gap-1 truncate">
+        {children}
+        {sortable && (
+          <div className="flex flex-col -space-y-1 flex-shrink-0">
+            {sorted === "asc" ? (
+              <ChevronUp className="h-3 w-3 text-rose-400" />
+            ) : sorted === "desc" ? (
+              <ChevronDown className="h-3 w-3 text-rose-400" />
+            ) : (
+              <ChevronsUpDown className="h-3 w-3 text-neutral-500" />
+            )}
+          </div>
+        )}
+      </div>
+    </th>
+  ),
+);
 TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<
@@ -140,7 +166,7 @@ const TableCell = React.forwardRef<
     className={cn(
       "align-middle text-neutral-200 border-r border-neutral-700/10 last:border-r-0 overflow-hidden",
       compact ? "px-2 py-1 text-xs" : "px-3 py-2 text-sm",
-      className
+      className,
     )}
     style={style}
     {...props}
@@ -149,16 +175,17 @@ const TableCell = React.forwardRef<
 TableCell.displayName = "TableCell";
 
 // Componente de paginador compacto
-const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50] }: { 
-  table: TanstackTable<TData>; 
+const DataTablePagination = <TData,>({
+  table,
+  pageSizeOptions = [10, 15, 25, 50],
+}: {
+  table: TanstackTable<TData>;
   pageSizeOptions?: number[];
 }) => {
   return (
     <div className="flex items-center justify-between px-2 py-2 border-t border-neutral-700/30 bg-neutral-800/20 backdrop-blur-sm">
       <div className="flex items-center space-x-2">
-        <p className="text-xs text-neutral-400">
-          Filas por página:
-        </p>
+        <p className="text-xs text-neutral-400">Filas por página:</p>
         <select
           className="h-7 px-2 py-0 text-xs bg-neutral-800/50 border border-neutral-700 rounded text-neutral-200 focus:outline-none focus:ring-1 focus:ring-rose-500/50"
           value={table.getState().pagination.pageSize}
@@ -173,20 +200,27 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
           ))}
         </select>
       </div>
-      
+
       <div className="flex items-center space-x-1">
         <p className="text-xs text-neutral-400 mr-2">
           {table.getRowModel().rows.length === 0 ? (
             "0 registros"
           ) : (
             <>
-              {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} - {" "}
-              {Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, table.getFilteredRowModel().rows.length)} de {" "}
-              {table.getFilteredRowModel().rows.length} registros
+              {table.getState().pagination.pageIndex *
+                table.getState().pagination.pageSize +
+                1}{" "}
+              -{" "}
+              {Math.min(
+                (table.getState().pagination.pageIndex + 1) *
+                  table.getState().pagination.pageSize,
+                table.getFilteredRowModel().rows.length,
+              )}{" "}
+              de {table.getFilteredRowModel().rows.length} registros
             </>
           )}
         </p>
-        
+
         <button
           className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.setPageIndex(0)}
@@ -195,7 +229,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
         >
           <ChevronsLeft className="h-3 w-3" />
         </button>
-        
+
         <button
           className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.previousPage()}
@@ -204,7 +238,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
         >
           <ChevronLeft className="h-3 w-3" />
         </button>
-        
+
         <button
           className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.nextPage()}
@@ -213,7 +247,7 @@ const DataTablePagination = <TData,>({ table, pageSizeOptions = [10, 15, 25, 50]
         >
           <ChevronRight className="h-3 w-3" />
         </button>
-        
+
         <button
           className="inline-flex items-center justify-center h-7 w-7 rounded border border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={() => table.setPageIndex(table.getPageCount() - 1)}
@@ -258,7 +292,7 @@ export function DataTable<TData, TValue>({
   pageSizeOptions = [10, 15, 25, 50],
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  
+
   const table = useReactTable({
     data,
     columns,
@@ -278,11 +312,11 @@ export function DataTable<TData, TValue>({
 
   // Configuración del virtualizador si está habilitado
   const parentRef = React.useRef<HTMLDivElement>(null);
-  
+
   const virtualizer = useVirtualizer({
     count: data.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => compact ? 48 : 56,
+    estimateSize: () => (compact ? 48 : 56),
     overscan: 5,
     enabled: enableVirtualization && data.length > 50,
   });
@@ -292,35 +326,51 @@ export function DataTable<TData, TValue>({
   if (!enableVirtualization || data.length <= 50) {
     // Renderizado normal para pocos datos
     return (
-      <TableWrapper className={className} compact={compact} maxHeight={maxHeight}>
+      <TableWrapper
+        className={className}
+        compact={compact}
+        maxHeight={maxHeight}
+      >
         <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight }}>
           <Table>
             <TableHeader compact={compact}>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-neutral-600" compact={compact}>
+                <TableRow
+                  key={headerGroup.id}
+                  className="hover:bg-transparent border-b border-neutral-600"
+                  compact={compact}
+                >
                   {headerGroup.headers.map((header) => (
-                    <TableHead 
-                      key={header.id} 
+                    <TableHead
+                      key={header.id}
                       compact={compact}
                       sortable={header.column.getCanSort()}
                       sorted={
-                        header.column.getIsSorted() === "asc" ? "asc" :
-                        header.column.getIsSorted() === "desc" ? "desc" : 
-                        false
+                        header.column.getIsSorted() === "asc"
+                          ? "asc"
+                          : header.column.getIsSorted() === "desc"
+                            ? "desc"
+                            : false
                       }
                       onSort={() => header.column.toggleSorting()}
                       className="uppercase tracking-wider font-bold text-neutral-300"
-                      style={{ 
-                        width: header.column.columnDef.size ? `${header.column.columnDef.size}px` : 'auto',
-                        minWidth: header.column.columnDef.size ? `${header.column.columnDef.size}px` : 'auto',
-                        maxWidth: header.column.columnDef.size ? `${header.column.columnDef.size}px` : 'auto'
+                      style={{
+                        width: header.column.columnDef.size
+                          ? `${header.column.columnDef.size}px`
+                          : "auto",
+                        minWidth: header.column.columnDef.size
+                          ? `${header.column.columnDef.size}px`
+                          : "auto",
+                        maxWidth: header.column.columnDef.size
+                          ? `${header.column.columnDef.size}px`
+                          : "auto",
                       }}
                     >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
-                            header.getContext()
+                            header.getContext(),
                           )}
                     </TableHead>
                   ))}
@@ -337,24 +387,37 @@ export function DataTable<TData, TValue>({
                     compact={compact}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell 
-                        key={cell.id} 
-                        compact={compact} 
+                      <TableCell
+                        key={cell.id}
+                        compact={compact}
                         className="group-hover:text-white transition-colors"
-                        style={{ 
-                          width: cell.column.columnDef.size ? `${cell.column.columnDef.size}px` : 'auto',
-                          minWidth: cell.column.columnDef.size ? `${cell.column.columnDef.size}px` : 'auto',
-                          maxWidth: cell.column.columnDef.size ? `${cell.column.columnDef.size}px` : 'auto'
+                        style={{
+                          width: cell.column.columnDef.size
+                            ? `${cell.column.columnDef.size}px`
+                            : "auto",
+                          minWidth: cell.column.columnDef.size
+                            ? `${cell.column.columnDef.size}px`
+                            : "auto",
+                          maxWidth: cell.column.columnDef.size
+                            ? `${cell.column.columnDef.size}px`
+                            : "auto",
                         }}
                       >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
                       </TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : (
                 <TableRow compact={compact}>
-                  <TableCell colSpan={columns.length} className="h-24 text-center text-neutral-400" compact={compact}>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center text-neutral-400"
+                    compact={compact}
+                  >
                     <div className="flex flex-col items-center justify-center space-y-2 py-8">
                       <div className="text-3xl opacity-40">📊</div>
                       <div>{emptyMessage}</div>
@@ -366,7 +429,10 @@ export function DataTable<TData, TValue>({
           </Table>
         </div>
         {showPagination && (
-          <DataTablePagination table={table} pageSizeOptions={pageSizeOptions} />
+          <DataTablePagination
+            table={table}
+            pageSizeOptions={pageSizeOptions}
+          />
         )}
       </TableWrapper>
     );
@@ -378,16 +444,22 @@ export function DataTable<TData, TValue>({
       <Table>
         <TableHeader compact={compact}>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-neutral-600" compact={compact}>
+            <TableRow
+              key={headerGroup.id}
+              className="hover:bg-transparent border-b border-neutral-600"
+              compact={compact}
+            >
               {headerGroup.headers.map((header) => (
-                <TableHead 
-                  key={header.id} 
+                <TableHead
+                  key={header.id}
                   compact={compact}
                   sortable={header.column.getCanSort()}
                   sorted={
-                    header.column.getIsSorted() === "asc" ? "asc" :
-                    header.column.getIsSorted() === "desc" ? "desc" : 
-                    false
+                    header.column.getIsSorted() === "asc"
+                      ? "asc"
+                      : header.column.getIsSorted() === "desc"
+                        ? "desc"
+                        : false
                   }
                   onSort={() => header.column.toggleSorting()}
                   className="uppercase tracking-wider font-bold text-neutral-300"
@@ -396,7 +468,7 @@ export function DataTable<TData, TValue>({
                     ? null
                     : flexRender(
                         header.column.columnDef.header,
-                        header.getContext()
+                        header.getContext(),
                       )}
                 </TableHead>
               ))}
@@ -404,15 +476,21 @@ export function DataTable<TData, TValue>({
           ))}
         </TableHeader>
       </Table>
-      
+
       <div
         ref={parentRef}
         className="overflow-auto"
         style={{ height: `calc(${maxHeight} - 48px)` }}
       >
-        <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            position: "relative",
+          }}
+        >
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const row = rows[virtualItem.index];
+            if (!row) return null;
             return (
               <div
                 key={row.id}
@@ -431,10 +509,13 @@ export function DataTable<TData, TValue>({
                       key={cell.id}
                       className={cn(
                         "flex-1 px-3 py-2 text-xs text-neutral-200 group-hover:text-white transition-colors border-r border-neutral-700/10 last:border-r-0 truncate",
-                        compact && "py-1.5"
+                        compact && "py-1.5",
                       )}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
                     </div>
                   ))}
                 </div>
@@ -472,14 +553,15 @@ export function StatusBadge({
     return "default";
   };
 
-  const finalVariant = status !== undefined ? getVariantByStatus(status) : variant;
+  const finalVariant =
+    status !== undefined ? getVariantByStatus(status) : variant;
 
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
         variants[finalVariant],
-        className
+        className,
       )}
     >
       {children}
@@ -488,12 +570,18 @@ export function StatusBadge({
 }
 
 // Componente para códigos
-export function CodeDisplay({ children, className }: { children: React.ReactNode; className?: string }) {
+export function CodeDisplay({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <code
       className={cn(
         "rounded-md bg-neutral-700/30 border border-neutral-600/30 px-2 py-1 text-xs font-mono text-neutral-300 shadow-inner",
-        className
+        className,
       )}
     >
       {children}

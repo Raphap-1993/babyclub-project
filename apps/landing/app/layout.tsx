@@ -17,11 +17,13 @@ export const metadata: Metadata = {
     default: "BabyClub Access",
     template: "%s | BabyClub Access",
   },
-  description: "Tickets, promoters, and event access—built for nightlife operations.",
+  description:
+    "Compra de entradas digitales y reservas de mesa para eventos BABY.",
   applicationName: "BabyClub Access",
   openGraph: {
     title: "BabyClub Access",
-    description: "Tickets, promoters, and event access—built for nightlife operations.",
+    description:
+      "Compra de entradas digitales y reservas de mesa para eventos BABY.",
     url: "/",
     siteName: "BabyClub Access",
     type: "website",
@@ -29,7 +31,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "BabyClub Access",
-    description: "Tickets, promoters, and event access—built for nightlife operations.",
+    description:
+      "Compra de entradas digitales y reservas de mesa para eventos BABY.",
   },
   icons: {
     icon: "/favicon.ico",
@@ -42,7 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>

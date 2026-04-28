@@ -4,13 +4,21 @@ import { DateTime } from "luxon";
 import { EVENT_TZ } from "shared/datetime";
 import { getEntryCutoff } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
-import { getClientIp, parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
+import {
+  getClientIp,
+  parseRateLimitEnv,
+  rateLimit,
+  rateLimitHeaders,
+} from "shared/security/rateLimit";
 import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_SCAN_PER_MIN = parseRateLimitEnv(process.env.RATE_LIMIT_SCAN_PER_MIN, 120);
+const RATE_LIMIT_SCAN_PER_MIN = parseRateLimitEnv(
+  process.env.RATE_LIMIT_SCAN_PER_MIN,
+  120,
+);
 
 type ScanResult =
   | "valid"
@@ -36,16 +44,21 @@ type ReservationCommercialContext = {
   product_id: string | null;
   sale_origin: "table" | "ticket" | null;
   ticket_pricing_phase: "early_bird" | "all_night" | null;
+  ticket_type_label: string | null;
   table_name: string | null;
   product_name: string | null;
 };
 
-function normalizePricingPhase(value: string | null | undefined): "early_bird" | "all_night" | null {
+function normalizePricingPhase(
+  value: string | null | undefined,
+): "early_bird" | "all_night" | null {
   if (value === "early_bird" || value === "all_night") return value;
   return null;
 }
 
-function normalizeSaleOrigin(value: string | null | undefined): "table" | "ticket" | null {
+function normalizeSaleOrigin(
+  value: string | null | undefined,
+): "table" | "ticket" | null {
   if (value === "table" || value === "ticket") return value;
   return null;
 }
@@ -58,11 +71,25 @@ function isMissingReservationCommercialColumnsError(error: any): boolean {
   const haystack = `${message} ${details} ${hint}`.toLowerCase();
   return (
     haystack.includes("does not exist") &&
-    (haystack.includes("sale_origin") || haystack.includes("ticket_pricing_phase"))
+    (haystack.includes("sale_origin") ||
+      haystack.includes("ticket_pricing_phase") ||
+      haystack.includes("ticket_type_label"))
   );
 }
 
-function getQrKindLabel(kind: QrKind): string {
+function getQrKindLabel(
+  kind: QrKind,
+  reservation?: ReservationCommercialContext | null,
+): string {
+  if (
+    reservation?.ticket_type_label &&
+    (kind === "ticket_early" ||
+      kind === "ticket_all_night" ||
+      kind === "ticket_general")
+  ) {
+    return reservation.ticket_type_label;
+  }
+
   switch (kind) {
     case "table":
       return "Mesa / Box";
@@ -109,7 +136,7 @@ function resolveQrKind({
 
 async function fetchReservationCommercialContext(
   supabase: any,
-  reservationId: string
+  reservationId: string,
 ): Promise<ReservationCommercialContext | null> {
   let reservationData: any = null;
   let reservationError: any = null;
@@ -118,20 +145,25 @@ async function fetchReservationCommercialContext(
     supabase
       .from("table_reservations")
       .select(
-        "id,table_id,product_id,sale_origin,ticket_pricing_phase,table:tables(name),product:table_products(name)"
+        "id,table_id,product_id,sale_origin,ticket_pricing_phase,ticket_type_label,table:tables(name),product:table_products(name)",
       )
-      .eq("id", reservationId)
+      .eq("id", reservationId),
   );
   const commercialResult = await withCommercialQuery.maybeSingle();
   reservationData = commercialResult.data;
   reservationError = commercialResult.error;
 
-  if (reservationError && isMissingReservationCommercialColumnsError(reservationError)) {
+  if (
+    reservationError &&
+    isMissingReservationCommercialColumnsError(reservationError)
+  ) {
     const legacyQuery = applyNotDeleted(
       supabase
         .from("table_reservations")
-        .select("id,table_id,product_id,table:tables(name),product:table_products(name)")
-        .eq("id", reservationId)
+        .select(
+          "id,table_id,product_id,table:tables(name),product:table_products(name)",
+        )
+        .eq("id", reservationId),
     );
     const legacyResult = await legacyQuery.maybeSingle();
     reservationData = legacyResult.data;
@@ -149,10 +181,24 @@ async function fetchReservationCommercialContext(
 
   return {
     id: String((reservationData as any).id),
-    table_id: typeof (reservationData as any).table_id === "string" ? (reservationData as any).table_id : null,
-    product_id: typeof (reservationData as any).product_id === "string" ? (reservationData as any).product_id : null,
-    sale_origin: normalizeSaleOrigin((reservationData as any).sale_origin ?? null),
-    ticket_pricing_phase: normalizePricingPhase((reservationData as any).ticket_pricing_phase ?? null),
+    table_id:
+      typeof (reservationData as any).table_id === "string"
+        ? (reservationData as any).table_id
+        : null,
+    product_id:
+      typeof (reservationData as any).product_id === "string"
+        ? (reservationData as any).product_id
+        : null,
+    sale_origin: normalizeSaleOrigin(
+      (reservationData as any).sale_origin ?? null,
+    ),
+    ticket_pricing_phase: normalizePricingPhase(
+      (reservationData as any).ticket_pricing_phase ?? null,
+    ),
+    ticket_type_label:
+      typeof (reservationData as any).ticket_type_label === "string"
+        ? (reservationData as any).ticket_type_label
+        : null,
     table_name: typeof tableRel?.name === "string" ? tableRel.name : null,
     product_name: typeof productRel?.name === "string" ? productRel.name : null,
   };
@@ -161,7 +207,10 @@ async function fetchReservationCommercialContext(
 export async function POST(req: NextRequest) {
   const guard = await requireStaffRole(req, ["door", "admin", "superadmin"]);
   if (!guard.ok) {
-    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+    return NextResponse.json(
+      { success: false, error: guard.error },
+      { status: guard.status },
+    );
   }
   const limiter = rateLimit(req, {
     keyPrefix: "backoffice:scan",
@@ -176,26 +225,36 @@ export async function POST(req: NextRequest) {
   if (!limiter.ok) {
     return NextResponse.json(
       { success: false, error: "rate_limited", retryAfterMs: limiter.resetMs },
-      { status: 429, headers: rateLimitHeaders(limiter) }
+      { status: 429, headers: rateLimitHeaders(limiter) },
     );
   }
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Supabase config missing" },
+      { status: 500 },
+    );
   }
 
   let body: any = null;
   try {
     body = await req.json();
   } catch (_err) {
-    return NextResponse.json({ success: false, error: "JSON inválido" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "JSON inválido" },
+      { status: 400 },
+    );
   }
 
   const codeValue = typeof body?.code === "string" ? body.code.trim() : "";
-  const event_id = typeof body?.event_id === "string" ? body.event_id.trim() : "";
+  const event_id =
+    typeof body?.event_id === "string" ? body.event_id.trim() : "";
   const raw_value = codeValue;
 
   if (!codeValue || !event_id) {
-    return NextResponse.json({ success: false, error: "code y event_id son requeridos" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "code y event_id son requeridos" },
+      { status: 400 },
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -206,32 +265,48 @@ export async function POST(req: NextRequest) {
   const nowLima = DateTime.fromJSDate(now).setZone(EVENT_TZ);
 
   const eventQuery = applyNotDeleted(
-    supabase.from("events").select("id,starts_at,entry_limit").eq("id", event_id)
+    supabase
+      .from("events")
+      .select("id,starts_at,entry_limit")
+      .eq("id", event_id),
   );
   const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
 
   if (eventError) {
-    return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: eventError.message },
+      { status: 400 },
+    );
   }
   if (!eventRow) {
-    return NextResponse.json({ success: false, error: "Evento no encontrado" }, { status: 404 });
+    return NextResponse.json(
+      { success: false, error: "Evento no encontrado" },
+      { status: 404 },
+    );
   }
 
   const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
   const entryCutoffIso = entryCutoff?.cutoff.toUTC().toISO() ?? null;
-  const entryCutoffExceeded = entryCutoff ? nowLima > entryCutoff.cutoff : false;
+  const entryCutoffExceeded = entryCutoff
+    ? nowLima > entryCutoff.cutoff
+    : false;
 
   const codeQuery = applyNotDeleted(
     supabase
       .from("codes")
-      .select("id,code,type,event_id,is_active,max_uses,uses,expires_at,table_reservation_id")
+      .select(
+        "id,code,type,event_id,is_active,max_uses,uses,expires_at,table_reservation_id",
+      )
       .eq("event_id", event_id)
-      .eq("code", codeValue)
+      .eq("code", codeValue),
   );
   const { data: codeRow, error: codeErr } = await codeQuery.maybeSingle();
 
   if (codeErr) {
-    return NextResponse.json({ success: false, error: codeErr.message }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: codeErr.message },
+      { status: 400 },
+    );
   }
 
   let result: ScanResult = "not_found";
@@ -241,7 +316,12 @@ export async function POST(req: NextRequest) {
   let reservation_id: string | null = null;
   let ticket_table_id: string | null = null;
   let ticket_product_id: string | null = null;
-  let person: { full_name: string | null; dni: string | null; email: string | null; phone: string | null } | null = null;
+  let person: {
+    full_name: string | null;
+    dni: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null = null;
   let ticket_used = false;
   let match_type: MatchType = "none";
   let reason: string | null = null;
@@ -251,17 +331,29 @@ export async function POST(req: NextRequest) {
     match_type = "code";
     code_id = codeRow.id;
     code_type = (codeRow.type || "").toLowerCase() || null;
-    reservation_id = typeof (codeRow as any).table_reservation_id === "string" ? (codeRow as any).table_reservation_id : null;
-    const expired = codeRow.expires_at ? new Date(codeRow.expires_at) < now : false;
+    reservation_id =
+      typeof (codeRow as any).table_reservation_id === "string"
+        ? (codeRow as any).table_reservation_id
+        : null;
+    const expired = codeRow.expires_at
+      ? new Date(codeRow.expires_at) < now
+      : false;
     if (!codeRow.is_active) {
       result = "inactive";
     } else if (expired) {
       result = "expired";
-    } else if (codeRow.max_uses !== null && codeRow.max_uses !== undefined && (codeRow.uses ?? 0) >= codeRow.max_uses) {
+    } else if (
+      codeRow.max_uses !== null &&
+      codeRow.max_uses !== undefined &&
+      (codeRow.uses ?? 0) >= codeRow.max_uses
+    ) {
       result = "exhausted";
     } else {
       result = "valid";
-      if ((codeRow.type || "").toLowerCase() === "general" && entryCutoffExceeded) {
+      if (
+        (codeRow.type || "").toLowerCase() === "general" &&
+        entryCutoffExceeded
+      ) {
         result = "expired";
         reason = "entry_cutoff";
       }
@@ -270,11 +362,13 @@ export async function POST(req: NextRequest) {
     const ticketQuery = applyNotDeleted(
       supabase
         .from("tickets")
-        .select("id,full_name,dni,email,phone,used,table_id,product_id,table_reservation_id")
+        .select(
+          "id,full_name,dni,email,phone,used,table_id,product_id,table_reservation_id",
+        )
         .eq("code_id", codeRow.id)
         .eq("event_id", event_id)
         .order("created_at", { ascending: false })
-        .limit(1)
+        .limit(1),
     );
     const { data: ticketData } = await ticketQuery.maybeSingle();
     if (ticketData) {
@@ -282,9 +376,17 @@ export async function POST(req: NextRequest) {
       ticket_used = Boolean((ticketData as any).used);
       reservation_id =
         reservation_id ||
-        (typeof (ticketData as any).table_reservation_id === "string" ? (ticketData as any).table_reservation_id : null);
-      ticket_table_id = typeof (ticketData as any).table_id === "string" ? (ticketData as any).table_id : null;
-      ticket_product_id = typeof (ticketData as any).product_id === "string" ? (ticketData as any).product_id : null;
+        (typeof (ticketData as any).table_reservation_id === "string"
+          ? (ticketData as any).table_reservation_id
+          : null);
+      ticket_table_id =
+        typeof (ticketData as any).table_id === "string"
+          ? (ticketData as any).table_id
+          : null;
+      ticket_product_id =
+        typeof (ticketData as any).product_id === "string"
+          ? (ticketData as any).product_id
+          : null;
       person = {
         full_name: (ticketData as any).full_name ?? null,
         dni: (ticketData as any).dni ?? null,
@@ -302,22 +404,35 @@ export async function POST(req: NextRequest) {
     const qrTicketQuery = applyNotDeleted(
       supabase
         .from("tickets")
-        .select("id,code_id,full_name,dni,email,phone,used,table_id,product_id,table_reservation_id,code:codes(type)")
+        .select(
+          "id,code_id,full_name,dni,email,phone,used,table_id,product_id,table_reservation_id,code:codes(type)",
+        )
         .eq("qr_token", codeValue)
-        .eq("event_id", event_id)
+        .eq("event_id", event_id),
     );
     const { data: ticketRow } = await qrTicketQuery.maybeSingle();
     if (ticketRow) {
-      const codeRel = Array.isArray((ticketRow as any).code) ? (ticketRow as any).code?.[0] : (ticketRow as any).code;
+      const codeRel = Array.isArray((ticketRow as any).code)
+        ? (ticketRow as any).code?.[0]
+        : (ticketRow as any).code;
       const codeType = (codeRel?.type || "").toLowerCase();
       code_type = codeType || null;
       match_type = "ticket";
       ticket_id = ticketRow.id;
       code_id = ticketRow.code_id ?? null;
       ticket_used = Boolean((ticketRow as any).used);
-      reservation_id = typeof (ticketRow as any).table_reservation_id === "string" ? (ticketRow as any).table_reservation_id : null;
-      ticket_table_id = typeof (ticketRow as any).table_id === "string" ? (ticketRow as any).table_id : null;
-      ticket_product_id = typeof (ticketRow as any).product_id === "string" ? (ticketRow as any).product_id : null;
+      reservation_id =
+        typeof (ticketRow as any).table_reservation_id === "string"
+          ? (ticketRow as any).table_reservation_id
+          : null;
+      ticket_table_id =
+        typeof (ticketRow as any).table_id === "string"
+          ? (ticketRow as any).table_id
+          : null;
+      ticket_product_id =
+        typeof (ticketRow as any).product_id === "string"
+          ? (ticketRow as any).product_id
+          : null;
       if (ticket_used) {
         result = "duplicate";
       } else if (codeType === "general" && entryCutoffExceeded) {
@@ -341,7 +456,7 @@ export async function POST(req: NextRequest) {
         .from("codes")
         .select("event_id,event:events(name)")
         .eq("code", codeValue)
-        .neq("event_id", event_id)
+        .neq("event_id", event_id),
     );
     const { data: otherCode } = await otherCodeQuery.maybeSingle();
     const otherTicketQuery = applyNotDeleted(
@@ -349,12 +464,14 @@ export async function POST(req: NextRequest) {
         .from("tickets")
         .select("event_id,event:events(name)")
         .eq("qr_token", codeValue)
-        .neq("event_id", event_id)
+        .neq("event_id", event_id),
     );
     const { data: otherTicket } = await otherTicketQuery.maybeSingle();
     const otherSource: any = otherCode || otherTicket;
     if (otherSource?.event_id) {
-      const eventRel = Array.isArray(otherSource.event) ? otherSource.event?.[0] : otherSource.event;
+      const eventRel = Array.isArray(otherSource.event)
+        ? otherSource.event?.[0]
+        : otherSource.event;
       other_event = {
         id: otherSource.event_id,
         name: eventRel?.name ?? null,
@@ -381,7 +498,7 @@ export async function POST(req: NextRequest) {
         .eq("dni", person.dni)
         .eq("used", true)
         .neq("id", ticket_id ?? "")
-        .limit(1)
+        .limit(1),
     ).maybeSingle();
     if (otherUsed?.id) {
       person_already_entered = true;
@@ -398,7 +515,7 @@ export async function POST(req: NextRequest) {
     ticketTableId: ticket_table_id,
     reservation: reservationContext,
   });
-  const qr_kind_label = getQrKindLabel(qr_kind);
+  const qr_kind_label = getQrKindLabel(qr_kind, reservationContext);
 
   await supabase.from("scan_logs").insert({
     event_id,
@@ -424,12 +541,16 @@ export async function POST(req: NextRequest) {
     table_name: reservationContext?.table_name || null,
     product_name: reservationContext?.product_name || null,
     ticket_pricing_phase: reservationContext?.ticket_pricing_phase || null,
+    ticket_type_label: reservationContext?.ticket_type_label || null,
     sale_origin: reservationContext?.sale_origin || null,
     table_id: reservationContext?.table_id || ticket_table_id || null,
     product_id: reservationContext?.product_id || ticket_product_id || null,
     uses: codeRow?.uses ?? 0,
     max_uses: codeRow?.max_uses ?? null,
-    expired_at: reason === "entry_cutoff" ? entryCutoffIso : codeRow?.expires_at ?? null,
+    expired_at:
+      reason === "entry_cutoff"
+        ? entryCutoffIso
+        : (codeRow?.expires_at ?? null),
     person,
     ticket_used,
     person_already_entered,

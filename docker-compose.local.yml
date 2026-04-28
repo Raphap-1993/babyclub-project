@@ -1,0 +1,69 @@
+services:
+  landing:
+    build:
+      context: .
+      dockerfile: docker/local/node-dev.Dockerfile
+    working_dir: /workspace
+    command: bash -lc "pnpm --filter landing exec next dev --hostname 0.0.0.0 --port 3001"
+    env_file:
+      - apps/landing/.env.local.localstack
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/workspace
+      - babyclub_node_modules:/workspace/node_modules
+      - babyclub_pnpm_store:/root/.local/share/pnpm/store
+      - babyclub_turbo:/workspace/.turbo
+      - babyclub_landing_next:/workspace/apps/landing/.next
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      CHOKIDAR_USEPOLLING: "1"
+      WATCHPACK_POLLING: "true"
+
+  backoffice:
+    build:
+      context: .
+      dockerfile: docker/local/node-dev.Dockerfile
+    working_dir: /workspace
+    command: bash -lc "pnpm --filter backoffice exec next dev --hostname 0.0.0.0 --port 3000"
+    env_file:
+      - apps/backoffice/.env.local.localstack
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - babyclub_node_modules:/workspace/node_modules
+      - babyclub_pnpm_store:/root/.local/share/pnpm/store
+      - babyclub_turbo:/workspace/.turbo
+      - babyclub_backoffice_next:/workspace/apps/backoffice/.next
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      CHOKIDAR_USEPOLLING: "1"
+      WATCHPACK_POLLING: "true"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/local/node-dev.Dockerfile
+    working_dir: /workspace
+    command: bash -lc "node apps/api/server.js"
+    env_file:
+      - apps/api/.env.local.localstack
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/workspace
+      - babyclub_node_modules:/workspace/node_modules
+      - babyclub_pnpm_store:/root/.local/share/pnpm/store
+      - babyclub_turbo:/workspace/.turbo
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  babyclub_node_modules:
+  babyclub_pnpm_store:
+  babyclub_turbo:
+  babyclub_landing_next:
+  babyclub_backoffice_next:

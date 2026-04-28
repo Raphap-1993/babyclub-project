@@ -4,9 +4,11 @@ Este directorio contiene las decisiones arquitectónicas del proyecto.
 Generadas por el agente `/orchestrate` y documentadas por `/docs`.
 
 ## Formato de nombre
+
 `ADR-[NNN]-[descripcion-en-kebab-case].md`
 
 ## Estados posibles
+
 - **Propuesto** — en revisión
 - **Aprobado** — vigente
 - **Rechazado** — evaluado y descartado
@@ -15,6 +17,7 @@ Generadas por el agente `/orchestrate` y documentadas por `/docs`.
 
 ## Índice
 
-| ADR | Título | Estado | Fecha |
-|-----|--------|--------|-------|
-| [ADR-001](./ADR-001-auth-rutas-backoffice.md) | Todas las rutas backoffice requieren requireStaff | Aprobado | 2026-03-15 |
+| ADR                                                         | Título                                              | Estado   | Fecha      |
+| ----------------------------------------------------------- | --------------------------------------------------- | -------- | ---------- |
+| [ADR-001](./ADR-001-auth-rutas-backoffice.md)               | Todas las rutas backoffice requieren requireStaff   | Aprobado | 2026-03-15 |
+| [ADR-008](./2026-04-25-008-event-ticket-types-per-event.md) | Catalogo persistente de tipos de entrada por evento | Aprobado | 2026-04-25 |

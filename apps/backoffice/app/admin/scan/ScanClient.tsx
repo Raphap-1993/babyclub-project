@@ -13,7 +13,12 @@ import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
 import { LogoutButton } from "@/components/LogoutButton";
 
-type Option = { id: string; name: string; starts_at: string; entry_limit?: string | null };
+type Option = {
+  id: string;
+  name: string;
+  starts_at: string;
+  entry_limit?: string | null;
+};
 
 type ScanLog = {
   ts: number;
@@ -24,7 +29,15 @@ type ScanLog = {
 };
 
 type MatchType = "code" | "ticket" | "none";
-type ScanResult = "valid" | "duplicate" | "expired" | "inactive" | "invalid" | "not_found" | "exhausted" | "confirmed";
+type ScanResult =
+  | "valid"
+  | "duplicate"
+  | "expired"
+  | "inactive"
+  | "invalid"
+  | "not_found"
+  | "exhausted"
+  | "confirmed";
 type QrKind =
   | "table"
   | "ticket_early"
@@ -62,10 +75,17 @@ type ScanSummary = {
   table_name?: string | null;
   product_name?: string | null;
   ticket_pricing_phase?: "early_bird" | "all_night" | null;
+  ticket_type_label?: string | null;
   person_already_entered?: boolean;
 };
 
-export default function ScanClient({ events, simpleMode = false }: { events: Option[]; simpleMode?: boolean }) {
+export default function ScanClient({
+  events,
+  simpleMode = false,
+}: {
+  events: Option[];
+  simpleMode?: boolean;
+}) {
   const [eventId, setEventId] = useState(events[0]?.id || "");
   const [manual, setManual] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -77,10 +97,16 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const [ready, setReady] = useState(false);
-  const selectedEvent = useMemo(() => events.find((ev) => ev.id === eventId), [events, eventId]);
+  const selectedEvent = useMemo(
+    () => events.find((ev) => ev.id === eventId),
+    [events, eventId],
+  );
   const entryCutoff = useMemo(() => {
     if (!selectedEvent?.starts_at) return null;
-    return getEntryCutoffDisplay(selectedEvent.starts_at, selectedEvent.entry_limit);
+    return getEntryCutoffDisplay(
+      selectedEvent.starts_at,
+      selectedEvent.entry_limit,
+    );
   }, [selectedEvent]);
   const entryLimitLabel = entryCutoff
     ? entryCutoff.isNextDay
@@ -144,7 +170,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
           if (result?.getText()) {
             handleScan(result.getText());
           }
-        }
+        },
       );
       controlsRef.current = controls;
       setReady(true);
@@ -164,7 +190,8 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         body: JSON.stringify({ code: value, event_id: eventId }),
       });
       const payload = await res.json().catch(() => null);
-      if (!res.ok || !payload?.success) throw new Error(payload?.error || "Error al validar código");
+      if (!res.ok || !payload?.success)
+        throw new Error(payload?.error || "Error al validar código");
       const result = payload.result as ScanResult;
       const color =
         result === "valid" || result === "confirmed"
@@ -172,7 +199,9 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
           : result === "duplicate" || result === "exhausted"
             ? "text-yellow-300"
             : "text-red-300";
-      setLogs((prev) => [{ ts: Date.now(), value, result, color }, ...prev].slice(0, 8));
+      setLogs((prev) =>
+        [{ ts: Date.now(), value, result, color }, ...prev].slice(0, 8),
+      );
       setMessage(`Resultado: ${result}`);
       const nextSummary: ScanSummary = {
         value,
@@ -195,6 +224,7 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         table_name: payload.table_name ?? null,
         product_name: payload.product_name ?? null,
         ticket_pricing_phase: payload.ticket_pricing_phase ?? null,
+        ticket_type_label: payload.ticket_type_label ?? null,
         person_already_entered: payload.person_already_entered ?? false,
       };
       setLastResult(nextSummary);
@@ -202,15 +232,30 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
       stopScanner();
     } catch (err: any) {
       setMessage(err?.message || "Error al validar código");
-      setLogs((prev) => [{ ts: Date.now(), value, result: "error", color: "text-red-300", details: err?.message }, ...prev].slice(0, 8));
+      setLogs((prev) =>
+        [
+          {
+            ts: Date.now(),
+            value,
+            result: "error",
+            color: "text-red-300",
+            details: err?.message,
+          },
+          ...prev,
+        ].slice(0, 8),
+      );
       setLastResult(null);
       setModal(null);
     }
   }
 
   const showCameraFrame = scanning || ready;
-  const cameraActiveHeightClass = simpleMode ? "h-[34vh] min-h-[190px] max-h-[280px] sm:h-[300px]" : "h-[52vh] min-h-[300px] sm:h-[360px]";
-  const cameraIdleHeightClass = simpleMode ? "h-[104px] sm:h-[120px]" : "h-[220px] sm:h-[240px]";
+  const cameraActiveHeightClass = simpleMode
+    ? "h-[34vh] min-h-[190px] max-h-[280px] sm:h-[300px]"
+    : "h-[52vh] min-h-[300px] sm:h-[360px]";
+  const cameraIdleHeightClass = simpleMode
+    ? "h-[104px] sm:h-[120px]"
+    : "h-[220px] sm:h-[240px]";
 
   return (
     <AdminPage>
@@ -219,13 +264,22 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2">
             <div className="flex h-10 min-w-[104px] items-center justify-center rounded-xl border border-[#2b2b2b] bg-[#0f0f0f] px-3">
               {logoUrl ? (
-                <img src={logoUrl} alt="Baby Logo" className="h-6 w-auto object-contain" />
+                <img
+                  src={logoUrl}
+                  alt="Baby Logo"
+                  className="h-6 w-auto object-contain"
+                />
               ) : (
-                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Baby</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">
+                  Baby
+                </span>
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="default" className="h-10 rounded-xl px-3 text-[11px] uppercase tracking-[0.12em]">
+              <Badge
+                variant="default"
+                className="h-10 rounded-xl px-3 text-[11px] uppercase tracking-[0.12em]"
+              >
                 Modo puerta
               </Badge>
               <LogoutButton className="h-10 min-w-[118px]" />
@@ -240,10 +294,24 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         description="Usa la cámara del celular para validar entradas en puerta."
       />
 
-      <Card className={simpleMode ? "mb-2 rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]" : "mb-4 rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"}>
-        <CardContent className={simpleMode ? "grid gap-2 p-2.5 sm:p-3 md:grid-cols-2" : "grid gap-3 p-3 sm:p-4 md:grid-cols-2"}>
+      <Card
+        className={
+          simpleMode
+            ? "mb-2 rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]"
+            : "mb-4 rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"
+        }
+      >
+        <CardContent
+          className={
+            simpleMode
+              ? "grid gap-2 p-2.5 sm:p-3 md:grid-cols-2"
+              : "grid gap-3 p-3 sm:p-4 md:grid-cols-2"
+          }
+        >
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-white">Evento</label>
+            <label className="block text-sm font-semibold text-white">
+              Evento
+            </label>
             <SelectNative
               value={eventId}
               onChange={(e) => setEventId(e.target.value)}
@@ -258,12 +326,20 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
             </SelectNative>
             {entryLimitLabel && (
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="default" className="px-3 py-1 text-[11px] uppercase tracking-[0.12em]">
+                <Badge
+                  variant="default"
+                  className="px-3 py-1 text-[11px] uppercase tracking-[0.12em]"
+                >
                   Límite ingreso: {entryLimitLabel}
                 </Badge>
                 {entryStatus && (
-                  <Badge variant={entryStatus === "late" ? "danger" : "success"} className="px-3 py-1 text-[11px] uppercase tracking-[0.12em]">
-                    {entryStatus === "late" ? "Fuera de hora" : "Dentro de hora"}
+                  <Badge
+                    variant={entryStatus === "late" ? "danger" : "success"}
+                    className="px-3 py-1 text-[11px] uppercase tracking-[0.12em]"
+                  >
+                    {entryStatus === "late"
+                      ? "Fuera de hora"
+                      : "Dentro de hora"}
                   </Badge>
                 )}
               </div>
@@ -272,7 +348,9 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
 
           {!simpleMode && (
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-white">Código manual</label>
+              <label className="block text-sm font-semibold text-white">
+                Código manual
+              </label>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   value={manual}
@@ -295,7 +373,11 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
               </div>
               {message && (
                 <Badge
-                  variant={message.toLowerCase().includes("error") ? "danger" : "default"}
+                  variant={
+                    message.toLowerCase().includes("error")
+                      ? "danger"
+                      : "default"
+                  }
                   className="w-full justify-center rounded-xl py-2 text-xs"
                 >
                   {message}
@@ -303,10 +385,17 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
               )}
               {lastResult && (
                 <div className="rounded-2xl border border-[#2b2b2b] bg-[#171717] p-3 text-sm text-white/80 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-                  <p className="text-xs uppercase tracking-[0.12em] text-white/50">Último resultado</p>
+                  <p className="text-xs uppercase tracking-[0.12em] text-white/50">
+                    Último resultado
+                  </p>
                   <div className="mt-1 flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-[12px] text-white">{lastResult.value}</span>
-                    <Badge variant={getResultBadgeVariant(lastResult.result)} className="px-3 py-1 text-[12px]">
+                    <span className="truncate font-mono text-[12px] text-white">
+                      {lastResult.value}
+                    </span>
+                    <Badge
+                      variant={getResultBadgeVariant(lastResult.result)}
+                      className="px-3 py-1 text-[12px]"
+                    >
                       {lastResult.result}
                     </Badge>
                   </div>
@@ -317,24 +406,29 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                         <p className="text-white">{lastResult.qr_kind_label}</p>
                       </div>
                     )}
-                    {lastResult.match_type === "code" && typeof lastResult.uses === "number" && (
-                      <div>
-                        <p className="text-white/50">Usos</p>
-                        <p className="text-white">
-                          {lastResult.uses}/{lastResult.max_uses ?? "∞"}
-                        </p>
-                      </div>
-                    )}
+                    {lastResult.match_type === "code" &&
+                      typeof lastResult.uses === "number" && (
+                        <div>
+                          <p className="text-white/50">Usos</p>
+                          <p className="text-white">
+                            {lastResult.uses}/{lastResult.max_uses ?? "∞"}
+                          </p>
+                        </div>
+                      )}
                     {lastResult.code_id && (
                       <div>
                         <p className="text-white/50">Code ID</p>
-                        <p className="truncate font-mono text-white">{lastResult.code_id}</p>
+                        <p className="truncate font-mono text-white">
+                          {lastResult.code_id}
+                        </p>
                       </div>
                     )}
                     {lastResult.ticket_id && (
                       <div>
                         <p className="text-white/50">Ticket ID</p>
-                        <p className="truncate font-mono text-white">{lastResult.ticket_id}</p>
+                        <p className="truncate font-mono text-white">
+                          {lastResult.ticket_id}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -345,13 +439,35 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         </CardContent>
       </Card>
 
-      <Card className={simpleMode ? "mb-2 rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]" : "mb-4 rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"}>
-        <CardContent className={simpleMode ? "flex flex-wrap gap-2 p-2.5" : "flex flex-wrap gap-2 p-3"}>
-          <Badge variant="default" className="rounded-lg px-3 py-1 text-[11px] uppercase tracking-[0.12em]">
+      <Card
+        className={
+          simpleMode
+            ? "mb-2 rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]"
+            : "mb-4 rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"
+        }
+      >
+        <CardContent
+          className={
+            simpleMode
+              ? "flex flex-wrap gap-2 p-2.5"
+              : "flex flex-wrap gap-2 p-3"
+          }
+        >
+          <Badge
+            variant="default"
+            className="rounded-lg px-3 py-1 text-[11px] uppercase tracking-[0.12em]"
+          >
             Reglas de hora
           </Badge>
-          <Badge variant={entryStatus === "late" ? "danger" : "warning"} className="rounded-lg px-3 py-1 text-[11px]">
-            General: {entryLimitLabel ? `hasta ${entryLimitLabel}` : "según evento"}{entryStatus ? ` (${entryStatus === "late" ? "fuera de hora" : "dentro de hora"})` : ""}
+          <Badge
+            variant={entryStatus === "late" ? "danger" : "warning"}
+            className="rounded-lg px-3 py-1 text-[11px]"
+          >
+            General:{" "}
+            {entryLimitLabel ? `hasta ${entryLimitLabel}` : "según evento"}
+            {entryStatus
+              ? ` (${entryStatus === "late" ? "fuera de hora" : "dentro de hora"})`
+              : ""}
           </Badge>
           <Badge variant="success" className="rounded-lg px-3 py-1 text-[11px]">
             Mesa/Box: sin límite horario
@@ -365,9 +481,23 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         </CardContent>
       </Card>
 
-      <div className={`grid ${simpleMode ? "gap-2" : "gap-4"} ${simpleMode ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[1.8fr,1fr]"}`}>
-        <Card className={simpleMode ? "rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]" : "rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"}>
-          <CardHeader className={simpleMode ? "flex flex-row flex-wrap items-center justify-between gap-2 p-3 pb-2" : "flex flex-row flex-wrap items-center justify-between gap-2 pb-3"}>
+      <div
+        className={`grid ${simpleMode ? "gap-2" : "gap-4"} ${simpleMode ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[1.8fr,1fr]"}`}
+      >
+        <Card
+          className={
+            simpleMode
+              ? "rounded-2xl border-[#292929] bg-[#0c0c0c] shadow-[0_14px_44px_rgba(0,0,0,0.4)]"
+              : "rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]"
+          }
+        >
+          <CardHeader
+            className={
+              simpleMode
+                ? "flex flex-row flex-wrap items-center justify-between gap-2 p-3 pb-2"
+                : "flex flex-row flex-wrap items-center justify-between gap-2 pb-3"
+            }
+          >
             <CardTitle className="text-sm font-semibold">Cámara</CardTitle>
             <Button
               type="button"
@@ -380,15 +510,27 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
             </Button>
           </CardHeader>
           <CardContent className={simpleMode ? "px-3 pb-3 pt-0" : "pt-0"}>
-            <div className={simpleMode ? "overflow-hidden rounded-xl border border-[#292929] bg-black" : "overflow-hidden rounded-2xl border border-[#292929] bg-black"}>
+            <div
+              className={
+                simpleMode
+                  ? "overflow-hidden rounded-xl border border-[#292929] bg-black"
+                  : "overflow-hidden rounded-2xl border border-[#292929] bg-black"
+              }
+            >
               {!showCameraFrame && (
-                <div className={`flex items-center justify-center px-4 text-center text-sm text-white/60 ${cameraIdleHeightClass}`}>
+                <div
+                  className={`flex items-center justify-center px-4 text-center text-sm text-white/60 ${cameraIdleHeightClass}`}
+                >
                   Selecciona evento y pulsa “Iniciar escaneo”.
                 </div>
               )}
               <video
                 ref={videoRef}
-                className={showCameraFrame ? `block w-full bg-black object-cover ${cameraActiveHeightClass}` : "hidden"}
+                className={
+                  showCameraFrame
+                    ? `block w-full bg-black object-cover ${cameraActiveHeightClass}`
+                    : "hidden"
+                }
                 autoPlay
                 muted
                 playsInline
@@ -400,18 +542,29 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
         {!simpleMode && (
           <Card className="rounded-3xl border-[#292929] bg-[#0c0c0c] shadow-[0_20px_70px_rgba(0,0,0,0.45)]">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Últimos escaneos</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Últimos escaneos
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 pt-0 text-sm text-white/80">
-              {logs.length === 0 && <p className="text-white/50">Sin lecturas aún.</p>}
+              {logs.length === 0 && (
+                <p className="text-white/50">Sin lecturas aún.</p>
+              )}
               {logs.map((l) => (
-                <div key={`${l.ts}-${l.value}`} className="rounded-2xl border border-[#292929] bg-[#171717] px-3 py-2">
+                <div
+                  key={`${l.ts}-${l.value}`}
+                  className="rounded-2xl border border-[#292929] bg-[#171717] px-3 py-2"
+                >
                   <div className="flex items-center justify-between text-xs text-white/60">
                     <span>{new Date(l.ts).toLocaleTimeString()}</span>
                     <span className={l.color}>{l.result}</span>
                   </div>
-                  <p className="truncate font-mono text-[12px] text-white">{l.value}</p>
-                  {l.details && <p className="text-xs text-white/60">{l.details}</p>}
+                  <p className="truncate font-mono text-[12px] text-white">
+                    {l.value}
+                  </p>
+                  {l.details && (
+                    <p className="text-xs text-white/60">{l.details}</p>
+                  )}
                 </div>
               ))}
             </CardContent>
@@ -425,9 +578,15 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.15em] text-white/50">Resultado del scan</p>
-                  <h3 className="text-xl font-semibold text-white">{getResultTitle(modal.result, modal.reason)}</h3>
-                  <p className="text-sm text-white/60">{getResultHint(modal)}</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-white/50">
+                    Resultado del scan
+                  </p>
+                  <h3 className="text-xl font-semibold text-white">
+                    {getResultTitle(modal.result, modal.reason)}
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    {getResultHint(modal)}
+                  </p>
                 </div>
                 <Button
                   type="button"
@@ -445,8 +604,13 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
             </CardHeader>
             <CardContent className="space-y-3 pt-0 text-sm text-white/80">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-mono text-[12px] text-white">{modal.value}</span>
-                <Badge variant={getResultBadgeVariant(modal.result)} className="px-3 py-1 text-[12px]">
+                <span className="truncate font-mono text-[12px] text-white">
+                  {modal.value}
+                </span>
+                <Badge
+                  variant={getResultBadgeVariant(modal.result)}
+                  className="px-3 py-1 text-[12px]"
+                >
                   {modal.result}
                 </Badge>
               </div>
@@ -458,33 +622,72 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
               )}
 
               <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3 text-sm text-white/80">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Detalle del scan</p>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">
+                  Detalle del scan
+                </p>
                 <div className="mt-2 grid gap-2 text-[13px] text-white">
-                  <div className="text-white/80">Evento: {getEventName(events, eventId)}</div>
-                  <div className="text-white/80">Tipo QR: {getQrKindLabel(modal.qr_kind, modal.qr_kind_label)}</div>
-                  <div className="text-white/80">Origen lectura: {getMatchLabel(modal.match_type)}</div>
+                  <div className="text-white/80">
+                    Evento: {getEventName(events, eventId)}
+                  </div>
+                  <div className="text-white/80">
+                    Tipo QR:{" "}
+                    {getQrKindLabel(modal.qr_kind, modal.qr_kind_label)}
+                  </div>
+                  <div className="text-white/80">
+                    Origen lectura: {getMatchLabel(modal.match_type)}
+                  </div>
                   {modal.ticket_pricing_phase && (
-                    <div className="text-white/80">Fase comercial: {modal.ticket_pricing_phase === "early_bird" ? "EARLY" : "ALL NIGHT"}</div>
-                  )}
-                  {modal.table_name && <div className="text-white/80">Mesa: {modal.table_name}</div>}
-                  {modal.product_name && <div className="text-white/80">Pack: {modal.product_name}</div>}
-                  {modal.other_event?.name && <div className="text-white/80">Otro evento: {modal.other_event.name}</div>}
-                  {modal.code_type === "general" && entryLimitLabel && entryStatus && modal.reason !== "event_mismatch" && (
                     <div className="text-white/80">
-                      Límite ingreso: {entryLimitLabel} ·{" "}
-                      <span className={entryStatus === "late" ? "text-red-200" : "text-emerald-200"}>
-                        {entryStatus === "late" ? "Fuera de hora" : "Dentro de hora"}
-                      </span>
+                      Fase comercial:{" "}
+                      {modal.ticket_pricing_phase === "early_bird"
+                        ? "EARLY"
+                        : "ALL NIGHT"}
                     </div>
                   )}
+                  {modal.table_name && (
+                    <div className="text-white/80">
+                      Mesa: {modal.table_name}
+                    </div>
+                  )}
+                  {modal.product_name && (
+                    <div className="text-white/80">
+                      Pack: {modal.product_name}
+                    </div>
+                  )}
+                  {modal.other_event?.name && (
+                    <div className="text-white/80">
+                      Otro evento: {modal.other_event.name}
+                    </div>
+                  )}
+                  {modal.code_type === "general" &&
+                    entryLimitLabel &&
+                    entryStatus &&
+                    modal.reason !== "event_mismatch" && (
+                      <div className="text-white/80">
+                        Límite ingreso: {entryLimitLabel} ·{" "}
+                        <span
+                          className={
+                            entryStatus === "late"
+                              ? "text-red-200"
+                              : "text-emerald-200"
+                          }
+                        >
+                          {entryStatus === "late"
+                            ? "Fuera de hora"
+                            : "Dentro de hora"}
+                        </span>
+                      </div>
+                    )}
                   {modal.code_id && (
                     <div className="text-white/80">
-                      Code ID: <span className="font-mono">{modal.code_id}</span>
+                      Code ID:{" "}
+                      <span className="font-mono">{modal.code_id}</span>
                     </div>
                   )}
                   {modal.ticket_id && (
                     <div className="text-white/80">
-                      Ticket ID: <span className="font-mono">{modal.ticket_id}</span>
+                      Ticket ID:{" "}
+                      <span className="font-mono">{modal.ticket_id}</span>
                     </div>
                   )}
                 </div>
@@ -492,37 +695,58 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
 
               {modal.person && (
                 <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3 text-sm text-white/80">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Datos del cliente</p>
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">
+                    Datos del cliente
+                  </p>
                   <div className="mt-2 grid gap-2 text-[13px] text-white">
-                    <div className="font-semibold">{modal.person.full_name || "—"}</div>
-                    <div className="text-white/80">DNI: {modal.person.dni || "—"}</div>
-                    <div className="text-white/80">Email: {modal.person.email || "—"}</div>
-                    <div className="text-white/80">Teléfono: {modal.person.phone || "—"}</div>
+                    <div className="font-semibold">
+                      {modal.person.full_name || "—"}
+                    </div>
+                    <div className="text-white/80">
+                      DNI: {modal.person.dni || "—"}
+                    </div>
+                    <div className="text-white/80">
+                      Email: {modal.person.email || "—"}
+                    </div>
+                    <div className="text-white/80">
+                      Teléfono: {modal.person.phone || "—"}
+                    </div>
                   </div>
                 </div>
               )}
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {modal.match_type === "code" && typeof modal.uses === "number" && (
-                  <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3">
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">Usos</p>
-                    <p className="text-white">
-                      {modal.uses}/{modal.max_uses ?? "∞"}
-                    </p>
-                  </div>
-                )}
+                {modal.match_type === "code" &&
+                  typeof modal.uses === "number" && (
+                    <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3">
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">
+                        Usos
+                      </p>
+                      <p className="text-white">
+                        {modal.uses}/{modal.max_uses ?? "∞"}
+                      </p>
+                    </div>
+                  )}
                 {modal.expired_at && (
                   <div className="rounded-2xl border border-[#292929] bg-[#171717] p-3">
                     <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">
-                      {modal.reason === "entry_cutoff" ? "Límite ingreso" : "Expira"}
+                      {modal.reason === "entry_cutoff"
+                        ? "Límite ingreso"
+                        : "Expira"}
                     </p>
-                    <p className="text-white">{new Date(modal.expired_at).toLocaleString()}</p>
+                    <p className="text-white">
+                      {new Date(modal.expired_at).toLocaleString()}
+                    </p>
                   </div>
                 )}
                 {modal.ticket_used && (
                   <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/70">Estado</p>
-                    <p className="text-sm font-semibold text-yellow-200">Este ticket ya fue usado</p>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/70">
+                      Estado
+                    </p>
+                    <p className="text-sm font-semibold text-yellow-200">
+                      Este ticket ya fue usado
+                    </p>
                   </div>
                 )}
               </div>
@@ -549,11 +773,15 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                         const res = await authedFetch("/api/scan/confirm", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ code_id: modal.code_id, ticket_id: modal.ticket_id }),
+                          body: JSON.stringify({
+                            code_id: modal.code_id,
+                            ticket_id: modal.ticket_id,
+                          }),
                         });
                         const payload = await res.json().catch(() => null);
                         if (!res.ok || !payload?.success) {
-                          const errMsg = payload?.error || "No se pudo confirmar";
+                          const errMsg =
+                            payload?.error || "No se pudo confirmar";
                           throw new Error(errMsg);
                         }
                         const confirmedAt = new Date().toISOString();
@@ -563,12 +791,15 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                             ? {
                                 ...prev,
                                 result: "confirmed",
-                                ticket_used: typeof payload?.ticket_used === "boolean" ? payload.ticket_used : prev.ticket_used,
+                                ticket_used:
+                                  typeof payload?.ticket_used === "boolean"
+                                    ? payload.ticket_used
+                                    : prev.ticket_used,
                                 uses: payload?.uses ?? prev.uses,
                                 max_uses: payload?.max_uses ?? prev.max_uses,
                                 confirmed_at: confirmedAt,
                               }
-                            : prev
+                            : prev,
                         );
                         setLastResult((prev) =>
                           prev
@@ -578,26 +809,46 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
                                 uses: payload?.uses ?? prev.uses,
                                 max_uses: payload?.max_uses ?? prev.max_uses,
                               }
-                            : prev
+                            : prev,
                         );
-                        setLogs((prev) => [
-                          { ts: Date.now(), value: modal.value, result: "confirmed", color: "text-green-300" },
-                          ...prev,
-                        ].slice(0, 8));
+                        setLogs((prev) =>
+                          [
+                            {
+                              ts: Date.now(),
+                              value: modal.value,
+                              result: "confirmed",
+                              color: "text-green-300",
+                            },
+                            ...prev,
+                          ].slice(0, 8),
+                        );
                       } catch (err: any) {
-                        const msg = err?.message || "Error al confirmar ingreso";
+                        const msg =
+                          err?.message || "Error al confirmar ingreso";
                         setMessage(msg);
-                        setLogs((prev) => [
-                          { ts: Date.now(), value: modal.value, result: "error", color: "text-red-300", details: msg },
-                          ...prev,
-                        ].slice(0, 8));
+                        setLogs((prev) =>
+                          [
+                            {
+                              ts: Date.now(),
+                              value: modal.value,
+                              result: "error",
+                              color: "text-red-300",
+                              details: msg,
+                            },
+                            ...prev,
+                          ].slice(0, 8),
+                        );
                       } finally {
                         setConfirming(false);
                       }
                     }}
                     className="h-11 rounded-xl"
                   >
-                    {confirming ? "Confirmando..." : modal.ticket_used ? "Ya usado" : "Validar ingreso"}
+                    {confirming
+                      ? "Confirmando..."
+                      : modal.ticket_used
+                        ? "Ya usado"
+                        : "Validar ingreso"}
                   </Button>
                 )}
                 <Button
@@ -620,7 +871,9 @@ export default function ScanClient({ events, simpleMode = false }: { events: Opt
   );
 }
 
-function getResultBadgeVariant(result: ScanResult): "success" | "warning" | "danger" {
+function getResultBadgeVariant(
+  result: ScanResult,
+): "success" | "warning" | "danger" {
   if (result === "valid" || result === "confirmed") return "success";
   if (result === "duplicate" || result === "exhausted") return "warning";
   return "danger";
@@ -628,7 +881,8 @@ function getResultBadgeVariant(result: ScanResult): "success" | "warning" | "dan
 
 function getResultTitle(result: string, reason?: string | null) {
   if (result === "expired" && reason === "entry_cutoff") return "Fuera de hora";
-  if (result === "duplicate" && reason === "person_already_entered") return "DNI ya ingresó al evento";
+  if (result === "duplicate" && reason === "person_already_entered")
+    return "DNI ya ingresó al evento";
   switch (result) {
     case "valid":
       return "Código validado";
@@ -657,15 +911,21 @@ function getResultHint(modal: {
   other_event?: { id: string; name: string | null } | null;
   ticket_used?: boolean;
   qr_kind?: QrKind | null;
+  qr_kind_label?: string | null;
 }) {
-  const qrLabel = getQrKindLabel(modal.qr_kind);
-  if (modal.result === "confirmed") return `${qrLabel} registrado correctamente.`;
-  if (modal.result === "valid") return `${qrLabel} válido. Puedes confirmar el ingreso.`;
-  if (modal.reason === "entry_cutoff") return "Superó la hora máxima de ingreso para este evento.";
-  if (modal.result === "duplicate" || modal.ticket_used) return `${qrLabel} ya fue validado anteriormente.`;
+  const qrLabel = getQrKindLabel(modal.qr_kind, modal.qr_kind_label);
+  if (modal.result === "confirmed")
+    return `${qrLabel} registrado correctamente.`;
+  if (modal.result === "valid")
+    return `${qrLabel} válido. Puedes confirmar el ingreso.`;
+  if (modal.reason === "entry_cutoff")
+    return "Superó la hora máxima de ingreso para este evento.";
+  if (modal.result === "duplicate" || modal.ticket_used)
+    return `${qrLabel} ya fue validado anteriormente.`;
   if (modal.result === "expired") return "El código está vencido.";
   if (modal.result === "inactive") return "El código está inactivo.";
-  if (modal.result === "exhausted") return "El código alcanzó el máximo de usos.";
+  if (modal.result === "exhausted")
+    return "El código alcanzó el máximo de usos.";
   if (modal.reason === "event_mismatch") {
     return `Pertenece a otro evento${modal.other_event?.name ? `: ${modal.other_event.name}` : ""}.`;
   }
@@ -699,10 +959,15 @@ function getMatchLabel(match?: MatchType) {
   return "No encontrado";
 }
 
-function getConfirmHint(modal: { max_uses?: number | null; uses?: number; ticket_used?: boolean }) {
+function getConfirmHint(modal: {
+  max_uses?: number | null;
+  uses?: number;
+  ticket_used?: boolean;
+}) {
   if (modal.ticket_used) return "Este QR ya no podrá volver a usarse.";
   if (typeof modal.max_uses === "number" && typeof modal.uses === "number") {
-    if (modal.uses >= modal.max_uses) return "Este código ya no podrá volver a usarse.";
+    if (modal.uses >= modal.max_uses)
+      return "Este código ya no podrá volver a usarse.";
     return `Uso registrado. Quedan ${modal.max_uses - modal.uses} usos.`;
   }
   return "Este QR ya quedó marcado como usado.";

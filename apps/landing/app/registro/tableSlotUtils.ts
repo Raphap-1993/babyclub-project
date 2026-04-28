@@ -47,7 +47,9 @@ function median(values: number[]) {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
 }
 
 function inferCanvasFromLegacy(tables: TableMapSource[]) {
@@ -61,14 +63,22 @@ function inferCanvasFromLegacy(tables: TableMapSource[]) {
 
     if (layoutSize && legacyW && legacyW > 0) {
       const inferredWidth = (layoutSize * 100) / legacyW;
-      if (Number.isFinite(inferredWidth) && inferredWidth >= 320 && inferredWidth <= 5000) {
+      if (
+        Number.isFinite(inferredWidth) &&
+        inferredWidth >= 320 &&
+        inferredWidth <= 5000
+      ) {
         widthCandidates.push(inferredWidth);
       }
     }
 
     if (layoutSize && legacyH && legacyH > 0) {
       const inferredHeight = (layoutSize * 100) / legacyH;
-      if (Number.isFinite(inferredHeight) && inferredHeight >= 240 && inferredHeight <= 5000) {
+      if (
+        Number.isFinite(inferredHeight) &&
+        inferredHeight >= 240 &&
+        inferredHeight <= 5000
+      ) {
         heightCandidates.push(inferredHeight);
       }
     }
@@ -94,7 +104,10 @@ function resolveLayoutCanvas(tables: TableMapSource[]) {
   }
 
   const layoutTables = tables.filter((table) => {
-    return asFiniteNumber(table.layout_x) !== null && asFiniteNumber(table.layout_y) !== null;
+    return (
+      asFiniteNumber(table.layout_x) !== null &&
+      asFiniteNumber(table.layout_y) !== null
+    );
   });
 
   if (layoutTables.length === 0) {
@@ -122,13 +135,27 @@ function resolveLayoutCanvas(tables: TableMapSource[]) {
   };
 }
 
-export function hasMapPosition(table: TableMapSource) {
-  const hasLayout = asFiniteNumber(table.layout_x) !== null && asFiniteNumber(table.layout_y) !== null;
-  const hasLegacy = asFiniteNumber(table.pos_x) !== null && asFiniteNumber(table.pos_y) !== null;
-  return hasLayout || hasLegacy;
+export function hasLayoutPosition(table: TableMapSource) {
+  return (
+    asFiniteNumber(table.layout_x) !== null &&
+    asFiniteNumber(table.layout_y) !== null
+  );
 }
 
-export function buildMapSlotsFromTables(tables: TableMapSource[], options?: BuildMapSlotsOptions): MapSlot[] {
+function hasLegacyPosition(table: TableMapSource) {
+  return (
+    asFiniteNumber(table.pos_x) !== null && asFiniteNumber(table.pos_y) !== null
+  );
+}
+
+export function hasMapPosition(table: TableMapSource) {
+  return hasLayoutPosition(table) || hasLegacyPosition(table);
+}
+
+export function buildMapSlotsFromTables(
+  tables: TableMapSource[],
+  options?: BuildMapSlotsOptions,
+): MapSlot[] {
   const providedCanvasWidth = asFiniteNumber(options?.canvasWidth);
   const providedCanvasHeight = asFiniteNumber(options?.canvasHeight);
   const hasProvidedCanvas =
@@ -140,10 +167,17 @@ export function buildMapSlotsFromTables(tables: TableMapSource[], options?: Buil
   const layoutCanvas = hasProvidedCanvas
     ? { width: providedCanvasWidth, height: providedCanvasHeight }
     : resolveLayoutCanvas(tables);
+  const useBackofficeLayoutOnly =
+    hasProvidedCanvas || tables.some(hasLayoutPosition);
+
   return tables
-    .filter(hasMapPosition)
+    .filter((table) =>
+      useBackofficeLayoutOnly
+        ? hasLayoutPosition(table)
+        : hasMapPosition(table),
+    )
     .map((table) => {
-      const hasLayout = asFiniteNumber(table.layout_x) !== null && asFiniteNumber(table.layout_y) !== null;
+      const hasLayout = hasLayoutPosition(table);
       const useLayout = hasLayout;
       let xPercent = 0;
       let yPercent = 0;
@@ -153,32 +187,44 @@ export function buildMapSlotsFromTables(tables: TableMapSource[], options?: Buil
       if (useLayout) {
         const centerX = asFiniteNumber(table.layout_x) ?? 0;
         const centerY = asFiniteNumber(table.layout_y) ?? 0;
-        const sizePx = clamp(asFiniteNumber(table.layout_size) ?? DEFAULT_LAYOUT_SIZE_PX, 36, 200);
+        const sizePx = clamp(
+          asFiniteNumber(table.layout_size) ?? DEFAULT_LAYOUT_SIZE_PX,
+          20,
+          200,
+        );
         widthPercent = clamp((sizePx / layoutCanvas.width) * 100, 2, 35);
         heightPercent = clamp((sizePx / layoutCanvas.height) * 100, 2, 35);
         xPercent = clamp(
           ((centerX - sizePx / 2) / layoutCanvas.width) * 100,
           0,
-          100 - widthPercent
+          100 - widthPercent,
         );
         yPercent = clamp(
           ((centerY - sizePx / 2) / layoutCanvas.height) * 100,
           0,
-          100 - heightPercent
+          100 - heightPercent,
         );
       } else {
         widthPercent = clamp(
           asFiniteNumber(table.pos_w) ?? DEFAULT_LEGACY_WIDTH_PERCENT,
           2,
-          35
+          35,
         );
         heightPercent = clamp(
           asFiniteNumber(table.pos_h) ?? DEFAULT_LEGACY_HEIGHT_PERCENT,
           2,
-          35
+          35,
         );
-        xPercent = clamp(asFiniteNumber(table.pos_x) ?? 10, 0, 100 - widthPercent);
-        yPercent = clamp(asFiniteNumber(table.pos_y) ?? 10, 0, 100 - heightPercent);
+        xPercent = clamp(
+          asFiniteNumber(table.pos_x) ?? 10,
+          0,
+          100 - widthPercent,
+        );
+        yPercent = clamp(
+          asFiniteNumber(table.pos_y) ?? 10,
+          0,
+          100 - heightPercent,
+        );
       }
 
       return {

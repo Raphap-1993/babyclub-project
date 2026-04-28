@@ -1,24 +1,16 @@
 import { createHash } from "node:crypto";
-import { DateTime } from "luxon";
+import type {
+  CreateGatewayOrderInput,
+  CreateGatewayRefundInput,
+  ParsedGatewayWebhook,
+  PaymentGateway,
+  PaymentStatus,
+} from "./types";
+import { PaymentServiceError } from "./errors";
+import { buildWebhookEventKey, buildReceiptNumber } from "./utils";
 
-const LIMA_TZ = "America/Lima";
-
-export type CulqiPaymentStatus = "pending" | "paid" | "failed" | "refunded" | "expired" | "canceled";
-
-export type CulqiCreateOrderInput = {
-  amount: number;
-  currencyCode?: "PEN";
-  description: string;
-  orderNumber: string;
-  customer: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phoneNumber: string;
-  };
-  expirationDateUnix: number;
-  metadata?: Record<string, unknown>;
-};
+export type CulqiPaymentStatus = PaymentStatus;
+export type CulqiCreateOrderInput = CreateGatewayOrderInput;
 
 type CulqiApiErrorShape = {
   merchant_message?: string;
@@ -29,7 +21,8 @@ type CulqiApiErrorShape = {
 
 export function getCulqiConfig() {
   const secretKey = process.env.CULQI_SECRET_KEY || "";
-  const apiBaseUrl = process.env.CULQI_API_BASE_URL || "https://api.culqi.com/v2";
+  const apiBaseUrl =
+    process.env.CULQI_API_BASE_URL || "https://api.culqi.com/v2";
   if (!secretKey) {
     throw new Error("Missing CULQI_SECRET_KEY");
   }
@@ -69,12 +62,21 @@ export async function createCulqiOrder(input: CulqiCreateOrderInput) {
   const data = await safeJson(res);
   if (!res.ok) {
     const errorData = (data || {}) as CulqiApiErrorShape;
-    throw new Error(errorData.merchant_message || errorData.user_message || `Culqi order error (${res.status})`);
+    throw new Error(
+      errorData.merchant_message ||
+        errorData.user_message ||
+        `Culqi order error (${res.status})`,
+    );
   }
   return data;
 }
 
-export async function createCulqiRefund(input: { chargeId: string; amount: number; reason: string; metadata?: Record<string, unknown> }) {
+export async function createCulqiRefund(input: {
+  chargeId: string;
+  amount: number;
+  reason: string;
+  metadata?: Record<string, unknown>;
+}) {
   const { secretKey, apiBaseUrl } = getCulqiConfig();
   const res = await fetch(`${apiBaseUrl}/refunds`, {
     method: "POST",
@@ -93,7 +95,11 @@ export async function createCulqiRefund(input: { chargeId: string; amount: numbe
   const data = await safeJson(res);
   if (!res.ok) {
     const errorData = (data || {}) as CulqiApiErrorShape;
-    throw new Error(errorData.merchant_message || errorData.user_message || `Culqi refund error (${res.status})`);
+    throw new Error(
+      errorData.merchant_message ||
+        errorData.user_message ||
+        `Culqi refund error (${res.status})`,
+    );
   }
   return data;
 }
@@ -106,7 +112,9 @@ async function safeJson(res: Response) {
   }
 }
 
-export function normalizeCulqiStatus(rawValue: string | null | undefined): CulqiPaymentStatus {
+export function normalizeCulqiStatus(
+  rawValue: string | null | undefined,
+): CulqiPaymentStatus {
   const raw = `${rawValue || ""}`.toLowerCase();
   if (raw.includes("paid")) return "paid";
   if (raw.includes("refund")) return "refunded";
@@ -121,32 +129,35 @@ export function resolveCulqiEventName(payload: any): string {
 }
 
 export function resolveCulqiEventId(payload: any): string | null {
-  return payload?.id || payload?.event_id || payload?.data?.id || payload?.data?.object?.id || null;
+  return (
+    payload?.id ||
+    payload?.event_id ||
+    payload?.data?.id ||
+    payload?.data?.object?.id ||
+    null
+  );
 }
 
 export function resolveCulqiOrder(payload: any) {
   const obj = payload?.data?.object || payload?.data || payload || {};
-  const metadata = obj?.metadata && typeof obj.metadata === "object" ? obj.metadata : {};
+  const metadata =
+    obj?.metadata && typeof obj.metadata === "object" ? obj.metadata : {};
   return {
     orderId: obj?.id || obj?.order_id || payload?.order_id || null,
     chargeId: obj?.charge_id || payload?.charge_id || null,
     statusRaw: obj?.status || payload?.status || "",
     amount: typeof obj?.amount === "number" ? obj.amount : null,
-    currencyCode: typeof obj?.currency_code === "string" ? obj.currency_code : "PEN",
+    currencyCode:
+      typeof obj?.currency_code === "string" ? obj.currency_code : "PEN",
     customerEmail: obj?.client_details?.email || obj?.email || null,
     customerName:
       obj?.client_details?.first_name && obj?.client_details?.last_name
         ? `${obj.client_details.first_name} ${obj.client_details.last_name}`.trim()
         : obj?.full_name || null,
-    customerPhone: obj?.client_details?.phone_number || obj?.phone_number || null,
+    customerPhone:
+      obj?.client_details?.phone_number || obj?.phone_number || null,
     metadata: metadata as Record<string, unknown>,
   };
-}
-
-export function buildWebhookEventKey(provider: string, rawBody: string, eventId: string | null) {
-  if (eventId) return `${provider}:${eventId}`;
-  const hash = createHash("sha256").update(rawBody).digest("hex");
-  return `${provider}:sha256:${hash}`;
 }
 
 /**
@@ -171,8 +182,68 @@ export function verifyCulqiWebhookSignature(
   return signature === expected;
 }
 
-export function buildReceiptNumber(seed: string, now = new Date()) {
-  const date = DateTime.fromJSDate(now).setZone(LIMA_TZ).toFormat("yyyyLLdd");
-  const suffix = seed.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase() || Math.random().toString(36).slice(2, 10).toUpperCase();
-  return `BC-${date}-${suffix}`;
+function parseCulqiWebhook(
+  rawBody: string,
+  headers: { get(name: string): string | null },
+): ParsedGatewayWebhook {
+  let payload: any = null;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch (_error) {
+    throw new PaymentServiceError("Invalid webhook payload", 400);
+  }
+
+  const eventName = resolveCulqiEventName(payload) || "unknown";
+  const eventId = resolveCulqiEventId(payload);
+  const signature = headers.get("x-culqi-signature") || null;
+  const signatureValid = verifyCulqiWebhookSignature(rawBody, signature);
+  const orderData = resolveCulqiOrder(payload);
+
+  return {
+    eventName,
+    eventId,
+    eventKey: buildWebhookEventKey("culqi", rawBody, eventId),
+    signature,
+    signatureValid,
+    orderId: orderData.orderId,
+    chargeId: orderData.chargeId,
+    status: normalizeCulqiStatus(orderData.statusRaw),
+    amount: orderData.amount,
+    currencyCode: orderData.currencyCode || "PEN",
+    customerEmail: orderData.customerEmail,
+    customerName: orderData.customerName,
+    customerPhone: orderData.customerPhone,
+    metadata: orderData.metadata,
+    raw: payload,
+  };
 }
+
+export const culqiGateway: PaymentGateway = {
+  provider: "culqi",
+  isEnabled() {
+    return (
+      process.env.ENABLE_CULQI_PAYMENTS?.toLowerCase() === "true" &&
+      Boolean(process.env.CULQI_SECRET_KEY?.trim())
+    );
+  },
+  async createOrder(input: CreateGatewayOrderInput) {
+    const raw = await createCulqiOrder(input);
+    const orderId = typeof (raw as any)?.id === "string" ? (raw as any).id : "";
+    if (!orderId) {
+      throw new PaymentServiceError(
+        "Respuesta invalida de Culqi (sin order id)",
+        502,
+      );
+    }
+    return { orderId, raw };
+  },
+  async createRefund(input: CreateGatewayRefundInput) {
+    const raw = await createCulqiRefund(input);
+    return { raw };
+  },
+  parseWebhook(input) {
+    return parseCulqiWebhook(input.rawBody, input.headers);
+  },
+};
+
+export { buildReceiptNumber, buildWebhookEventKey };

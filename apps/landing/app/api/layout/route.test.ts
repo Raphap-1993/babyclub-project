@@ -17,7 +17,8 @@ describe("GET /api/layout resilience", () => {
   });
 
   it("retorna 200 con layout null cuando Supabase falla por timeout transitorio", async () => {
-    const timeoutHtml = "<!DOCTYPE html><title>error code 522</title><body>Connection timed out</body>";
+    const timeoutHtml =
+      "<!DOCTYPE html><title>error code 522</title><body>Connection timed out</body>";
     const { supabase } = createSupabaseMock({
       "layout_settings.select": [
         { data: null, error: { message: timeoutHtml } },
@@ -38,7 +39,9 @@ describe("GET /api/layout resilience", () => {
 
   it("retorna 500 en error no transitorio", async () => {
     const { supabase } = createSupabaseMock({
-      "layout_settings.select": [{ data: null, error: { message: "column layout_url does not exist" } }],
+      "layout_settings.select": [
+        { data: null, error: { message: "column layout_url does not exist" } },
+      ],
     });
     (createClient as any).mockReturnValue(supabase);
 
@@ -50,5 +53,29 @@ describe("GET /api/layout resilience", () => {
     expect(res.status).toBe(500);
     expect(payload.layout_url).toBeNull();
     expect(payload.error).toContain("column layout_url does not exist");
+  });
+
+  it("usa organizer layout sin exigir columnas de canvas en runtime", async () => {
+    const { supabase } = createSupabaseMock({
+      "organizers.select": [
+        {
+          data: { layout_url: "https://cdn.example.com/layout.png" },
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    process.env.NEXT_PUBLIC_ORGANIZER_ID = "org-1";
+
+    const { GET } = await import("./route");
+    const req = { nextUrl: new URL("http://localhost/api/layout") };
+    const res = await GET(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.layout_url).toBe("https://cdn.example.com/layout.png");
+    expect(payload.canvas_width).toBeNull();
+    expect(payload.canvas_height).toBeNull();
+    expect(payload.canvas_source).toBeNull();
   });
 });

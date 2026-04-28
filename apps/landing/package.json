@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3001",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "check-types": "pnpm exec tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@repo/ui": "workspace:*",
