@@ -2,22 +2,46 @@
 -- Keeps legacy events.* price columns as compatibility input, but makes the
 -- sellable ticket options first-class rows.
 
-create table if not exists public.event_ticket_types (
-  id uuid primary key default gen_random_uuid(),
-  event_id text not null references public.events(id) on delete cascade,
-  code text not null,
-  label text not null,
-  description text null,
-  sale_phase text not null check (sale_phase in ('early_bird', 'all_night')),
-  ticket_quantity integer not null check (ticket_quantity > 0),
-  price numeric(10, 2) not null check (price > 0),
-  currency_code text not null default 'PEN',
-  is_active boolean not null default true,
-  sort_order integer not null default 0,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  deleted_at timestamptz null
-);
+do $$
+declare
+  v_event_id_type text;
+begin
+  select format_type(a.atttypid, a.atttypmod)
+    into v_event_id_type
+  from pg_attribute a
+  join pg_class c on c.oid = a.attrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname = 'events'
+    and a.attname = 'id'
+    and not a.attisdropped;
+
+  if v_event_id_type is null then
+    raise exception 'public.events.id column not found';
+  end if;
+
+  execute format(
+    $sql$
+      create table if not exists public.event_ticket_types (
+        id uuid primary key default gen_random_uuid(),
+        event_id %s not null references public.events(id) on delete cascade,
+        code text not null,
+        label text not null,
+        description text null,
+        sale_phase text not null check (sale_phase in ('early_bird', 'all_night')),
+        ticket_quantity integer not null check (ticket_quantity > 0),
+        price numeric(10, 2) not null check (price > 0),
+        currency_code text not null default 'PEN',
+        is_active boolean not null default true,
+        sort_order integer not null default 0,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        deleted_at timestamptz null
+      )
+    $sql$,
+    v_event_id_type
+  );
+end $$;
 
 create unique index if not exists event_ticket_types_event_code_uidx
   on public.event_ticket_types(event_id, code);
