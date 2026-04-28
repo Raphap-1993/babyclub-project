@@ -241,6 +241,244 @@ describe("GET /api/admin/reports/export", () => {
     expect(payload.rows[0].attendance_rate_percent).toBe(50);
   });
 
+  it("promoter_settlement: separa pagadas, cortesías, mesas y elegibles", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: [
+            {
+              id: "event-1",
+              name: "LOVE IS A DRUG",
+              organizer_id: "org-1",
+              organizer: { id: "org-1", name: "Baby Club", slug: "baby-club" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-paid-in",
+              event_id: "event-1",
+              promoter_id: null,
+              code_id: null,
+              table_reservation_id: "res-ticket",
+              is_active: true,
+              used: true,
+              created_at: "2026-03-01T01:00:00.000Z",
+              code: null,
+            },
+            {
+              id: "ticket-paid-no",
+              event_id: "event-1",
+              promoter_id: null,
+              code_id: null,
+              table_reservation_id: "res-ticket",
+              is_active: true,
+              used: false,
+              created_at: "2026-03-01T01:10:00.000Z",
+              code: null,
+            },
+            {
+              id: "ticket-courtesy-in",
+              event_id: "event-1",
+              promoter_id: null,
+              code_id: "code-courtesy-1",
+              table_reservation_id: null,
+              is_active: true,
+              used: true,
+              created_at: "2026-03-01T01:20:00.000Z",
+              code: {
+                id: "code-courtesy-1",
+                code: "PROM01A",
+                type: "courtesy",
+                promoter_id: "prom-1",
+                table_reservation_id: null,
+              },
+            },
+            {
+              id: "ticket-courtesy-no",
+              event_id: "event-1",
+              promoter_id: null,
+              code_id: "code-courtesy-2",
+              table_reservation_id: null,
+              is_active: true,
+              used: false,
+              created_at: "2026-03-01T01:30:00.000Z",
+              code: {
+                id: "code-courtesy-2",
+                code: "PROM01B",
+                type: "courtesy",
+                promoter_id: "prom-1",
+                table_reservation_id: null,
+              },
+            },
+            {
+              id: "ticket-table-in",
+              event_id: "event-1",
+              promoter_id: null,
+              code_id: "code-table-1",
+              table_reservation_id: "res-table",
+              is_active: true,
+              used: true,
+              created_at: "2026-03-01T01:40:00.000Z",
+              code: {
+                id: "code-table-1",
+                code: "MESA01",
+                type: "table",
+                promoter_id: null,
+                table_reservation_id: "res-table",
+              },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: [
+            {
+              id: "res-ticket",
+              event_id: "event-1",
+              status: "approved",
+              sale_origin: "ticket",
+              ticket_total_amount: 42,
+              ticket_quantity: 2,
+              ticket_type_code: "early_bird_2",
+              ticket_type_label: "2 QR EARLY BABY",
+              ticket_unit_price: 21,
+              promoter_id: "prom-1",
+              promoter_link_code_id: "code-link-1",
+              promoter_link_code: "PROM01",
+              full_name: "Comprador Duo",
+              document: "12345678",
+            },
+            {
+              id: "res-table",
+              event_id: "event-1",
+              status: "approved",
+              sale_origin: "table",
+              ticket_total_amount: null,
+              ticket_quantity: 4,
+              ticket_type_code: null,
+              ticket_type_label: null,
+              ticket_unit_price: null,
+              promoter_id: "prom-1",
+              promoter_link_code_id: "code-link-1",
+              promoter_link_code: "PROM01",
+              full_name: "Mesa VIP",
+              document: "87654321",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "payments.select": [
+        {
+          data: [
+            {
+              id: "payment-1",
+              event_id: "event-1",
+              reservation_id: "res-ticket",
+              ticket_id: null,
+              status: "paid",
+              amount: 4200,
+              currency_code: "PEN",
+              paid_at: "2026-03-01T01:50:00.000Z",
+              created_at: "2026-03-01T01:45:00.000Z",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "promoters.select": [
+        {
+          data: [
+            {
+              id: "prom-1",
+              code: "PROM01",
+              organizer_id: "org-1",
+              person: { first_name: "Luis", last_name: "Perez" },
+            },
+          ],
+          error: null,
+        },
+      ],
+      "promoter_settlement_items.select": [
+        {
+          data: [],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL(
+        "http://localhost/api/admin/reports/export?report=promoter_settlement&format=json",
+      ),
+      headers: new Headers({ Authorization: "Bearer token-123" }),
+    } as any;
+    const res = await GET(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.rows.length).toBe(1);
+    expect(payload.rows[0]).toMatchObject({
+      metric_version: "promoter-settlement-v1",
+      promoter_id: "prom-1",
+      qrs_assigned: 5,
+      qrs_attended: 3,
+      no_show_count: 2,
+      paid_ticket_issued: 2,
+      paid_ticket_paid: 2,
+      paid_ticket_attended: 1,
+      courtesy_issued: 2,
+      courtesy_attended: 1,
+      courtesy_no_show: 1,
+      table_guest_issued: 1,
+      table_guest_attended: 1,
+      ticket_commission_count: 1,
+      free_commission_count: 1,
+      table_commission_count: 1,
+      promoter_link_codes: "PROM01",
+      eligible_cash_count: 3,
+      eligible_drink_count: 0,
+      commission_amount_cents: 650,
+      commission_amount_pen: 6.5,
+      drink_units: 0,
+      settlement_item_count: 3,
+      pending_settlement_item_count: 3,
+      settled_item_count: 0,
+    });
+    expect(payload.rows[0].settlement_items).toHaveLength(3);
+    const paidTicketItem = payload.rows[0].settlement_items.find(
+      (item: any) => item.source_id === "res-ticket",
+    );
+    const tableItem = payload.rows[0].settlement_items.find(
+      (item: any) => item.source_id === "res-table",
+    );
+    expect(paidTicketItem?.metadata).toMatchObject({
+      promoter_link_code_id: "code-link-1",
+      promoter_link_code: "PROM01",
+    });
+    expect(tableItem?.metadata).toMatchObject({
+      promoter_link_code_id: "code-link-1",
+      promoter_link_code: "PROM01",
+    });
+    expect(payload.rows[0].data_quality_flags).toContain(
+      "promoter_from_reservation",
+    );
+    expect(payload.rows[0].data_quality_flags).toContain(
+      "table_commission_manual_amount",
+    );
+  });
+
   it("free_qr_no_show: agrupa por cliente y marca bloqueo si tuvo no-show histórico", async () => {
     const { supabase } = createSupabaseMock({
       "events.select": [
@@ -468,7 +706,8 @@ describe("GET /api/admin/reports/export", () => {
         {
           data: null,
           error: {
-            message: "Could not find the table 'public.payments' in the schema cache",
+            message:
+              "Could not find the table 'public.payments' in the schema cache",
             details: "",
             hint: "Perhaps you meant the table 'public.events'",
           },

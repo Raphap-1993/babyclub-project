@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
+import {
+  ensureEventSalesDefaults,
+  evaluateEventSales,
+  isMissingEventSalesColumnsError,
+} from "shared/eventSales";
 
 type TicketSalePhase = "early_bird" | "all_night";
 
@@ -11,7 +15,11 @@ const TICKET_PRICES_FALLBACK: Record<TicketSalePhase, number> = {
 };
 
 function resolveActiveTicketSalePhase(): TicketSalePhase {
-  const raw = (process.env.TICKET_SALE_PHASE || process.env.NEXT_PUBLIC_TICKET_SALE_PHASE || "early_bird")
+  const raw = (
+    process.env.TICKET_SALE_PHASE ||
+    process.env.NEXT_PUBLIC_TICKET_SALE_PHASE ||
+    "early_bird"
+  )
     .trim()
     .toLowerCase();
   return raw === "all_night" ? "all_night" : "early_bird";
@@ -22,23 +30,35 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function GET(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ error: "Missing Supabase config" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Missing Supabase config" },
+      { status: 500 },
+    );
   }
 
   const code = req.nextUrl.searchParams.get("code")?.trim();
-  if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
+  if (!code)
+    return NextResponse.json({ error: "code required" }, { status: 400 });
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
   const codeQuery = applyNotDeleted(
-    supabase.from("codes").select("id,code,type,promoter_id,event_id,is_active,expires_at,uses,max_uses").eq("code", code)
+    supabase
+      .from("codes")
+      .select(
+        "id,code,type,promoter_id,event_id,is_active,expires_at,uses,max_uses",
+      )
+      .eq("code", code),
   );
   const { data, error } = await codeQuery.maybeSingle();
 
   if (error || !data) {
-    return NextResponse.json({ error: "Código no encontrado" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Código no encontrado" },
+      { status: 404 },
+    );
   }
 
   if (!data.is_active) {
@@ -70,18 +90,25 @@ export async function GET(req: NextRequest) {
     const eventQuery = applyNotDeleted(
       supabase
         .from("events")
-        .select("id,is_active,closed_at,sale_status,sale_public_message,early_bird_price_1,all_night_price_1,early_bird_enabled")
-        .eq("id", data.event_id)
+        .select(
+          "id,is_active,closed_at,sale_status,sale_public_message,early_bird_price_1,all_night_price_1,early_bird_enabled",
+        )
+        .eq("id", data.event_id),
     );
     let { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
     if (eventError && isMissingEventSalesColumnsError(eventError)) {
       const legacyQuery = applyNotDeleted(
-        supabase.from("events").select("id,is_active,closed_at").eq("id", data.event_id)
+        supabase
+          .from("events")
+          .select("id,is_active,closed_at")
+          .eq("id", data.event_id),
       );
       const legacyResult = await legacyQuery.maybeSingle();
       eventRow = legacyResult.data as any;
     }
-    const saleDecision = evaluateEventSales(ensureEventSalesDefaults((eventRow || {}) as any));
+    const saleDecision = evaluateEventSales(
+      ensureEventSalesDefaults((eventRow || {}) as any),
+    );
     sale_status = saleDecision.sale_status;
     sale_block_reason = saleDecision.block_reason;
     sale_public_message = saleDecision.public_message;
@@ -107,12 +134,12 @@ export async function GET(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,event_id,doc_type,document,dni,full_name,email,phone,is_active,person:persons(first_name,last_name,email,phone,doc_type,document,dni)"
+          "id,event_id,doc_type,document,dni,full_name,email,phone,is_active,person:persons(first_name,last_name,email,phone,doc_type,document,dni)",
         )
         .eq("code_id", data.id)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
-        .limit(5)
+        .limit(5),
     );
     let { data: ticketsData, error: ticketsError } = await ticketsQuery;
 
@@ -125,11 +152,11 @@ export async function GET(req: NextRequest) {
         supabase
           .from("tickets")
           .select(
-            "id,event_id,doc_type,document,dni,full_name,email,phone,person:persons(first_name,last_name,email,phone,doc_type,document,dni)"
+            "id,event_id,doc_type,document,dni,full_name,email,phone,person:persons(first_name,last_name,email,phone,doc_type,document,dni)",
           )
           .eq("code_id", data.id)
           .order("created_at", { ascending: false })
-          .limit(5)
+          .limit(5),
       );
       const legacyResult = await legacyTicketsQuery;
       ticketsData = legacyResult.data;
@@ -140,19 +167,30 @@ export async function GET(req: NextRequest) {
     // so the code remains operationally linked to a single visible owner in /registro.
     if (!ticketsError && Array.isArray(ticketsData) && ticketsData.length > 0) {
       const ticketRow: any = ticketsData[0];
-      const personRel = Array.isArray(ticketRow?.person) ? ticketRow.person[0] : ticketRow?.person;
+      const personRel = Array.isArray(ticketRow?.person)
+        ? ticketRow.person[0]
+        : ticketRow?.person;
       const fullName = String(ticketRow?.full_name || "").trim();
       const nameParts = fullName.split(/\s+/).filter(Boolean);
       const fallbackFirstName = nameParts.length > 0 ? nameParts[0] : null;
-      const fallbackLastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+      const fallbackLastName =
+        nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
       registered_person = {
         first_name: personRel?.first_name ?? fallbackFirstName,
         last_name: personRel?.last_name ?? fallbackLastName,
         email: ticketRow?.email ?? personRel?.email ?? null,
         phone: ticketRow?.phone ?? personRel?.phone ?? null,
-        doc_type: ticketRow?.doc_type ?? personRel?.doc_type ?? ((ticketRow?.document || ticketRow?.dni) ? "dni" : null),
-        document: ticketRow?.document ?? ticketRow?.dni ?? personRel?.document ?? personRel?.dni ?? null,
+        doc_type:
+          ticketRow?.doc_type ??
+          personRel?.doc_type ??
+          (ticketRow?.document || ticketRow?.dni ? "dni" : null),
+        document:
+          ticketRow?.document ??
+          ticketRow?.dni ??
+          personRel?.document ??
+          personRel?.dni ??
+          null,
         ticket_id: ticketRow?.id ?? null,
         ticket_event_id: ticketRow?.event_id ?? null,
       };
@@ -160,6 +198,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
+    code_id: data.id || null,
     code: data.code,
     type: data.type || null,
     promoter_id: data.promoter_id || null,

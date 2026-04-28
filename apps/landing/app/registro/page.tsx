@@ -184,6 +184,7 @@ function RegistroContent() {
     Array<{ id: string; name: string }>
   >([]);
   const [codeInfo, setCodeInfo] = useState<{
+    code_id?: string | null;
     type?: string | null;
     promoter_id?: string | null;
     ticket_price?: number | null;
@@ -673,6 +674,16 @@ function RegistroContent() {
   const aforoWidth = Math.max(0, Math.min(aforo, 100));
   const salesBlocked = saleGuard ? !saleGuard.available : false;
   const codeType = String(codeInfo?.type || "").toLowerCase();
+  const buildPromoterLinkPurchaseParams = (targetTab?: "mesa") => {
+    const params = new URLSearchParams();
+    if (targetTab) params.set("tab", targetTab);
+    if (codeInfo?.promoter_id) params.set("promoter_id", codeInfo.promoter_id);
+    if (codeInfo?.code_id) {
+      params.set("promoter_link_code_id", codeInfo.code_id);
+    }
+    if (code) params.set("promoter_link_code", code);
+    return params;
+  };
   const canRedeemPrepaidCodeWhenSalesBlocked =
     codeType === "table" || codeType === "courtesy" || codeType === "promoter";
   const ticketGenerationBlocked =
@@ -908,9 +919,7 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => {
-                  const pid = codeInfo?.promoter_id;
-                  const params = new URLSearchParams();
-                  if (pid) params.set("promoter_id", pid);
+                  const params = buildPromoterLinkPurchaseParams();
                   router.push(
                     `/compra${params.toString() ? "?" + params.toString() : ""}`,
                   );
@@ -927,9 +936,7 @@ function RegistroContent() {
               <button
                 type="button"
                 onClick={() => {
-                  const pid = codeInfo?.promoter_id;
-                  const params = new URLSearchParams({ tab: "mesa" });
-                  if (pid) params.set("promoter_id", pid);
+                  const params = buildPromoterLinkPurchaseParams("mesa");
                   router.push(`/compra?${params.toString()}`);
                 }}
                 disabled={salesBlocked || tables.length === 0}
@@ -2396,6 +2403,9 @@ function RegistroContent() {
           phone: reservation.phone,
           voucher_url: useCulqi ? undefined : reservation.voucher_url,
           promoter_id: reservation.promoter_id || form.promoter_id || null,
+          promoter_link_code_id:
+            codeType === "promoter_link" ? codeInfo?.code_id || null : null,
+          promoter_link_code: codeType === "promoter_link" ? code : null,
         }),
       });
       const data = await res.json().catch(() => ({}));

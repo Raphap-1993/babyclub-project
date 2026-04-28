@@ -82,6 +82,7 @@ describe("GET /api/codes/info", () => {
     const payload = await res.json();
 
     expect(res.status).toBe(200);
+    expect(payload.code_id).toBe("code-1");
     expect(payload.code).toBe("LOVEIS7897");
     expect(payload.registered_person?.ticket_id).toBe("ticket-1");
     expect(payload.registered_person?.document).toBe("72158650");
@@ -256,7 +257,13 @@ describe("GET /api/codes/info", () => {
     expect(payload.registered_person?.ticket_id).toBe("ticket-legacy");
     expect(payload.registered_person?.document).toBe("12345678");
 
-    const ticketsCall = calls.find((call) => call.table === "tickets" && call.op === "select");
-    expect(ticketsCall?.filters?.some((f) => f.type === "eq" && f.args[0] === "is_active")).toBe(true);
+    const ticketsCall = calls.find(
+      (call) => call.table === "tickets" && call.op === "select",
+    );
+    expect(
+      ticketsCall?.filters?.some(
+        (f) => f.type === "eq" && f.args[0] === "is_active",
+      ),
+    ).toBe(true);
   });
 });

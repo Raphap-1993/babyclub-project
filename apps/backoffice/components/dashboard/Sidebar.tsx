@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   BadgeDollarSign,
+  Banknote,
   Building2,
   Calendar,
   ChevronDown,
@@ -158,6 +159,12 @@ const menuItems = [
         href: "/admin/tickets",
         icon: Ticket,
       },
+      {
+        id: "settlements",
+        label: "Liquidaciones",
+        href: "/admin/liquidaciones",
+        icon: Banknote,
+      },
     ] as NavItem[],
   },
   {
@@ -196,6 +203,12 @@ const menuItems = [
             label: "Promotores",
             href: "/admin/reportes/promotores",
             icon: Users,
+          },
+          {
+            id: "reports-settlements",
+            label: "Liquidaciones",
+            href: "/admin/reportes/liquidaciones",
+            icon: Banknote,
           },
           { id: "logs", label: "Logs", href: "/admin/logs", icon: FileClock },
         ],

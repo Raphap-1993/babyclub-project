@@ -4,23 +4,79 @@ import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { createTicketForReservation } from "../../../../reservations/utils";
 import { sendApprovalEmail } from "../../../../reservations/email";
+import {
+  normalizeDocument,
+  validateDocument,
+  type DocumentType,
+} from "shared/document";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APPROVED_STATUSES = new Set(["approved", "confirmed", "paid"]);
 
 function uniqueStrings(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.map((value) => (value ? String(value).trim() : "")).filter(Boolean)));
+  return Array.from(
+    new Set(
+      values
+        .map((value) => (value ? String(value).trim() : ""))
+        .filter(Boolean),
+    ),
+  );
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+function readReservationAttendees(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const raw = item as Record<string, unknown>;
+      const docTypeRaw =
+        typeof raw.doc_type === "string"
+          ? (raw.doc_type as DocumentType)
+          : "dni";
+      const documentRaw = typeof raw.document === "string" ? raw.document : "";
+      const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
+      const fullName =
+        typeof raw.full_name === "string" ? raw.full_name.trim() : "";
+      const email = typeof raw.email === "string" ? raw.email.trim() : "";
+      const phone = typeof raw.phone === "string" ? raw.phone.trim() : "";
+      if (!fullName || !validateDocument(docType, document)) return null;
+      return {
+        index,
+        fullName,
+        email,
+        phone,
+        docType,
+        document,
+      };
+    })
+    .filter(Boolean) as Array<{
+    index: number;
+    fullName: string;
+    email: string;
+    phone: string;
+    docType: DocumentType;
+    document: string;
+  }>;
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const guard = await requireStaffRole(req);
   if (!guard.ok) {
-    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+    return NextResponse.json(
+      { success: false, error: guard.error },
+      { status: guard.status },
+    );
   }
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Supabase config missing" },
+      { status: 500 },
+    );
   }
 
   const { id } = await params;
@@ -44,49 +100,75 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         status,
         codes,
         ticket_quantity,
+        attendees,
         event_id,
         promoter_id,
         table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))
-        `
+        `,
       )
-      .eq("id", id)
+      .eq("id", id),
   );
-  const { data: reservation, error: reservationError } = await reservationQuery.maybeSingle();
+  const { data: reservation, error: reservationError } =
+    await reservationQuery.maybeSingle();
   if (reservationError || !reservation) {
     return NextResponse.json(
-      { success: false, error: reservationError?.message || "Reserva no encontrada" },
-      { status: 404 }
+      {
+        success: false,
+        error: reservationError?.message || "Reserva no encontrada",
+      },
+      { status: 404 },
     );
   }
 
   const status = String((reservation as any).status || "").toLowerCase();
   if (!APPROVED_STATUSES.has(status)) {
     return NextResponse.json(
-      { success: false, error: "Solo puedes reenviar correos para reservas aprobadas" },
-      { status: 400 }
+      {
+        success: false,
+        error: "Solo puedes reenviar correos para reservas aprobadas",
+      },
+      { status: 400 },
     );
   }
 
-  const email = typeof (reservation as any).email === "string" ? (reservation as any).email.trim() : "";
+  const email =
+    typeof (reservation as any).email === "string"
+      ? (reservation as any).email.trim()
+      : "";
   if (!email) {
-    return NextResponse.json({ success: false, error: "Reserva sin correo de contacto" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "Reserva sin correo de contacto" },
+      { status: 400 },
+    );
   }
 
-  const tableRel = Array.isArray((reservation as any).table) ? (reservation as any).table?.[0] : (reservation as any).table;
-  const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
+  const tableRel = Array.isArray((reservation as any).table)
+    ? (reservation as any).table?.[0]
+    : (reservation as any).table;
+  const eventRel = tableRel?.event
+    ? Array.isArray(tableRel.event)
+      ? tableRel.event[0]
+      : tableRel.event
+    : null;
   const eventData = eventRel || null;
-  const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || null;
+  const eventId =
+    tableRel?.event_id || eventRel?.id || (reservation as any).event_id || null;
   const tableName = tableRel?.name || "Entrada";
   const reservationTicketQty =
-    typeof (reservation as any).ticket_quantity === "number" && (reservation as any).ticket_quantity > 0
+    typeof (reservation as any).ticket_quantity === "number" &&
+    (reservation as any).ticket_quantity > 0
       ? Math.floor((reservation as any).ticket_quantity)
       : 0;
   const tableTicketQty =
-    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0 ? Math.floor(tableRel.ticket_count) : 0;
+    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0
+      ? Math.floor(tableRel.ticket_count)
+      : 0;
   const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
 
   const reservationCodes = Array.isArray((reservation as any).codes)
-    ? (reservation as any).codes.map((c: any) => String(c || "").trim()).filter(Boolean)
+    ? (reservation as any).codes
+        .map((c: any) => String(c || "").trim())
+        .filter(Boolean)
     : [];
 
   const [codesByReservation, codesByLegacyList] = await Promise.all([
@@ -97,11 +179,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .is("deleted_at", null)
       .eq("is_active", true),
     reservationCodes.length > 0
-      ? supabase.from("codes").select("id,code").in("code", reservationCodes).is("deleted_at", null).eq("is_active", true)
+      ? supabase
+          .from("codes")
+          .select("id,code")
+          .in("code", reservationCodes)
+          .is("deleted_at", null)
+          .eq("is_active", true)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  const resolvedCodeRows = [...(codesByReservation.data || []), ...(codesByLegacyList.data || [])];
+  const resolvedCodeRows = [
+    ...(codesByReservation.data || []),
+    ...(codesByLegacyList.data || []),
+  ];
   const resolvedCodes = uniqueStrings([
     ...resolvedCodeRows.map((row: any) => row.code),
     ...reservationCodes,
@@ -115,7 +205,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq("table_reservation_id", id)
     .is("deleted_at", null)
     .eq("is_active", true);
-  existingTicketIds.push(...uniqueStrings((ticketsByReservation || []).map((row: any) => row.id)));
+  existingTicketIds.push(
+    ...uniqueStrings((ticketsByReservation || []).map((row: any) => row.id)),
+  );
   if (codeIds.length > 0) {
     const { data: ticketsByCodes } = await supabase
       .from("tickets")
@@ -123,33 +215,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .in("code_id", codeIds)
       .is("deleted_at", null)
       .eq("is_active", true);
-    existingTicketIds.push(...uniqueStrings((ticketsByCodes || []).map((row: any) => row.id)));
+    existingTicketIds.push(
+      ...uniqueStrings((ticketsByCodes || []).map((row: any) => row.id)),
+    );
   }
 
   const ticketIds = uniqueStrings(existingTicketIds);
   const createdTicketIds: string[] = [];
   const createdTicketCodes: string[] = [];
+  const reservationAttendees = readReservationAttendees(
+    (reservation as any).attendees,
+  );
+  const fallbackAttendee = {
+    fullName: (reservation as any).full_name || "Invitado reserva",
+    email: email || "",
+    phone: (reservation as any).phone || "",
+    docType: ((reservation as any).doc_type || "dni") as DocumentType,
+    document: (reservation as any).document || "",
+  };
 
   if (ticketIds.length < ticketQuantity) {
     if (!eventId) {
       return NextResponse.json(
-        { success: false, error: "No se encontró evento para regenerar los tickets de esta reserva" },
-        { status: 400 }
+        {
+          success: false,
+          error:
+            "No se encontró evento para regenerar los tickets de esta reserva",
+        },
+        { status: 400 },
       );
     }
 
     const missingTickets = ticketQuantity - ticketIds.length;
     for (let i = 0; i < missingTickets; i++) {
       const targetIndex = ticketIds.length + i;
-      const reuseCodes = resolvedCodes[targetIndex] ? [resolvedCodes[targetIndex]] : [];
+      const reuseCodes = resolvedCodes[targetIndex]
+        ? [resolvedCodes[targetIndex]]
+        : [];
+      const attendee = reservationAttendees[targetIndex] || fallbackAttendee;
       const ticketResult = await createTicketForReservation(supabase, {
         eventId,
         tableName,
-        fullName: (reservation as any).full_name || "Invitado reserva",
-        email: email || null,
-        phone: (reservation as any).phone || null,
-        docType: (reservation as any).doc_type || "dni",
-        document: (reservation as any).document || "",
+        fullName: attendee.fullName,
+        email: attendee.email || email || null,
+        phone: attendee.phone || (reservation as any).phone || null,
+        dni: attendee.docType === "dni" ? attendee.document : null,
+        docType: attendee.docType,
+        document: attendee.document,
         promoterId: (reservation as any).promoter_id || null,
         reuseCodes,
         codeType: tableRel?.id ? "table" : "courtesy",
@@ -168,8 +280,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const finalCodes = uniqueStrings([...resolvedCodes, ...createdTicketCodes]);
   if (finalTicketIds.length === 0) {
     return NextResponse.json(
-      { success: false, error: "No se pudo encontrar ni generar tickets para reenviar el correo" },
-      { status: 500 }
+      {
+        success: false,
+        error:
+          "No se pudo encontrar ni generar tickets para reenviar el correo",
+      },
+      { status: 500 },
     );
   }
 
@@ -183,7 +299,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .update(reservationPatch)
       .eq("id", id);
     if (reservationPatchError) {
-      return NextResponse.json({ success: false, error: reservationPatchError.message }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: reservationPatchError.message },
+        { status: 500 },
+      );
     }
   }
 
@@ -207,6 +326,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ticketsCreated: createdTicketIds.length,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error?.message || "No se pudo reenviar el correo" }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error?.message || "No se pudo reenviar el correo",
+      },
+      { status: 500 },
+    );
   }
 }

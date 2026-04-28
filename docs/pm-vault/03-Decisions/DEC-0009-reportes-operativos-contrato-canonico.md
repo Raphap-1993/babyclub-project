@@ -25,6 +25,8 @@ Kevin pidio repetidamente reportes confiables para pagar promotores y controlar 
 
 - asistencia: escaneos confirmados, admisiones unicas, tipos de QR y horarios Lima;
 - promotores: QRs asignados/ingresados y codigos generados como auditoria;
+- liquidacion promotores: compras pagadas generan comision aunque no hayan asistido; QR free/cortesia generan comision solo si `tickets.used = true`;
+- atribucion de promotores: ticket, reserva y codigo, en ese orden;
 - no-show QR free: excluye tickets pagados y marca bloqueo de siguiente QR free;
 - ventas: `payments` es fuente principal y reservas confirmadas son fallback cuando `payments` no existe.
 
@@ -32,7 +34,8 @@ Kevin pidio repetidamente reportes confiables para pagar promotores y controlar 
 
 - Los CSVs vuelven a tener encabezados homologados para operacion.
 - La logica queda cubierta por tests de ruta.
-- Antes de liquidar contra Kevin, falta contrastar cifras contra el clon local con data historica.
+- La liquidacion MVP ahora crea ledger manual flexible para marcar pagos/entregas y evitar doble liquidacion.
+- Reservas de mesa entran al ledger con monto manual hasta que Kevin cierre una regla fija.
 
 ## Verificacion
 

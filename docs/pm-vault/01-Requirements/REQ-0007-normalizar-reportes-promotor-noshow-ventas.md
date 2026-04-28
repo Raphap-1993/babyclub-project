@@ -6,7 +6,7 @@ status: done
 owner: Vulcan
 work_type: bugfix
 created: 2026-04-25
-updated: 2026-04-25
+updated: 2026-04-28
 priority: P0
 domain: reports
 impacted_apps:
@@ -51,8 +51,9 @@ Restaurar el contrato de reportes operativos para promotores, asistencia, no-sho
 ## Resultado esperado
 
 - `promoter_performance` incluye auditoria de codigos generados.
+- `promoter_settlement` separa entradas pagadas, cortesias/free, invitados de mesa, no-show y elegibles de liquidacion.
 - `event_attendance` expone escaneos confirmados, admisiones unicas, tickets/codigos unicos y breakdown por tipo QR.
-- `free_qr_no_show` excluye tickets pagados y marca `block_next_free_qr` cuando corresponde.
+- `free_qr_no_show` excluye tickets pagados y reservas de mesa/entrada, aunque vengan de codigos legacy tipo cortesia.
 - `event_sales` funciona contra `payments` y cae a reservas confirmadas si `payments` no existe en schema cache.
 - CSVs mantienen encabezados homologados en español.
 
@@ -67,6 +68,7 @@ Restaurar el contrato de reportes operativos para promotores, asistencia, no-sho
 - Validar cifras contra produccion.
 - Crear nuevas pantallas de dashboard.
 - Cambiar reglas de negocio de promotores o QR free fuera del reporte.
+- Crear ledger de pagos/entregas a promotores; queda cubierto por REQ-0011.
 
 ## Reproduccion actual
 
@@ -76,14 +78,19 @@ Restaurar el contrato de reportes operativos para promotores, asistencia, no-sho
 ## Reglas de negocio
 
 - Los tickets con `payment_status` no deben contar como QR free no-show.
+- Las reservas vinculadas a ticket/mesa no deben contar como QR free no-show aunque su codigo legacy sea `courtesy`.
 - No-show QR free se evalua solo sobre eventos pasados.
 - Los pagos pagados son fuente principal para ventas; reservas confirmadas son fallback cuando `payments` no existe.
+- La liquidacion de promotores usa `tickets.used = true` como asistencia real para QR free/cortesia.
+- La compra de entradas genera comision aunque el ticket no haya asistido.
+- Las reservas de mesa generan comision para el promotor, con monto manual en REQ-0011.
+- Orden de atribucion para liquidacion: `tickets.promoter_id`, luego `table_reservations.promoter_id`, luego `codes.promoter_id`.
 
 ## Impacto en el repo
 
 - Apps o paquetes: `apps/backoffice`
 - APIs o contratos: contrato de exportacion admin de reportes
-- Datos o migraciones: sin migracion
+- Datos o migraciones: sin migracion para reportes; la misma iteracion agrega `table_reservations.attendees` para compras de 2 entradas.
 - Seguridad o permisos: mantiene guard staff existente
 - Observabilidad o trazabilidad: los CSVs vuelven a tener encabezados estables
 
@@ -95,8 +102,10 @@ Restaurar el contrato de reportes operativos para promotores, asistencia, no-sho
 ## Criterios de aceptacion
 
 - [x] Reporte promotores conserva `codes_generated`.
+- [x] Reporte liquidacion promotores separa pagado/free/cortesia/mesa y no-show.
 - [x] Reporte asistencia conserva columnas canónicas y fallback `scan_logs.deleted_at`.
 - [x] Reporte no-show excluye pagos y marca bloqueo.
+- [x] Reporte no-show excluye tickets vinculados a reservas de mesa/entrada.
 - [x] Reporte ventas soporta `payments` y fallback de reservas.
 - [x] CSVs exportan encabezados homologados.
 
@@ -108,4 +117,5 @@ Restaurar el contrato de reportes operativos para promotores, asistencia, no-sho
 
 ## Riesgos abiertos
 
-- Falta validar manualmente los numeros contra el clon local con data historica real antes de usar el reporte para liquidacion final con Kevin.
+- Las reglas de entrada y QR free ya tienen monto MVP; falta definir regla/monto de reserva de mesa.
+- El ledger para marcar pagos/entregas y evitar doble liquidacion queda en [REQ-0011](./REQ-0011-liquidaciones-promotores-ledger.md).

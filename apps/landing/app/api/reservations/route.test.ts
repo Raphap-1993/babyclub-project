@@ -16,7 +16,7 @@ describe("POST /api/reservations", () => {
   });
 
   it("crea reserva de mesa y genera códigos individuales por persona", async () => {
-    const { supabase } = createSupabaseMock({
+    const { supabase, calls } = createSupabaseMock({
       "tables.select": [
         {
           data: {
@@ -48,7 +48,12 @@ describe("POST /api/reservations", () => {
         },
       ],
       "table_reservations.insert": [{ data: { id: "res-1" }, error: null }],
-      "codes.insert": [{ data: [{ code: "mesa-ABC123" }, { code: "mesa-ABC124" }], error: null }],
+      "codes.insert": [
+        {
+          data: [{ code: "mesa-ABC123" }, { code: "mesa-ABC124" }],
+          error: null,
+        },
+      ],
       "table_reservations.update": [{ data: null, error: null }],
     });
 
@@ -69,6 +74,9 @@ describe("POST /api/reservations", () => {
         product_id: "prod-1",
         event_id: "event-1",
         code: "PUBLIC",
+        promoter_id: "prom-1",
+        promoter_link_code_id: "code-link-1",
+        promoter_link_code: "PROM01",
       }),
     });
 
@@ -81,6 +89,27 @@ describe("POST /api/reservations", () => {
     expect(payload.friendlyCode.length).toBeGreaterThan(0);
     expect(Array.isArray(payload.codes)).toBe(true);
     expect(payload.codes.length).toBe(2);
+
+    const reservationInsert = calls.find(
+      (call) => call.table === "table_reservations" && call.op === "insert",
+    );
+    expect(reservationInsert?.payload).toMatchObject({
+      promoter_id: "prom-1",
+      promoter_link_code_id: "code-link-1",
+      promoter_link_code: "PROM01",
+    });
+
+    const codesInsert = calls.find(
+      (call) => call.table === "codes" && call.op === "insert",
+    );
+    expect(codesInsert?.payload).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          promoter_id: "prom-1",
+          table_reservation_id: "res-1",
+        }),
+      ]),
+    );
   });
 
   it("bloquea una nueva solicitud cuando la mesa ya tiene reserva aprobada", async () => {

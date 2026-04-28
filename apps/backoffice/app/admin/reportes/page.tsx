@@ -1,7 +1,19 @@
 import Link from "next/link";
-import { BarChart3, ReceiptText, Users2, FileClock } from "lucide-react";
+import {
+  Banknote,
+  BarChart3,
+  ReceiptText,
+  Users2,
+  FileClock,
+} from "lucide-react";
 import { AdminHeader, AdminPage } from "@/components/admin/PageScaffold";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -17,21 +29,32 @@ type ReportModuleCard = {
 const reportModules: ReportModuleCard[] = [
   {
     title: "Operación de Eventos",
-    description: "Reporte operativo por evento con asistencia, ventas y control de no-show de QR free.",
+    description:
+      "Reporte operativo por evento con asistencia, ventas y control de no-show de QR free.",
     href: "/admin/reportes/mesas",
     cta: "Abrir reporte",
     icon: BarChart3,
   },
   {
     title: "Rendimiento de Promotores",
-    description: "Visualiza códigos generados vs asistencias por organizador, evento y promotor.",
+    description:
+      "Visualiza códigos generados vs asistencias por organizador, evento y promotor.",
     href: "/admin/reportes/promotores",
     cta: "Ver promotores",
     icon: Users2,
   },
   {
+    title: "Liquidaciones",
+    description:
+      "Consolidado de liquidaciones creadas por evento, promotor, estado e importe.",
+    href: "/admin/reportes/liquidaciones",
+    cta: "Ver liquidaciones",
+    icon: Banknote,
+  },
+  {
     title: "Logs de Operación",
-    description: "Trazabilidad de procesos críticos para auditoría interna y soporte.",
+    description:
+      "Trazabilidad de procesos críticos para auditoría interna y soporte.",
     href: "/admin/logs",
     cta: "Revisar logs",
     icon: FileClock,
@@ -66,7 +89,9 @@ export default function ReportesHubPage() {
                   </span>
                   {module.title}
                 </CardTitle>
-                <CardDescription className="text-xs text-white/60">{module.description}</CardDescription>
+                <CardDescription className="text-xs text-white/60">
+                  {module.description}
+                </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <Link href={module.href}>

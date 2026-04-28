@@ -121,6 +121,6 @@ Persistir el catalogo vendible de entradas por evento y usarlo de punta a punta:
 
 ## Riesgos abiertos
 
-- Falta aplicar la migracion en Supabase local/remoto antes de probar con datos reales.
+- Supabase remoto ya contiene `event_ticket_types` y columnas snapshot de `table_reservations`; queda pendiente normalizar el historial de migraciones antiguas si se quiere operar todo via CLI.
 - Falta certificacion Culqi real con credenciales finales.
 - El editor UI avanzado para textos/precios por lote queda como siguiente iteracion; por ahora se sincroniza desde los campos existentes del evento.

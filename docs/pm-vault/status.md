@@ -3,8 +3,8 @@ type: status
 project: babyclub-monorepo
 status: active
 owner: Patroclo
-updated: 2026-04-25
-last_reviewed: 2026-04-25
+updated: 2026-04-28
+last_reviewed: 2026-04-28
 ---
 
 # Status
@@ -27,7 +27,13 @@ last_reviewed: 2026-04-25
 - Regla vigente: single-tenant por deployment. Ver [ADR-007](../adr/2026-03-17-007-single-tenant-architecture-decision.md).
 - Pagos online: integracion Culqi sigue pendiente de certificacion end-to-end; mientras tanto, tarjeta queda oculta si backend/public key no estan listos.
 - Entradas publicas: tipos/lotes Early Baby y All Night ya tienen catalogo persistente por evento, snapshot de reserva y monto Culqi derivado desde BD.
-- Reportes operativos: contrato de exportacion admin restaurado para asistencia, promotores, no-show QR free y ventas.
+- Reportes operativos: contrato de exportacion admin restaurado para asistencia, promotores, liquidacion por promotor, no-show QR free y ventas.
+- Liquidaciones de promotores: ledger creado y aplicado en Supabase remoto para registrar pagos/beneficios, bloquear doble liquidacion y permitir monto editable por admin.
+- Liquidaciones de promotores: tragos ocultos del modal/CSV operativo; la accion visible queda centrada en efectivo y estados.
+- Liquidaciones de promotores: CRUD separado en `/admin/liquidaciones` y reporte consolidado en `/admin/reportes/liquidaciones`.
+- Links de promotor: compras de entrada y reservas de mesa conservan `promoter_id`, `promoter_link_code_id` y `promoter_link_code` para trazabilidad de liquidaciones.
+- Compra de 2 entradas: `/compra` permite capturar datos de la segunda persona y guardarlos en `table_reservations.attendees` para generar QRs individuales.
+- Supabase remoto `babyclub-access`: aplicadas `20260428112000_add_ticket_reservation_attendees`, `20260428112100_add_promoter_link_trace_to_reservations` y `20260428112200_promoter_settlements_ledger`.
 - `pnpm smoke:local` valida la landing sobre `http://localhost:3001`.
 
 ## Riesgos abiertos para siguientes requerimientos
@@ -37,12 +43,12 @@ last_reviewed: 2026-04-25
 - Next detecta un lockfile externo en `/Users/rapha/package-lock.json`; no bloquea el dev local, pero deja warning al arrancar.
 - El fix de `layout` quedo validado por codigo y tests; si se quiere cierre operativo total, falta observarlo una vez contra el entorno real que tenia el warning historico.
 - Falta certificar pago real Culqi con credenciales validas antes de comunicar "tarjeta funcionando".
-- Falta aplicar la migracion `2026-04-25-event-ticket-types.sql` en el Supabase usado para pruebas reales.
-- Falta contrastar reportes contra el clon local con data historica antes de usarlos como liquidacion final.
+- Falta definir monto/regla de comision para reservas de mesa; las entradas y QR free ya tienen reglas MVP.
+- Las migraciones historicas del repo usan nombres con guiones y la CLI de Supabase las omite; las migraciones nuevas de release se dejaron con timestamp valido `YYYYMMDDHHMMSS_nombre.sql`.
 
 ## Siguiente paso recomendado
 
 - Usar [REQ-0003-primer-lote-requerimientos-y-correcciones.md](./01-Requirements/REQ-0003-primer-lote-requerimientos-y-correcciones.md) como intake del primer lote.
 - Cuando aparezca un item concreto, clonarlo a un REQ individual desde [99-Templates/tpl-requirement.md](./99-Templates/tpl-requirement.md).
-- REQ tecnico cerrado mas reciente: [REQ-0010-configurar-tipos-entradas-evento.md](./01-Requirements/REQ-0010-configurar-tipos-entradas-evento.md).
+- REQ tecnico cerrado mas reciente: [REQ-0011-liquidaciones-promotores-ledger.md](./01-Requirements/REQ-0011-liquidaciones-promotores-ledger.md), actualizado con CRUD separado, reporte consolidado y migraciones remotas aplicadas.
 - Si el requerimiento toca tenancy, contratos API, auth, pagos, logs o migraciones, abrir revison de arquitectura antes de codificar.

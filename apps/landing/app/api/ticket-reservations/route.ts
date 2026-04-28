@@ -52,6 +52,159 @@ function isMissingTicketTypeReservationColumnsError(error: any) {
   );
 }
 
+function isMissingReservationAttendeesColumnError(error: any) {
+  if (!error) return false;
+  const haystack =
+    `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return haystack.includes("attendees") && haystack.includes("column");
+}
+
+function isMissingPromoterLinkTraceColumnsError(error: any) {
+  if (!error) return false;
+  const haystack =
+    `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return (
+    haystack.includes("promoter_link_code_id") ||
+    haystack.includes("promoter_link_code")
+  );
+}
+
+function stripUnsupportedReservationColumns(
+  payload: Record<string, any>,
+  error: any,
+) {
+  const nextPayload = { ...payload };
+  let changed = false;
+
+  if (isMissingTicketTypeReservationColumnsError(error)) {
+    delete nextPayload.ticket_type_id;
+    delete nextPayload.ticket_type_code;
+    delete nextPayload.ticket_type_label;
+    delete nextPayload.ticket_unit_price;
+    delete nextPayload.ticket_total_amount;
+    changed = true;
+  }
+
+  if (isMissingReservationAttendeesColumnError(error)) {
+    delete nextPayload.attendees;
+    changed = true;
+  }
+
+  if (isMissingPromoterLinkTraceColumnsError(error)) {
+    delete nextPayload.promoter_link_code_id;
+    delete nextPayload.promoter_link_code;
+    changed = true;
+  }
+
+  return changed ? nextPayload : null;
+}
+
+function buildFullName(
+  firstName: string,
+  lastNameP: string,
+  lastNameM: string,
+) {
+  return [firstName, lastNameP, lastNameM]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeAttendeeInput(input: any) {
+  const docTypeRaw =
+    typeof input?.doc_type === "string"
+      ? (input.doc_type as DocumentType)
+      : "dni";
+  const documentRaw = typeof input?.document === "string" ? input.document : "";
+  const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
+  const nombre = typeof input?.nombre === "string" ? input.nombre.trim() : "";
+  const apellidoPaterno =
+    typeof input?.apellido_paterno === "string"
+      ? input.apellido_paterno.trim()
+      : "";
+  const apellidoMaterno =
+    typeof input?.apellido_materno === "string"
+      ? input.apellido_materno.trim()
+      : "";
+  const email = typeof input?.email === "string" ? input.email.trim() : "";
+  const phone =
+    typeof input?.telefono === "string"
+      ? input.telefono.trim()
+      : typeof input?.phone === "string"
+        ? input.phone.trim()
+        : "";
+  const fullName =
+    typeof input?.full_name === "string" && input.full_name.trim()
+      ? input.full_name.trim()
+      : buildFullName(nombre, apellidoPaterno, apellidoMaterno);
+
+  return {
+    doc_type: docType,
+    document,
+    nombre,
+    apellido_paterno: apellidoPaterno,
+    apellido_materno: apellidoMaterno,
+    full_name: fullName,
+    email,
+    phone,
+  };
+}
+
+function attendeeHasMeaningfulData(
+  attendee: ReturnType<typeof normalizeAttendeeInput>,
+) {
+  return Boolean(
+    attendee.document ||
+      attendee.nombre ||
+      attendee.apellido_paterno ||
+      attendee.apellido_materno ||
+      attendee.email ||
+      attendee.phone,
+  );
+}
+
+function buildReservationAttendees({
+  rawAttendees,
+  quantity,
+  primary,
+}: {
+  rawAttendees: any[];
+  quantity: number;
+  primary: ReturnType<typeof normalizeAttendeeInput>;
+}) {
+  const attendees = [];
+  for (let index = 0; index < quantity; index++) {
+    const raw = rawAttendees[index];
+    const normalized =
+      index === 0 ? primary : raw ? normalizeAttendeeInput(raw) : primary;
+    const usePrimaryFallback =
+      index > 0 && !attendeeHasMeaningfulData(normalized);
+    const attendee = usePrimaryFallback ? primary : normalized;
+
+    if (!validateDocument(attendee.doc_type, attendee.document)) {
+      throw new Error(`Documento inválido para entrada ${index + 1}`);
+    }
+    if (!attendee.full_name) {
+      throw new Error(
+        `Nombre y apellidos requeridos para entrada ${index + 1}`,
+      );
+    }
+
+    attendees.push({
+      person_index: index + 1,
+      doc_type: attendee.doc_type,
+      document: attendee.document,
+      full_name: attendee.full_name,
+      first_name: attendee.nombre || null,
+      last_name_p: attendee.apellido_paterno || null,
+      last_name_m: attendee.apellido_materno || null,
+      email: attendee.email || primary.email || null,
+      phone: attendee.phone || primary.phone || null,
+    });
+  }
+  return attendees;
+}
+
 export async function POST(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
@@ -75,6 +228,16 @@ export async function POST(req: NextRequest) {
   const promoter_id =
     typeof body?.promoter_id === "string" && body.promoter_id.trim()
       ? body.promoter_id.trim()
+      : null;
+  const promoterLinkCodeId =
+    typeof body?.promoter_link_code_id === "string" &&
+    body.promoter_link_code_id.trim()
+      ? body.promoter_link_code_id.trim()
+      : null;
+  const promoterLinkCode =
+    typeof body?.promoter_link_code === "string" &&
+    body.promoter_link_code.trim()
+      ? body.promoter_link_code.trim()
       : null;
   const docTypeRaw =
     typeof body?.doc_type === "string"
@@ -112,6 +275,7 @@ export async function POST(req: NextRequest) {
     typeof body?.ticket_type_code === "string"
       ? body.ticket_type_code.trim()
       : "";
+  const rawAttendees = Array.isArray(body?.attendees) ? body.attendees : [];
   const pricingPhaseRaw =
     typeof body?.pricing_phase === "string"
       ? body.pricing_phase.trim().toLowerCase()
@@ -241,8 +405,33 @@ export async function POST(req: NextRequest) {
   const finalTicketQuantity = selectedTicketType.ticketQuantity;
   const unitPrice = selectedTicketType.price / finalTicketQuantity;
   const totalAmount = selectedTicketType.price;
+  let attendees: ReturnType<typeof buildReservationAttendees> = [];
+  try {
+    attendees = buildReservationAttendees({
+      rawAttendees,
+      quantity: finalTicketQuantity,
+      primary: {
+        doc_type: docType,
+        document,
+        nombre: first_name,
+        apellido_paterno: last_name_p,
+        apellido_materno: last_name_m,
+        full_name,
+        email,
+        phone,
+      },
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: err?.message || "Datos de asistentes inválidos",
+      },
+      { status: 400 },
+    );
+  }
 
-  const insertPayload = {
+  const insertPayload: Record<string, any> = {
     table_id: null,
     event_id: event_id,
     sale_origin: "ticket",
@@ -261,28 +450,30 @@ export async function POST(req: NextRequest) {
     status: "pending",
     ticket_quantity: finalTicketQuantity,
     promoter_id: promoter_id || null,
+    promoter_link_code_id: promoterLinkCodeId,
+    promoter_link_code: promoterLinkCode,
+    attendees,
   };
 
-  let { data: reservation, error: resError } = await supabase
-    .from("table_reservations")
-    .insert(insertPayload)
-    .select("id")
-    .single();
-
-  if (resError && isMissingTicketTypeReservationColumnsError(resError)) {
-    const legacyPayload = { ...insertPayload } as Record<string, any>;
-    delete legacyPayload.ticket_type_id;
-    delete legacyPayload.ticket_type_code;
-    delete legacyPayload.ticket_type_label;
-    delete legacyPayload.ticket_unit_price;
-    delete legacyPayload.ticket_total_amount;
-    const legacyInsert = await supabase
+  let reservation: any = null;
+  let resError: any = null;
+  let payloadForInsert = insertPayload;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const result = await supabase
       .from("table_reservations")
-      .insert(legacyPayload)
+      .insert(payloadForInsert)
       .select("id")
       .single();
-    reservation = legacyInsert.data;
-    resError = legacyInsert.error;
+    reservation = result.data;
+    resError = result.error;
+    if (!resError) break;
+
+    const fallbackPayload = stripUnsupportedReservationColumns(
+      payloadForInsert,
+      resError,
+    );
+    if (!fallbackPayload) break;
+    payloadForInsert = fallbackPayload;
   }
 
   if (resError) {

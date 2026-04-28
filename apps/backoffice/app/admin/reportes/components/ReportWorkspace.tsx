@@ -29,9 +29,11 @@ type ReportWorkspaceProps = {
   description: string;
   defaultReport:
     | "promoter_performance"
+    | "promoter_settlement"
     | "event_attendance"
     | "free_qr_no_show";
   allowReportSwitch?: boolean;
+  includeSettlementReport?: boolean;
   showDateRange?: boolean;
   events: Option[];
   promoters: Option[];
@@ -39,6 +41,7 @@ type ReportWorkspaceProps = {
 
 const REPORT_LABELS: Record<string, string> = {
   promoter_performance: "Rendimiento de promotores",
+  promoter_settlement: "Liquidación de promotores",
   event_attendance: "Asistencia por evento",
   free_qr_no_show: "No-show de QR free",
 };
@@ -48,8 +51,12 @@ const HIDDEN_UI_COLUMNS = new Set([
   "organizer_name",
   "event_id",
   "promoter_id",
+  "promoter_link_codes",
+  "metric_version",
+  "commission_amount_cents",
   "total_amount_raw",
   "sales_source",
+  "settlement_items",
   "last_free_qr_status",
   "free_qr_assigned",
   "free_qr_attended",
@@ -57,13 +64,49 @@ const HIDDEN_UI_COLUMNS = new Set([
   "no_show_rate_percent",
 ]);
 
+const PROMOTER_SETTLEMENT_VISIBLE_COLUMNS = [
+  "event_name",
+  "promoter_name",
+  "promoter_code",
+  "ticket_commission_count",
+  "free_commission_count",
+  "table_commission_count",
+  "pending_settlement_item_count",
+  "commission_amount_pen",
+  "settled_item_count",
+];
+
 const COLUMN_LABELS: Record<string, string> = {
   event_name: "Evento",
-  promoter_code: "Código promotor",
+  promoter_code: "Código",
   promoter_name: "Promotor",
   qrs_assigned: "QRs asignados",
   qrs_entered: "Ingresaron",
+  qrs_attended: "Ingresaron",
+  no_show_count: "No-show",
   attendance_rate_percent: "% de conversión",
+  paid_ticket_issued: "Entradas pagadas emitidas",
+  paid_ticket_paid: "Pago validado",
+  paid_ticket_attended: "Pagadas que ingresaron",
+  free_issued: "QR free emitidos",
+  free_attended: "QR free ingresaron",
+  free_no_show: "QR free no-show",
+  courtesy_issued: "Cortesías emitidas",
+  courtesy_attended: "Cortesías ingresaron",
+  courtesy_no_show: "Cortesías no-show",
+  table_guest_issued: "Invitados mesa emitidos",
+  table_guest_attended: "Invitados mesa ingresaron",
+  ticket_commission_count: "Entradas",
+  free_commission_count: "QR free",
+  table_commission_count: "Mesas",
+  eligible_cash_count: "Comisiones",
+  commission_amount_pen: "Total sugerido",
+  promoter_link_codes: "Links usados",
+  settlement_item_count: "Items liquidables",
+  pending_settlement_item_count: "Pendientes",
+  settled_item_count: "Liquidados",
+  unknown_legacy_count: "Legacy sin clasificar",
+  data_quality_flags: "Alertas de datos",
   asistentes: "Asistentes",
   via_general: "Vía QR general",
   via_mesa: "Vía QR mesa",
@@ -100,6 +143,27 @@ function formatReportValue(header: string, value: unknown) {
     [
       "qrs_assigned",
       "qrs_entered",
+      "qrs_attended",
+      "no_show_count",
+      "paid_ticket_issued",
+      "paid_ticket_paid",
+      "paid_ticket_attended",
+      "free_issued",
+      "free_attended",
+      "free_no_show",
+      "courtesy_issued",
+      "courtesy_attended",
+      "courtesy_no_show",
+      "table_guest_issued",
+      "table_guest_attended",
+      "ticket_commission_count",
+      "free_commission_count",
+      "table_commission_count",
+      "eligible_cash_count",
+      "settlement_item_count",
+      "pending_settlement_item_count",
+      "settled_item_count",
+      "unknown_legacy_count",
       "asistentes",
       "via_general",
       "via_mesa",
@@ -119,7 +183,7 @@ function formatReportValue(header: string, value: unknown) {
     const numeric = Number(value);
     return `${numeric.toLocaleString("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
   }
-  if (header === "total_amount_pen_est") {
+  if (header === "total_amount_pen_est" || header === "commission_amount_pen") {
     const numeric = Number(value);
     return `S/ ${numeric.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
@@ -131,6 +195,7 @@ export default function ReportWorkspace({
   description,
   defaultReport,
   allowReportSwitch = false,
+  includeSettlementReport = false,
   showDateRange = false,
   events,
   promoters,
@@ -173,10 +238,14 @@ export default function ReportWorkspace({
     return Object.keys(rows[0]);
   }, [rows]);
 
-  const visibleHeaders = useMemo(
-    () => tableHeaders.filter((header) => !HIDDEN_UI_COLUMNS.has(header)),
-    [tableHeaders],
-  );
+  const visibleHeaders = useMemo(() => {
+    if (report === "promoter_settlement") {
+      return PROMOTER_SETTLEMENT_VISIBLE_COLUMNS.filter((header) =>
+        tableHeaders.includes(header),
+      );
+    }
+    return tableHeaders.filter((header) => !HIDDEN_UI_COLUMNS.has(header));
+  }, [report, tableHeaders]);
 
   const attendanceSummary = useMemo(() => {
     if (report !== "event_attendance" || rows.length === 0) return null;
@@ -216,7 +285,10 @@ export default function ReportWorkspace({
     if (showDateRange && to) params.set("to", to);
     if (organizerId) params.set("organizer_id", organizerId);
     if (eventId) params.set("event_id", eventId);
-    if (promoterId && report === "promoter_performance")
+    if (
+      promoterId &&
+      (report === "promoter_performance" || report === "promoter_settlement")
+    )
       params.set("promoter_id", promoterId);
     return params.toString();
   }, [report, from, to, organizerId, eventId, promoterId, showDateRange]);
@@ -295,6 +367,11 @@ export default function ReportWorkspace({
                 <option value="promoter_performance">
                   {REPORT_LABELS.promoter_performance}
                 </option>
+                {includeSettlementReport && promoters.length > 0 ? (
+                  <option value="promoter_settlement">
+                    {REPORT_LABELS.promoter_settlement}
+                  </option>
+                ) : null}
                 <option value="event_attendance">
                   {REPORT_LABELS.event_attendance}
                 </option>
@@ -354,7 +431,8 @@ export default function ReportWorkspace({
               ))}
             </SelectNative>
           </label>
-          {report === "promoter_performance" ? (
+          {report === "promoter_performance" ||
+          report === "promoter_settlement" ? (
             <label className="space-y-1.5 xl:col-span-2">
               <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
                 Promotor
@@ -403,6 +481,18 @@ export default function ReportWorkspace({
 
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
+        {report === "promoter_settlement" ? (
+          <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
+            <strong className="text-white/90">Reglas MVP:</strong>{" "}
+            <span>
+              compras Early Baby individual S/ 3.00, Early Baby dúo S/ 5.00, All
+              Night individual S/ 3.50 y All Night dúo S/ 6.00. QR free leído en
+              puerta suma S/ 1.50. Las mesas entran como ítem de liquidación con
+              monto manual.
+            </span>
+          </div>
+        ) : null}
+
         {report === "event_attendance" ? (
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
@@ -425,9 +515,9 @@ export default function ReportWorkspace({
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
             <span>
               <strong>QR free asignados</strong> = tickets free/cortesía de
-              eventos ya ocurridos. <strong>Asistió</strong> = tickets con
-              `used = true`. <strong>No asistió</strong> = tickets free de
-              eventos pasados que nunca fueron usados.{" "}
+              eventos ya ocurridos. <strong>Asistió</strong> = tickets con `used
+              = true`. <strong>No asistió</strong> = tickets free de eventos
+              pasados que nunca fueron usados.{" "}
               <strong>Bloquear siguiente QR free</strong> sigue una regla
               estricta en esta primera versión: si la persona tiene al menos un
               no-show histórico, queda marcada para revisión o bloqueo manual.
@@ -493,6 +583,19 @@ export default function ReportWorkspace({
           </div>
         ) : null}
 
+        {report === "promoter_settlement" ? (
+          <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
+            <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
+            <span>
+              La liquidación cuenta solo tickets activos con promotor atribuido.
+              <strong> Compras con comisión</strong> suman aunque no hayan
+              asistido. <strong>QR free con comisión</strong> solo suma si el QR
+              ingresó en puerta. <strong>Mesas con comisión</strong> aparecen
+              como monto editable para que el admin cierre la regla operativa.
+            </span>
+          </div>
+        ) : null}
+
         {report === "promoter_performance" ? (
           <div className="rounded-lg border border-[#303030] bg-[#121212] px-3 py-2 text-xs text-white/70">
             <strong className="text-white/90">Cómo leer este reporte:</strong>{" "}
@@ -505,8 +608,10 @@ export default function ReportWorkspace({
           </div>
         ) : null}
 
-
-        <Table containerClassName="max-h-[55dvh] min-h-[220px] overflow-auto" className="min-w-[640px]">
+        <Table
+          containerClassName="max-h-[55dvh] min-h-[220px] overflow-auto"
+          className="min-w-[640px]"
+        >
           <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-[#111111]">
             <TableRow>
               {visibleHeaders.length === 0 ? (

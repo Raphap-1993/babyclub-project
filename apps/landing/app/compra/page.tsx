@@ -89,6 +89,10 @@ export default function CompraPage() {
 function CompraContent() {
   const searchParams = useSearchParams();
   const promoterIdFromUrl = searchParams.get("promoter_id") || null;
+  const promoterLinkCodeIdFromUrl =
+    searchParams.get("promoter_link_code_id") || null;
+  const promoterLinkCodeFromUrl =
+    searchParams.get("promoter_link_code") || null;
   const tabFromUrl = searchParams.get("tab");
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -113,8 +117,20 @@ function CompraContent() {
     phone: "",
   });
   const [ticketApellidosInput, setTicketApellidosInput] = useState("");
+  const [secondTicketForm, setSecondTicketForm] = useState({
+    doc_type: "dni",
+    document: "",
+    nombre: "",
+    apellido_paterno: "",
+    apellido_materno: "",
+    email: "",
+    phone: "",
+  });
+  const [secondTicketApellidosInput, setSecondTicketApellidosInput] =
+    useState("");
   const formRef = useRef(form);
   const ticketFormRef = useRef(ticketForm);
+  const secondTicketFormRef = useRef(secondTicketForm);
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [mode, setMode] = useState<"mesa" | "ticket">(
     tabFromUrl === "mesa" ? "mesa" : "ticket",
@@ -183,6 +199,14 @@ function CompraContent() {
   const dniErrorTicket =
     ticketForm.document &&
     !validateDocument(ticketForm.doc_type as DocumentType, ticketForm.document)
+      ? "Documento inválido"
+      : "";
+  const dniErrorSecondTicket =
+    secondTicketForm.document &&
+    !validateDocument(
+      secondTicketForm.doc_type as DocumentType,
+      secondTicketForm.document,
+    )
       ? "Documento inválido"
       : "";
   const dniErrorMesa =
@@ -254,6 +278,10 @@ function CompraContent() {
     ticketFormRef.current = ticketForm;
   }, [ticketForm]);
 
+  useEffect(() => {
+    secondTicketFormRef.current = secondTicketForm;
+  }, [secondTicketForm]);
+
   const buildFullName = (
     nombre: string,
     apellidoPaterno: string,
@@ -311,6 +339,19 @@ function CompraContent() {
     setTicketReservationId(null);
   };
 
+  const resetSecondTicketForm = () => {
+    setSecondTicketForm({
+      doc_type: "dni",
+      document: "",
+      nombre: "",
+      apellido_paterno: "",
+      apellido_materno: "",
+      email: "",
+      phone: "",
+    });
+    setSecondTicketApellidosInput("");
+  };
+
   const resetMesaForm = () => {
     setForm({
       doc_type: "dni",
@@ -330,6 +371,7 @@ function CompraContent() {
 
   const clearTicketInputs = () => {
     resetTicketForm();
+    resetSecondTicketForm();
     setTicketVoucherUrl("");
     setTicketModalError(null);
     setTicketUploading(false);
@@ -452,6 +494,22 @@ function CompraContent() {
       );
     }
   }, [ticketForm.doc_type, ticketForm.document]);
+
+  useEffect(() => {
+    if (
+      ticketQuantity === 2 &&
+      validateDocument(
+        secondTicketForm.doc_type as DocumentType,
+        secondTicketForm.document,
+      )
+    ) {
+      lookupPerson(
+        secondTicketForm.document,
+        "ticket_second",
+        secondTicketForm.doc_type as DocumentType,
+      );
+    }
+  }, [secondTicketForm.doc_type, secondTicketForm.document, ticketQuantity]);
 
   useEffect(() => {
     if (validateDocument(form.doc_type as DocumentType, form.document)) {
@@ -590,7 +648,7 @@ function CompraContent() {
 
   const lookupPerson = async (
     document: string,
-    target: "ticket" | "mesa",
+    target: "ticket" | "ticket_second" | "mesa",
     docType: DocumentType = "dni",
   ) => {
     try {
@@ -622,6 +680,25 @@ function CompraContent() {
         };
         setTicketForm(nextForm);
         setTicketApellidosInput(
+          joinSurnameInput(
+            nextForm.apellido_paterno,
+            nextForm.apellido_materno,
+          ),
+        );
+      } else if (target === "ticket_second") {
+        const currentSecondTicketForm = secondTicketFormRef.current;
+        const nextForm = {
+          ...currentSecondTicketForm,
+          nombre: currentSecondTicketForm.nombre || nombre,
+          apellido_paterno:
+            currentSecondTicketForm.apellido_paterno || apellidoPaterno,
+          apellido_materno:
+            currentSecondTicketForm.apellido_materno || apellidoMaterno,
+          email: currentSecondTicketForm.email || person.email || "",
+          phone: currentSecondTicketForm.phone || person.phone || "",
+        };
+        setSecondTicketForm(nextForm);
+        setSecondTicketApellidosInput(
           joinSurnameInput(
             nextForm.apellido_paterno,
             nextForm.apellido_materno,
@@ -696,6 +773,11 @@ function CompraContent() {
     ticketForm.apellido_paterno,
     ticketForm.apellido_materno,
   );
+  const secondTicketFullName = buildFullName(
+    secondTicketForm.nombre,
+    secondTicketForm.apellido_paterno,
+    secondTicketForm.apellido_materno,
+  );
   const mesaFullName = buildFullName(
     form.nombre,
     form.apellido_paterno,
@@ -710,6 +792,19 @@ function CompraContent() {
     form.nombre.trim() &&
       form.apellido_paterno.trim() &&
       form.apellido_materno.trim(),
+  );
+  const secondTicketHasData = Boolean(
+    secondTicketForm.document.trim() ||
+      secondTicketForm.nombre.trim() ||
+      secondTicketForm.apellido_paterno.trim() ||
+      secondTicketForm.apellido_materno.trim() ||
+      secondTicketForm.email.trim() ||
+      secondTicketForm.phone.trim(),
+  );
+  const secondTicketNameComplete = Boolean(
+    secondTicketForm.nombre.trim() &&
+      secondTicketForm.apellido_paterno.trim() &&
+      secondTicketForm.apellido_materno.trim(),
   );
 
   // sincronia de datos entre solo entrada y reserva
@@ -867,6 +962,8 @@ function CompraContent() {
           voucher_url: form.voucher_url || undefined,
           payment_method: useCulqi ? "culqi" : "yape",
           promoter_id: promoterIdFromUrl || undefined,
+          promoter_link_code_id: promoterLinkCodeIdFromUrl || undefined,
+          promoter_link_code: promoterLinkCodeFromUrl || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -971,6 +1068,20 @@ function CompraContent() {
       setTicketError("Ingresa documento, nombres y apellidos");
       return;
     }
+    if (
+      ticketQuantity === 2 &&
+      secondTicketHasData &&
+      (!validateDocument(
+        secondTicketForm.doc_type as DocumentType,
+        secondTicketForm.document,
+      ) ||
+        !secondTicketNameComplete)
+    ) {
+      setTicketError(
+        "Completa documento, nombres y apellidos de la segunda entrada o deja esos campos vacíos.",
+      );
+      return;
+    }
     if (ticketSaleBlock) {
       setTicketError(ticketSaleBlock.message);
       return;
@@ -1003,6 +1114,20 @@ function CompraContent() {
       setTicketModalError("Ingresa documento, nombres y apellidos");
       return;
     }
+    if (
+      ticketQuantity === 2 &&
+      secondTicketHasData &&
+      (!validateDocument(
+        secondTicketForm.doc_type as DocumentType,
+        secondTicketForm.document,
+      ) ||
+        !secondTicketNameComplete)
+    ) {
+      setTicketModalError(
+        "Completa documento, nombres y apellidos de la segunda entrada o deja esos campos vacíos.",
+      );
+      return;
+    }
     if (ticketSaleBlock) {
       setTicketModalError(ticketSaleBlock.message);
       return;
@@ -1033,6 +1158,32 @@ function CompraContent() {
         pricing_phase: ticketPricingSelection,
         payment_method: useCulqi ? "culqi" : "yape",
         promoter_id: promoterIdFromUrl || undefined,
+        promoter_link_code_id: promoterLinkCodeIdFromUrl || undefined,
+        promoter_link_code: promoterLinkCodeFromUrl || undefined,
+        attendees: [
+          {
+            doc_type: ticketForm.doc_type,
+            document: ticketForm.document,
+            nombre: ticketForm.nombre,
+            apellido_paterno: ticketForm.apellido_paterno,
+            apellido_materno: ticketForm.apellido_materno,
+            email: ticketForm.email,
+            phone: ticketForm.phone,
+          },
+          ...(ticketQuantity === 2 && secondTicketHasData
+            ? [
+                {
+                  doc_type: secondTicketForm.doc_type,
+                  document: secondTicketForm.document,
+                  nombre: secondTicketForm.nombre,
+                  apellido_paterno: secondTicketForm.apellido_paterno,
+                  apellido_materno: secondTicketForm.apellido_materno,
+                  email: secondTicketForm.email,
+                  phone: secondTicketForm.phone,
+                },
+              ]
+            : []),
+        ],
       };
       const res = await fetch("/api/ticket-reservations", {
         method: "POST",
@@ -1390,6 +1541,125 @@ function CompraContent() {
                 placeholder="+51 999 999 999"
               />
             </div>
+            {ticketQuantity === 2 && (
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      Datos de la segunda entrada
+                    </p>
+                    <p className="mt-1 text-xs text-white/55">
+                      Si la segunda entrada es para otra persona, completa sus
+                      datos.
+                    </p>
+                  </div>
+                  {secondTicketHasData && (
+                    <button
+                      type="button"
+                      onClick={resetSecondTicketForm}
+                      className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+                <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
+                  <label className="block space-y-2 text-sm font-semibold text-white">
+                    Tipo de documento
+                    <select
+                      value={secondTicketForm.doc_type as DocumentType}
+                      onChange={(e) =>
+                        setSecondTicketForm((p) => ({
+                          ...p,
+                          doc_type: e.target.value as DocumentType,
+                          document: "",
+                        }))
+                      }
+                      className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                    >
+                      {DOCUMENT_TYPES.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Field
+                    label="Número de documento"
+                    value={secondTicketForm.document}
+                    onChange={(v) =>
+                      setSecondTicketForm((p) => ({ ...p, document: v }))
+                    }
+                    inputMode={
+                      secondTicketForm.doc_type === "dni" ||
+                      secondTicketForm.doc_type === "ruc"
+                        ? "numeric"
+                        : "text"
+                    }
+                    digitOnly={
+                      secondTicketForm.doc_type === "dni" ||
+                      secondTicketForm.doc_type === "ruc"
+                    }
+                    maxLength={
+                      secondTicketForm.doc_type === "dni"
+                        ? 8
+                        : secondTicketForm.doc_type === "ruc"
+                          ? 11
+                          : 12
+                    }
+                    error={dniErrorSecondTicket}
+                    allowClear
+                    onClear={resetSecondTicketForm}
+                  />
+                  <Field
+                    label="Nombres"
+                    value={secondTicketForm.nombre}
+                    onChange={(v) =>
+                      setSecondTicketForm((p) => ({ ...p, nombre: v }))
+                    }
+                  />
+                </div>
+                <Field
+                  label="Apellidos"
+                  value={secondTicketApellidosInput}
+                  onChange={(v) => {
+                    const parts = splitSurnameInput(v);
+                    setSecondTicketApellidosInput(v);
+                    setSecondTicketForm((p) => ({
+                      ...p,
+                      ...parts,
+                    }));
+                  }}
+                  onBlur={() =>
+                    setSecondTicketApellidosInput(
+                      joinSurnameInput(
+                        secondTicketForm.apellido_paterno,
+                        secondTicketForm.apellido_materno,
+                      ),
+                    )
+                  }
+                  placeholder="Apellido paterno y materno"
+                />
+                <div className="grid gap-3 md:grid-cols-[1.3fr,0.7fr]">
+                  <Field
+                    label="Email"
+                    value={secondTicketForm.email}
+                    onChange={(v) =>
+                      setSecondTicketForm((p) => ({ ...p, email: v }))
+                    }
+                    type="email"
+                  />
+                  <Field
+                    label="Teléfono"
+                    value={secondTicketForm.phone}
+                    onChange={(v) =>
+                      setSecondTicketForm((p) => ({ ...p, phone: v }))
+                    }
+                    placeholder="+51 999 999 999"
+                  />
+                </div>
+              </section>
+            )}
             <PaymentMethodSelector
               title="Método de pago"
               value={selectedPaymentMethodTicket}
@@ -2236,6 +2506,24 @@ function CompraContent() {
                     {ticketFullName || "—"}
                   </span>
                 </div>
+                {ticketQuantity === 2 && (
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-white/70">Segunda entrada</span>
+                      <span className="text-right font-semibold text-white">
+                        {secondTicketHasData
+                          ? secondTicketFullName || "Datos incompletos"
+                          : "Mismos datos del comprador"}
+                      </span>
+                    </div>
+                    {secondTicketHasData ? (
+                      <div className="mt-1 text-xs text-white/55">
+                        {secondTicketForm.document || "—"} (
+                        {secondTicketForm.doc_type})
+                      </div>
+                    ) : null}
+                  </div>
+                )}
                 <div className="flex flex-col gap-1 text-xs text-white/60">
                   <span>Email: {ticketForm.email || "—"}</span>
                   <span>Teléfono: {ticketForm.phone || "—"}</span>
