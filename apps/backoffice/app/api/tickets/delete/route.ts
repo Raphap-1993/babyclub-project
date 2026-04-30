@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
-import { buildArchivePayload } from "shared/db/softDelete";
+import { applyNotDeleted, buildArchivePayload } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -29,13 +29,15 @@ export async function archiveTicket(req: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Obtener info básica antes de borrar (para liberar reservas asociadas por email/teléfono)
-  // Incluir event_id para filtrar reservas solo del evento del ticket
-  const { data: ticketRow, error: fetchError } = await supabase
-    .from("tickets")
-    .select("id,event_id,email,phone,code_id")
-    .eq("id", id)
-    .maybeSingle();
+  // Obtener info básica antes de archivar.
+  const ticketQuery = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,event_id,email,phone,code_id,table_reservation_id")
+      .eq("id", id)
+      .limit(1)
+  );
+  const { data: ticketRow, error: fetchError } = await ticketQuery.maybeSingle();
 
   if (fetchError) {
     return NextResponse.json({ success: false, error: fetchError.message }, { status: 500 });
@@ -72,25 +74,42 @@ export async function archiveTicket(req: Request) {
       }
     }
 
-    const activeStatuses = ["pending", "approved", "confirmed", "paid"];
-    const email = ticketRow.email || null;
-    const phone = ticketRow.phone || null;
-    const eventId = (ticketRow as any).event_id as string | null;
+    const linkedReservationId =
+      typeof (ticketRow as any).table_reservation_id === "string"
+        ? (ticketRow as any).table_reservation_id
+        : null;
 
-    // Liberar reservas con mismo email/teléfono PERO SOLO DEL MISMO EVENTO
-    // Esto evita rechazar reservas del usuario en otros eventos
-    const filters = [
-      email ? `email.eq.${email}` : "",
-      phone ? `phone.eq.${phone}` : "",
-    ].filter(Boolean);
+    if (linkedReservationId) {
+      const reservationQuery = applyNotDeleted(
+        supabase
+          .from("table_reservations")
+          .select("id,sale_origin,status")
+          .eq("id", linkedReservationId)
+          .limit(1)
+      );
+      const { data: linkedReservation, error: linkedReservationError } =
+        await reservationQuery.maybeSingle();
+      if (linkedReservationError) {
+        return NextResponse.json(
+          { success: false, error: linkedReservationError.message },
+          { status: 500 }
+        );
+      }
 
-    if (filters.length > 0 && eventId) {
-      await supabase
-        .from("table_reservations")
-        .update({ status: "rejected" })
-        .eq("event_id", eventId)
-        .or(filters.join(","))
-        .in("status", activeStatuses);
+      const reservationOrigin = String(
+        (linkedReservation as any)?.sale_origin || ""
+      ).toLowerCase();
+      const activeStatuses = ["pending", "approved", "confirmed", "paid"];
+
+      // Solo liberar reservas nacidas como compra de entradas.
+      // Las reservas de mesa deben anularse explícitamente desde su propio CRUD.
+      if (linkedReservation?.id && reservationOrigin === "ticket") {
+        await supabase
+          .from("table_reservations")
+          .update({ status: "rejected" })
+          .eq("id", linkedReservation.id)
+          .in("status", activeStatuses);
+      }
     }
   }
 

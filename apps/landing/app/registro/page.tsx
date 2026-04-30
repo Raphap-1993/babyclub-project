@@ -1228,7 +1228,7 @@ function RegistroContent() {
               {/* Layout principal - 2 columnas compactas */}
               <div className="mx-auto grid w-full max-w-4xl min-w-0 grid-cols-1 gap-3">
                 {/* Columna 1: Mapa compacto y optimizado */}
-                <div className="relative order-1 h-[42svh] min-h-[320px] max-h-[380px] min-w-0 max-w-full overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:h-[min(58svh,560px)] sm:min-h-[320px] sm:max-h-none">
+                <div className="relative order-1 h-[67svh] min-h-[500px] max-h-[620px] min-w-0 max-w-full overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:h-[min(58svh,560px)] sm:min-h-[320px] sm:max-h-none">
                   <TableMap
                     slots={tableSlots}
                     selectedTableId={selectedTable}
@@ -1246,11 +1246,13 @@ function RegistroContent() {
                     loading={tables.length === 0}
                     layoutUrl={mapUrl}
                     viewBoxOverride={layoutCanvas}
+                    imageNaturalSize={layoutImageSize}
                     enableZoom={ENABLE_MAP_ZOOM}
                     labelMode="number"
                     minSlotSizePx={0}
                     minSlotScreenPx={14}
                     focusOnSlots={false}
+                    focusOnSlotsOnMobile
                   />
                 </div>
 

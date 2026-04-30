@@ -36,11 +36,22 @@ describe("GET /api/admin/tables", () => {
 
     const { supabase, calls } = createSupabaseMock({
       "events.select": [{ data: { organizer_id: "org-1" }, error: null }],
+      "table_availability.select": [
+        {
+          data: [
+            { table_id: "table-1", is_available: true },
+            { table_id: "table-2", is_available: true },
+            { table_id: "table-3", is_available: false },
+          ],
+          error: null,
+        },
+      ],
       "tables.select": [
         {
           data: [
-            { id: "table-1", name: "Mesa 1", ticket_count: 6 },
-            { id: "table-2", name: "Mesa 2", ticket_count: 6 },
+            { id: "table-1", name: "Mesa 1", ticket_count: 6, event_id: null, is_active: true },
+            { id: "table-2", name: "Mesa 2", ticket_count: 6, event_id: null, is_active: true },
+            { id: "table-3", name: "Mesa 3", ticket_count: 6, event_id: null, is_active: true },
           ],
           error: null,
         },
@@ -64,8 +75,13 @@ describe("GET /api/admin/tables", () => {
     const statusFilter = reservationCall?.filters?.find(
       (filter) => filter.type === "in" && filter.args[0] === "status"
     );
+    const tableCall = calls.find((call) => call.table === "tables" && call.op === "select");
+    const activeFilter = tableCall?.filters?.find(
+      (filter) => filter.type === "eq" && filter.args[0] === "is_active"
+    );
 
     expect(statusFilter).toBeDefined();
     expect(statusFilter?.args[1]).toEqual(["pending", "approved", "confirmed", "paid"]);
+    expect(activeFilter?.args[1]).toBe(true);
   });
 });

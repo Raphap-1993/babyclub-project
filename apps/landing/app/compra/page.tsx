@@ -1755,7 +1755,7 @@ function CompraContent() {
                   </div>
                 </div>
                 <div className="min-h-0 flex-1 p-2 sm:p-3">
-                  <div className="h-[42svh] min-h-[320px] max-h-[380px] w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:h-[min(58svh,560px)] sm:min-h-[320px] sm:max-h-none">
+                  <div className="h-[67svh] min-h-[500px] max-h-[620px] w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:h-[min(58svh,560px)] sm:min-h-[320px] sm:max-h-none">
                     <TableMap
                       slots={tableSlots}
                       selectedTableId={selected}
@@ -1769,12 +1769,14 @@ function CompraContent() {
                       }}
                       layoutUrl={layoutUrl || undefined}
                       viewBoxOverride={layoutCanvas}
+                      imageNaturalSize={layoutImageSize}
                       enableZoom={false}
                       loading={tables.length === 0}
                       labelMode="number"
                       minSlotSizePx={0}
                       minSlotScreenPx={14}
                       focusOnSlots={false}
+                      focusOnSlotsOnMobile
                     />
                   </div>
                 </div>

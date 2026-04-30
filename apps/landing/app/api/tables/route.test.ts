@@ -34,6 +34,24 @@ describe("GET /api/tables", () => {
           error: null,
         },
       ],
+      "events.select": [
+        {
+          data: {
+            organizer_id: "org-1",
+          },
+          error: null,
+        },
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
       "table_availability.select": [{ data: [], error: null }],
       "table_reservations.select": [
         {
@@ -75,6 +93,24 @@ describe("GET /api/tables", () => {
               products: [],
             },
           ],
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            organizer_id: "org-1",
+          },
+          error: null,
+        },
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
           error: null,
         },
       ],

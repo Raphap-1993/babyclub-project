@@ -238,6 +238,74 @@ describe("POST /api/reservations", () => {
     expect(String(payload.error || "")).toContain("product_id");
   });
 
+  it("bloquea la reserva si el evento usa disponibilidad y la mesa no está habilitada", async () => {
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-1",
+            event_id: null,
+            ticket_count: 6,
+            is_active: true,
+            event: { id: "event-1", name: "Evento" },
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
+          error: null,
+        },
+      ],
+      "table_reservations.select": [{ data: null, error: null }],
+      "table_availability.select": [
+        {
+          data: [{ table_id: "table-2", is_available: true }],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table_id: "table-1",
+        doc_type: "dni",
+        document: "12345678",
+        full_name: "Ana Perez",
+        email: "ana@example.com",
+        phone: "+51999999999",
+        voucher_url: "https://example.com/voucher.png",
+        product_id: "prod-1",
+        event_id: "event-1",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("no está disponible");
+  });
+
   it("bloquea reserva cuando el evento está sold out", async () => {
     const { supabase } = createSupabaseMock({
       "tables.select": [

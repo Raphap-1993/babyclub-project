@@ -299,13 +299,11 @@ export async function POST(req: NextRequest) {
     const availabilityQuery = applyNotDeleted(
       supabase
         .from("table_availability")
-        .select("is_available")
-        .eq("table_id", table_id)
-        .eq("event_id", effectiveEventId)
-        .limit(1),
+        .select("table_id,is_available")
+        .eq("event_id", effectiveEventId),
     );
-    const { data: availability, error: availabilityError } =
-      await availabilityQuery.maybeSingle();
+    const { data: availabilityRows, error: availabilityError } =
+      await availabilityQuery;
 
     if (
       availabilityError &&
@@ -316,14 +314,20 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
-    if (availability?.is_available === false) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "La mesa no está disponible para este evento",
-        },
-        { status: 409 },
+    const rows = availabilityRows || [];
+    if (rows.length > 0) {
+      const tableAvailability = rows.find(
+        (row: any) => row?.table_id === table_id,
       );
+      if (!tableAvailability || tableAvailability.is_available === false) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "La mesa no está disponible para este evento",
+          },
+          { status: 409 },
+        );
+      }
     }
   }
 

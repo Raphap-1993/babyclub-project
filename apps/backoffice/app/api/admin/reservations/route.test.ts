@@ -113,4 +113,119 @@ describe("POST /api/admin/reservations", () => {
     expect(payload.success).toBe(false);
     expect(String(payload.error || "")).toContain("producto");
   });
+
+  it("bloquea la reserva manual si la mesa no está habilitada para el evento", async () => {
+    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { role: "admin" } });
+
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-1",
+            name: "Mesa 1",
+            event_id: null,
+            ticket_count: 6,
+            is_active: true,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [{ data: { id: "event-1", name: "Evento", event_prefix: "EVT" }, error: null }],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
+          error: null,
+        },
+      ],
+      "table_availability.select": [
+        {
+          data: [{ table_id: "table-2", is_available: true }],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = {
+      json: async () => ({
+        mode: "new_customer",
+        table_id: "table-1",
+        event_id: "event-1",
+        product_id: "prod-1",
+        full_name: "Ana Perez",
+        email: "ana@example.com",
+        doc_type: "dni",
+        document: "12345678",
+        voucher_url: "https://example.com/voucher.png",
+      }),
+    } as any;
+
+    const res = await POST(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("no está disponible");
+  });
+
+  it("busca dobles reservas dentro del mismo evento", async () => {
+    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { role: "admin" } });
+
+    const { supabase, calls } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-1",
+            name: "Mesa 1",
+            event_id: null,
+            ticket_count: 6,
+            is_active: true,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [{ data: { id: "event-1", name: "Evento", event_prefix: "EVT" }, error: null }],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
+          error: null,
+        },
+      ],
+      "table_availability.select": [{ data: [], error: null }],
+      "table_reservations.select": [{ data: { id: "res-1", status: "approved", event_id: "event-1" }, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = {
+      json: async () => ({
+        mode: "new_customer",
+        table_id: "table-1",
+        event_id: "event-1",
+        product_id: "prod-1",
+        full_name: "Ana Perez",
+        email: "ana@example.com",
+        phone: "999999999",
+        doc_type: "dni",
+        document: "12345678",
+        voucher_url: "https://example.com/voucher.png",
+      }),
+    } as any;
+
+    const res = await POST(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+
+    const reservationSelect = calls.find((call) => call.table === "table_reservations" && call.op === "select");
+    const eventFilter = reservationSelect?.filters?.find(
+      (filter) => filter.type === "eq" && filter.args[0] === "event_id"
+    );
+
+    expect(eventFilter?.args[1]).toBe("event-1");
+  });
 });

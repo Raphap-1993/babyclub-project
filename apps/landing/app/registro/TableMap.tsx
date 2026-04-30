@@ -11,6 +11,8 @@ import { useSearchParams } from "next/navigation";
 
 type ViewBoxSize = { width: number; height: number };
 type DisplayViewBox = ViewBoxSize & { x: number; y: number };
+type FocusPaddingMode = "default" | "mobile";
+type BoundsRect = { x: number; y: number; width: number; height: number };
 type TableTooltip = {
   title: string;
   details: string[];
@@ -49,18 +51,88 @@ function getFullDisplayViewBox(size: ViewBoxSize): DisplayViewBox {
 function getFocusedDisplayViewBox(
   slots: MapSlot[],
   size: ViewBoxSize,
+  paddingMode: FocusPaddingMode = "default",
+  extraBounds: BoundsRect | null = null,
 ): DisplayViewBox {
-  if (slots.length === 0) return getFullDisplayViewBox(size);
+  if (slots.length === 0 && !extraBounds) return getFullDisplayViewBox(size);
 
-  const left = Math.min(...slots.map((slot) => slot.x));
-  const top = Math.min(...slots.map((slot) => slot.y));
-  const right = Math.max(...slots.map((slot) => slot.x + slot.w));
-  const bottom = Math.max(...slots.map((slot) => slot.y + slot.h));
+  const slotLeft =
+    slots.length > 0 ? Math.min(...slots.map((slot) => slot.x)) : null;
+  const slotTop =
+    slots.length > 0 ? Math.min(...slots.map((slot) => slot.y)) : null;
+  const slotRight =
+    slots.length > 0
+      ? Math.max(...slots.map((slot) => slot.x + slot.w))
+      : null;
+  const slotBottom =
+    slots.length > 0
+      ? Math.max(...slots.map((slot) => slot.y + slot.h))
+      : null;
+  const left =
+    slotLeft === null
+      ? extraBounds!.x
+      : extraBounds
+        ? Math.min(slotLeft, extraBounds.x)
+        : slotLeft;
+  const top =
+    slotTop === null
+      ? extraBounds!.y
+      : extraBounds
+        ? Math.min(slotTop, extraBounds.y)
+        : slotTop;
+  const right =
+    slotRight === null
+      ? extraBounds!.x + extraBounds!.width
+      : extraBounds
+        ? Math.max(slotRight, extraBounds.x + extraBounds.width)
+        : slotRight;
+  const bottom =
+    slotBottom === null
+      ? extraBounds!.y + extraBounds!.height
+      : extraBounds
+        ? Math.max(slotBottom, extraBounds.y + extraBounds.height)
+        : slotBottom;
   const contentWidth = right - left;
   const contentHeight = bottom - top;
 
   if (contentWidth <= 0 || contentHeight <= 0)
     return getFullDisplayViewBox(size);
+
+  if (paddingMode === "mobile") {
+    const paddingLeft = Math.max(size.width * 0.02, contentWidth * 0.08, 18);
+    const paddingRight = Math.max(size.width * 0.02, contentWidth * 0.08, 18);
+    const paddingTop = Math.max(size.height * 0.025, contentHeight * 0.04, 16);
+    const paddingBottom = Math.max(
+      size.height * 0.04,
+      contentHeight * 0.06,
+      24,
+    );
+    const expandedLeft = clampNumber(left - paddingLeft, 0, size.width);
+    const expandedTop = clampNumber(top - paddingTop, 0, size.height);
+    const expandedRight = clampNumber(right + paddingRight, 0, size.width);
+    const expandedBottom = clampNumber(
+      bottom + paddingBottom,
+      0,
+      size.height,
+    );
+    const width = clampNumber(
+      expandedRight - expandedLeft,
+      size.width * 0.44,
+      size.width,
+    );
+    const height = clampNumber(
+      expandedBottom - expandedTop,
+      size.height * 0.54,
+      size.height,
+    );
+
+    return {
+      x: clampNumber(expandedLeft, 0, size.width - width),
+      y: clampNumber(expandedTop, 0, size.height - height),
+      width,
+      height,
+    };
+  }
 
   const paddingX = Math.max(size.width * 0.06, contentWidth * 0.35, 48);
   const paddingY = Math.max(size.height * 0.06, contentHeight * 0.28, 48);
@@ -194,6 +266,7 @@ type TableMapProps = {
   onSelect: (tableId: string) => void;
   layoutUrl?: string;
   viewBoxOverride?: ViewBoxSize | null;
+  imageNaturalSize?: ViewBoxSize | null;
   loading?: boolean;
   enableZoom?: boolean;
   labelMode?: "full" | "number";
@@ -201,6 +274,7 @@ type TableMapProps = {
   minSlotSizePx?: number;
   minSlotScreenPx?: number;
   focusOnSlots?: boolean;
+  focusOnSlotsOnMobile?: boolean;
 };
 
 export default function TableMap({
@@ -209,6 +283,7 @@ export default function TableMap({
   onSelect,
   layoutUrl,
   viewBoxOverride = null,
+  imageNaturalSize = null,
   loading = false,
   enableZoom = true,
   labelMode = "full",
@@ -216,6 +291,7 @@ export default function TableMap({
   minSlotSizePx = 0,
   minSlotScreenPx = 0,
   focusOnSlots = false,
+  focusOnSlotsOnMobile = false,
 }: TableMapProps) {
   const searchParams = useSearchParams();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -296,12 +372,61 @@ export default function TableMap({
     }));
   }, [slots, viewBoxSize.height, viewBoxSize.width]);
 
+  const imageContainedBounds = useMemo(() => {
+    if (
+      !imageNaturalSize?.width ||
+      !imageNaturalSize?.height ||
+      imageNaturalSize.width <= 0 ||
+      imageNaturalSize.height <= 0
+    ) {
+      return null;
+    }
+
+    const scale = Math.min(
+      viewBoxSize.width / imageNaturalSize.width,
+      viewBoxSize.height / imageNaturalSize.height,
+    );
+
+    if (!Number.isFinite(scale) || scale <= 0) return null;
+
+    const width = imageNaturalSize.width * scale;
+    const height = imageNaturalSize.height * scale;
+
+    return {
+      x: (viewBoxSize.width - width) / 2,
+      y: (viewBoxSize.height - height) / 2,
+      width,
+      height,
+    };
+  }, [imageNaturalSize?.height, imageNaturalSize?.width, viewBoxSize.height, viewBoxSize.width]);
+
+  const shouldFocusOnSlots =
+    focusOnSlots ||
+    (focusOnSlotsOnMobile &&
+      mapViewportSize.width > 0 &&
+      mapViewportSize.width < 640);
+
   const displayViewBox = useMemo(
     () =>
-      focusOnSlots
-        ? getFocusedDisplayViewBox(baseScaledSlots, viewBoxSize)
+      shouldFocusOnSlots
+        ? getFocusedDisplayViewBox(
+            baseScaledSlots,
+            viewBoxSize,
+            mapViewportSize.width > 0 && mapViewportSize.width < 640
+              ? "mobile"
+              : "default",
+            mapViewportSize.width > 0 && mapViewportSize.width < 640
+              ? imageContainedBounds
+              : null,
+          )
         : getFullDisplayViewBox(viewBoxSize),
-    [baseScaledSlots, focusOnSlots, viewBoxSize],
+    [
+      baseScaledSlots,
+      imageContainedBounds,
+      mapViewportSize.width,
+      shouldFocusOnSlots,
+      viewBoxSize,
+    ],
   );
 
   const effectiveMinSlotSizePx = useMemo(() => {

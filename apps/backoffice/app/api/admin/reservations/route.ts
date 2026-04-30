@@ -114,55 +114,87 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Evitar doble reserva
-  const existingReservationQuery = applyNotDeleted(
-    supabase.from("table_reservations").select("id,status").eq("table_id", table_id).in("status", ACTIVE_STATUSES).limit(1)
-  );
-  const { data: existingReservation } = await existingReservationQuery.maybeSingle();
-
-    if (existingReservation) {
-      return NextResponse.json({ success: false, error: "La mesa ya tiene una reserva activa" }, { status: 409 });
+  if (eventId) {
+    const availabilityQuery = applyNotDeleted(
+      supabase
+        .from("table_availability")
+        .select("table_id,is_available")
+        .eq("event_id", eventId)
+    );
+    const { data: availabilityRows, error: availabilityError } = await availabilityQuery;
+    if (availabilityError) {
+      return NextResponse.json({ success: false, error: availabilityError.message }, { status: 500 });
     }
 
-    try {
-      if (mode === "existing_ticket") {
-        const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id : "";
-        const email = typeof body?.email === "string" ? body.email.trim() : "";
-        const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
-        const documentValue = bodyDocument;
-        const docTypeValue = bodyDocType;
-        const docSearchValid = documentValue ? validateDocument(docTypeValue, documentValue) : false;
-        if (documentValue && !docSearchValid) {
-          return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
-        }
-
-        if (!ticket_id && !docSearchValid && !email && !phone) {
-          return NextResponse.json(
-            { success: false, error: "Proporciona ticket_id o un dato de contacto (documento/email/teléfono)" },
-            { status: 400 }
-          );
-        }
-
-        let ticketQuery = applyNotDeleted(
-          supabase
-            .from("tickets")
-            .select(
-              "id,event_id,full_name,email,phone,dni,doc_type,document,person:persons(first_name,last_name,email,phone,doc_type,document,dni),code:codes(code)"
-            )
-            .limit(1)
+    const rows = availabilityRows || [];
+    if (rows.length > 0) {
+      const tableAvailability = rows.find((row: any) => row?.table_id === table_id);
+      if (!tableAvailability || tableAvailability.is_available === false) {
+        return NextResponse.json(
+          { success: false, error: "La mesa no está disponible para este evento" },
+          { status: 409 }
         );
+      }
+    }
+  }
 
-        if (ticket_id) {
-          ticketQuery = ticketQuery.eq("id", ticket_id);
-        } else {
-          const orFilters = [
-            docSearchValid ? `document.eq.${documentValue}` : "",
-            docSearchValid && docTypeValue === "dni" ? `dni.eq.${documentValue}` : "",
-            email ? `email.eq.${email}` : "",
-            phone ? `phone.eq.${phone}` : "",
-          ].filter(Boolean);
-          if (orFilters.length === 0) {
-            return NextResponse.json(
+  // Evitar doble reserva
+  let existingReservationQuery = applyNotDeleted(
+    supabase
+      .from("table_reservations")
+      .select("id,status,event_id")
+      .eq("table_id", table_id)
+      .in("status", ACTIVE_STATUSES)
+      .limit(1)
+  );
+  if (eventId) {
+    existingReservationQuery = existingReservationQuery.eq("event_id", eventId);
+  }
+  const { data: existingReservation } = await existingReservationQuery.maybeSingle();
+
+  if (existingReservation) {
+    return NextResponse.json({ success: false, error: "La mesa ya tiene una reserva activa" }, { status: 409 });
+  }
+
+  try {
+    if (mode === "existing_ticket") {
+      const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id : "";
+      const email = typeof body?.email === "string" ? body.email.trim() : "";
+      const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
+      const documentValue = bodyDocument;
+      const docTypeValue = bodyDocType;
+      const docSearchValid = documentValue ? validateDocument(docTypeValue, documentValue) : false;
+      if (documentValue && !docSearchValid) {
+        return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
+      }
+
+      if (!ticket_id && !docSearchValid && !email && !phone) {
+        return NextResponse.json(
+          { success: false, error: "Proporciona ticket_id o un dato de contacto (documento/email/teléfono)" },
+          { status: 400 }
+        );
+      }
+
+      let ticketQuery = applyNotDeleted(
+        supabase
+          .from("tickets")
+          .select(
+            "id,event_id,full_name,email,phone,dni,doc_type,document,person:persons(first_name,last_name,email,phone,doc_type,document,dni),code:codes(code)"
+          )
+          .limit(1)
+      );
+
+      if (ticket_id) {
+        ticketQuery = ticketQuery.eq("id", ticket_id);
+      } else {
+        const orFilters = [
+          docSearchValid ? `document.eq.${documentValue}` : "",
+          docSearchValid && docTypeValue === "dni" ? `dni.eq.${documentValue}` : "",
+          email ? `email.eq.${email}` : "",
+          phone ? `phone.eq.${phone}` : "",
+        ].filter(Boolean);
+        if (orFilters.length === 0) {
+          return NextResponse.json(
             { success: false, error: "Falta ticket_id o al menos un campo para buscar el ticket" },
             { status: 400 }
           );
