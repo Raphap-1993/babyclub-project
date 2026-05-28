@@ -3,7 +3,7 @@ type ResponseMap = Record<string, Response | Response[]>;
 
 type QueryState = {
   table: string;
-  op: "select" | "insert" | "update" | "delete";
+  op: "select" | "insert" | "update" | "delete" | "upsert";
   payload?: any;
   filters?: { type: string; args: any[] }[];
 };
@@ -36,6 +36,11 @@ export function createSupabaseMock(responses: ResponseMap) {
       },
       insert: (payload: any) => {
         state.op = "insert";
+        state.payload = payload;
+        return chain;
+      },
+      upsert: (payload: any) => {
+        state.op = "upsert";
         state.payload = payload;
         return chain;
       },

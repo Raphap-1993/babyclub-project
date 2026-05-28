@@ -36,6 +36,7 @@ last_reviewed: 2026-05-28
 - Supabase remoto `babyclub-access`: aplicadas `20260428112000_add_ticket_reservation_attendees`, `20260428112100_add_promoter_link_trace_to_reservations` y `20260428112200_promoter_settlements_ledger`.
 - `pnpm smoke:local` valida la landing sobre `http://localhost:3001`.
 - `REQ-0012` ya quedo implementado en branch aislada con catalogo flexible por evento, compra por `package_quantity`, workspace publico de nominacion posterior, emision por unidad y gate de scanner por estado unitario.
+- Backoffice promotores: la creacion ya rehidrata promotores archivados para la misma persona/organizer y evita duplicados activos al reintentar el alta.
 
 ## Riesgos abiertos para siguientes requerimientos
 

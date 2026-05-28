@@ -38,6 +38,13 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 
 ## Notas recientes
 
+### 2026-05-28 - Fix operativo promotores reactivables
+
+- `POST /api/promoters/create` ahora busca un promotor existente por `person_id + organizer_id` antes de insertar.
+- Si el promotor estaba archivado (`deleted_at` o `is_active=false`), lo reactiva limpiando `deleted_at/deleted_by` y actualizando metadata comercial.
+- Si ya existe un promotor activo para la misma persona y organizer, devuelve `409` para no duplicar registros operativos.
+- Verificacion del fix: `pnpm exec vitest run apps/backoffice/app/api/promoters/create/route.test.ts`, `pnpm typecheck:backoffice`, `git diff --check`.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.

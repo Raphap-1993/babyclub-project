@@ -70,9 +70,54 @@ export async function POST(req: NextRequest) {
   }
 
   const person_id = personData?.id;
+  const organizer_id = orgData.id;
+
+  const { data: existingPromoter, error: existingPromoterError } = await supabase
+    .from("promoters")
+    .select("id,deleted_at,is_active")
+    .eq("person_id", person_id)
+    .eq("organizer_id", organizer_id)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingPromoterError) {
+    return NextResponse.json({ success: false, error: existingPromoterError.message }, { status: 500 });
+  }
+
+  if (existingPromoter?.id) {
+    if (!existingPromoter.deleted_at && existingPromoter.is_active !== false) {
+      return NextResponse.json(
+        { success: false, error: "El promotor ya existe y está activo" },
+        { status: 409 },
+      );
+    }
+
+    const { data: restoredPromoter, error: restoreError } = await supabase
+      .from("promoters")
+      .update({
+        code: code || null,
+        instagram,
+        tiktok,
+        notes,
+        is_active,
+        organizer_id,
+        deleted_at: null,
+        deleted_by: null,
+      })
+      .eq("id", existingPromoter.id)
+      .select("id")
+      .single();
+
+    if (restoreError) {
+      return NextResponse.json({ success: false, error: restoreError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, id: restoredPromoter?.id ?? existingPromoter.id, restored: true });
+  }
+
   const { data: promoterData, error } = await supabase
     .from("promoters")
-    .insert({ person_id, code: code || null, instagram, tiktok, notes, is_active, organizer_id: orgData.id })
+    .insert({ person_id, code: code || null, instagram, tiktok, notes, is_active, organizer_id })
     .select("id")
     .single();
   if (error) {
