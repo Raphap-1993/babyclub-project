@@ -40,6 +40,7 @@ last_reviewed: 2026-05-28
 - Landing mesas: `registro` y `compra` ya enfocan el grupo real de mesas al abrir el croquis, evitando que se vean demasiado pequeñas en desktop/mobile.
 - Scanner y QR de mesa/box: cada codigo de una misma reserva ya puede emitir tickets independientes aunque repita comprador, el scanner no los bloquea por DNI duplicado y ahora muestra el tipo comercial en paneles de color mas evidentes.
 - Correos de tickets: el endpoint publico `/api/tickets/email` ya usa el sender compartido con `process_logs`, no devuelve exito falso si Resend responde error y normaliza dominios de destinatario antes de enviar.
+- Dashboard tickets: el resumen QR ya solo clasifica `mesa` cuando el ticket tiene `table_id`; las compras ticket-only dejan de inflar la cuenta/composicion de mesas en home.
 
 ## Riesgos abiertos para siguientes requerimientos
 
@@ -52,6 +53,7 @@ last_reviewed: 2026-05-28
 - Las migraciones historicas del repo usan nombres con guiones y la CLI de Supabase las omite; las migraciones nuevas de release se dejaron con timestamp valido `YYYYMMDDHHMMSS_nombre.sql`.
 - El slice `REQ-0012` todavia requiere smoke funcional con apps levantadas y migraciones aplicadas antes de tocar data real o promoverlo a un entorno con evento activo.
 - Verificacion DNS del 2026-05-28: `babyclubaccess.com` responde con A y DKIM en `resend._domainkey`, pero no devolvio TXT SPF en root ni TXT `_dmarc`; eso puede seguir afectando entregabilidad en `icloud.com` y `outlook.com` fuera del codigo.
+- El fix del dashboard depende de aplicar `20260528173000_fix_qr_summary_table_classification.sql` en cualquier entorno que ya tenga el RPC `get_qr_summary_all`; con solo deploy de app, ese entorno seguiria usando la clasificacion vieja.
 
 ## Siguiente paso recomendado
 

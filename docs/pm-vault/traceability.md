@@ -67,6 +67,13 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Diagnostico externo del 2026-05-28: `dig +short A babyclubaccess.com` responde `216.198.79.1`; `dig +short TXT resend._domainkey.babyclubaccess.com` devuelve clave DKIM; `dig +short TXT babyclubaccess.com` y `dig +short TXT _dmarc.babyclubaccess.com` no devolvieron registros, lo que deja una hipotesis fuerte de entregabilidad deficiente hacia `icloud.com` y `outlook.com`.
 - Verificacion del fix: `pnpm exec vitest run apps/landing/app/api/tickets/email/route.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts`, `pnpm typecheck:landing`, `pnpm typecheck:backoffice`, `git diff --check`.
 
+### 2026-05-28 - Dashboard QR corrige clasificacion ticket-only vs mesa
+
+- `packages/api-logic/qr-summary.ts` deja de inferir `mesa` por `code.table_reservation_id` y usa `ticket.table_id` como senal real de ticket de mesa.
+- Se agrega `supabase/migrations/20260528173000_fix_qr_summary_table_classification.sql` para alinear el RPC `get_qr_summary_all` con la misma regla y mantener compatibilidad con esquemas legacy donde los IDs siguen siendo `text`.
+- Smoke SQL local tras aplicar la migracion: `select * from public.get_qr_summary_all(now() - interval '30 days') where event_id = 'c6299a6e-729f-401d-821f-73ddd6f2a5d6';` devuelve `total_qr = 9` y `by_type = {"courtesy": 9}` para el evento sintetico `SMOKE REQ-0012`, en lugar de contarlo como `table`.
+- Verificacion del fix: `pnpm exec vitest run packages/api-logic/qr-summary.test.ts apps/landing/app/api/tickets/email/route.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts`, `pnpm typecheck:landing`, `pnpm typecheck:backoffice`, `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/migrations/20260528173000_fix_qr_summary_table_classification.sql`, `git diff --check`.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.

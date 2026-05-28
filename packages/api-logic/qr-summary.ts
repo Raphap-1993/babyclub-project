@@ -21,6 +21,7 @@ type EventRow = {
 type TicketWithCodeRow = {
   event_id: string | null;
   code_id: string | null;
+  table_id: string | null;
 };
 
 type CodeRow = {
@@ -70,7 +71,7 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
   const eventIds = events.map((event) => event.id);
   const { data: ticketsRaw, error: ticketsError } = await supabase
     .from("tickets")
-    .select("event_id,code_id")
+    .select("event_id,code_id,table_id")
     .is("deleted_at", null)
     .eq("is_active", true)
     .in("event_id", eventIds);
@@ -110,7 +111,7 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
       return;
     }
 
-    const type = codeRow?.table_reservation_id ? "table" : codeRow?.type || "desconocido";
+    const type = row.table_id ? "table" : codeRow?.type || "desconocido";
 
     if (!byEvent[eid]) {
       byEvent[eid] = { by_type: {}, total_qr: 0 };
