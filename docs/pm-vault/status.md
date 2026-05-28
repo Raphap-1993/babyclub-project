@@ -45,6 +45,7 @@ last_reviewed: 2026-05-28
 - Ticket publico: la vista `/ticket/[id]` ya separa `Mesa / Box`, `QR promotor`, `QR cortesia`, `QR libre`, `QR general` y `ticket-only` con copy/tonos distintos; deja de usar el bloque ambiguo `QR de mesa / promotor`.
 - Dashboard QR remoto: el RPC `public.get_qr_summary_all` ya fue aplicado puntualmente en `babyclub-access` via `supabase db query --linked -f supabase/manual/2026-05-28-hotfix-get_qr_summary_all.sql`, sin empujar las otras migraciones pendientes del branch.
 - Dashboard tickets: el resumen ahora trata `sale_origin='ticket' + codes.type='courtesy'` como `general` para métricas, corrigiendo las `37` entradas pagadas de `BABY RAVE | ABYSS` que el schema legacy obligaba a guardar con tipo técnico `courtesy`.
+- Landing compra: el selector de `Evento` ya vive arriba del flujo publico en `Solo entrada` y `Reserva mesa`, mientras `Compra segura y validada por BABY` baja al tramo legal junto a la aceptacion final.
 
 ## Riesgos abiertos para siguientes requerimientos
 

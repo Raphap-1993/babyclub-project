@@ -24,6 +24,7 @@ import { legalLinks } from "lib/legalLinks";
 import { useCulqiAvailability } from "lib/useCulqiAvailability";
 import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
+import { PurchaseModeControls } from "./PurchaseModeControls";
 
 const CULQI_ENABLED =
   process.env.NEXT_PUBLIC_CULQI_ENABLED?.toLowerCase() === "true";
@@ -1192,74 +1193,25 @@ function CompraContent() {
           </button>
         </div>
 
-        <div className={mode === "mesa" ? "hidden" : ""}>
-          <LegalComplianceStrip />
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("ticket")}
-            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
-              mode === "ticket" ? "btn-smoke" : "btn-smoke-outline"
-            }`}
-          >
-            Solo entrada
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("mesa")}
-            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
-              mode === "mesa" ? "btn-smoke" : "btn-smoke-outline"
-            }`}
-          >
-            Reserva mesa
-          </button>
-        </div>
+        <PurchaseModeControls
+          mode={mode}
+          onModeChange={setMode}
+          ticketEventId={ticketEventId}
+          onTicketEventChange={setTicketEventId}
+          ticketEventOptions={ticketEventOptions}
+          ticketSaleBlock={ticketSaleBlock}
+          selectedEventId={selectedEventId}
+          onMesaEventChange={setSelectedEventId}
+          mesaEventOptions={mesaEventOptions}
+          mesaSaleBlock={mesaSaleBlock}
+          resolveEventSaleBlock={(eventId) => resolveSaleBlock(eventId)}
+        />
 
         {mode === "ticket" && (
           <form
             onSubmit={onSubmitTicket}
             className="space-y-4 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4"
           >
-            {ticketEventOptions.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-white">
-                  Evento
-                </label>
-                <select
-                  value={ticketEventId}
-                  onChange={(e) => setTicketEventId(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
-                >
-                  <option value="">Selecciona el evento</option>
-                  {ticketEventOptions.map((ev) => (
-                    <option
-                      key={ev.id}
-                      value={ev.id}
-                      disabled={Boolean(resolveSaleBlock(ev.id))}
-                    >
-                      {ev.name || `Evento ${ev.id.slice(0, 6)}`}
-                      {resolveSaleBlock(ev.id)?.status === "sold_out"
-                        ? " (Sold out)"
-                        : resolveSaleBlock(ev.id)?.status === "paused"
-                          ? " (Pausado)"
-                          : ""}
-                    </option>
-                  ))}
-                </select>
-                {!ticketEventId && (
-                  <p className="text-xs text-[#ff9a9a]">
-                    Selecciona el evento para continuar.
-                  </p>
-                )}
-                {ticketSaleBlock && (
-                  <p className="text-xs font-semibold text-[#ff9a9a]">
-                    {ticketSaleBlock.message}
-                  </p>
-                )}
-              </div>
-            )}
             <div className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
                 {ticketTypeOptions.length > 0 ? (
@@ -1451,6 +1403,7 @@ function CompraContent() {
                 ticketTotalPrice > 0 ? `S/ ${ticketTotalPrice}` : null
               }
             />
+            <LegalComplianceStrip />
             <LegalAcceptance
               checked={ticketLegalAccepted}
               onChange={setTicketLegalAccepted}
@@ -1705,45 +1658,6 @@ function CompraContent() {
                     )}
                   </section>
 
-                  {mesaEventOptions.length > 0 && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-white">
-                        Evento
-                      </label>
-                      <select
-                        value={selectedEventId}
-                        onChange={(e) => setSelectedEventId(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-[#111111] px-3 py-3 text-sm text-white focus:border-white focus:outline-none"
-                      >
-                        <option value="">Selecciona el evento</option>
-                        {mesaEventOptions.map((ev) => (
-                          <option
-                            key={ev.id}
-                            value={ev.id}
-                            disabled={Boolean(resolveSaleBlock(ev.id))}
-                          >
-                            {ev.name || `Evento ${ev.id.slice(0, 6)}`}
-                            {resolveSaleBlock(ev.id)?.status === "sold_out"
-                              ? " (Sold out)"
-                              : resolveSaleBlock(ev.id)?.status === "paused"
-                                ? " (Pausado)"
-                                : ""}
-                          </option>
-                        ))}
-                      </select>
-                      {!selectedEventId && (
-                        <p className="text-xs text-[#ff9a9a]">
-                          Selecciona el evento para continuar.
-                        </p>
-                      )}
-                      {mesaSaleBlock && (
-                        <p className="text-xs font-semibold text-[#ff9a9a]">
-                          {mesaSaleBlock.message}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
                   <div className="grid min-w-0 gap-3 sm:grid-cols-[120px_1fr] lg:grid-cols-[120px_1fr]">
                     <label className="block space-y-2 text-sm font-semibold text-white">
                       Tipo doc
@@ -1849,6 +1763,7 @@ function CompraContent() {
                     amountLabel={totalLabel}
                     compact
                   />
+                  <LegalComplianceStrip />
                   <LegalAcceptance
                     checked={mesaLegalAccepted}
                     onChange={setMesaLegalAccepted}
