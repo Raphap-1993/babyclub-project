@@ -201,4 +201,93 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
     expect(String(payload.error || "")).toContain("approved");
     expect(createTicketForReservation).not.toHaveBeenCalled();
   });
+
+  it("no copia contacto del comprador cuando la unidad nominada no trae email ni teléfono", async () => {
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-2",
+            sale_origin: "ticket",
+            status: "approved",
+            event_id: "event-2",
+            full_name: "Comprador Principal",
+            email: "buyer@test.com",
+            phone: "999999999",
+            promoter_id: null,
+            codes: [],
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "nominated",
+              full_name: "Invitado Sin Contacto",
+              doc_type: "dni",
+              document: "70000001",
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "issued",
+              full_name: "Invitado Sin Contacto",
+              doc_type: "dni",
+              document: "70000001",
+              email: null,
+              phone: null,
+              ticket_id: "ticket-no-contact",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-no-contact",
+      code: "CODE-NO-CONTACT",
+    });
+    (sendTicketEmail as any).mockResolvedValue(undefined);
+
+    const { POST } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-2/issue",
+      { method: "POST" },
+    );
+
+    const res = await POST(req as any, {
+      params: Promise.resolve({ id: "res-ticket-2" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(createTicketForReservation).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({
+        fullName: "Invitado Sin Contacto",
+        email: null,
+        phone: null,
+        document: "70000001",
+      }),
+    );
+    expect(sendTicketEmail).not.toHaveBeenCalled();
+  });
 });
