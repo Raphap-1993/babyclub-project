@@ -261,4 +261,68 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
       ),
     ).toBeFalsy();
   });
+
+  it("rechaza email inválido al nominar una unidad", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              status: "pending_nomination",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-1",
+              full_name: "Ana Torres",
+              doc_type: "dni",
+              document: "12345678",
+              email: "ana@test",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("Email inválido");
+    expect(
+      calls.find(
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "update",
+      ),
+    ).toBeFalsy();
+  });
 });

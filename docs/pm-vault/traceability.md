@@ -67,6 +67,15 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Diagnostico externo del 2026-05-28: `dig +short A babyclubaccess.com` responde `216.198.79.1`; `dig +short TXT resend._domainkey.babyclubaccess.com` devuelve clave DKIM; `dig +short TXT babyclubaccess.com` y `dig +short TXT _dmarc.babyclubaccess.com` no devolvieron registros, lo que deja una hipotesis fuerte de entregabilidad deficiente hacia `icloud.com` y `outlook.com`.
 - Verificacion del fix: `pnpm exec vitest run apps/landing/app/api/tickets/email/route.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts`, `pnpm typecheck:landing`, `pnpm typecheck:backoffice`, `git diff --check`.
 
+### 2026-05-28 - Validacion de emails en captura, nominacion y reenvio
+
+- Analisis remoto de `process_logs` en los ultimos 30 dias: `130` eventos `email/success` vs `1` `email/error`; el error reciente observado fue un destinatario mal formado sin TLD, no un rechazo sistemico exclusivo de `icloud.com` u `outlook.com`.
+- `packages/shared/email/address.ts` ahora expone helpers para normalizar, detectar emails presentes pero invalidos y resolver el primer correo valido disponible.
+- `POST /api/ticket-reservations`, `POST /api/reservations` y `PUT /api/ticket-reservations/[id]/units` rechazan emails invalidos antes de persistir compra, reserva o nominacion.
+- `POST /api/admin/reservations`, `POST /api/reservations/resend` y `POST /api/admin/reservations/[id]/resend` rechazan o saltan destinatarios invalidos antes de reenviar; el reenvio ticket-only conserva envios a unidades con email valido y falla claro si no existe ningun destino util.
+- `sendReservationEmail()` del backoffice normaliza destinatario, evita llamar a Resend con email roto y ahora registra `recipient_domain` tambien en `reservation_confirmed`.
+- Verificacion del fix: `pnpm exec vitest run apps/landing/app/api/ticket-reservations/route.test.ts apps/landing/app/api/reservations/route.test.ts apps/landing/app/api/ticket-reservations/[id]/units/route.test.ts apps/backoffice/app/api/admin/reservations/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts apps/backoffice/app/api/reservations/resend/route.test.ts`, `pnpm typecheck:landing`, `pnpm typecheck:backoffice`, `git diff --check`.
+
 ### 2026-05-28 - Dashboard QR corrige clasificacion ticket-only vs mesa
 
 - `packages/api-logic/qr-summary.ts` deja de inferir `mesa` por `code.table_reservation_id` y usa `ticket.table_id` como senal real de ticket de mesa.

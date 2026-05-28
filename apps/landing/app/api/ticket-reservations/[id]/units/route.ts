@@ -5,6 +5,10 @@ import {
   validateDocument,
   type DocumentType,
 } from "shared/document";
+import {
+  isPresentButInvalidEmailAddress,
+  normalizeOptionalEmailAddress,
+} from "shared/email/address";
 import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -134,7 +138,7 @@ export async function PUT(
     const documentRaw =
       typeof raw?.document === "string" ? raw.document.trim() : "";
     const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
-    const email = typeof raw?.email === "string" ? raw.email.trim() : "";
+    const email = normalizeOptionalEmailAddress(raw?.email);
     const phone = typeof raw?.phone === "string" ? raw.phone.trim() : "";
 
     if (!fullName) {
@@ -142,6 +146,9 @@ export async function PUT(
     }
     if (!validateDocument(docType, document)) {
       return jsonError(`Documento inválido para ${unitLabel}`, 400);
+    }
+    if (isPresentButInvalidEmailAddress(email)) {
+      return jsonError(`Email inválido para ${unitLabel}`, 400);
     }
 
     const patch = {

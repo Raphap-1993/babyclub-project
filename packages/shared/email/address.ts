@@ -16,6 +16,29 @@ export function isValidEmailAddress(value: string) {
   return EMAIL_REGEX.test(normalizeEmailAddress(value));
 }
 
+export function normalizeOptionalEmailAddress(value: unknown) {
+  return normalizeEmailAddress(typeof value === "string" ? value : "");
+}
+
+export function isPresentButInvalidEmailAddress(
+  value: string | null | undefined,
+) {
+  const normalized = normalizeEmailAddress(value || "");
+  return Boolean(normalized) && !EMAIL_REGEX.test(normalized);
+}
+
+export function resolveFirstValidEmailAddress(
+  ...values: Array<string | null | undefined>
+) {
+  for (const value of values) {
+    const normalized = normalizeEmailAddress(value || "");
+    if (normalized && EMAIL_REGEX.test(normalized)) {
+      return normalized;
+    }
+  }
+  return "";
+}
+
 export function normalizeEmailRecipients(value: string | string[]) {
   if (Array.isArray(value)) {
     return Array.from(

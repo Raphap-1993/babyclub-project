@@ -12,6 +12,11 @@ import {
   validateDocument,
   type DocumentType,
 } from "shared/document";
+import {
+  isValidEmailAddress,
+  normalizeEmailAddress,
+  resolveFirstValidEmailAddress,
+} from "shared/email/address";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -41,7 +46,9 @@ function readReservationAttendees(value: unknown) {
       const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
       const fullName =
         typeof raw.full_name === "string" ? raw.full_name.trim() : "";
-      const email = typeof raw.email === "string" ? raw.email.trim() : "";
+      const email = normalizeEmailAddress(
+        typeof raw.email === "string" ? raw.email : "",
+      );
       const phone = typeof raw.phone === "string" ? raw.phone.trim() : "";
       if (!fullName || !validateDocument(docType, document)) return null;
       return {
@@ -135,10 +142,11 @@ export async function POST(
     );
   }
 
-  const email =
+  const email = normalizeEmailAddress(
     typeof (reservation as any).email === "string"
-      ? (reservation as any).email.trim()
-      : "";
+      ? (reservation as any).email
+      : "",
+  );
   if (!email) {
     return NextResponse.json(
       { success: false, error: "Reserva sin correo de contacto" },
@@ -205,21 +213,52 @@ export async function POST(
     }
 
     let sentCount = 0;
+    let invalidRecipientCount = 0;
     for (const unit of issuedUnits) {
+      const toEmail = resolveFirstValidEmailAddress(
+        typeof unit.email === "string" ? unit.email : null,
+        email,
+      );
+      if (!toEmail) {
+        invalidRecipientCount += 1;
+        continue;
+      }
       await sendTicketEmail({
         supabase,
         ticketId: String(unit.ticket_id),
-        toEmail:
-          (typeof unit.email === "string" && unit.email.trim()) || email,
+        toEmail,
       });
       sentCount += 1;
+    }
+
+    if (sentCount === 0 && invalidRecipientCount > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "No hay correos válidos para reenviar en esta reserva. Corrige el email del comprador o de las unidades nominadas.",
+        },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json({
       success: true,
       sentCount,
-      skippedCount: Math.max(0, units.length - issuedUnits.length),
+      skippedCount:
+        Math.max(0, units.length - issuedUnits.length) + invalidRecipientCount,
     });
+  }
+
+  if (!isValidEmailAddress(email)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "El correo de la reserva es inválido. Corrígelo antes de reenviar.",
+      },
+      { status: 400 },
+    );
   }
 
   const reservationCodes = Array.isArray((reservation as any).codes)

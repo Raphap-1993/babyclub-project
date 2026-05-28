@@ -5,6 +5,10 @@ import {
   normalizeDocument,
   type DocumentType,
 } from "shared/document";
+import {
+  isPresentButInvalidEmailAddress,
+  normalizeOptionalEmailAddress,
+} from "shared/email/address";
 import { applyNotDeleted } from "shared/db/softDelete";
 import {
   ensureEventSalesDefaults,
@@ -84,7 +88,7 @@ export async function POST(req: NextRequest) {
   const table_id = typeof body?.table_id === "string" ? body.table_id : "";
   const full_name =
     typeof body?.full_name === "string" ? body.full_name.trim() : "";
-  const email = typeof body?.email === "string" ? body.email.trim() : "";
+  const email = normalizeOptionalEmailAddress(body?.email);
   const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
   const voucher_url =
     typeof body?.voucher_url === "string" ? body.voucher_url.trim() : "";
@@ -122,6 +126,12 @@ export async function POST(req: NextRequest) {
   if (!validateDocument(docType, document)) {
     return NextResponse.json(
       { success: false, error: "Documento inválido" },
+      { status: 400 },
+    );
+  }
+  if (isPresentButInvalidEmailAddress(email)) {
+    return NextResponse.json(
+      { success: false, error: "Email inválido" },
       { status: 400 },
     );
   }

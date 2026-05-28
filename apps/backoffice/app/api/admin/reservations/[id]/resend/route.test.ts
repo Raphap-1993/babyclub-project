@@ -190,4 +190,62 @@ describe("POST /api/admin/reservations/[id]/resend", () => {
     expect(createTicketForReservation).not.toHaveBeenCalled();
     expect(sendTicketEmail).not.toHaveBeenCalled();
   });
+
+  it("rechaza ticket-only si no hay ningún correo válido para reenviar", async () => {
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            table_id: null,
+            product_id: null,
+            full_name: "Compra Ticket",
+            email: "buyer@test",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "12345678",
+            status: "approved",
+            codes: [],
+            ticket_quantity: 2,
+            attendees: [],
+            event_id: "event-1",
+            promoter_id: null,
+            table: null,
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              status: "issued",
+              ticket_id: "ticket-1",
+              email: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/admin/reservations/res-ticket-1/resend",
+      { method: "POST" },
+    );
+
+    const res = await POST(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("correos válidos");
+    expect(sendTicketEmail).not.toHaveBeenCalled();
+  });
 });

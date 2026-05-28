@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createTicketForReservation, createReservationCodes } from "../../reservations/utils";
 import { sendEmail } from "shared/email/resend";
+import {
+  getEmailDomain,
+  isPresentButInvalidEmailAddress,
+  isValidEmailAddress,
+  normalizeOptionalEmailAddress,
+  resolveFirstValidEmailAddress,
+} from "shared/email/address";
 import { formatLimaFromDb } from "shared/limaTime";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
 import { logProcessEvent } from "../../logs/logger";
@@ -159,13 +166,16 @@ export async function POST(req: NextRequest) {
   try {
     if (mode === "existing_ticket") {
       const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id : "";
-      const email = typeof body?.email === "string" ? body.email.trim() : "";
+      const email = normalizeOptionalEmailAddress(body?.email);
       const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
       const documentValue = bodyDocument;
       const docTypeValue = bodyDocType;
       const docSearchValid = documentValue ? validateDocument(docTypeValue, documentValue) : false;
       if (documentValue && !docSearchValid) {
         return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
+      }
+      if (isPresentButInvalidEmailAddress(email)) {
+        return NextResponse.json({ success: false, error: "Email inválido" }, { status: 400 });
       }
 
       if (!ticket_id && !docSearchValid && !email && !phone) {
@@ -220,7 +230,12 @@ export async function POST(req: NextRequest) {
           const personRel = Array.isArray((ticket as any).person) ? (ticket as any).person?.[0] : (ticket as any).person;
           const nameFromPerson = personRel ? `${personRel.first_name || ""} ${personRel.last_name || ""}`.trim() : "";
           const full_name = typeof body?.full_name === "string" && body.full_name.trim() ? body.full_name.trim() : ticket.full_name || nameFromPerson;
-          const contactEmail = email || ticket.email || personRel?.email || null;
+          const contactEmail =
+            resolveFirstValidEmailAddress(
+              email,
+              ticket.email || null,
+              personRel?.email || null,
+            ) || null;
           const contactPhone = phone || ticket.phone || personRel?.phone || null;
           const ticketDocType = ((ticket as any).doc_type as DocumentType) || (personRel?.doc_type as DocumentType) || "dni";
           const ticketDocument =
@@ -304,7 +319,7 @@ export async function POST(req: NextRequest) {
 
     // mode === "new_customer"
     const full_name = typeof body?.full_name === "string" ? body.full_name.trim() : "";
-    const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const email = normalizeOptionalEmailAddress(body?.email);
     const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
     const docType = bodyDocType;
     const document = bodyDocument;
@@ -319,6 +334,9 @@ export async function POST(req: NextRequest) {
     }
     if (!validateDocument(docType, document)) {
       return NextResponse.json({ success: false, error: "Documento inválido" }, { status: 400 });
+    }
+    if (isPresentButInvalidEmailAddress(email)) {
+      return NextResponse.json({ success: false, error: "Email inválido" }, { status: 400 });
     }
 
     const ticketResult = await createTicketForReservation(supabase, {
@@ -411,6 +429,25 @@ async function sendReservationEmail({
   email: string;
 }) {
   try {
+    const recipientEmail = normalizeOptionalEmailAddress(email);
+    const recipientDomain = getEmailDomain(recipientEmail);
+    if (!recipientEmail || !isValidEmailAddress(recipientEmail)) {
+      await logProcessEvent({
+        supabase,
+        category: "email",
+        action: "reservation_confirmed",
+        status: "error",
+        message: "Email inválido",
+        toEmail: recipientEmail || email || null,
+        provider: "resend",
+        providerId: null,
+        reservationId,
+        ticketId,
+        meta: { recipient_domain: recipientDomain },
+      });
+      return;
+    }
+
     const { data: resv } = await supabase
       .from("table_reservations")
       .select(
@@ -495,12 +532,12 @@ async function sendReservationEmail({
       .filter(Boolean)
       .join("\n");
 
-    if (email) {
+    if (recipientEmail) {
       const subject = `BABY - Reserva confirmada (${tableRel?.name || "Mesa"})`;
       let providerId: string | null = null;
       try {
         const result: any = await sendEmail({
-          to: email,
+          to: recipientEmail,
           subject,
           html,
           text: textBody,
@@ -515,11 +552,12 @@ async function sendReservationEmail({
           action: "reservation_confirmed",
           status: "success",
           message: subject,
-          toEmail: email,
+          toEmail: recipientEmail,
           provider: "resend",
           providerId,
           reservationId,
           ticketId,
+          meta: { recipient_domain: recipientDomain },
         });
       } catch (err: any) {
         await logProcessEvent({
@@ -528,11 +566,12 @@ async function sendReservationEmail({
           action: "reservation_confirmed",
           status: "error",
           message: err?.message || "No se pudo enviar correo",
-          toEmail: email,
+          toEmail: recipientEmail,
           provider: "resend",
           providerId,
           reservationId,
           ticketId,
+          meta: { recipient_domain: recipientDomain },
         });
       }
     }

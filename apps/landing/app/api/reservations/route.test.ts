@@ -238,6 +238,60 @@ describe("POST /api/reservations", () => {
     expect(String(payload.error || "")).toContain("product_id");
   });
 
+  it("rechaza email inválido antes de persistir la reserva", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-1",
+            event_id: "event-1",
+            ticket_count: 2,
+            is_active: true,
+            event: { id: "event-1", name: "Evento" },
+          },
+          error: null,
+        },
+      ],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table_id: "table-1",
+        doc_type: "dni",
+        document: "12345678",
+        full_name: "Ana Perez",
+        email: "ana@example",
+        phone: "+51999999999",
+        voucher_url: "https://example.com/voucher.png",
+        product_id: "prod-1",
+        event_id: "event-1",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("Email inválido");
+    expect(
+      calls.find(
+        (call) => call.table === "table_reservations" && call.op === "insert",
+      ),
+    ).toBeFalsy();
+  });
+
   it("bloquea la reserva si el evento usa disponibilidad y la mesa no está habilitada", async () => {
     const { supabase } = createSupabaseMock({
       "tables.select": [

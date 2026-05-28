@@ -5,6 +5,10 @@ import {
   validateDocument,
   type DocumentType,
 } from "shared/document";
+import {
+  isPresentButInvalidEmailAddress,
+  normalizeOptionalEmailAddress,
+} from "shared/email/address";
 import { applyNotDeleted } from "shared/db/softDelete";
 import {
   ensureEventSalesDefaults,
@@ -136,7 +140,7 @@ function normalizeAttendeeInput(input: any) {
     typeof input?.apellido_materno === "string"
       ? input.apellido_materno.trim()
       : "";
-  const email = typeof input?.email === "string" ? input.email.trim() : "";
+  const email = normalizeOptionalEmailAddress(input?.email);
   const phone =
     typeof input?.telefono === "string"
       ? input.telefono.trim()
@@ -199,6 +203,9 @@ function buildReservationAttendees({
         `Nombre y apellidos requeridos para entrada ${index + 1}`,
       );
     }
+    if (isPresentButInvalidEmailAddress(attendee.email)) {
+      throw new Error(`Email inválido para entrada ${index + 1}`);
+    }
 
     attendees.push({
       person_index: index + 1,
@@ -230,6 +237,9 @@ function buildReservationAttendeeSnapshot({
     }
     if (!primary.full_name) {
       throw new Error("Nombre y apellidos requeridos");
+    }
+    if (isPresentButInvalidEmailAddress(primary.email)) {
+      throw new Error("Email inválido para la compra");
     }
     return [
       {
@@ -306,7 +316,7 @@ export async function POST(req: NextRequest) {
     .filter(Boolean)
     .join(" ")
     .trim();
-  const email = typeof body?.email === "string" ? body.email.trim() : "";
+  const email = normalizeOptionalEmailAddress(body?.email);
   const phone = typeof body?.telefono === "string" ? body.telefono.trim() : "";
   const voucher_url =
     typeof body?.voucher_url === "string" ? body.voucher_url.trim() : "";
@@ -346,6 +356,12 @@ export async function POST(req: NextRequest) {
   if (!event_id) {
     return NextResponse.json(
       { success: false, error: "event_id es requerido" },
+      { status: 400 },
+    );
+  }
+  if (isPresentButInvalidEmailAddress(email)) {
+    return NextResponse.json(
+      { success: false, error: "Email inválido" },
       { status: 400 },
     );
   }
