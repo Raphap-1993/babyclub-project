@@ -89,6 +89,14 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Conteo del snapshot API: `events=5`, `event_ticket_types=20`, `tables=22`, `table_availability=43`, `table_products=67`, `table_reservations=290`, `codes=1428`, `tickets=1644`, `persons=895`, `promoters=25`, `process_logs=350`, `scan_logs=1999`.
 - Preflight de migraciones enlazadas: `supabase migration list` muestra tres migraciones locales pendientes respecto del remoto (`20260527213000`, `20260528010000`, `20260528173000`), por lo que `supabase db push --linked` no es un paso seguro para un hotfix puntual del dashboard.
 
+### 2026-05-28 - Hotfix remoto puntual RPC get_qr_summary_all
+
+- Se preparo runbook dedicado en [RUNBOOK-REMOTE-HOTFIX-QR-SUMMARY-2026-05-28.md](../RUNBOOK-REMOTE-HOTFIX-QR-SUMMARY-2026-05-28.md) y artefactos manuales en `supabase/manual/2026-05-28-hotfix-get_qr_summary_all.sql` y `supabase/manual/2026-05-28-hotfix-get_qr_summary_all.rollback.sql`.
+- Precheck remoto via `supabase db query --linked` confirmo que `public.get_qr_summary_all` no existia en `babyclub-access`; el dashboard dependia del fallback legacy en `packages/api-logic/qr-summary.ts`.
+- Aplicacion puntual ejecutada: `supabase db query --linked -f supabase/manual/2026-05-28-hotfix-get_qr_summary_all.sql`.
+- Verificacion remota posterior: `pg_get_functiondef` confirma la regla `when t.table_id is not null then 'table'`, y el smoke `select * from public.get_qr_summary_all((now() - interval '30 days')::timestamptz) order by date desc limit 10;` devolvio `BABY RAVE | ABYSS` con `total_qr = 199` y `by_type = {courtesy: 37, general: 161, table: 1}`.
+- Rollback preparado: `supabase db query --linked -f supabase/manual/2026-05-28-hotfix-get_qr_summary_all.rollback.sql`; tras ese rollback la app volveria al fallback legacy porque el estado previo remoto no tenia el RPC.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.

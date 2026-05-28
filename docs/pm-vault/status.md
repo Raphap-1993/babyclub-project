@@ -42,6 +42,7 @@ last_reviewed: 2026-05-28
 - Correos de tickets: el endpoint publico `/api/tickets/email` ya usa el sender compartido con `process_logs`, no devuelve exito falso si Resend responde error y normaliza dominios de destinatario antes de enviar.
 - Dashboard tickets: el resumen QR ya solo clasifica `mesa` cuando el ticket tiene `table_id`; las compras ticket-only dejan de inflar la cuenta/composicion de mesas en home.
 - Ticket publico: la vista `/ticket/[id]` ya separa `Mesa / Box`, `QR promotor`, `QR cortesia`, `QR libre`, `QR general` y `ticket-only` con copy/tonos distintos; deja de usar el bloque ambiguo `QR de mesa / promotor`.
+- Dashboard QR remoto: el RPC `public.get_qr_summary_all` ya fue aplicado puntualmente en `babyclub-access` via `supabase db query --linked -f supabase/manual/2026-05-28-hotfix-get_qr_summary_all.sql`, sin empujar las otras migraciones pendientes del branch.
 
 ## Riesgos abiertos para siguientes requerimientos
 
@@ -56,6 +57,7 @@ last_reviewed: 2026-05-28
 - Verificacion DNS del 2026-05-28: `babyclubaccess.com` responde con A y DKIM en `resend._domainkey`, pero no devolvio TXT SPF en root ni TXT `_dmarc`; eso puede seguir afectando entregabilidad en `icloud.com` y `outlook.com` fuera del codigo.
 - El fix del dashboard depende de aplicar `20260528173000_fix_qr_summary_table_classification.sql` en cualquier entorno que ya tenga el RPC `get_qr_summary_all`; con solo deploy de app, ese entorno seguiria usando la clasificacion vieja.
 - Backup pre-migracion 2026-05-28: el `pg_dump` directo del host `db.wtwnhqbbcocpnqqsybln.supabase.co` fallo por DNS; se genero snapshot alternativo via API del proyecto remoto (`public schema`, `public data`, `auth users`) en artefactos locales temporales antes de considerar cualquier migracion remota.
+- El hotfix remoto del dashboard queda fuera del historial de migraciones aplicado por CLI; en la siguiente ventana de release hay que reconciliar `20260528173000` con el estado ya aplicado manualmente, ademas de revisar `20260527213000` y `20260528010000`.
 
 ## Siguiente paso recomendado
 
