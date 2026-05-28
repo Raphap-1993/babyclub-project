@@ -145,8 +145,11 @@ function normalizeAdminTicketTypeRow(row: any): AdminTicketType | null {
   const label = toOptionalText(row?.label);
   const price = toPositiveNumber(row?.price, 0);
   const ticketQuantity = toTicketQuantity(row?.ticket_quantity);
+  const definition = DEFINITION_BY_CODE.get(code);
   const salePhase =
-    row?.sale_phase === null ? null : normalizeSalePhase(row?.sale_phase);
+    row?.sale_phase === null
+      ? definition?.salePhase ?? null
+      : normalizeSalePhase(row?.sale_phase);
 
   if (!code || !label || !price || !ticketQuantity) return null;
 
@@ -234,7 +237,9 @@ export function applyTicketTypeInputs(
         input.description ?? baseRow?.description ?? definition?.description ?? "",
       sale_phase:
         input.sale_phase !== undefined
-          ? input.sale_phase
+          ? input.sale_phase === null && definition?.salePhase
+            ? baseRow?.sale_phase ?? definition.salePhase
+            : input.sale_phase
           : baseRow?.sale_phase ?? definition?.salePhase ?? null,
       ticket_quantity:
         input.ticket_quantity ??

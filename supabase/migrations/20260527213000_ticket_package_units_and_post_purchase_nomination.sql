@@ -98,13 +98,16 @@ begin
         id uuid primary key default gen_random_uuid(),
         event_id %1$s not null references public.events(id) on delete cascade,
         reservation_id %2$s not null references public.table_reservations(id) on delete cascade,
-        unit_number integer not null,
         package_index integer not null,
-        unit_index_in_package integer not null,
+        person_index integer not null,
+        unit_index integer not null,
         status text not null default 'pending_nomination',
-        qr_token text null,
-        nomination_snapshot jsonb null,
-        metadata jsonb not null default '{}'::jsonb,
+        full_name text null,
+        doc_type text null,
+        document text null,
+        email text null,
+        phone text null,
+        ticket_id text null,
         nominated_at timestamptz null,
         issued_at timestamptz null,
         used_at timestamptz null,
@@ -112,27 +115,31 @@ begin
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now(),
         deleted_at timestamptz null,
-        constraint ticket_reservation_units_unit_number_check
-          check (unit_number >= 1),
         constraint ticket_reservation_units_package_index_check
           check (package_index >= 1),
-        constraint ticket_reservation_units_unit_index_in_package_check
-          check (unit_index_in_package >= 1),
+        constraint ticket_reservation_units_person_index_check
+          check (person_index >= 1),
+        constraint ticket_reservation_units_unit_index_check
+          check (unit_index >= 1),
         constraint ticket_reservation_units_status_check
           check (status in ('pending_nomination', 'nominated', 'issued', 'used', 'cancelled')),
-        constraint ticket_reservation_units_nomination_gate_check
+        constraint ticket_reservation_units_nomination_name_check
           check (
             status in ('pending_nomination', 'cancelled')
-            or nomination_snapshot is not null
+            or full_name is not null
           ),
-        constraint ticket_reservation_units_qr_gate_check
-          check (qr_token is null or status in ('issued', 'used', 'cancelled')),
-        constraint ticket_reservation_units_issue_gate_check
-          check (status not in ('issued', 'used') or qr_token is not null),
-        constraint ticket_reservation_units_nomination_snapshot_check
-          check (nomination_snapshot is null or jsonb_typeof(nomination_snapshot) = 'object'),
-        constraint ticket_reservation_units_metadata_object_check
-          check (jsonb_typeof(metadata) = 'object')
+        constraint ticket_reservation_units_nomination_doc_type_check
+          check (
+            status in ('pending_nomination', 'cancelled')
+            or doc_type is not null
+          ),
+        constraint ticket_reservation_units_nomination_document_check
+          check (
+            status in ('pending_nomination', 'cancelled')
+            or document is not null
+          ),
+        constraint ticket_reservation_units_ticket_issue_gate_check
+          check (ticket_id is null or status in ('issued', 'used', 'cancelled'))
       )
     $sql$,
     v_event_id_type,
@@ -141,21 +148,16 @@ begin
 end $$;
 
 create unique index if not exists ticket_reservation_units_reservation_unit_uidx
-  on public.ticket_reservation_units(reservation_id, unit_number)
+  on public.ticket_reservation_units(reservation_id, unit_index)
   where deleted_at is null;
 
 create unique index if not exists ticket_reservation_units_reservation_slot_uidx
   on public.ticket_reservation_units(
     reservation_id,
     package_index,
-    unit_index_in_package
+    person_index
   )
   where deleted_at is null;
-
-create unique index if not exists ticket_reservation_units_event_qr_uidx
-  on public.ticket_reservation_units(event_id, qr_token)
-  where deleted_at is null
-    and qr_token is not null;
 
 create index if not exists ticket_reservation_units_reservation_status_idx
   on public.ticket_reservation_units(reservation_id, status)
@@ -177,11 +179,5 @@ comment on table public.ticket_reservation_units is
 comment on column public.ticket_reservation_units.status is
   'Lifecycle state for the individual unit: pending_nomination, nominated, issued, used or cancelled.';
 
-comment on column public.ticket_reservation_units.nomination_snapshot is
-  'Named attendee snapshot for the unit once nomination happens. Legacy attendees on table_reservations still coexist for compatibility.';
-
-comment on column public.ticket_reservation_units.metadata is
-  'Base package math metadata for the unit, including package slots derived from the reservation header.';
-
-comment on column public.ticket_reservation_units.qr_token is
-  'Per-unit QR token. Must remain null until the unit reaches an issuable state after nomination.';
+comment on column public.ticket_reservation_units.ticket_id is
+  'Linked emitted ticket for the unit once nomination and issuance complete. Legacy attendees on table_reservations still coexist for compatibility.';

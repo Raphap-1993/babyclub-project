@@ -15,7 +15,7 @@ describe("POST /api/ticket-reservations", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
   });
 
-  it("resuelve el tipo de entrada desde DB y persiste snapshot de precio", async () => {
+  it("resuelve el tipo de entrada desde DB, persiste compra por paquetes y crea unidades pendientes", async () => {
     const { supabase, calls } = createSupabaseMock({
       "events.select": [
         {
@@ -50,6 +50,12 @@ describe("POST /api/ticket-reservations", () => {
           error: null,
         },
       ],
+      "ticket_reservation_units.insert": [
+        {
+          data: null,
+          error: null,
+        },
+      ],
     });
     (createClient as any).mockReturnValue(supabase);
 
@@ -68,6 +74,7 @@ describe("POST /api/ticket-reservations", () => {
         telefono: "999999999",
         payment_method: "culqi",
         ticket_type_code: "all_night_2",
+        package_quantity: 3,
         promoter_id: "prom-1",
         promoter_link_code_id: "code-link-1",
         promoter_link_code: "PROM01",
@@ -83,9 +90,11 @@ describe("POST /api/ticket-reservations", () => {
       reservationId: "res-ticket-1",
       ticket_type_code: "all_night_2",
       ticket_type_label: "2 QR ALL NIGHT",
-      ticket_quantity: 2,
-      amount: 42,
-      amount_cents: 4200,
+      ticket_quantity: 6,
+      package_quantity: 3,
+      total_ticket_units: 6,
+      amount: 126,
+      amount_cents: 12600,
     });
 
     const insertCall = calls.find(
@@ -98,26 +107,41 @@ describe("POST /api/ticket-reservations", () => {
       ticket_type_id: "type-all-night-2",
       ticket_type_code: "all_night_2",
       ticket_type_label: "2 QR ALL NIGHT",
-      ticket_quantity: 2,
+      ticket_quantity: 6,
+      package_quantity: 3,
+      total_ticket_units: 6,
       ticket_unit_price: 21,
-      ticket_total_amount: 42,
+      ticket_total_amount: 126,
       status: "pending",
       promoter_id: "prom-1",
       promoter_link_code_id: "code-link-1",
       promoter_link_code: "PROM01",
     });
-    expect(insertCall?.payload.attendees).toHaveLength(2);
+    expect(insertCall?.payload.attendees).toHaveLength(1);
     expect(insertCall?.payload.attendees[0]).toMatchObject({
       person_index: 1,
       doc_type: "dni",
       document: "12345678",
       full_name: "Ana Torres Rios",
     });
-    expect(insertCall?.payload.attendees[1]).toMatchObject({
+
+    const unitsInsertCall = calls.find(
+      (call) => call.table === "ticket_reservation_units" && call.op === "insert",
+    );
+    expect(unitsInsertCall?.payload).toHaveLength(6);
+    expect(unitsInsertCall?.payload[0]).toMatchObject({
+      reservation_id: "res-ticket-1",
+      event_id: "event-1",
+      package_index: 1,
+      person_index: 1,
+      unit_index: 1,
+      status: "pending_nomination",
+    });
+    expect(unitsInsertCall?.payload[5]).toMatchObject({
+      package_index: 3,
       person_index: 2,
-      doc_type: "dni",
-      document: "12345678",
-      full_name: "Ana Torres Rios",
+      unit_index: 6,
+      status: "pending_nomination",
     });
   });
 

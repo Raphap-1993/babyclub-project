@@ -2,11 +2,11 @@
 id: REQ-0012
 type: requirement
 title: Catalogo flexible de entradas por evento con nominacion posterior obligatoria para uso
-status: refining
+status: done
 owner: Patroclo
 work_type: feature
 created: 2026-05-27
-updated: 2026-05-27
+updated: 2026-05-28
 priority: P0
 domain: tickets
 impacted_apps:
@@ -27,22 +27,30 @@ depends_on:
   - REQ-0010
 related_adrs:
   - ADR-008
+  - ADR-009
 adr_not_required: false
 related_arch_docs:
   - docs/ARCHITECTURE_V2.md
   - docs/pm-vault/05-Architecture/architecture-canon.md
 code_refs:
   - packages/shared/ticketTypes.ts
+  - packages/shared/ticketReservationUnits.ts
   - apps/backoffice/lib/ticketTypesAdmin.ts
   - apps/landing/app/compra/page.tsx
-  - apps/landing/app/api/events/route.ts
   - apps/landing/app/api/ticket-reservations/route.ts
-  - apps/landing/app/api/tickets/route.ts
+  - apps/landing/app/api/ticket-reservations/[id]/units/route.ts
+  - apps/landing/app/api/ticket-reservations/[id]/issue/route.ts
+  - apps/landing/app/compra/reserva/[id]/NominationClient.tsx
   - apps/backoffice/app/api/scan/route.ts
-  - apps/backoffice/app/api/events/update/route.ts
-  - apps/backoffice/app/api/events/create/route.ts
+  - apps/backoffice/app/api/reservations/update/route.ts
+  - apps/backoffice/app/api/admin/reservations/[id]/resend/route.ts
+  - apps/backoffice/app/admin/ticket-types/TicketTypesClient.tsx
+  - supabase/migrations/20260527213000_ticket_package_units_and_post_purchase_nomination.sql
+  - supabase/migrations/20260528010000_relax_event_ticket_types_sale_phase.sql
 test_refs:
-  - pnpm exec vitest run packages/shared/ticketTypes.test.ts apps/landing/app/api/ticket-reservations/route.test.ts apps/landing/app/api/tickets/route.test.ts apps/backoffice/app/api/scan/route.test.ts
+  - pnpm exec vitest run packages/shared/ticketReservationUnits.test.ts packages/shared/ticketTypes.test.ts apps/landing/app/api/ticket-reservations/route.test.ts apps/landing/app/api/ticket-reservations/[id]/units/route.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/backoffice/app/api/events/[id]/ticket-types/route.test.ts apps/backoffice/app/api/scan/route.test.ts apps/backoffice/app/api/reservations/update/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts
+  - pnpm typecheck:landing
+  - pnpm typecheck:backoffice
 release_target: next
 tags:
   - req
@@ -123,23 +131,24 @@ Convertir cada tipo de entrada en un SKU vendible por evento, permitir comprar c
 
 ## Gate de arquitectura
 
-- ADR relacionado: [ADR-008](../../adr/2026-04-25-008-event-ticket-types-per-event.md) queda como antecedente, pero no alcanza para cerrar este cambio.
-- Se requiere ADR complementario antes de implementacion para fijar:
-  - modelo de compra por paquetes y snapshot comercial,
-  - entidad unitaria por asistente/QR,
-  - estrategia de compatibilidad con `table_reservations.attendees`,
-  - contrato de emision/uso de QR bajo nominacion posterior obligatoria.
+- ADR antecedente: [ADR-008](../../adr/2026-04-25-008-event-ticket-types-per-event.md).
+- ADR complementario aprobado: [ADR-009](../../adr/2026-05-27-009-ticket-package-units-and-post-purchase-nomination.md).
+- ADR-009 fijo el modelo incremental adoptado en esta entrega:
+  - `table_reservations` sigue como cabecera comercial,
+  - `ticket_reservation_units` pasa a ser la fuente canonica de lifecycle unitario,
+  - `attendees` queda como compatibilidad transitoria,
+  - nominacion valida es gate previo a emision/uso del QR.
 
 ## Criterios de aceptacion
 
-- [ ] Existe catalogo flexible de tipos de entrada por evento sin depender de los cuatro codigos base como limite funcional.
-- [ ] La compra publica selecciona `ticket_type_code` y `package_quantity`.
-- [ ] La compra persiste snapshot suficiente para reconstruir monto, tipo y cantidad de unidades historicas.
-- [ ] Cada compra aprobada genera unidades individuales pendientes de nominacion.
-- [ ] El comprador puede nominar despues cada unidad.
-- [ ] Una unidad no nominada no puede usarse en scanner/puerta.
-- [ ] El flujo de correo/QR puede operar por unidad individual en vez de concentrar varios QRs en una sola persona por defecto.
-- [ ] La compatibilidad transitoria con compras historicas queda explicitada y cubierta por tests.
+- [x] Existe catalogo flexible de tipos de entrada por evento sin depender de los cuatro codigos base como limite funcional.
+- [x] La compra publica selecciona `ticket_type_code` y `package_quantity`.
+- [x] La compra persiste snapshot suficiente para reconstruir monto, tipo y cantidad de unidades historicas.
+- [x] Cada compra aprobada genera unidades individuales pendientes de nominacion.
+- [x] El comprador puede nominar despues cada unidad.
+- [x] Una unidad no nominada no puede usarse en scanner/puerta.
+- [x] El flujo de correo/QR puede operar por unidad individual en vez de concentrar varios QRs en una sola persona por defecto.
+- [x] La compatibilidad transitoria con compras historicas queda explicitada y cubierta por tests.
 
 ## Evidencia esperada
 
@@ -147,9 +156,17 @@ Convertir cada tipo de entrada en un SKU vendible por evento, permitir comprar c
 - Tests / checks: `test_refs`, typecheck de landing/backoffice, smoke del flujo `compra -> aprobacion -> nominacion -> uso en puerta`.
 - Docs / changelog: actualizacion de `docs/pm-vault/status.md`, `docs/pm-vault/traceability.md`, ADR complementario y bitacora en Obsidian.
 
+## Resultado implementado
+
+- Checkout publico migrado a `evento -> tipo -> cantidad de paquetes` con CTA al workspace de nominacion posterior.
+- Admin de tipos reescrito como editor flexible por evento con add/remove/edit, `sale_phase` nullable y compatibilidad legacy para codigos conocidos.
+- Compra ticket-only guarda snapshot comercial ampliado, `package_quantity`, `total_ticket_units` y crea `ticket_reservation_units`.
+- Workspace publico `/compra/reserva/[id]` permite cargar nominaciones, emitir QR por unidad y ver tickets emitidos.
+- Scanner invalida tickets cuyo `ticket_reservation_unit` aun no este `issued|used`.
+- Aprobacion y reenvio de reservas ticket-only dejan de autoemitir en backoffice y operan sobre unidades ya emitidas.
+
 ## Riesgos abiertos
 
-- El flujo actual de landing esta fuertemente acoplado a `1 | 2` y a un segundo formulario hardcodeado; hay riesgo de regresion si no se migra como estructura repetible.
-- El JSON `attendees` ya existe y puede solaparse con la nueva entidad unitaria; la convivencia debe quedar clara.
-- Correo y deliverability hacia `icloud.com` / `outlook.com` pueden tener una parte ajena a aplicacion; no prometer cierre total sin evidencia.
-- La ventana de 24 horas obliga a priorizar vertical slice funcional antes que refactor perfecto.
+- El JSON `attendees` sigue coexistiendo como snapshot legacy; cualquier refactor futuro debe evitar volverlo a tratar como lifecycle canonico.
+- Correo y deliverability hacia `icloud.com` / `outlook.com` pueden tener una parte ajena a aplicacion; este REQ habilita correo por unidad pero no certifica reputacion SMTP externa.
+- Falta ejecutar smoke funcional completo con apps levantadas y migraciones aplicadas antes de mover este slice a entorno con data real.

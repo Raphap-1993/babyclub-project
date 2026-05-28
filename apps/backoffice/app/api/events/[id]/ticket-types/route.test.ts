@@ -318,6 +318,7 @@ describe("GET/PUT /api/events/[id]/ticket-types", () => {
               code: "early_bird_1",
               label: "Early Solo",
               description: "Precio actualizado",
+              sale_phase: null,
               price: 18,
               is_active: true,
             },

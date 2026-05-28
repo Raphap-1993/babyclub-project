@@ -468,10 +468,31 @@ export default function NominationClient({
       ),
     [units],
   );
+  const editableUnits = useMemo(
+    () => units.filter((unit) => !UNIT_TERMINAL_STATUSES.has(unit.status)),
+    [units],
+  );
+  const pendingNominationCount = useMemo(
+    () =>
+      editableUnits.filter((unit) => unit.status === "pending_nomination")
+        .length,
+    [editableUnits],
+  );
+  const nominatedReadyCount = useMemo(
+    () =>
+      editableUnits.filter(
+        (unit) => unit.status === "nominated" && !unit.ticket_id,
+      ).length,
+    [editableUnits],
+  );
   const readyToIssue =
-    reservation &&
-    ISSUE_READY_STATUSES.has(reservation.status) &&
-    invalidUnits.length === 0;
+    Boolean(
+      reservation &&
+        ISSUE_READY_STATUSES.has(reservation.status) &&
+        invalidUnits.length === 0 &&
+        pendingNominationCount === 0 &&
+        nominatedReadyCount > 0,
+    );
   const issuedCount = useMemo(
     () =>
       units.filter((unit) => unit.status === "issued" || unit.status === "used")
@@ -503,6 +524,10 @@ export default function NominationClient({
       );
       return;
     }
+    if (editableUnits.length === 0) {
+      setSuccess("No hay unidades pendientes por guardar.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -513,7 +538,7 @@ export default function NominationClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reservation_id: reservationId,
-            units: units.map((unit) => ({
+            units: editableUnits.map((unit) => ({
               id: unit.id,
               package_index: unit.package_index,
               person_index: unit.person_index,
@@ -900,10 +925,21 @@ export default function NominationClient({
                 ) : null}
                 {reservation &&
                 ISSUE_READY_STATUSES.has(reservation.status) &&
-                invalidUnits.length > 0 ? (
+                (invalidUnits.length > 0 || pendingNominationCount > 0) ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/65">
                     Guarda primero la nominación completa de todas las unidades
                     para emitir los QR.
+                  </div>
+                ) : null}
+                {reservation &&
+                ISSUE_READY_STATUSES.has(reservation.status) &&
+                invalidUnits.length === 0 &&
+                pendingNominationCount === 0 &&
+                nominatedReadyCount === 0 &&
+                issuedCount > 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/65">
+                    Todos los QR disponibles ya fueron emitidos para esta
+                    reserva.
                   </div>
                 ) : null}
 
@@ -911,7 +947,7 @@ export default function NominationClient({
                   <button
                     type="button"
                     onClick={() => void handleSave()}
-                    disabled={saving || issuing || units.length === 0}
+                    disabled={saving || issuing || editableUnits.length === 0}
                     className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition disabled:opacity-60"
                   >
                     <Save className="h-4 w-4" />

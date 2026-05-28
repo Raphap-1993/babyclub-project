@@ -232,4 +232,83 @@ describe("POST /api/scan", () => {
     expect(payload.qr_kind).toBe("ticket_general");
     expect(payload.qr_kind_label).toBe("Entrada General");
   });
+
+  it("bloquea tickets mapeados a unidad todavía no emitida", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-4",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [{ data: null, error: null }],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-unit-1",
+            code_id: "code-unit-1",
+            full_name: "Ana Ticket",
+            dni: null,
+            email: "ana@test.com",
+            phone: "999999999",
+            used: false,
+            table_id: null,
+            product_id: null,
+            table_reservation_id: "res-ticket-unit-1",
+            code: { type: "general" },
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: {
+            id: "unit-1",
+            ticket_id: "ticket-unit-1",
+            status: "nominated",
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-unit-1",
+            table_id: null,
+            product_id: null,
+            sale_origin: "ticket",
+            ticket_pricing_phase: "all_night",
+            ticket_type_label: "1 QR ALL NIGHT",
+            table: null,
+            product: null,
+          },
+          error: null,
+        },
+      ],
+      "scan_logs.insert": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "QR-UNIT-1", event_id: "event-4" }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.result).toBe("invalid");
+    expect(payload.reason).toBe("nomination_required");
+    expect(payload.qr_kind).toBe("ticket_all_night");
+    expect(payload.qr_kind_label).toBe("1 QR ALL NIGHT");
+  });
 });

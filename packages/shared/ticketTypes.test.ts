@@ -41,6 +41,41 @@ describe("ticketTypes", () => {
     });
   });
 
+  it("restituye la salePhase canonica para codigos legacy conocidos aunque la row venga null", () => {
+    const event = {
+      ticket_types: [
+        {
+          id: "type-legacy",
+          code: "early_bird_1",
+          label: "Early Solo",
+          description: "Legacy",
+          sale_phase: null,
+          ticket_quantity: 1,
+          price: 18,
+          currency_code: "PEN",
+          is_active: true,
+          sort_order: 10,
+        },
+      ],
+    };
+
+    const option = normalizeTicketTypesFromEvent(event)[0];
+
+    expect(option).toMatchObject({
+      code: "early_bird_1",
+      salePhase: "early_bird",
+    });
+    expect(
+      resolveTicketTypeSelection(event, {
+        salePhase: "early_bird",
+        ticketQuantity: 1,
+      }),
+    )?.toMatchObject({
+      code: "early_bird_1",
+      salePhase: "early_bird",
+    });
+  });
+
   it("normaliza ticket_types persistidos y filtra inactivos", () => {
     const options = normalizeTicketTypesFromEvent({
       ticket_types: [

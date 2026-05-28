@@ -59,6 +59,10 @@ export const TICKET_TYPE_DEFINITIONS: TicketTypeDefinition[] = [
   },
 ];
 
+const DEFINITION_BY_CODE = new Map(
+  TICKET_TYPE_DEFINITIONS.map((definition) => [definition.code, definition]),
+);
+
 export type TicketTypeOption = {
   id?: string | null;
   code: string;
@@ -98,9 +102,12 @@ function normalizeDbTicketType(row: any): TicketTypeOption | null {
   const price = toPositiveNumber(row?.price, 0);
   const code = typeof row?.code === "string" ? row.code.trim() : "";
   const label = typeof row?.label === "string" ? row.label.trim() : "";
+  const definition = DEFINITION_BY_CODE.get(code);
 
   const normalizedSalePhase =
-    row?.sale_phase === null || row?.salePhase === null ? null : salePhase;
+    row?.sale_phase === null || row?.salePhase === null
+      ? definition?.salePhase ?? null
+      : salePhase;
 
   if (!ticketQuantity || !price || !code || !label) return null;
 

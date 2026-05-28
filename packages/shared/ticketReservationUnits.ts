@@ -13,17 +13,18 @@ export type BuildReservationUnitsInput = {
 };
 
 export type TicketReservationUnitSeed = {
-  reservationId: string;
-  eventId: string;
-  unitNumber: number;
-  packageIndex: number;
-  unitIndexInPackage: number;
+  reservation_id: string;
+  event_id: string;
+  package_index: number;
+  person_index: number;
+  unit_index: number;
   status: "pending_nomination";
-  metadata: {
-    packageQuantity: number;
-    unitsPerPackage: number;
-    totalTicketUnits: number;
-  };
+  full_name: null;
+  doc_type: null;
+  document: null;
+  email: null;
+  phone: null;
+  ticket_id: null;
 };
 
 function assertPositiveInteger(value: number, field: string) {
@@ -41,20 +42,27 @@ export function buildReservationUnits({
   assertPositiveInteger(packageQuantity, "packageQuantity");
   assertPositiveInteger(unitsPerPackage, "unitsPerPackage");
 
-  const totalTicketUnits = packageQuantity * unitsPerPackage;
-  const metadata = {
-    packageQuantity,
-    unitsPerPackage,
-    totalTicketUnits,
-  };
+  const rows: TicketReservationUnitSeed[] = [];
+  let unitIndex = 1;
 
-  return Array.from({ length: totalTicketUnits }, (_, index) => ({
-    reservationId,
-    eventId,
-    unitNumber: index + 1,
-    packageIndex: Math.floor(index / unitsPerPackage) + 1,
-    unitIndexInPackage: (index % unitsPerPackage) + 1,
-    status: "pending_nomination",
-    metadata,
-  }));
+  for (let packageIndex = 1; packageIndex <= packageQuantity; packageIndex++) {
+    for (let personIndex = 1; personIndex <= unitsPerPackage; personIndex++) {
+      rows.push({
+        reservation_id: reservationId,
+        event_id: eventId,
+        package_index: packageIndex,
+        person_index: personIndex,
+        unit_index: unitIndex++,
+        status: "pending_nomination",
+        full_name: null,
+        doc_type: null,
+        document: null,
+        email: null,
+        phone: null,
+        ticket_id: null,
+      });
+    }
+  }
+
+  return rows;
 }

@@ -3,7 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { createTicketForReservation } from "../../../../reservations/utils";
-import { sendApprovalEmail } from "../../../../reservations/email";
+import {
+  sendApprovalEmail,
+  sendTicketEmail,
+} from "../../../../reservations/email";
 import {
   normalizeDocument,
   validateDocument,
@@ -97,6 +100,7 @@ export async function POST(
         phone,
         doc_type,
         document,
+        sale_origin,
         status,
         codes,
         ticket_quantity,
@@ -154,6 +158,8 @@ export async function POST(
   const eventId =
     tableRel?.event_id || eventRel?.id || (reservation as any).event_id || null;
   const tableName = tableRel?.name || "Entrada";
+  const isTicketOnlyReservation =
+    (reservation as any).sale_origin === "ticket" || !tableRel?.id;
   const reservationTicketQty =
     typeof (reservation as any).ticket_quantity === "number" &&
     (reservation as any).ticket_quantity > 0
@@ -164,6 +170,57 @@ export async function POST(
       ? Math.floor(tableRel.ticket_count)
       : 0;
   const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
+
+  if (isTicketOnlyReservation) {
+    const { data: unitRows, error: unitsError } = await applyNotDeleted(
+      supabase
+        .from("ticket_reservation_units")
+        .select("id,status,ticket_id,email")
+        .eq("reservation_id", id),
+    );
+
+    if (unitsError) {
+      return NextResponse.json(
+        { success: false, error: unitsError.message },
+        { status: 500 },
+      );
+    }
+
+    const units = Array.isArray(unitRows) ? unitRows : [];
+    const issuedUnits = units.filter(
+      (unit: any) =>
+        String(unit?.status || "").toLowerCase() === "issued" &&
+        typeof unit?.ticket_id === "string" &&
+        unit.ticket_id.trim(),
+    );
+
+    if (issuedUnits.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No hay unidades emitidas para reenviar en esta reserva",
+        },
+        { status: 400 },
+      );
+    }
+
+    let sentCount = 0;
+    for (const unit of issuedUnits) {
+      await sendTicketEmail({
+        supabase,
+        ticketId: String(unit.ticket_id),
+        toEmail:
+          (typeof unit.email === "string" && unit.email.trim()) || email,
+      });
+      sentCount += 1;
+    }
+
+    return NextResponse.json({
+      success: true,
+      sentCount,
+      skippedCount: Math.max(0, units.length - issuedUnits.length),
+    });
+  }
 
   const reservationCodes = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes

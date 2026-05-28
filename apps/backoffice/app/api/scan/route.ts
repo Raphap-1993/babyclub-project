@@ -77,6 +77,15 @@ function isMissingReservationCommercialColumnsError(error: any): boolean {
   );
 }
 
+function isMissingReservationUnitsError(error: any): boolean {
+  if (!error) return false;
+  const message = String(error?.message || "");
+  const details = String(error?.details || "");
+  const hint = String(error?.hint || "");
+  const haystack = `${message} ${details} ${hint}`.toLowerCase();
+  return haystack.includes("ticket_reservation_units");
+}
+
 function getQrKindLabel(
   kind: QrKind,
   reservation?: ReservationCommercialContext | null,
@@ -504,6 +513,34 @@ export async function POST(req: NextRequest) {
       person_already_entered = true;
       result = "duplicate";
       reason = "person_already_entered";
+    }
+  }
+
+  if (result === "valid" && ticket_id) {
+    const unitQuery = applyNotDeleted(
+      supabase
+        .from("ticket_reservation_units")
+        .select("id,status,ticket_id")
+        .eq("ticket_id", ticket_id),
+    );
+    const { data: reservationUnit, error: unitError } =
+      await unitQuery.maybeSingle();
+
+    if (unitError && !isMissingReservationUnitsError(unitError)) {
+      return NextResponse.json(
+        { success: false, error: unitError.message },
+        { status: 400 },
+      );
+    }
+
+    const unitStatus = String((reservationUnit as any)?.status || "").toLowerCase();
+    if (
+      reservationUnit?.id &&
+      unitStatus !== "issued" &&
+      unitStatus !== "used"
+    ) {
+      result = "invalid";
+      reason = "nomination_required";
     }
   }
 
