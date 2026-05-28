@@ -5,6 +5,42 @@ import {
 } from "./ticketTypes";
 
 describe("ticketTypes", () => {
+  it("acepta tipos custom con sale_phase null y los resuelve por codigo", () => {
+    const event = {
+      ticket_types: [
+        {
+          id: "type-custom",
+          code: "vip_trio",
+          label: "VIP Trio",
+          description: "Incluye 3 accesos",
+          sale_phase: null,
+          ticket_quantity: 3,
+          price: 90,
+          currency_code: "USD",
+          is_active: true,
+          sort_order: 5,
+        },
+      ],
+    };
+
+    const options = normalizeTicketTypesFromEvent(event);
+
+    expect(options).toHaveLength(1);
+    expect(options[0]).toMatchObject({
+      code: "vip_trio",
+      label: "VIP Trio",
+      description: "Incluye 3 accesos",
+      salePhase: null,
+      ticketQuantity: 3,
+      price: 90,
+      currencyCode: "USD",
+    });
+    expect(resolveTicketTypeSelection(event, { code: "vip_trio" })).toMatchObject({
+      code: "vip_trio",
+      salePhase: null,
+    });
+  });
+
   it("normaliza ticket_types persistidos y filtra inactivos", () => {
     const options = normalizeTicketTypesFromEvent({
       ticket_types: [
@@ -61,6 +97,28 @@ describe("ticketTypes", () => {
       salePhase: "all_night",
       ticketQuantity: 1,
       price: 24,
+    });
+  });
+
+  it("mantiene compatibilidad legacy por salePhase y ticketQuantity", () => {
+    const event = {
+      early_bird_enabled: true,
+      early_bird_price_1: 16,
+      early_bird_price_2: 28,
+      all_night_price_1: 24,
+      all_night_price_2: 40,
+    };
+
+    expect(
+      resolveTicketTypeSelection(event, {
+        salePhase: "early_bird",
+        ticketQuantity: 2,
+      }),
+    ).toMatchObject({
+      code: "early_bird_2",
+      salePhase: "early_bird",
+      ticketQuantity: 2,
+      price: 28,
     });
   });
 
