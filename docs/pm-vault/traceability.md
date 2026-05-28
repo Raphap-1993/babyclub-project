@@ -3,8 +3,8 @@ type: traceability
 project: babyclub-monorepo
 status: active
 owner: Patroclo
-updated: 2026-04-28
-last_reviewed: 2026-04-28
+updated: 2026-05-27
+last_reviewed: 2026-05-27
 ---
 
 # Traceability
@@ -26,6 +26,7 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 | [REQ-0007](./01-Requirements/REQ-0007-normalizar-reportes-promotor-noshow-ventas.md)   | done       | DEC-0009                     | n/a     | [apps/backoffice/app/api/admin/reports/export/route.ts](../../apps/backoffice/app/api/admin/reports/export/route.ts), [apps/backoffice/app/api/admin/reports/export/route.test.ts](../../apps/backoffice/app/api/admin/reports/export/route.test.ts), [apps/backoffice/app/admin/reportes/promotores/page.tsx](../../apps/backoffice/app/admin/reportes/promotores/page.tsx), [apps/backoffice/app/admin/reportes/components/ReportWorkspace.tsx](../../apps/backoffice/app/admin/reportes/components/ReportWorkspace.tsx)                                                                                                                                                               | `pnpm exec vitest run apps/backoffice/app/api/admin/reports/export/route.test.ts`, `pnpm typecheck:backoffice`                                                                                                                                                                             | Reportes promotor/no-show/ventas restaurados; liquidacion por promotor MVP    |
 | [REQ-0010](./01-Requirements/REQ-0010-configurar-tipos-entradas-evento.md)             | done       | DEC-0010                     | ADR-008 | [supabase/migrations/2026-04-25-event-ticket-types.sql](../../supabase/migrations/2026-04-25-event-ticket-types.sql), [packages/shared/ticketTypes.ts](../../packages/shared/ticketTypes.ts), [apps/landing/app/api/events/route.ts](../../apps/landing/app/api/events/route.ts), [apps/landing/app/api/ticket-reservations/route.ts](../../apps/landing/app/api/ticket-reservations/route.ts), [apps/landing/app/compra/page.tsx](../../apps/landing/app/compra/page.tsx), [packages/shared/payments/service.ts](../../packages/shared/payments/service.ts), [apps/backoffice/app/api/scan/route.ts](../../apps/backoffice/app/api/scan/route.ts)                                       | `pnpm check-types`, `pnpm --filter landing build`, `pnpm --filter backoffice build`, `pnpm exec vitest run packages/shared/ticketTypes.test.ts apps/landing/app/api/ticket-reservations/route.test.ts packages/shared/payments/service.test.ts apps/backoffice/app/api/scan/route.test.ts` | Tipos de entrada persistidos por evento y Culqi usa snapshot de reserva       |
 | [REQ-0011](./01-Requirements/REQ-0011-liquidaciones-promotores-ledger.md)              | done       | DEC-0009                     | n/a     | [supabase/migrations/20260428112000_add_ticket_reservation_attendees.sql](../../supabase/migrations/20260428112000_add_ticket_reservation_attendees.sql), [supabase/migrations/20260428112100_add_promoter_link_trace_to_reservations.sql](../../supabase/migrations/20260428112100_add_promoter_link_trace_to_reservations.sql), [supabase/migrations/20260428112200_promoter_settlements_ledger.sql](../../supabase/migrations/20260428112200_promoter_settlements_ledger.sql), [apps/backoffice/app/admin/liquidaciones/page.tsx](../../apps/backoffice/app/admin/liquidaciones/page.tsx), [apps/backoffice/app/admin/reportes/liquidaciones/page.tsx](../../apps/backoffice/app/admin/reportes/liquidaciones/page.tsx), [apps/backoffice/app/api/admin/promoter-settlements/route.ts](../../apps/backoffice/app/api/admin/promoter-settlements/route.ts), [apps/backoffice/app/api/admin/reports/export/route.ts](../../apps/backoffice/app/api/admin/reports/export/route.ts) | `pnpm exec vitest run apps/backoffice/app/api/admin/reports/export/route.test.ts apps/backoffice/app/api/admin/promoter-settlements/route.test.ts`, `pnpm --filter backoffice check-types`, `pnpm --filter landing check-types`, `git diff --check`, `supabase db push --linked --yes` | Ledger de liquidaciones aplicado en Supabase remoto; CRUD separado y reporte consolidado |
+| [REQ-0012](./01-Requirements/REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md) | refining   | pending                      | ADR pendiente sobre extension de ADR-008 | [REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md](./01-Requirements/REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md), [packages/shared/ticketTypes.ts](../../packages/shared/ticketTypes.ts), [apps/landing/app/compra/page.tsx](../../apps/landing/app/compra/page.tsx), [apps/landing/app/api/ticket-reservations/route.ts](../../apps/landing/app/api/ticket-reservations/route.ts), [apps/landing/app/api/tickets/route.ts](../../apps/landing/app/api/tickets/route.ts), [apps/backoffice/lib/ticketTypesAdmin.ts](../../apps/backoffice/lib/ticketTypesAdmin.ts), [apps/backoffice/app/api/scan/route.ts](../../apps/backoffice/app/api/scan/route.ts) | por definir en plan de implementacion; minimo: typecheck landing/backoffice, vitest de tickets/reservas/scan y smoke `compra -> nominacion -> uso` | Ventana de 24h prioriza vertical slice de venta flexible con nominacion posterior |
 
 ## Campos que no deben faltar
 
@@ -36,6 +37,12 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - nota final de cierre
 
 ## Notas recientes
+
+### 2026-05-27 - REQ-0012 kick-off
+
+- Producto priorizo el frente `venta y configuracion de tickets`, luego `backoffice/UX visible` y despues `entrega/lectura de entradas`.
+- Se aprobo como direccion de producto un modelo incremental sobre Baby actual: tipo de entrada como SKU por evento, compra por cantidad de paquetes y nominacion posterior obligatoria antes del uso del QR.
+- El cambio excede ADR-008 y requiere ADR complementario antes de implementacion porque introduce unidad individual controlable por asistente y un nuevo gate de scanner/correo.
 
 ### 2026-04-28 - REQ-0011 ajuste final
 

@@ -3,8 +3,8 @@ type: status
 project: babyclub-monorepo
 status: active
 owner: Patroclo
-updated: 2026-04-28
-last_reviewed: 2026-04-28
+updated: 2026-05-27
+last_reviewed: 2026-05-27
 ---
 
 # Status
@@ -35,6 +35,7 @@ last_reviewed: 2026-04-28
 - Compra de 2 entradas: `/compra` permite capturar datos de la segunda persona y guardarlos en `table_reservations.attendees` para generar QRs individuales.
 - Supabase remoto `babyclub-access`: aplicadas `20260428112000_add_ticket_reservation_attendees`, `20260428112100_add_promoter_link_trace_to_reservations` y `20260428112200_promoter_settlements_ledger`.
 - `pnpm smoke:local` valida la landing sobre `http://localhost:3001`.
+- Nuevo slice en refinamiento: `REQ-0012` propone catalogo flexible por evento, compra por cantidad de paquetes y nominacion posterior obligatoria antes del uso del QR.
 
 ## Riesgos abiertos para siguientes requerimientos
 
@@ -45,10 +46,12 @@ last_reviewed: 2026-04-28
 - Falta certificar pago real Culqi con credenciales validas antes de comunicar "tarjeta funcionando".
 - Falta definir monto/regla de comision para reservas de mesa; las entradas y QR free ya tienen reglas MVP.
 - Las migraciones historicas del repo usan nombres con guiones y la CLI de Supabase las omite; las migraciones nuevas de release se dejaron con timestamp valido `YYYYMMDDHHMMSS_nombre.sql`.
+- `REQ-0012` requiere ADR complementario antes de implementacion porque cambia el modelo funcional de compra, nominacion y uso de QR.
 
 ## Siguiente paso recomendado
 
 - Usar [REQ-0003-primer-lote-requerimientos-y-correcciones.md](./01-Requirements/REQ-0003-primer-lote-requerimientos-y-correcciones.md) como intake del primer lote.
 - Cuando aparezca un item concreto, clonarlo a un REQ individual desde [99-Templates/tpl-requirement.md](./99-Templates/tpl-requirement.md).
 - REQ tecnico cerrado mas reciente: [REQ-0011-liquidaciones-promotores-ledger.md](./01-Requirements/REQ-0011-liquidaciones-promotores-ledger.md), actualizado con CRUD separado, reporte consolidado y migraciones remotas aplicadas.
+- REQ activo para la ventana de 24h: [REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md](./01-Requirements/REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md).
 - Si el requerimiento toca tenancy, contratos API, auth, pagos, logs o migraciones, abrir revison de arquitectura antes de codificar.
