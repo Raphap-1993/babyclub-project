@@ -493,28 +493,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Política: 1 ingreso por persona por evento.
-  // Si el mismo DNI ya tiene otro ticket used=true para este evento,
-  // el resultado se convierte en "duplicate" automáticamente.
-  // El portero no decide — la pantalla roja lo dice todo.
-  let person_already_entered = false;
-  if (result === "valid" && person?.dni) {
-    const { data: otherUsed } = await applyNotDeleted(
-      supabase
-        .from("tickets")
-        .select("id")
-        .eq("event_id", event_id)
-        .eq("dni", person.dni)
-        .eq("used", true)
-        .neq("id", ticket_id ?? "")
-        .limit(1),
-    ).maybeSingle();
-    if (otherUsed?.id) {
-      person_already_entered = true;
-      result = "duplicate";
-      reason = "person_already_entered";
-    }
-  }
+  const reservationContext = reservation_id
+    ? await fetchReservationCommercialContext(supabase, reservation_id)
+    : null;
+  const qr_kind = resolveQrKind({
+    codeType: code_type,
+    ticketTableId: ticket_table_id,
+    reservation: reservationContext,
+  });
+  const qr_kind_label = getQrKindLabel(qr_kind, reservationContext);
 
   if (result === "valid" && ticket_id) {
     const unitQuery = applyNotDeleted(
@@ -544,15 +531,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const reservationContext = reservation_id
-    ? await fetchReservationCommercialContext(supabase, reservation_id)
-    : null;
-  const qr_kind = resolveQrKind({
-    codeType: code_type,
-    ticketTableId: ticket_table_id,
-    reservation: reservationContext,
-  });
-  const qr_kind_label = getQrKindLabel(qr_kind, reservationContext);
+  // Política: 1 ingreso por persona por evento.
+  // Excepción operativa: los QR de mesa/box representan cupos independientes
+  // y no deben bloquearse solo porque comparten el DNI del comprador.
+  let person_already_entered = false;
+  if (result === "valid" && person?.dni && qr_kind !== "table") {
+    const { data: otherUsed } = await applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("id")
+        .eq("event_id", event_id)
+        .eq("dni", person.dni)
+        .eq("used", true)
+        .neq("id", ticket_id ?? "")
+        .limit(1),
+    ).maybeSingle();
+    if (otherUsed?.id) {
+      person_already_entered = true;
+      result = "duplicate";
+      reason = "person_already_entered";
+    }
+  }
 
   await supabase.from("scan_logs").insert({
     event_id,

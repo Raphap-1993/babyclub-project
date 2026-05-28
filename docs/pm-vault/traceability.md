@@ -52,6 +52,13 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Smoke local con evento sintetico `SMOKE REQ-0012` y tres mesas de prueba confirma que el mapa abre acercado sobre las mesas, no sobre todo el plano.
 - Verificacion del fix: `pnpm exec vitest run apps/landing/app/registro/TableMap.test.ts apps/landing/app/registro/tableSlotUtils.test.ts`, `pnpm typecheck:landing`, `git diff --check`.
 
+### 2026-05-28 - Scanner visible y QR de mesa sin falso duplicado
+
+- `POST /api/tickets` deja de reciclar un QR existente por persona cuando el codigo viene de una reserva de mesa/box; cada codigo aprobado puede materializar su ticket independiente.
+- `POST /api/scan` resuelve primero el contexto comercial del QR y exime a `mesa/box` de la regla `1 ingreso por DNI`, porque esos cupos operan por QR individual y no por comprador.
+- El scanner del backoffice ahora renderiza un panel de color con tipo detectado e instruccion operacional para `Mesa / Box`, `EARLY`, `ALL NIGHT`, `General`, `Promotor` y `Cortesia`.
+- Verificacion del fix: `pnpm exec vitest run apps/backoffice/app/admin/scan/scanPresentation.test.ts apps/backoffice/app/api/scan/route.test.ts apps/landing/app/api/tickets/route.test.ts`, `pnpm typecheck:backoffice`, `pnpm typecheck:landing`, `git diff --check`.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.
