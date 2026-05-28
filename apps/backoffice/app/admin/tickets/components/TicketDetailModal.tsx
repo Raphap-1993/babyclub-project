@@ -6,6 +6,7 @@ import { X, Download, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authedFetch } from "@/lib/authedFetch";
+import { TicketKindBadge } from "./TicketKindBadge";
 
 type TicketDetail = {
   id: string;
@@ -17,11 +18,14 @@ type TicketDetail = {
   qr_token: string | null;
   event_name: string | null;
   code_value: string | null;
+  code_type: string | null;
   promoter_name: string | null;
   table_codes?: string[];
   table_name?: string | null;
   product_name?: string | null;
   product_items?: string[] | null;
+  sale_origin?: string | null;
+  ticket_type_label?: string | null;
 };
 
 export default function TicketDetailModal({
@@ -182,6 +186,17 @@ export default function TicketDetailModal({
               <Info label="Email" value={ticket.email || "—"} />
               <Info label="Teléfono" value={ticket.phone || "—"} />
               <Info label="Evento" value={ticket.event_name || "—"} />
+              <div className="space-y-1 min-w-0 break-words">
+                <p className="text-xs uppercase tracking-wider text-neutral-400">Tipo</p>
+                <TicketKindBadge
+                  codeType={ticket.code_type}
+                  reservationSaleOrigin={ticket.sale_origin}
+                  ticketTypeLabel={ticket.ticket_type_label}
+                  tableName={ticket.table_name}
+                  promoterName={ticket.promoter_name}
+                  showKicker
+                />
+              </div>
               <Info label="Código" value={ticket.code_value || "—"} />
               <Info label="Promotor" value={ticket.promoter_name || "—"} />
               <Info label="QR token" value={ticket.qr_token || "—"} mono />

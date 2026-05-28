@@ -110,7 +110,7 @@ Usar esta nota como intake inicial del primer lote y luego separar cada item con
 - [x] Bugfix 02: resolver warning de schema en `layout` sobre `organizers.layout_canvas_width`
 - [x] Bugfix 03: ocultar/deshabilitar tarjeta si Culqi no esta listo en runtime
 - [x] P0/Bugfix 04: validar reporte confiable para pagar promotores y separar no-show de QR free vs entradas compradas
-- [ ] P0/Bugfix 05: distinguir visualmente entrada comprada vs QR free vs cortesia en ticket/backoffice/scan
+- [x] P0/Bugfix 05: distinguir visualmente entrada comprada vs QR free vs cortesia en ticket/backoffice/scan
 - [ ] P0/Bugfix 06: validar liberacion de QRs free pendiente antes de prometer salida comercial
 - [x] P1/Bugfix 07: revisar mesas/reservas/cantidad de QRs por mesa contra data real
 - [x] P1/Bugfix 08: corregir precio inicial si carga mostrando lote/precio viejo
@@ -129,7 +129,7 @@ Usar esta nota como intake inicial del primer lote y luego separar cada item con
 - [x] REQ-0005 - resolver warning de schema de `layout`
 - [x] REQ-0006 - ocultar tarjeta si Culqi no esta listo en runtime
 - [x] REQ-0007 - reporte promotor/no-show confiable
-- [ ] REQ-0008 - diferenciacion visual QR comprado/free/cortesia
+- [x] REQ-0008 - diferenciacion visual QR comprado/free/cortesia
 - [ ] REQ-0009 - liberacion QR free por lotes y reglas horarias
 - [x] REQ-0010 - tipos de entradas/lotes persistidos por evento
 

@@ -48,6 +48,7 @@ last_reviewed: 2026-05-28
 - Landing compra: el selector de `Evento` ya vive arriba del flujo publico en `Solo entrada` y `Reserva mesa`, mientras `Compra segura y validada por BABY` baja al tramo legal junto a la aceptacion final.
 - Landing compra: si hay multiples eventos activos, `/compra` ya no autoselecciona el primero por fecha ni muestra su lote/precio como default; solo autoselecciona cuando existe exactamente un evento habilitado.
 - Backoffice reservas: aprobacion y reenvio de mesas ya respetan la cantidad snapshot guardada en la reserva y no sobreemiten tickets si la mesa o el pack fueron editados despues.
+- Backoffice tickets: la lista y el detalle ya muestran badge operativo para `Entrada comprada`, `QR libre`, `QR cortesia`, `QR promotor` y `Mesa / Box`, usando `sale_origin` + `ticket_type_label` para no confundir compras pagadas legacy con `courtesy`.
 
 ## Riesgos abiertos para siguientes requerimientos
 

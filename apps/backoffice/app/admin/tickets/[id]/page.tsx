@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { TicketKindBadge } from "../components/TicketKindBadge";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -18,11 +19,14 @@ type TicketDetail = {
   code_id: string | null;
   event_name: string | null;
   code_value: string | null;
+  code_type: string | null;
   promoter_name: string | null;
   table_codes: string[];
   table_name?: string | null;
   product_name?: string | null;
   product_items?: string[] | null;
+  sale_origin?: string | null;
+  ticket_type_label?: string | null;
 };
 
 async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; error?: string }> {
@@ -48,7 +52,7 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
       : Promise.resolve({ data: null }),
     data.code_id
       ? applyNotDeleted(
-          supabase.from("codes").select("id,code,promoter_id,table_reservation_id").eq("id", data.code_id).limit(1)
+          supabase.from("codes").select("id,code,type,promoter_id,table_reservation_id").eq("id", data.code_id).limit(1)
         ).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
@@ -71,12 +75,14 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
   let tableName: string | null = null;
   let productName: string | null = null;
   let productItems: string[] | null = null;
+  let reservationSaleOrigin: "table" | "ticket" | null = null;
+  let ticketTypeLabel: string | null = null;
   const tableReservationId = (data as any).table_reservation_id || codeData?.table_reservation_id || null;
   if (tableReservationId) {
     const resvByIdQuery = applyNotDeleted(
       supabase
         .from("table_reservations")
-        .select("codes,table:tables(name),product:table_products(name,items)")
+        .select("codes,sale_origin,ticket_type_label,table:tables(name),product:table_products(name,items)")
         .eq("id", tableReservationId)
         .limit(1)
     );
@@ -87,12 +93,18 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
     tableName = tableRel?.name || null;
     productName = prodRel?.name || null;
     productItems = prodRel?.items || null;
+    reservationSaleOrigin =
+      first?.sale_origin === "ticket" || first?.sale_origin === "table"
+        ? first.sale_origin
+        : null;
+    ticketTypeLabel =
+      typeof first?.ticket_type_label === "string" ? first.ticket_type_label : null;
   } else if (data.email || data.phone) {
     // Fallback legacy: registros antiguos sin table_reservation_id.
     const resvByContactQuery = applyNotDeleted(
       supabase
         .from("table_reservations")
-        .select("codes,status,table:tables(name),product:table_products(name,items)")
+        .select("codes,status,sale_origin,ticket_type_label,table:tables(name),product:table_products(name,items)")
         .or(
           [
             data.email ? `email.eq.${data.email}` : "",
@@ -112,6 +124,12 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
     tableName = tableRel?.name || null;
     productName = prodRel?.name || null;
     productItems = prodRel?.items || null;
+    reservationSaleOrigin =
+      first?.sale_origin === "ticket" || first?.sale_origin === "table"
+        ? first.sale_origin
+        : null;
+    ticketTypeLabel =
+      typeof first?.ticket_type_label === "string" ? first.ticket_type_label : null;
   }
 
   return {
@@ -127,11 +145,15 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
       code_id: data.code_id ?? null,
       event_name: eventRes.data?.name ?? null,
       code_value: codeRes.data?.code ?? null,
+      code_type:
+        typeof codeRes.data?.type === "string" ? codeRes.data.type.toLowerCase() : null,
       promoter_name: promoterName,
       table_codes: tableCodes,
       table_name: tableName,
       product_name: productName,
       product_items: productItems,
+      sale_origin: reservationSaleOrigin,
+      ticket_type_label: ticketTypeLabel,
     },
   };
 }
@@ -230,6 +252,17 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             <Info label="Email" value={ticket.email || "—"} />
             <Info label="Teléfono" value={ticket.phone || "—"} />
             <Info label="Evento" value={ticket.event_name || "—"} />
+            <div className="space-y-1 min-w-0 break-words">
+              <p className="text-xs uppercase tracking-wider text-neutral-400">Tipo</p>
+              <TicketKindBadge
+                codeType={ticket.code_type}
+                reservationSaleOrigin={ticket.sale_origin}
+                ticketTypeLabel={ticket.ticket_type_label}
+                tableName={ticket.table_name}
+                promoterName={ticket.promoter_name}
+                showKicker
+              />
+            </div>
             <Info label="Código" value={ticket.code_value || "—"} />
             <Info label="Promotor" value={ticket.promoter_name || "—"} />
             <Info label="QR token" value={ticket.qr_token || "—"} mono />

@@ -21,6 +21,7 @@ import {
   Ticket as TicketIcon,
 } from "lucide-react";
 import TicketActions from "./components/TicketActions";
+import { TicketKindBadge } from "./components/TicketKindBadge";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ExternalPagination } from "../components/ExternalPagination";
 
@@ -33,8 +34,11 @@ type TicketRow = {
   phone: string | null;
   event_name: string | null;
   code_value: string | null;
+  code_type: string | null;
   promoter_name: string | null;
   table_name: string | null;
+  sale_origin: string | null;
+  ticket_type_label: string | null;
 };
 
 function TicketFilters({
@@ -225,6 +229,23 @@ const createTicketsColumns = (): ColumnDef<TicketRow>[] => [
             </div>
           ) : null}
         </div>
+      );
+    },
+  },
+  {
+    accessorKey: "ticket_type_label",
+    header: "Tipo",
+    size: 150,
+    cell: ({ row }) => {
+      const ticket = row.original;
+      return (
+        <TicketKindBadge
+          codeType={ticket.code_type}
+          reservationSaleOrigin={ticket.sale_origin}
+          ticketTypeLabel={ticket.ticket_type_label}
+          tableName={ticket.table_name}
+          promoterName={ticket.promoter_name}
+        />
       );
     },
   },
@@ -500,6 +521,15 @@ export default function ModernTicketsClient({
                   <span>{new Date(ticket.created_at).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
               )}
+              <div>
+                <TicketKindBadge
+                  codeType={ticket.code_type}
+                  reservationSaleOrigin={ticket.sale_origin}
+                  ticketTypeLabel={ticket.ticket_type_label}
+                  tableName={ticket.table_name}
+                  promoterName={ticket.promoter_name}
+                />
+              </div>
             </div>
 
             {/* Acciones */}

@@ -49,7 +49,7 @@ export async function GET(
           promoter_id,
           table_reservation_id,
           event:events(name),
-          code:codes(id,code,promoter_id,table_reservation_id),
+          code:codes(id,code,type,promoter_id,table_reservation_id),
           promoter:promoters(code,person:persons(first_name,last_name))
         `)
         .eq("id", id)
@@ -85,12 +85,14 @@ export async function GET(
     let tableName: string | null = null;
     let productName: string | null = null;
     let productItems: string[] | null = null;
+    let reservationSaleOrigin: "table" | "ticket" | null = null;
+    let ticketTypeLabel: string | null = null;
 
     if (tableReservationId) {
       const reservationQuery = applyNotDeleted(
         supabase
           .from("table_reservations")
-          .select("codes,table:tables(name),product:table_products(name,items)")
+          .select("codes,sale_origin,ticket_type_label,table:tables(name),product:table_products(name,items)")
           .eq("id", tableReservationId)
           .limit(1)
       );
@@ -110,6 +112,15 @@ export async function GET(
         tableName = tableRel?.name || null;
         productName = productRel?.name || null;
         productItems = Array.isArray(productRel?.items) ? productRel.items : null;
+        reservationSaleOrigin =
+          reservationRow.sale_origin === "ticket" ||
+          reservationRow.sale_origin === "table"
+            ? reservationRow.sale_origin
+            : null;
+        ticketTypeLabel =
+          typeof (reservationRow as any).ticket_type_label === "string"
+            ? (reservationRow as any).ticket_type_label
+            : null;
       }
     }
 
@@ -125,11 +136,15 @@ export async function GET(
       code_id: data.code_id ?? null,
       event_name: eventRel?.name ?? null,
       code_value: codeRel?.code ?? null,
+      code_type:
+        typeof codeRel?.type === "string" ? codeRel.type.toLowerCase() : null,
       promoter_name: promoterName,
       table_codes: tableCodes,
       table_name: tableName,
       product_name: productName,
       product_items: productItems,
+      sale_origin: reservationSaleOrigin,
+      ticket_type_label: ticketTypeLabel,
     };
 
     console.log("[GET /api/tickets/:id] Tiempo total:", Date.now() - startTime, "ms");
