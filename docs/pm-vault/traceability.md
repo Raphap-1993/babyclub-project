@@ -143,6 +143,22 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Smoke operativo con `.env.local` real: en entorno con un solo evento activo (`BABY RAVE | ABYSS`), `/compra` sigue autoseleccionando el unico evento y muestra `ALL NIGHT SOLO` `S/ 20` sin regresion.
 - Verificacion del fix: `pnpm exec vitest run apps/landing/app/compra/purchaseState.test.ts apps/landing/app/compra/page.layout.test.tsx`, `pnpm typecheck:landing`, `git diff --check`, `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "select id,name,starts_at,is_active,sale_status,closed_at from public.events order by starts_at asc;"`, smoke visual local via Puppeteer.
 
+### 2026-05-28 - Reservas de mesa respetan el snapshot de QRs
+
+- Investigacion con data local real detecto tres reservas `pending` donde la reserva guardaba `ticket_quantity` `10/10/6`, pero la mesa actual ya marcaba `ticket_count = 12`; con la logica vieja, aprobar o reenviar hoy habria generado `12` tickets para reservas historicas de `10` o `6`.
+- La causa raiz estaba duplicada en dos endpoints:
+  - `apps/backoffice/app/api/reservations/update/route.ts`
+  - `apps/backoffice/app/api/admin/reservations/[id]/resend/route.ts`
+  Ambos calculaban `ticketQuantity = max(reservation.ticket_quantity, table.ticket_count, 1)`, priorizando accidentalmente la mesa viva sobre el snapshot de la reserva.
+- Se agrega `packages/shared/reservationTicketQuantity.ts` y ambos endpoints pasan a resolver la cantidad asi:
+  `total_ticket_units` -> `ticket_quantity` -> `codes.length` -> `table.ticket_count` -> `1`.
+- No se tocaron migraciones ni data remota; el fix vive solo en logica de aplicacion y protege reservas historicas sin reescribir filas.
+- Evidencia SQL local del problema antes del fix:
+  - `1ad47571-e235-414b-a9e8-817ec33105d7` `pending` `reservation_ticket_qty=10` `live_table_qty=12`
+  - `8f6532da-4dbf-47f5-a4cb-a1b6ddd4314f` `pending` `reservation_ticket_qty=10` `live_table_qty=12`
+  - `a5ef7149-c304-4ea8-8b6d-92c62d398ec1` `pending` `reservation_ticket_qty=6` `live_table_qty=12`
+- Verificacion del fix: `pnpm exec vitest run apps/backoffice/app/api/reservations/update/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts`, `pnpm typecheck:backoffice`, `git diff --check`, `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "select tr.id, tr.status, tr.ticket_quantity as reservation_ticket_qty, tbl.ticket_count as live_table_qty, coalesce(array_length(tr.codes,1),0) as codes_count, tr.total_ticket_units from public.table_reservations tr left join public.tables tbl on tbl.id = tr.table_id where tr.deleted_at is null and tr.sale_origin='table' and tr.status='pending' and coalesce(tr.ticket_quantity,0) > 0 and coalesce(tbl.ticket_count,0) > coalesce(tr.ticket_quantity,0) order by tr.created_at desc limit 20;"`.
+
 ### 2026-05-27 - REQ-0012 kick-off
 
 - Producto priorizo el frente `venta y configuracion de tickets`, luego `backoffice/UX visible` y despues `entrega/lectura de entradas`.

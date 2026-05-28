@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createTicketForReservation } from "../utils";
 import { sendApprovalEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import {
   normalizeDocument,
   validateDocument,
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))",
+      "id,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,total_ticket_units,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -193,16 +194,13 @@ export async function POST(req: NextRequest) {
     (reservation as any).event_id ||
     eventDirectRel?.id ||
     null;
-  const reservationTicketQty =
-    typeof (reservation as any).ticket_quantity === "number" &&
-    (reservation as any).ticket_quantity > 0
-      ? Math.floor((reservation as any).ticket_quantity)
-      : 0;
-  const tableTicketQty =
-    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0
-      ? Math.floor(tableRel.ticket_count)
-      : 0;
-  const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
+  const ticketQuantity = resolveReservationTicketQuantity({
+    totalTicketUnits: (reservation as any).total_ticket_units,
+    ticketQuantity: (reservation as any).ticket_quantity,
+    codesCount: codesList.length,
+    liveTableTicketCount: tableRel?.ticket_count,
+    minimum: 1,
+  });
   const tableName = tableRel?.name || "Entrada";
   const isTableReservation =
     (reservation as any).sale_origin === "table" || Boolean(tableRel?.id);

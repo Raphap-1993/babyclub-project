@@ -47,6 +47,7 @@ last_reviewed: 2026-05-28
 - Dashboard tickets: el resumen ahora trata `sale_origin='ticket' + codes.type='courtesy'` como `general` para métricas, corrigiendo las `37` entradas pagadas de `BABY RAVE | ABYSS` que el schema legacy obligaba a guardar con tipo técnico `courtesy`.
 - Landing compra: el selector de `Evento` ya vive arriba del flujo publico en `Solo entrada` y `Reserva mesa`, mientras `Compra segura y validada por BABY` baja al tramo legal junto a la aceptacion final.
 - Landing compra: si hay multiples eventos activos, `/compra` ya no autoselecciona el primero por fecha ni muestra su lote/precio como default; solo autoselecciona cuando existe exactamente un evento habilitado.
+- Backoffice reservas: aprobacion y reenvio de mesas ya respetan la cantidad snapshot guardada en la reserva y no sobreemiten tickets si la mesa o el pack fueron editados despues.
 
 ## Riesgos abiertos para siguientes requerimientos
 

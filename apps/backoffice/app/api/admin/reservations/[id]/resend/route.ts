@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { createTicketForReservation } from "../../../../reservations/utils";
 import {
   sendApprovalEmail,
@@ -111,11 +112,12 @@ export async function POST(
         status,
         codes,
         ticket_quantity,
+        total_ticket_units,
         attendees,
         event_id,
         promoter_id,
         table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))
-        `,
+      `,
       )
       .eq("id", id),
   );
@@ -168,16 +170,15 @@ export async function POST(
   const tableName = tableRel?.name || "Entrada";
   const isTicketOnlyReservation =
     (reservation as any).sale_origin === "ticket" || !tableRel?.id;
-  const reservationTicketQty =
-    typeof (reservation as any).ticket_quantity === "number" &&
-    (reservation as any).ticket_quantity > 0
-      ? Math.floor((reservation as any).ticket_quantity)
-      : 0;
-  const tableTicketQty =
-    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0
-      ? Math.floor(tableRel.ticket_count)
-      : 0;
-  const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
+  const ticketQuantity = resolveReservationTicketQuantity({
+    totalTicketUnits: (reservation as any).total_ticket_units,
+    ticketQuantity: (reservation as any).ticket_quantity,
+    codesCount: Array.isArray((reservation as any).codes)
+      ? (reservation as any).codes.length
+      : 0,
+    liveTableTicketCount: tableRel?.ticket_count,
+    minimum: 1,
+  });
 
   if (isTicketOnlyReservation) {
     const { data: unitRows, error: unitsError } = await applyNotDeleted(

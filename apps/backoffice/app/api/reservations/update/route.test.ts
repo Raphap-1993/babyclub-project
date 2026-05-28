@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSupabaseMock } from "../../../../../../tests/utils/supabaseMock";
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
@@ -117,5 +118,86 @@ describe("POST /api/reservations/update", () => {
     expect(reservationUpdate?.payload).toMatchObject({
       status: "approved",
     });
+  });
+
+  it("aprueba una reserva de mesa usando la cantidad snapshot y no el ticket_count actual de la mesa", async () => {
+    process.env.RESEND_API_KEY = "test-resend-key";
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-table-1",
+            sale_origin: "table",
+            table_id: "table-1",
+            product_id: "product-1",
+            full_name: "Mesa Snapshot",
+            email: "mesa@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "12345678",
+            codes: Array.from({ length: 10 }, (_, index) => `CODE-${index + 1}`),
+            ticket_quantity: 10,
+            total_ticket_units: 10,
+            attendees: [],
+            event_id: "event-1",
+            promoter_id: null,
+            event: {
+              id: "event-1",
+              name: "Baby Club",
+              starts_at: "2099-02-01T04:00:00.000Z",
+              location: "Lima",
+            },
+            table: {
+              id: "table-1",
+              name: "Mesa 5",
+              event_id: "event-1",
+              ticket_count: 12,
+              event: {
+                id: "event-1",
+                name: "Baby Club",
+                starts_at: "2099-02-01T04:00:00.000Z",
+                location: "Lima",
+              },
+            },
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: Array.from({ length: 10 }, (_, index) => ({
+            code: `CODE-${index + 1}`,
+            is_active: true,
+          })),
+          error: null,
+        },
+      ],
+      "table_reservations.update": [
+        { data: null, error: null },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockImplementation(
+      async (_supabase: any, input: any) => ({
+        ticketId: `ticket-${input.reuseCodes?.[0] || "new"}`,
+        code: input.reuseCodes?.[0] || "NEW-CODE",
+      }),
+    );
+    (sendApprovalEmail as any).mockResolvedValue(undefined);
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/reservations/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "res-table-1", status: "approved" }),
+      }) as any,
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(createTicketForReservation).toHaveBeenCalledTimes(10);
+    expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
   });
 });

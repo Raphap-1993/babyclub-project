@@ -112,7 +112,7 @@ Usar esta nota como intake inicial del primer lote y luego separar cada item con
 - [x] P0/Bugfix 04: validar reporte confiable para pagar promotores y separar no-show de QR free vs entradas compradas
 - [ ] P0/Bugfix 05: distinguir visualmente entrada comprada vs QR free vs cortesia en ticket/backoffice/scan
 - [ ] P0/Bugfix 06: validar liberacion de QRs free pendiente antes de prometer salida comercial
-- [ ] P1/Bugfix 07: revisar mesas/reservas/cantidad de QRs por mesa contra data real
+- [x] P1/Bugfix 07: revisar mesas/reservas/cantidad de QRs por mesa contra data real
 - [x] P1/Bugfix 08: corregir precio inicial si carga mostrando lote/precio viejo
 - [ ] P2/Bugfix 09: pulidos visuales de logo, textos, etiquetas y scroll
 
