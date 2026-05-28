@@ -39,6 +39,7 @@ last_reviewed: 2026-05-28
 - Backoffice promotores: la creacion ya rehidrata promotores archivados para la misma persona/organizer y evita duplicados activos al reintentar el alta.
 - Landing mesas: `registro` y `compra` ya enfocan el grupo real de mesas al abrir el croquis, evitando que se vean demasiado pequeñas en desktop/mobile.
 - Scanner y QR de mesa/box: cada codigo de una misma reserva ya puede emitir tickets independientes aunque repita comprador, el scanner no los bloquea por DNI duplicado y ahora muestra el tipo comercial en paneles de color mas evidentes.
+- Correos de tickets: el endpoint publico `/api/tickets/email` ya usa el sender compartido con `process_logs`, no devuelve exito falso si Resend responde error y normaliza dominios de destinatario antes de enviar.
 
 ## Riesgos abiertos para siguientes requerimientos
 
@@ -50,6 +51,7 @@ last_reviewed: 2026-05-28
 - Falta definir monto/regla de comision para reservas de mesa; las entradas y QR free ya tienen reglas MVP.
 - Las migraciones historicas del repo usan nombres con guiones y la CLI de Supabase las omite; las migraciones nuevas de release se dejaron con timestamp valido `YYYYMMDDHHMMSS_nombre.sql`.
 - El slice `REQ-0012` todavia requiere smoke funcional con apps levantadas y migraciones aplicadas antes de tocar data real o promoverlo a un entorno con evento activo.
+- Verificacion DNS del 2026-05-28: `babyclubaccess.com` responde con A y DKIM en `resend._domainkey`, pero no devolvio TXT SPF en root ni TXT `_dmarc`; eso puede seguir afectando entregabilidad en `icloud.com` y `outlook.com` fuera del codigo.
 
 ## Siguiente paso recomendado
 

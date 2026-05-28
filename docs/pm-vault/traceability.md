@@ -59,6 +59,14 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - El scanner del backoffice ahora renderiza un panel de color con tipo detectado e instruccion operacional para `Mesa / Box`, `EARLY`, `ALL NIGHT`, `General`, `Promotor` y `Cortesia`.
 - Verificacion del fix: `pnpm exec vitest run apps/backoffice/app/admin/scan/scanPresentation.test.ts apps/backoffice/app/api/scan/route.test.ts apps/landing/app/api/tickets/route.test.ts`, `pnpm typecheck:backoffice`, `pnpm typecheck:landing`, `git diff --check`.
 
+### 2026-05-28 - Correos de tickets con sender unico y diagnostico de deliverability
+
+- `POST /api/tickets/email` deja de tener una implementacion paralela y reutiliza `sendTicketEmail`, con la misma validacion, logging en `process_logs` y manejo de `result.error` del proveedor.
+- Se agrega normalizacion central de emails en `packages/shared/email/address.ts`, bajando el dominio del destinatario y deduplicando listas antes de llamar a Resend.
+- `sendTicketEmail`, `sendApprovalEmail` y `sendCancellationEmail` ahora registran `recipient_domain` en metadata de `process_logs` para poder segmentar fallas por dominio.
+- Diagnostico externo del 2026-05-28: `dig +short A babyclubaccess.com` responde `216.198.79.1`; `dig +short TXT resend._domainkey.babyclubaccess.com` devuelve clave DKIM; `dig +short TXT babyclubaccess.com` y `dig +short TXT _dmarc.babyclubaccess.com` no devolvieron registros, lo que deja una hipotesis fuerte de entregabilidad deficiente hacia `icloud.com` y `outlook.com`.
+- Verificacion del fix: `pnpm exec vitest run apps/landing/app/api/tickets/email/route.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts`, `pnpm typecheck:landing`, `pnpm typecheck:backoffice`, `git diff --check`.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.
