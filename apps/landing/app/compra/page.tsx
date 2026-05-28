@@ -1567,7 +1567,7 @@ function CompraContent() {
                       labelMode="number"
                       minSlotSizePx={0}
                       minSlotScreenPx={14}
-                      focusOnSlots={false}
+                      focusOnSlots
                       focusOnSlotsOnMobile
                     />
                   </div>

@@ -45,6 +45,13 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Si ya existe un promotor activo para la misma persona y organizer, devuelve `409` para no duplicar registros operativos.
 - Verificacion del fix: `pnpm exec vitest run apps/backoffice/app/api/promoters/create/route.test.ts`, `pnpm typecheck:backoffice`, `git diff --check`.
 
+### 2026-05-28 - Ajuste visual mesas publicas
+
+- `TableMap` expone helpers de framing para prueba unitaria y se agrega guardrail en `apps/landing/app/registro/TableMap.test.ts`.
+- `registro` y `compra` dejan de abrir el croquis con vista completa y activan `focusOnSlots` para enfocar el grupo real de mesas tambien en desktop.
+- Smoke local con evento sintetico `SMOKE REQ-0012` y tres mesas de prueba confirma que el mapa abre acercado sobre las mesas, no sobre todo el plano.
+- Verificacion del fix: `pnpm exec vitest run apps/landing/app/registro/TableMap.test.ts apps/landing/app/registro/tableSlotUtils.test.ts`, `pnpm typecheck:landing`, `git diff --check`.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.
