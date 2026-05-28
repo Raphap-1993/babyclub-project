@@ -389,7 +389,7 @@ function VerticalTicket({
   ticket: TicketView;
   promoterName: string | null;
   extraCodes: string[];
-  warnings: Array<{ title: string; body: string }>;
+  warnings: Array<{ title: string; body: string; tone: WarningTone }>;
   showAdditionalInfo: boolean;
   eventDateLabel: string;
   eventTimeLabel: string;
@@ -432,12 +432,14 @@ function VerticalTicket({
             {warnings.map((warn) => (
               <div
                 key={warn.title}
-                className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-50"
+                className={`rounded-xl border px-3 py-2 text-[11px] ${getWarningToneClasses(
+                  warn.tone,
+                )}`}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em]">
                   {warn.title}
                 </p>
-                <p className="text-xs leading-relaxed text-amber-50/90">
+                <p className="text-xs leading-relaxed opacity-90">
                   {warn.body}
                 </p>
               </div>
@@ -592,13 +594,14 @@ function buildWarnings({
   ticketTypeLabel: string | null;
   reservationSaleOrigin: "table" | "ticket" | null;
 }) {
-  const items: { title: string; body: string }[] = [];
+  const items: { title: string; body: string; tone: WarningTone }[] = [];
   if (codeType === "free") {
     items.push({
       title: "QR libre",
       body: expiresLabel
         ? `Hora límite de ingreso: ${expiresLabel}.`
         : "QR libre con hora límite configurable. Llega temprano para asegurar tu ingreso.",
+      tone: "free",
     });
   } else if (codeType === "general") {
     items.push({
@@ -608,17 +611,66 @@ function buildWarnings({
         : eventTimeLabel
         ? `Hora de ingreso del evento: ${eventTimeLabel}.`
         : "QR con hora límite configurable.",
+      tone: "general",
     });
   } else if (reservationSaleOrigin === "ticket" && ticketTypeLabel) {
     items.push({
       title: ticketTypeLabel,
       body: "Entrada nominada emitida desde una compra por paquetes.",
+      tone: "ticket",
+    });
+  } else if (hasTableContext) {
+    items.push({
+      title: "Mesa / Box",
+      body: "Este QR corresponde a un cupo individual de mesa o box.",
+      tone: "table",
+    });
+  } else if (isPromoterCode) {
+    items.push({
+      title: "QR promotor",
+      body: "Este QR no tiene límite de hora de ingreso.",
+      tone: "promoter",
+    });
+  } else if (codeType === "courtesy") {
+    items.push({
+      title: "QR cortesía",
+      body: "Este QR no tiene límite de hora de ingreso.",
+      tone: "courtesy",
     });
   } else {
     items.push({
-      title: isPromoterCode || hasTableContext ? "QR de mesa / promotor" : "QR",
+      title: "QR",
       body: "Este QR no tiene límite de hora de ingreso.",
+      tone: "neutral",
     });
   }
   return items;
+}
+
+type WarningTone =
+  | "free"
+  | "general"
+  | "ticket"
+  | "table"
+  | "promoter"
+  | "courtesy"
+  | "neutral";
+
+function getWarningToneClasses(tone: WarningTone) {
+  switch (tone) {
+    case "free":
+      return "border-amber-400/40 bg-amber-400/10 text-amber-50";
+    case "general":
+      return "border-fuchsia-400/35 bg-fuchsia-400/10 text-fuchsia-50";
+    case "ticket":
+      return "border-emerald-400/40 bg-emerald-400/10 text-emerald-50";
+    case "table":
+      return "border-cyan-400/40 bg-cyan-400/10 text-cyan-50";
+    case "promoter":
+      return "border-sky-400/40 bg-sky-400/10 text-sky-50";
+    case "courtesy":
+      return "border-rose-400/40 bg-rose-400/10 text-rose-50";
+    default:
+      return "border-white/15 bg-white/5 text-white";
+  }
 }

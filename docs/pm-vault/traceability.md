@@ -74,6 +74,21 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Smoke SQL local tras aplicar la migracion: `select * from public.get_qr_summary_all(now() - interval '30 days') where event_id = 'c6299a6e-729f-401d-821f-73ddd6f2a5d6';` devuelve `total_qr = 9` y `by_type = {"courtesy": 9}` para el evento sintetico `SMOKE REQ-0012`, en lugar de contarlo como `table`.
 - Verificacion del fix: `pnpm exec vitest run packages/api-logic/qr-summary.test.ts apps/landing/app/api/tickets/email/route.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts`, `pnpm typecheck:landing`, `pnpm typecheck:backoffice`, `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/migrations/20260528173000_fix_qr_summary_table_classification.sql`, `git diff --check`.
 
+### 2026-05-28 - Ticket publico distingue mesa, promotor y cortesia
+
+- La vista `/ticket/[id]` deja de usar el bloque ambiguo `QR de mesa / promotor` y separa el copy operacional segun contexto comercial real del QR.
+- `buildWarnings()` ahora distingue `Mesa / Box`, `QR promotor`, `QR cortesía`, `QR libre`, `QR general` y `ticket-only`, con tonos visuales dedicados para acelerar lectura en puerta.
+- Se agregan pruebas de presentacion server-side para evitar regresion visual del mensaje en tickets de mesa/box y promotor.
+- Verificacion del fix: `pnpm exec vitest run apps/landing/app/ticket/[id]/page.presentation.test.tsx apps/landing/app/ticket/[id]/page.ticket-only.test.tsx`, `pnpm typecheck:landing`, `git diff --check`.
+
+### 2026-05-28 - Backup pre-migracion remoto tomado por API
+
+- Antes de cualquier intento de migracion remota sobre `babyclub-access`, se tomo snapshot del proyecto remoto con artefactos `public schema`, `public data` y `auth users` en `/Users/rapha/tmp/babyclub-clones/20260528-171753`.
+- El intento de `supabase db dump --linked --schema public` contra `db.wtwnhqbbcocpnqqsybln.supabase.co` fallo por resolucion DNS del host Postgres directo, incluso reintentando con `--dns-resolver https`.
+- Como fallback seguro se ejecuto `node scripts/local/clone-remote-public.mjs --remote-env ... --local-env ... --out-dir /Users/rapha/tmp/babyclub-clones/20260528-171753 --no-apply`, que exporto schema, data y usuarios sin aplicar cambios en remoto ni en local.
+- Conteo del snapshot API: `events=5`, `event_ticket_types=20`, `tables=22`, `table_availability=43`, `table_products=67`, `table_reservations=290`, `codes=1428`, `tickets=1644`, `persons=895`, `promoters=25`, `process_logs=350`, `scan_logs=1999`.
+- Preflight de migraciones enlazadas: `supabase migration list` muestra tres migraciones locales pendientes respecto del remoto (`20260527213000`, `20260528010000`, `20260528173000`), por lo que `supabase db push --linked` no es un paso seguro para un hotfix puntual del dashboard.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.
