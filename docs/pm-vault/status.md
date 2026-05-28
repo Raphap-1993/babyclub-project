@@ -49,6 +49,7 @@ last_reviewed: 2026-05-28
 - Landing compra: si hay multiples eventos activos, `/compra` ya no autoselecciona el primero por fecha ni muestra su lote/precio como default; solo autoselecciona cuando existe exactamente un evento habilitado.
 - Backoffice reservas: aprobacion y reenvio de mesas ya respetan la cantidad snapshot guardada en la reserva y no sobreemiten tickets si la mesa o el pack fueron editados despues.
 - Backoffice tickets: la lista y el detalle ya muestran badge operativo para `Entrada comprada`, `QR libre`, `QR cortesia`, `QR promotor` y `Mesa / Box`, usando `sale_origin` + `ticket_type_label` para no confundir compras pagadas legacy con `courtesy`.
+- QR free: la liberacion comercial queda explicitamente bloqueada por defecto con `ENABLE_FREE_QR_CODES`; hoy no existe generacion por lotes en backoffice ni data `codes.type='free'` en la clonacion local, asi que `REQ-0009` sigue pendiente como feature real.
 
 ## Riesgos abiertos para siguientes requerimientos
 

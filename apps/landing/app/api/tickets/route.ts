@@ -3,6 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
+import {
+  FREE_QR_DISABLED_MESSAGE,
+  isFreeQrCodeType,
+  isFreeQrReleaseEnabled,
+} from "shared/freeQrGate";
 import { isAdult } from "shared/datetime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -74,6 +79,17 @@ export async function POST(req: NextRequest) {
 
   if (codeError || !codeRow) {
     return NextResponse.json({ success: false, error: "Código inválido" }, { status: 404 });
+  }
+
+  if (isFreeQrCodeType((codeRow as any).type) && !isFreeQrReleaseEnabled()) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: FREE_QR_DISABLED_MESSAGE,
+        code: "free_qr_disabled",
+      },
+      { status: 409 },
+    );
   }
 
   if (codeRow.is_active === false) {

@@ -15,13 +15,64 @@ describe("POST /api/tickets", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
   });
 
-  it("crea ticket free con código válido", async () => {
+  it("bloquea ticket free cuando el release flag no está habilitado", async () => {
+    delete process.env.ENABLE_FREE_QR_CODES;
+
     const { supabase } = createSupabaseMock({
       "codes.select": [
         {
           data: {
             id: "code-1",
             code: "FREE-123",
+            type: "free",
+            event_id: "event-1",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 999,
+            uses: 0,
+            expires_at: null,
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "FREE-123",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Ana",
+        apellido_paterno: "Perez",
+        apellido_materno: "Lopez",
+        email: "ana@example.com",
+        telefono: "+51999999999",
+        birthdate: "1999-01-01",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.code).toBe("free_qr_disabled");
+  });
+
+  it("crea ticket free con código válido cuando el release flag está habilitado", async () => {
+    process.env.ENABLE_FREE_QR_CODES = "true";
+
+    const { supabase } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-1",
+            code: "FREE-123",
+            type: "free",
             event_id: "event-1",
             promoter_id: null,
             is_active: true,
