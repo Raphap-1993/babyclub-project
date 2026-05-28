@@ -106,6 +106,17 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Verificacion remota posterior: `pg_get_functiondef` confirma la regla `when t.table_id is not null then 'table'`, y el smoke `select * from public.get_qr_summary_all((now() - interval '30 days')::timestamptz) order by date desc limit 10;` devolvio `BABY RAVE | ABYSS` con `total_qr = 199` y `by_type = {courtesy: 37, general: 161, table: 1}`.
 - Rollback preparado: `supabase db query --linked -f supabase/manual/2026-05-28-hotfix-get_qr_summary_all.rollback.sql`; tras ese rollback la app volveria al fallback legacy porque el estado previo remoto no tenia el RPC.
 
+### 2026-05-28 - Dashboard reagrupa ticket-only pagado como general
+
+- Investigacion remota posterior detecto que el numero del dashboard seguia viendose mal porque `37` tickets del evento `BABY RAVE | ABYSS` estaban guardados con `codes.type='courtesy'` aunque venian de `table_reservations.sale_origin='ticket'`.
+- Intentar mutar esos `codes.type` en remoto no es seguro hoy: el SQL fallo con la restriccion `codes_one_general_per_event`, confirmando que el schema legacy no permite convertirlos fisicamente a `general`.
+- Se revierte cualquier intento de cambiar el tipo emitido en runtime y se fija la correccion en la capa de resumen:
+  - `packages/api-logic/qr-summary.ts` ahora trata `courtesy + sale_origin='ticket'` como `general` en el fallback legacy;
+  - `supabase/migrations/20260528173000_fix_qr_summary_table_classification.sql` y `supabase/manual/2026-05-28-hotfix-get_qr_summary_all.sql` incorporan la misma regla en SQL.
+- Backup previo adicional tomado por API en [20260528-175002](</Users/rapha/tmp/babyclub-clones/20260528-175002>) antes de reaplicar el RPC remoto.
+- Verificacion remota final: `select * from public.get_qr_summary_all((now() - interval '30 days')::timestamptz) where event_id = '90c84915-3b1a-402c-b5c3-781b50cdfbdd';` devuelve `total_qr = 199` y `by_type = {general: 198, table: 1}`.
+- Verificacion de codigo: `pnpm exec vitest run packages/api-logic/qr-summary.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/backoffice/app/api/scan/route.test.ts`, `pnpm typecheck:landing`, `git diff --check`.
+
 ### 2026-05-28 - REQ-0012 implementado en worktree aislado
 
 - Se aprobo y ejecuto el slice incremental sobre Baby actual: catalogo flexible por evento, compra por paquetes y nominacion posterior obligatoria antes de emitir/usar cada QR.

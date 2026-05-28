@@ -27,12 +27,18 @@ scoped_tickets as (
     t.event_id,
     case
       when t.table_id is not null then 'table'
+      when coalesce(tr.sale_origin, '') = 'ticket'
+        and coalesce(nullif(c.type, ''), 'desconocido') = 'courtesy'
+        then 'general'
       else coalesce(nullif(c.type, ''), 'desconocido')
     end as type_key
   from public.tickets t
   left join public.codes c
     on c.id = t.code_id
    and c.deleted_at is null
+  left join public.table_reservations tr
+    on tr.id = t.table_reservation_id
+   and tr.deleted_at is null
   where t.deleted_at is null
     and coalesce(t.is_active, true)
     and t.event_id in (select id from scoped_events)

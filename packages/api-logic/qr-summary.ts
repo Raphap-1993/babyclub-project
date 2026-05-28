@@ -31,6 +31,11 @@ type CodeRow = {
   is_active: boolean | null;
 };
 
+type ReservationCommercialRow = {
+  id: string;
+  sale_origin: "table" | "ticket" | null;
+};
+
 type RpcQrSummaryRow = {
   event_id: string;
   name: string | null;
@@ -86,6 +91,8 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
 
   let codeMap = new Map<string, CodeRow>();
   let codesErrorMessage: string | undefined;
+  let reservationMap = new Map<string, ReservationCommercialRow>();
+  let reservationsErrorMessage: string | undefined;
 
   if (codeIds.length > 0) {
     const { data: codesRaw, error: codesError } = await supabase
@@ -97,6 +104,30 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
       codesErrorMessage = codesError.message;
     } else {
       codeMap = new Map(((codesRaw || []) as CodeRow[]).map((code) => [code.id, code]));
+      const reservationIds = Array.from(
+        new Set(
+          ((codesRaw || []) as CodeRow[])
+            .map((code) => code.table_reservation_id)
+            .filter(Boolean) as string[],
+        ),
+      );
+      if (reservationIds.length > 0) {
+        const { data: reservationsRaw, error: reservationsError } =
+          await supabase
+            .from("table_reservations")
+            .select("id,sale_origin")
+            .is("deleted_at", null)
+            .in("id", reservationIds);
+        if (reservationsError) {
+          reservationsErrorMessage = reservationsError.message;
+        } else {
+          reservationMap = new Map(
+            ((reservationsRaw || []) as ReservationCommercialRow[]).map(
+              (reservation) => [reservation.id, reservation],
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -111,7 +142,15 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
       return;
     }
 
-    const type = row.table_id ? "table" : codeRow?.type || "desconocido";
+    const reservationRow =
+      codeRow?.table_reservation_id
+        ? reservationMap.get(codeRow.table_reservation_id)
+        : null;
+    const type = row.table_id
+      ? "table"
+      : codeRow?.type === "courtesy" && reservationRow?.sale_origin === "ticket"
+        ? "general"
+        : codeRow?.type || "desconocido";
 
     if (!byEvent[eid]) {
       byEvent[eid] = { by_type: {}, total_qr: 0 };
@@ -127,7 +166,10 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
     date: event.starts_at || "",
     total_qr: byEvent[event.id]?.total_qr || 0,
     by_type: byEvent[event.id]?.by_type || {},
-    error: ticketsError?.message || codesErrorMessage,
+    error:
+      ticketsError?.message ||
+      codesErrorMessage ||
+      reservationsErrorMessage,
   }));
 }
 

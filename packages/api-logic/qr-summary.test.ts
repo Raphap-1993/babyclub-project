@@ -66,6 +66,17 @@ describe("getQrSummaryAll", () => {
           error: null,
         },
       ],
+      "table_reservations.select": [
+        {
+          data: [
+            {
+              id: "res-ticket-1",
+              sale_origin: "ticket",
+            },
+          ],
+          error: null,
+        },
+      ],
     });
 
     (supabase as any).rpc = vi.fn().mockResolvedValue({
@@ -85,7 +96,7 @@ describe("getQrSummaryAll", () => {
       event_id: "event-1",
       total_qr: 2,
       by_type: {
-        courtesy: 2,
+        general: 2,
       },
     });
     expect(summaries[0].by_type.table).toBeUndefined();

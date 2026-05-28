@@ -1,6 +1,8 @@
 -- Hotfix puntual para el dashboard QR en remoto.
 -- Crea o reemplaza el RPC get_qr_summary_all sin empujar otras migraciones pendientes.
--- Regla corregida: solo clasificar "table" cuando tickets.table_id no sea null.
+-- Reglas corregidas:
+-- - solo clasificar "table" cuando tickets.table_id no sea null;
+-- - si sale_origin='ticket' y codes.type='courtesy', resumirlo como "general".
 
 create or replace function public.get_qr_summary_all(
   p_cutoff timestamptz default (now() - interval '7 days')
@@ -31,12 +33,18 @@ scoped_tickets as (
     t.event_id,
     case
       when t.table_id is not null then 'table'
+      when coalesce(tr.sale_origin, '') = 'ticket'
+        and coalesce(nullif(c.type, ''), 'desconocido') = 'courtesy'
+        then 'general'
       else coalesce(nullif(c.type, ''), 'desconocido')
     end as type_key
   from public.tickets t
   left join public.codes c
     on c.id = t.code_id
    and c.deleted_at is null
+  left join public.table_reservations tr
+    on tr.id = t.table_reservation_id
+   and tr.deleted_at is null
   where t.deleted_at is null
     and coalesce(t.is_active, true)
     and t.event_id in (select id from scoped_events)
