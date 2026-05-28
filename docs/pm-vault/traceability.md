@@ -133,6 +133,16 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - Smoke visual local en `http://127.0.0.1:3001/compra`: `Solo entrada` muestra `EVENTO` arriba del selector de tipo/paquete y `Reserva mesa` mantiene el mismo orden antes del croquis.
 - Verificacion del fix: `pnpm exec vitest run apps/landing/app/compra/page.layout.test.tsx`, `pnpm typecheck:landing`, `git diff --check`, screenshot local de `Solo entrada` y `Reserva mesa` via Puppeteer.
 
+### 2026-05-28 - Compra ya no precarga lote/precio de un evento viejo
+
+- Investigacion de causa raiz: el bug no venia de un precio stale en React, sino de la autoseleccion del primer evento activo por `starts_at asc`; con multiples eventos, `/compra` mostraba el lote/precio del evento mas antiguo antes de que el usuario eligiera el correcto.
+- Se extrae `apps/landing/app/compra/purchaseState.ts` para decidir el default del checkout: si hay un solo evento activo se autoselecciona; si hay varios, el selector queda vacio y no toma el primer evento por fecha.
+- `apps/landing/app/compra/page.tsx` ahora usa `resolveInitialTicketEventId()` tanto al recibir `/api/events` como al recalcular `ticketEventOptions`, y actualiza el CTA para mostrar `Selecciona evento` en vez de `Sin entradas disponibles` cuando la falta es de contexto, no de stock.
+- Se agrega `apps/landing/app/compra/purchaseState.test.ts` para fijar el comportamiento en tres casos: multiples eventos, evento ya elegido y evento unico, mas el copy del CTA cuando falta seleccionar.
+- Evidencia de reproduccion local: en la base local habia dos eventos activos (`DISCO ANIVERSARIO`, `SMOKE REQ-0012`) y antes del fix el checkout abria con `DISCO ANIVERSARIO` por ser el primero en fecha.
+- Smoke operativo con `.env.local` real: en entorno con un solo evento activo (`BABY RAVE | ABYSS`), `/compra` sigue autoseleccionando el unico evento y muestra `ALL NIGHT SOLO` `S/ 20` sin regresion.
+- Verificacion del fix: `pnpm exec vitest run apps/landing/app/compra/purchaseState.test.ts apps/landing/app/compra/page.layout.test.tsx`, `pnpm typecheck:landing`, `git diff --check`, `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "select id,name,starts_at,is_active,sale_status,closed_at from public.events order by starts_at asc;"`, smoke visual local via Puppeteer.
+
 ### 2026-05-27 - REQ-0012 kick-off
 
 - Producto priorizo el frente `venta y configuracion de tickets`, luego `backoffice/UX visible` y despues `entrega/lectura de entradas`.

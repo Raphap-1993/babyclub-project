@@ -25,6 +25,10 @@ import { useCulqiAvailability } from "lib/useCulqiAvailability";
 import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
 import { PurchaseModeControls } from "./PurchaseModeControls";
+import {
+  getTicketSubmitLabel,
+  resolveInitialTicketEventId,
+} from "./purchaseState";
 
 const CULQI_ENABLED =
   process.env.NEXT_PUBLIC_CULQI_ENABLED?.toLowerCase() === "true";
@@ -437,9 +441,7 @@ function CompraContent() {
       .then((data) => {
         const events = Array.isArray(data?.events) ? data.events : [];
         setEventOptions(events);
-        if (events.length > 0) {
-          setTicketEventId((prev) => prev || events[0]?.id || "");
-        }
+        setTicketEventId((prev) => resolveInitialTicketEventId(prev, events));
       })
       .catch(() => setEventOptions([]));
   }, []);
@@ -1151,13 +1153,12 @@ function CompraContent() {
     selectedEventId || tableInfo?.event_id || null,
   );
   const ticketRequiresEvent = ticketEventOptions.length > 0;
-  const firstTicketEventId = ticketEventOptions[0]?.id || "";
 
   useEffect(() => {
-    if (!ticketEventId && firstTicketEventId) {
-      setTicketEventId(firstTicketEventId);
-    }
-  }, [ticketEventId, firstTicketEventId]);
+    setTicketEventId((prev) =>
+      resolveInitialTicketEventId(prev, ticketEventOptions),
+    );
+  }, [ticketEventOptions]);
 
   useEffect(() => {
     if (!canUseCulqiForMesa && selectedPaymentMethod === "culqi") {
@@ -1434,13 +1435,13 @@ function CompraContent() {
               }
               className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
             >
-              {ticketLoading
-                ? "Procesando..."
-                : ticketSaleBlock
-                  ? "Venta bloqueada"
-                  : !selectedTicketType
-                    ? "Sin entradas disponibles"
-                    : "Revisar compra"}
+              {getTicketSubmitLabel({
+                loading: ticketLoading,
+                ticketSaleBlocked: Boolean(ticketSaleBlock),
+                ticketRequiresEvent,
+                ticketEventId,
+                hasSelectedTicketType: Boolean(selectedTicketType),
+              })}
             </button>
             <button
               type="button"
