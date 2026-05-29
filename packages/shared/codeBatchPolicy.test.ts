@@ -20,17 +20,18 @@ describe("codeBatchPolicy", () => {
     ).toBe(false);
   });
 
-  it("resuelve closed cuando el lote ya esta cerrado", () => {
+  it("conserva el motivo almacenado cuando el lote ya esta cerrado", () => {
     expect(
       resolveBatchCloseReason(
         {
           closed_at: "2026-05-28T18:00:00.000Z",
+          closed_reason: "quota",
           expires_at: "2026-05-28T17:00:00.000Z",
           remaining_usable_codes: 0,
         },
         new Date("2026-05-28T19:00:00.000Z"),
       ),
-    ).toBe("closed");
+    ).toBe("quota");
   });
 
   it("resuelve expired cuando expires_at ya vencio", () => {

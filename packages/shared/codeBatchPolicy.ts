@@ -1,14 +1,16 @@
 export type CodeTypePolicy = {
   code_type: string;
   requires_expiration: boolean;
-  updated_by_staff_id?: string | null;
-  updated_at?: string | null;
+  updated_by_staff_id: string | null;
+  updated_at: string | null;
 };
 
 export type CodeBatchCloseReason = "closed" | "expired" | "quota" | null;
 
 export type CodeBatchCloseCandidate = {
   closed_at?: string | Date | null;
+  closed_reason?: CodeBatchCloseReason | string | null;
+  closed_by_staff_id?: string | null;
   expires_at?: string | Date | null;
   remaining_usable_codes?: number | null;
 };
@@ -41,7 +43,13 @@ export function resolveBatchCloseReason(
   batch: CodeBatchCloseCandidate | null | undefined,
   now: Date | string | number,
 ): CodeBatchCloseReason {
-  if (batch?.closed_at != null) return "closed";
+  if (batch?.closed_at != null) {
+    const storedReason = batch.closed_reason;
+    if (storedReason === "expired" || storedReason === "quota" || storedReason === "closed") {
+      return storedReason;
+    }
+    return "closed";
+  }
 
   const nowTime = toTimeValue(now);
   const expiresAtTime = toTimeValue(batch?.expires_at);
