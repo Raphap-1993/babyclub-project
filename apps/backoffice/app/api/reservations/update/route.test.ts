@@ -126,6 +126,13 @@ describe("POST /api/reservations/update", () => {
       ),
     ).toBe(true);
 
+    expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
+      callToAction: {
+        label: "Asignar asistentes",
+        url: "https://babyclubaccess.com/compra/reserva/res-ticket-1",
+      },
+    });
+
     const reservationUpdate = calls.find(
       (call) => call.table === "table_reservations" && call.op === "update",
     );
@@ -213,5 +220,6 @@ describe("POST /api/reservations/update", () => {
     expect(payload.success).toBe(true);
     expect(createTicketForReservation).toHaveBeenCalledTimes(10);
     expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
+    expect((sendApprovalEmail as any).mock.calls[0][0].callToAction).toBeNull();
   });
 });

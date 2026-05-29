@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
       event: eventData,
       resourceLabel: "Entrada",
       callToAction: {
-        label: "Completar nominación",
+        label: "Asignar asistentes",
         url: nominationUrl,
       },
     });
