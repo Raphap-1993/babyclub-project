@@ -133,6 +133,7 @@ Usar esta nota como intake inicial del primer lote y luego separar cada item con
 - [x] REQ-0009 - liberacion QR free por lotes y reglas horarias
 - [x] REQ-0010 - tipos de entradas/lotes persistidos por evento
 - [x] REQ-0013 - pulidos visuales compra/registro y estados vacios
+- [x] REQ-0014 - estado operativo de promotores y bloqueo de codigos nuevos
 
 ## Evidencia esperada
 

@@ -132,6 +132,7 @@ export default function PromoterCodesClient({
     const fullName = [person?.first_name, person?.last_name].filter(Boolean).join(" ").trim();
     return fullName || promoter.code || `Promotor ${promoter.id.slice(0, 8)}`;
   }, [promoter.code, promoter.id, promoter.person]);
+  const promoterOperational = promoter.is_active !== false;
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === eventId) || null,
@@ -300,6 +301,15 @@ export default function PromoterCodesClient({
         </CardContent>
       </Card>
 
+      {!promoterOperational ? (
+        <Card className="border-amber-500/30 bg-amber-500/10">
+          <CardContent className="pt-6 text-sm text-amber-100">
+            Este promotor está inactivo. Puedes revisar el historial de códigos y
+            links, pero no generar nuevos hasta reactivarlo.
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card className="border-[#252525]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -316,7 +326,11 @@ export default function PromoterCodesClient({
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="space-y-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Evento</span>
-                <SelectNative value={eventId} onChange={(e) => setEventId(e.target.value)}>
+                <SelectNative
+                  value={eventId}
+                  onChange={(e) => setEventId(e.target.value)}
+                  disabled={!promoterOperational}
+                >
                   <option value="">Selecciona evento</option>
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>
@@ -334,6 +348,7 @@ export default function PromoterCodesClient({
                   max={MAX_QUANTITY}
                   value={quantity}
                   onChange={(e) => setQuantity(Number(e.target.value))}
+                  disabled={!promoterOperational}
                 />
               </label>
 
@@ -345,6 +360,7 @@ export default function PromoterCodesClient({
                   max={50}
                   value={maxUses}
                   onChange={(e) => setMaxUses(Number(e.target.value))}
+                  disabled={!promoterOperational}
                 />
               </label>
 
@@ -354,6 +370,7 @@ export default function PromoterCodesClient({
                   value={prefix}
                   onChange={(e) => setPrefix(e.target.value)}
                   placeholder={suggestedPrefix}
+                  disabled={!promoterOperational}
                 />
               </label>
             </div>
@@ -365,13 +382,18 @@ export default function PromoterCodesClient({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Opcional, para control operativo"
+                disabled={!promoterOperational}
                 className="w-full rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#a60c2f]/50"
               />
             </label>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" disabled={loading}>
-                {loading ? "Generando..." : "Generar códigos"}
+              <Button type="submit" disabled={loading || !promoterOperational}>
+                {!promoterOperational
+                  ? "Promotor inactivo"
+                  : loading
+                    ? "Generando..."
+                    : "Generar códigos"}
               </Button>
               <Button
                 type="button"
@@ -379,6 +401,7 @@ export default function PromoterCodesClient({
                 onClick={() => {
                   setPrefix(suggestedPrefix);
                 }}
+                disabled={!promoterOperational}
               >
                 <Sparkles className="h-4 w-4" />
                 Usar prefijo sugerido
@@ -409,7 +432,11 @@ export default function PromoterCodesClient({
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Evento</span>
-                <SelectNative value={linkEventId} onChange={(e) => setLinkEventId(e.target.value)}>
+                <SelectNative
+                  value={linkEventId}
+                  onChange={(e) => setLinkEventId(e.target.value)}
+                  disabled={!promoterOperational}
+                >
                   <option value="">Selecciona evento</option>
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>
@@ -428,6 +455,7 @@ export default function PromoterCodesClient({
                   onChange={(e) => setLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
                   placeholder={promoter.code?.toUpperCase() || "WILLIAMS"}
                   maxLength={32}
+                  disabled={!promoterOperational}
                 />
               </label>
             </div>
@@ -439,12 +467,17 @@ export default function PromoterCodesClient({
                 value={linkNotes}
                 onChange={(e) => setLinkNotes(e.target.value)}
                 placeholder="Opcional, para control operativo"
+                disabled={!promoterOperational}
                 className="w-full rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#a60c2f]/50"
               />
             </label>
 
-            <Button type="submit" disabled={linkLoading}>
-              {linkLoading ? "Creando..." : "Crear link directo"}
+            <Button type="submit" disabled={linkLoading || !promoterOperational}>
+              {!promoterOperational
+                ? "Promotor inactivo"
+                : linkLoading
+                  ? "Creando..."
+                  : "Crear link directo"}
             </Button>
 
             {linkError ? <p className="text-sm text-red-300">{linkError}</p> : null}

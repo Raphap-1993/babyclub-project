@@ -92,7 +92,13 @@ const promoterColumns: ColumnDef<PromoterRow>[] = [
     id: "actions",
     header: "Acciones",
     size: 100,
-    cell: ({ row }) => <PromoterActions id={row.original.id} compact />,
+    cell: ({ row }) => (
+      <PromoterActions
+        id={row.original.id}
+        isActive={row.original.is_active}
+        compact
+      />
+    ),
   },
 ];
 
@@ -282,7 +288,11 @@ export default function PromotersClient({
                   {promoter.code}
                 </code>
               ) : null}
-              <PromoterActions id={promoter.id} compact />
+              <PromoterActions
+                id={promoter.id}
+                isActive={promoter.is_active}
+                compact
+              />
             </div>
           ))
         )}
