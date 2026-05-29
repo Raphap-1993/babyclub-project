@@ -194,6 +194,84 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     expect(updates[0].payload.ticket_id).toBeUndefined();
   });
 
+  it("usa el doc_type de la reserva cuando la unidad llega sin tipo de documento", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+            doc_type: "dni",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-2",
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: "",
+              doc_type: null,
+              document: "",
+              email: "",
+              phone: "",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-2",
+              full_name: "Luis Perez",
+              document: "87654321",
+              email: "luis@test.com",
+              phone: "988888888",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+
+    const updates = calls.filter(
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "update",
+    );
+    expect(updates).toHaveLength(1);
+    expect(updates[0].payload).toMatchObject({
+      full_name: "Luis Perez",
+      doc_type: "dni",
+      document: "87654321",
+      email: "luis@test.com",
+      phone: "988888888",
+      status: "nominated",
+    });
+  });
+
   it("rechaza editar la unidad 1 porque es del comprador", async () => {
     const { supabase } = createSupabaseMock({
       "table_reservations.select": [

@@ -556,7 +556,7 @@ export default function NominationClient({
               person_index: unit.person_index,
               unit_index: unit.unit_index,
               full_name: unit.full_name.trim(),
-              doc_type: unit.doc_type,
+              doc_type: unit.doc_type || "dni",
               document: unit.document.trim(),
               email: unit.email.trim() || null,
               phone: unit.phone.trim() || null,

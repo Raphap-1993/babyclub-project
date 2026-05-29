@@ -124,6 +124,11 @@ export async function PUT(
   const unitsById = new Map(
     units.data.map((unit: any) => [String(unit.id), unit]),
   );
+  const reservationDocType =
+    typeof (reservation.data as any)?.doc_type === "string" &&
+    (reservation.data as any).doc_type.trim()
+      ? ((reservation.data as any).doc_type as DocumentType)
+      : "dni";
 
   for (const raw of inputs) {
     const unitId = typeof raw?.id === "string" ? raw.id.trim() : "";
@@ -144,10 +149,13 @@ export async function PUT(
 
     const fullName =
       typeof raw?.full_name === "string" ? raw.full_name.trim() : "";
-    const docTypeRaw =
-      typeof raw?.doc_type === "string"
-        ? (raw.doc_type as DocumentType)
-        : "dni";
+    const docTypeRaw = (
+      typeof raw?.doc_type === "string" && raw.doc_type.trim()
+        ? raw.doc_type
+        : typeof existingUnit.doc_type === "string" && existingUnit.doc_type.trim()
+          ? existingUnit.doc_type
+          : reservationDocType
+    ) as DocumentType;
     const documentRaw =
       typeof raw?.document === "string" ? raw.document.trim() : "";
     const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
