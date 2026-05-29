@@ -5,6 +5,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CreditCard, Smartphone } from "lucide-react";
+import NominationClient from "./reserva/[id]/NominationClient";
+import { getNominationReservationId } from "./nominationRouting";
 import TableMap from "../registro/TableMap";
 import {
   buildMapSlotsFromTables,
@@ -86,6 +88,13 @@ type EventOption = {
 type PaymentMethod = "yape" | "culqi";
 
 export default function CompraPage() {
+  const searchParams = useSearchParams();
+  const reservationIdFromUrl = getNominationReservationId(searchParams);
+
+  if (reservationIdFromUrl) {
+    return <NominationClient reservationId={reservationIdFromUrl} />;
+  }
+
   return (
     <Suspense>
       <CompraRouter />
