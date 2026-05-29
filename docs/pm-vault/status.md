@@ -39,6 +39,7 @@ last_reviewed: 2026-05-29
 - `REQ-0012` ya quedo promovido a `master` con el flujo buyer-first: el comprador es el primer asistente, recibe su QR inmediato y la UI publica ahora pide `Completar asistentes` solo para los cupos restantes.
 - Backoffice promotores: la creacion ya rehidrata promotores archivados para la misma persona/organizer y evita duplicados activos al reintentar el alta.
 - Backoffice promotores: el estado operativo ya se maneja como `activo/inactivo` visible; el listado permite desactivar/reactivar sin archivar y los promotores inactivos ya no pueden generar códigos ni links nuevos.
+- Tickets admin: la lista `/admin/tickets` ya deduplica reemisiones antiguas por `code_id` y solo muestra el ticket activo mas reciente por QR.
 - Cortesias por lote: `REQ-0015` ya quedo implementado con politica por tipo, validacion de expiracion y cierre autoritativo por cupos/expiracion en el listado.
 - Landing mesas: `registro` y `compra` ya enfocan el grupo real de mesas al abrir el croquis, evitando que se vean demasiado pequeñas en desktop/mobile.
 - Scanner y QR de mesa/box: cada codigo de una misma reserva ya puede emitir tickets independientes aunque repita comprador, el scanner no los bloquea por DNI duplicado y ahora muestra el tipo comercial en paneles de color mas evidentes.
@@ -71,6 +72,13 @@ last_reviewed: 2026-05-29
 - Backup pre-migracion 2026-05-28: el `pg_dump` directo del host `db.wtwnhqbbcocpnqqsybln.supabase.co` fallo por DNS; se genero snapshot alternativo via API del proyecto remoto (`public schema`, `public data`, `auth users`) en artefactos locales temporales antes de considerar cualquier migracion remota.
 - El hotfix remoto del dashboard queda fuera del historial de migraciones aplicado por CLI; en la siguiente ventana de release hay que reconciliar `20260528173000` con el estado ya aplicado manualmente, ademas de revisar `20260527213000` y `20260528010000`.
 - El schema remoto todavía conserva la restriccion `codes_one_general_per_event`; por eso la correccion del bug de resumen vive en la funcion SQL y en el fallback de app, no en una mutacion masiva de `codes.type`.
+
+## Cierre diario 2026-05-29
+
+- Se cerró el ruido de reemisiones antiguas en tickets: la edición de un nominado emitido ya no crea filas nuevas en `tickets`, sino que reemite sobre el mismo `ticket_id`.
+- Se ocultaron reemisiones antiguas en `/admin/tickets` deduplicando por `code_id`, para que el backoffice no confunda reemisiones con ventas nuevas.
+- Se forzó un redeploy limpio de `landing` y `backoffice` con el commit vacío `968e0ec` para refrescar Vercel sin tocar lógica.
+- Estado de hoy: `landing` y `backoffice` quedaron con deploy `pending` en Vercel para el último push, y el trabajo de hoy quedó documentado aquí y en Obsidian.
 
 ## Siguiente paso recomendado
 
