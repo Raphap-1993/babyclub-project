@@ -121,7 +121,7 @@ export async function sendApprovalEmail({
                   callToAction?.url
                     ? `
                 <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
-                  Tu reserva quedó lista. Completa la nominación desde el enlace de abajo para asignar cada QR a una persona antes de usarlo en puerta.
+                  Tu reserva quedó lista. Asigna los asistentes desde el enlace de abajo para asociar cada QR a una persona antes de usarlo en puerta.
                   <div style="margin-top:12px;">
                     <a href="${escape(callToAction.url)}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;letter-spacing:0.02em;">${escape(callToAction.label)}</a>
                   </div>

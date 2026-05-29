@@ -211,6 +211,7 @@ export async function POST(req: NextRequest) {
     minimum: 1,
   });
   const tableName = tableRel?.name || "Entrada";
+  const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra/reserva/${encodeURIComponent(id)}`;
   const isTableReservation =
     (reservation as any).sale_origin === "table" || Boolean(tableRel?.id);
   trace.push(`eventId:${eventId || "null"}`);
@@ -341,7 +342,7 @@ export async function POST(req: NextRequest) {
           event: eventRel || eventDirectRel || null,
           resourceLabel: "Entrada",
           callToAction: {
-            label: "Completar nominación",
+            label: "Asignar asistentes",
             url: nominationUrl,
           },
         });
@@ -477,6 +478,13 @@ export async function POST(req: NextRequest) {
           ticketIds,
           tableName,
           event: eventData,
+          resourceLabel: isTableReservation ? "Mesa" : "Entrada",
+          callToAction: isTableReservation
+            ? null
+            : {
+                label: "Asignar asistentes",
+                url: nominationUrl,
+              },
         });
         emailSent = true;
         trace.push(

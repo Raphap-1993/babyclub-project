@@ -259,7 +259,7 @@ export async function POST(
       event: eventData,
       resourceLabel: "Entrada",
       callToAction: {
-        label: "Completar nominación",
+        label: "Asignar asistentes",
         url: `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra/reserva/${encodeURIComponent(id)}`,
       },
     });

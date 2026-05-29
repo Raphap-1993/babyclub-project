@@ -108,7 +108,7 @@ describe("POST /api/reservations/resend", () => {
       email: "ana@example.com",
       resourceLabel: "Entrada",
       callToAction: {
-        label: "Completar nominación",
+        label: "Asignar asistentes",
         url: "https://babyclubaccess.com/compra/reserva/res-1",
       },
     });
