@@ -44,6 +44,12 @@ export function createSupabaseMock(responses: ResponseMap) {
         state.payload = payload;
         return chain;
       },
+      rpc: (name: string, payload: any) => {
+        state.table = name;
+        state.op = "rpc";
+        state.payload = payload;
+        return chain;
+      },
       update: (payload: any) => {
         state.op = "update";
         state.payload = payload;
@@ -85,6 +91,8 @@ export function createSupabaseMock(responses: ResponseMap) {
     supabase: {
       from: (table: string) => makeChain({ table, op: "select" }),
     },
+    rpc: (name: string, payload: any) =>
+      makeChain({ table: name, op: "rpc", payload }),
     calls,
   };
 }

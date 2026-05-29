@@ -51,6 +51,23 @@ export async function POST(req: NextRequest) {
     global: { headers: { Authorization: authHeader } },
   });
 
+  const { data: policyRow, error: policyError } = await supabase
+    .from("code_type_policies")
+    .select("code_type,requires_expiration")
+    .eq("code_type", type)
+    .maybeSingle();
+
+  if (policyError) {
+    return NextResponse.json({ success: false, error: policyError.message }, { status: 400 });
+  }
+
+  if (policyRow?.requires_expiration && !expires_at_iso) {
+    return NextResponse.json(
+      { success: false, error: "expires_at requerido para este tipo" },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await supabase.rpc("generate_codes_batch", {
     p_event_id: event_id,
     p_promoter_id: promoter_id,
