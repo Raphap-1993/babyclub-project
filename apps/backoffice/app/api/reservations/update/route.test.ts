@@ -21,13 +21,20 @@ const { createTicketForReservation } = await import("../utils");
 const { sendApprovalEmail } = await import("../email");
 
 function createRouteSupabaseMock() {
-  const calls: Array<{ table: string; op: "select" | "update"; payload?: any }> =
-    [];
+  const calls: Array<{
+    table: string;
+    op: "select" | "update" | "insert";
+    payload?: any;
+  }> = [];
 
   const chainFor = (table: string) => {
     const chain: any = {
       select: () => {
         calls.push({ table, op: "select" });
+        return chain;
+      },
+      insert: (payload: any) => {
+        calls.push({ table, op: "insert", payload });
         return chain;
       },
       update: (payload: any) => {
@@ -93,9 +100,10 @@ describe("POST /api/reservations/update", () => {
     });
   });
 
-  it("aprueba ticket-only sin autoemitir tickets ni correo consolidado", async () => {
+  it("aprueba ticket-only y envía correo de nominación aunque aún no haya QR emitidos", async () => {
     const { supabase, calls } = createRouteSupabaseMock();
     (createClient as any).mockReturnValue(supabase);
+    (sendApprovalEmail as any).mockResolvedValue(undefined);
 
     const { POST } = await import("./route");
     const res = await POST(
@@ -110,7 +118,13 @@ describe("POST /api/reservations/update", () => {
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
     expect(createTicketForReservation).not.toHaveBeenCalled();
-    expect(sendApprovalEmail).not.toHaveBeenCalled();
+    expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
+    expect(
+      calls.some(
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "insert",
+      ),
+    ).toBe(true);
 
     const reservationUpdate = calls.find(
       (call) => call.table === "table_reservations" && call.op === "update",
