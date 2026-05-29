@@ -170,6 +170,59 @@ describe("POST /api/admin/reservations", () => {
     expect(String(payload.error || "")).toContain("no está disponible");
   });
 
+  it("rechaza email inválido en reserva manual", async () => {
+    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { role: "admin" } });
+
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-1",
+            name: "Mesa 1",
+            event_id: "event-1",
+            ticket_count: 6,
+            is_active: true,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [{ data: { id: "event-1", name: "Evento", event_prefix: "EVT" }, error: null }],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-1", table_id: "table-1", is_active: true }],
+          error: null,
+        },
+      ],
+      "table_availability.select": [{ data: [], error: null }],
+      "table_reservations.select": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = {
+      json: async () => ({
+        mode: "new_customer",
+        table_id: "table-1",
+        event_id: "event-1",
+        product_id: "prod-1",
+        full_name: "Ana Perez",
+        email: "ana@example",
+        phone: "999999999",
+        doc_type: "dni",
+        document: "12345678",
+        voucher_url: "https://example.com/voucher.png",
+      }),
+    } as any;
+
+    const res = await POST(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("Email inválido");
+  });
+
   it("busca dobles reservas dentro del mismo evento", async () => {
     (requireStaffRole as any).mockResolvedValue({ ok: true, context: { role: "admin" } });
 

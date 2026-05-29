@@ -12,6 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
 import { LogoutButton } from "@/components/LogoutButton";
+import {
+  getQrKindLabel,
+  getQrKindPresentation,
+  type ScanQrKind,
+} from "./scanPresentation";
 
 type Option = {
   id: string;
@@ -38,14 +43,7 @@ type ScanResult =
   | "not_found"
   | "exhausted"
   | "confirmed";
-type QrKind =
-  | "table"
-  | "ticket_early"
-  | "ticket_all_night"
-  | "ticket_general"
-  | "promoter"
-  | "courtesy"
-  | "unknown";
+type QrKind = ScanQrKind;
 
 type PersonSummary = {
   full_name: string | null;
@@ -121,6 +119,12 @@ export default function ScanClient({
   }, [entryCutoff]);
   const [modal, setModal] = useState<ScanSummary | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const lastResultPresentation = lastResult
+    ? getQrKindPresentation(lastResult.qr_kind, lastResult.qr_kind_label)
+    : null;
+  const modalPresentation = modal
+    ? getQrKindPresentation(modal.qr_kind, modal.qr_kind_label)
+    : null;
 
   useEffect(() => {
     return () => stopScanner();
@@ -388,6 +392,25 @@ export default function ScanClient({
                   <p className="text-xs uppercase tracking-[0.12em] text-white/50">
                     Último resultado
                   </p>
+                  {lastResultPresentation && (
+                    <div
+                      className={`mt-3 rounded-2xl border px-4 py-3 ${lastResultPresentation.panelClass}`}
+                    >
+                      <p
+                        className={`text-[10px] font-bold uppercase tracking-[0.2em] ${lastResultPresentation.kickerClass}`}
+                      >
+                        {lastResultPresentation.kicker}
+                      </p>
+                      <p className="mt-1 text-xl font-black tracking-tight">
+                        {lastResultPresentation.label}
+                      </p>
+                      <p
+                        className={`mt-1 text-xs leading-relaxed ${lastResultPresentation.hintClass}`}
+                      >
+                        {lastResultPresentation.hint}
+                      </p>
+                    </div>
+                  )}
                   <div className="mt-1 flex items-center justify-between gap-2">
                     <span className="truncate font-mono text-[12px] text-white">
                       {lastResult.value}
@@ -614,6 +637,26 @@ export default function ScanClient({
                   {modal.result}
                 </Badge>
               </div>
+
+              {modalPresentation && (
+                <div
+                  className={`rounded-2xl border px-4 py-4 ${modalPresentation.panelClass}`}
+                >
+                  <p
+                    className={`text-[10px] font-bold uppercase tracking-[0.22em] ${modalPresentation.kickerClass}`}
+                  >
+                    Tipo detectado
+                  </p>
+                  <p className="mt-1 text-2xl font-black tracking-tight">
+                    {modalPresentation.label}
+                  </p>
+                  <p
+                    className={`mt-1 text-sm leading-relaxed ${modalPresentation.hintClass}`}
+                  >
+                    {modalPresentation.hint}
+                  </p>
+                </div>
+              )}
 
               {modal.result === "confirmed" && (
                 <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">
@@ -931,26 +974,6 @@ function getResultHint(modal: {
   }
   if (modal.result === "invalid") return "El QR no pertenece a este evento.";
   return "No se encontró en la base de datos.";
-}
-
-function getQrKindLabel(kind?: QrKind | null, backendLabel?: string | null) {
-  if (backendLabel) return backendLabel;
-  switch (kind) {
-    case "table":
-      return "QR de mesa";
-    case "ticket_early":
-      return "QR EARLY";
-    case "ticket_all_night":
-      return "QR ALL NIGHT";
-    case "ticket_general":
-      return "QR entrada general";
-    case "promoter":
-      return "QR promotor";
-    case "courtesy":
-      return "QR cortesía";
-    default:
-      return "QR";
-  }
 }
 
 function getMatchLabel(match?: MatchType) {

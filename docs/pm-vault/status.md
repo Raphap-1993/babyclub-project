@@ -3,8 +3,8 @@ type: status
 project: babyclub-monorepo
 status: active
 owner: Patroclo
-updated: 2026-04-28
-last_reviewed: 2026-04-28
+updated: 2026-05-28
+last_reviewed: 2026-05-28
 ---
 
 # Status
@@ -35,6 +35,24 @@ last_reviewed: 2026-04-28
 - Compra de 2 entradas: `/compra` permite capturar datos de la segunda persona y guardarlos en `table_reservations.attendees` para generar QRs individuales.
 - Supabase remoto `babyclub-access`: aplicadas `20260428112000_add_ticket_reservation_attendees`, `20260428112100_add_promoter_link_trace_to_reservations` y `20260428112200_promoter_settlements_ledger`.
 - `pnpm smoke:local` valida la landing sobre `http://localhost:3001`.
+- `REQ-0012` ya quedo implementado en branch aislada con catalogo flexible por evento, compra por `package_quantity`, workspace publico de nominacion posterior, emision por unidad y gate de scanner por estado unitario.
+- Backoffice promotores: la creacion ya rehidrata promotores archivados para la misma persona/organizer y evita duplicados activos al reintentar el alta.
+- Backoffice promotores: el estado operativo ya se maneja como `activo/inactivo` visible; el listado permite desactivar/reactivar sin archivar y los promotores inactivos ya no pueden generar códigos ni links nuevos.
+- Cortesias por lote: `REQ-0015` ya quedo implementado con politica por tipo, validacion de expiracion y cierre autoritativo por cupos/expiracion en el listado.
+- Landing mesas: `registro` y `compra` ya enfocan el grupo real de mesas al abrir el croquis, evitando que se vean demasiado pequeñas en desktop/mobile.
+- Scanner y QR de mesa/box: cada codigo de una misma reserva ya puede emitir tickets independientes aunque repita comprador, el scanner no los bloquea por DNI duplicado y ahora muestra el tipo comercial en paneles de color mas evidentes.
+- Correos de tickets: el endpoint publico `/api/tickets/email` ya usa el sender compartido con `process_logs`, no devuelve exito falso si Resend responde error y normaliza dominios de destinatario antes de enviar.
+- Captura y reenvio de correos: landing, nominacion ticket-only y backoffice ya rechazan emails mal formados antes de persistir o reenviar, para que un dato roto no termine en Resend como falso problema de proveedor.
+- Dashboard tickets: el resumen QR ya solo clasifica `mesa` cuando el ticket tiene `table_id`; las compras ticket-only dejan de inflar la cuenta/composicion de mesas en home.
+- Ticket publico: la vista `/ticket/[id]` ya separa `Mesa / Box`, `QR promotor`, `QR cortesia`, `QR libre`, `QR general` y `ticket-only` con copy/tonos distintos; deja de usar el bloque ambiguo `QR de mesa / promotor`.
+- Dashboard QR remoto: el RPC `public.get_qr_summary_all` ya fue aplicado puntualmente en `babyclub-access` via `supabase db query --linked -f supabase/manual/2026-05-28-hotfix-get_qr_summary_all.sql`, sin empujar las otras migraciones pendientes del branch.
+- Dashboard tickets: el resumen ahora trata `sale_origin='ticket' + codes.type='courtesy'` como `general` para métricas, corrigiendo las `37` entradas pagadas de `BABY RAVE | ABYSS` que el schema legacy obligaba a guardar con tipo técnico `courtesy`.
+- Landing compra: el selector de `Evento` ya vive arriba del flujo publico en `Solo entrada` y `Reserva mesa`, mientras `Compra segura y validada por BABY` baja al tramo legal junto a la aceptacion final.
+- Landing compra: si hay multiples eventos activos, `/compra` ya no autoselecciona el primero por fecha ni muestra su lote/precio como default; solo autoselecciona cuando existe exactamente un evento habilitado.
+- Landing compra/registro: `Bugfix 09` ya corrige copy de estados vacios, compacta el bloque legal final y reintroduce branding BABY consistente en `/registro` usando `logoUrl` cuando existe.
+- Backoffice reservas: aprobacion y reenvio de mesas ya respetan la cantidad snapshot guardada en la reserva y no sobreemiten tickets si la mesa o el pack fueron editados despues.
+- Backoffice tickets: la lista y el detalle ya muestran badge operativo para `Entrada comprada`, `QR libre`, `QR cortesia`, `QR promotor` y `Mesa / Box`, usando `sale_origin` + `ticket_type_label` para no confundir compras pagadas legacy con `courtesy`.
+- QR free: la liberacion comercial queda explicitamente bloqueada por defecto con `ENABLE_FREE_QR_CODES`; hoy no existe generacion por lotes en backoffice ni data `codes.type='free'` en la clonacion local, asi que `REQ-0009` sigue pendiente como feature real.
 
 ## Riesgos abiertos para siguientes requerimientos
 
@@ -45,10 +63,20 @@ last_reviewed: 2026-04-28
 - Falta certificar pago real Culqi con credenciales validas antes de comunicar "tarjeta funcionando".
 - Falta definir monto/regla de comision para reservas de mesa; las entradas y QR free ya tienen reglas MVP.
 - Las migraciones historicas del repo usan nombres con guiones y la CLI de Supabase las omite; las migraciones nuevas de release se dejaron con timestamp valido `YYYYMMDDHHMMSS_nombre.sql`.
+- El slice `REQ-0012` todavia requiere smoke funcional con apps levantadas y migraciones aplicadas antes de tocar data real o promoverlo a un entorno con evento activo.
+- Verificacion DNS del 2026-05-28: `babyclubaccess.com` responde con A y DKIM en `resend._domainkey`, pero no devolvio TXT SPF en root ni TXT `_dmarc`; eso puede seguir afectando entregabilidad en `icloud.com` y `outlook.com` fuera del codigo.
+- Lectura operativa 2026-05-28: `process_logs` remoto no muestra una falla sistemica por `icloud/outlook`; el error reciente observado fue un email mal formado sin TLD. La reputacion/DNS sigue siendo riesgo externo, pero el bug de captura ya queda acotado por aplicacion.
+- El fix del dashboard depende de aplicar `20260528173000_fix_qr_summary_table_classification.sql` en cualquier entorno que ya tenga el RPC `get_qr_summary_all`; con solo deploy de app, ese entorno seguiria usando la clasificacion vieja.
+- Backup pre-migracion 2026-05-28: el `pg_dump` directo del host `db.wtwnhqbbcocpnqqsybln.supabase.co` fallo por DNS; se genero snapshot alternativo via API del proyecto remoto (`public schema`, `public data`, `auth users`) en artefactos locales temporales antes de considerar cualquier migracion remota.
+- El hotfix remoto del dashboard queda fuera del historial de migraciones aplicado por CLI; en la siguiente ventana de release hay que reconciliar `20260528173000` con el estado ya aplicado manualmente, ademas de revisar `20260527213000` y `20260528010000`.
+- El schema remoto todavía conserva la restriccion `codes_one_general_per_event`; por eso la correccion del bug de resumen vive en la funcion SQL y en el fallback de app, no en una mutacion masiva de `codes.type`.
 
 ## Siguiente paso recomendado
 
 - Usar [REQ-0003-primer-lote-requerimientos-y-correcciones.md](./01-Requirements/REQ-0003-primer-lote-requerimientos-y-correcciones.md) como intake del primer lote.
 - Cuando aparezca un item concreto, clonarlo a un REQ individual desde [99-Templates/tpl-requirement.md](./99-Templates/tpl-requirement.md).
 - REQ tecnico cerrado mas reciente: [REQ-0011-liquidaciones-promotores-ledger.md](./01-Requirements/REQ-0011-liquidaciones-promotores-ledger.md), actualizado con CRUD separado, reporte consolidado y migraciones remotas aplicadas.
+- REQ tecnico cerrado mas reciente: [REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md](./01-Requirements/REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md), implementado en el worktree `req-0012-flexible-tickets` y validado con typecheck landing/backoffice mas suite focalizada de 25 tests.
+- REQ tecnico cerrado mas reciente: [REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md](./01-Requirements/REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md), validado con suite focalizada de landing, `pnpm typecheck:landing` y smoke DOM local en `/compra` y `/registro`.
+- REQ tecnico cerrado mas reciente: [REQ-0014-estado-operativo-promotores-y-bloqueo-de-codigos.md](./01-Requirements/REQ-0014-estado-operativo-promotores-y-bloqueo-de-codigos.md), validado con suite focalizada de promotores, `pnpm typecheck:backoffice` y `git diff --check`.
 - Si el requerimiento toca tenancy, contratos API, auth, pagos, logs o migraciones, abrir revison de arquitectura antes de codificar.

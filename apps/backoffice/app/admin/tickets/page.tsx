@@ -15,8 +15,11 @@ type TicketRow = {
   phone: string | null;
   event_name: string | null;
   code_value: string | null;
+  code_type: string | null;
   promoter_name: string | null;
   table_name: string | null;
+  sale_origin: string | null;
+  ticket_type_label: string | null;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -42,7 +45,7 @@ async function getTickets(params: {
     supabase
       .from("tickets")
       .select(
-        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,promoter_id,table_reservation_id)",
+        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,type,promoter_id,table_reservation_id)",
         { count: "exact" },
       )
       .eq("is_active", true)
@@ -143,7 +146,7 @@ async function getTickets(params: {
         : Promise.resolve({ data: [] as any[], error: null }),
       codeIds.length
         ? applyNotDeleted(
-            supabase.from("codes").select("id,code").in("id", codeIds),
+            supabase.from("codes").select("id,code,type").in("id", codeIds),
           )
         : Promise.resolve({ data: [] as any[], error: null }),
       promoterIds.length
@@ -158,7 +161,7 @@ async function getTickets(params: {
         ? applyNotDeleted(
             supabase
               .from("table_reservations")
-              .select("id,table:tables(name)")
+              .select("id,sale_origin,ticket_type_label,table:tables(name)")
               .in("id", reservationIds),
           )
         : Promise.resolve({ data: [] as any[], error: null }),
@@ -166,8 +169,19 @@ async function getTickets(params: {
 
   const eventMap = new Map<string, string>();
   (eventsRes.data || []).forEach((e: any) => eventMap.set(e.id, e.name));
-  const codeMap = new Map<string, string>();
-  (codesRes.data || []).forEach((c: any) => codeMap.set(c.id, c.code));
+  const codeMetaMap = new Map<
+    string,
+    {
+      code: string | null;
+      type: string | null;
+    }
+  >();
+  (codesRes.data || []).forEach((c: any) =>
+    codeMetaMap.set(c.id, {
+      code: typeof c.code === "string" ? c.code : null,
+      type: typeof c.type === "string" ? c.type.toLowerCase() : null,
+    }),
+  );
   const promoterMap = new Map<string, string>();
   (promotersRes.data || []).forEach((p: any) => {
     const personRel = Array.isArray(p.person) ? p.person[0] : p.person;
@@ -177,15 +191,44 @@ async function getTickets(params: {
       .trim();
     promoterMap.set(p.id, full || p.code || "");
   });
-  const reservationTableMap = new Map<string, string | null>();
+  const reservationMetaMap = new Map<
+    string,
+    {
+      table_name: string | null;
+      sale_origin: string | null;
+      ticket_type_label: string | null;
+    }
+  >();
   (reservationsRes.data || []).forEach((reservation: any) => {
     const tableRel = Array.isArray(reservation.table)
       ? reservation.table[0]
       : reservation.table;
-    reservationTableMap.set(reservation.id, tableRel?.name || null);
+    reservationMetaMap.set(reservation.id, {
+      table_name: tableRel?.name || null,
+      sale_origin:
+        reservation.sale_origin === "ticket" || reservation.sale_origin === "table"
+          ? reservation.sale_origin
+          : null,
+      ticket_type_label:
+        typeof reservation.ticket_type_label === "string"
+          ? reservation.ticket_type_label
+          : null,
+    });
   });
 
-  const normalized: TicketRow[] = (data as any[]).map((t) => ({
+  const normalized: TicketRow[] = (data as any[]).map((t) => {
+    const codeRel = Array.isArray((t as any).code)
+      ? (t as any).code?.[0]
+      : (t as any).code;
+    const codeMeta = t.code_id ? codeMetaMap.get(t.code_id) || null : null;
+    const promoterId = t.promoter_id || codeRel?.promoter_id || null;
+    const reservationId =
+      (t as any).table_reservation_id || codeRel?.table_reservation_id || null;
+    const reservationMeta = reservationId
+      ? reservationMetaMap.get(reservationId) || null
+      : null;
+
+    return {
     id: t.id,
     created_at: t.created_at,
     dni: t.dni ?? null,
@@ -194,33 +237,23 @@ async function getTickets(params: {
     phone: t.phone ?? null,
     event_name: t.event_id ? (eventMap.get(t.event_id) ?? null) : null,
     code_value: (() => {
-      const codeRel = Array.isArray((t as any).code)
-        ? (t as any).code?.[0]
-        : (t as any).code;
       return (
-        codeRel?.code || (t.code_id ? (codeMap.get(t.code_id) ?? null) : null)
+        codeRel?.code || codeMeta?.code || null
       );
     })(),
+    code_type:
+      typeof codeRel?.type === "string"
+        ? codeRel.type.toLowerCase()
+        : codeMeta?.type || null,
     promoter_name: (() => {
-      const codeRel = Array.isArray((t as any).code)
-        ? (t as any).code?.[0]
-        : (t as any).code;
-      const promoterId = t.promoter_id || codeRel?.promoter_id || null;
       if (!promoterId) return null;
       return promoterMap.get(promoterId) ?? null;
     })(),
-    table_name: (() => {
-      const codeRel = Array.isArray((t as any).code)
-        ? (t as any).code?.[0]
-        : (t as any).code;
-      const reservationId =
-        (t as any).table_reservation_id ||
-        codeRel?.table_reservation_id ||
-        null;
-      if (!reservationId) return null;
-      return reservationTableMap.get(reservationId) ?? null;
-    })(),
-  }));
+    table_name: reservationMeta?.table_name || null,
+    sale_origin: reservationMeta?.sale_origin || null,
+    ticket_type_label: reservationMeta?.ticket_type_label || null,
+  };
+  });
 
   return { tickets: normalized, total: count ?? normalized.length };
 }

@@ -77,6 +77,15 @@ function isMissingReservationCommercialColumnsError(error: any): boolean {
   );
 }
 
+function isMissingReservationUnitsError(error: any): boolean {
+  if (!error) return false;
+  const message = String(error?.message || "");
+  const details = String(error?.details || "");
+  const hint = String(error?.hint || "");
+  const haystack = `${message} ${details} ${hint}`.toLowerCase();
+  return haystack.includes("ticket_reservation_units");
+}
+
 function getQrKindLabel(
   kind: QrKind,
   reservation?: ReservationCommercialContext | null,
@@ -484,12 +493,49 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const reservationContext = reservation_id
+    ? await fetchReservationCommercialContext(supabase, reservation_id)
+    : null;
+  const qr_kind = resolveQrKind({
+    codeType: code_type,
+    ticketTableId: ticket_table_id,
+    reservation: reservationContext,
+  });
+  const qr_kind_label = getQrKindLabel(qr_kind, reservationContext);
+
+  if (result === "valid" && ticket_id) {
+    const unitQuery = applyNotDeleted(
+      supabase
+        .from("ticket_reservation_units")
+        .select("id,status,ticket_id")
+        .eq("ticket_id", ticket_id),
+    );
+    const { data: reservationUnit, error: unitError } =
+      await unitQuery.maybeSingle();
+
+    if (unitError && !isMissingReservationUnitsError(unitError)) {
+      return NextResponse.json(
+        { success: false, error: unitError.message },
+        { status: 400 },
+      );
+    }
+
+    const unitStatus = String((reservationUnit as any)?.status || "").toLowerCase();
+    if (
+      reservationUnit?.id &&
+      unitStatus !== "issued" &&
+      unitStatus !== "used"
+    ) {
+      result = "invalid";
+      reason = "nomination_required";
+    }
+  }
+
   // Política: 1 ingreso por persona por evento.
-  // Si el mismo DNI ya tiene otro ticket used=true para este evento,
-  // el resultado se convierte en "duplicate" automáticamente.
-  // El portero no decide — la pantalla roja lo dice todo.
+  // Excepción operativa: los QR de mesa/box representan cupos independientes
+  // y no deben bloquearse solo porque comparten el DNI del comprador.
   let person_already_entered = false;
-  if (result === "valid" && person?.dni) {
+  if (result === "valid" && person?.dni && qr_kind !== "table") {
     const { data: otherUsed } = await applyNotDeleted(
       supabase
         .from("tickets")
@@ -506,16 +552,6 @@ export async function POST(req: NextRequest) {
       reason = "person_already_entered";
     }
   }
-
-  const reservationContext = reservation_id
-    ? await fetchReservationCommercialContext(supabase, reservation_id)
-    : null;
-  const qr_kind = resolveQrKind({
-    codeType: code_type,
-    ticketTableId: ticket_table_id,
-    reservation: reservationContext,
-  });
-  const qr_kind_label = getQrKindLabel(qr_kind, reservationContext);
 
   await supabase.from("scan_logs").insert({
     event_id,

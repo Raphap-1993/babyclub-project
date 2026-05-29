@@ -3,6 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
+import {
+  FREE_QR_DISABLED_MESSAGE,
+  isFreeQrCodeType,
+  isFreeQrReleaseEnabled,
+} from "shared/freeQrGate";
 import { isAdult } from "shared/datetime";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -74,6 +79,17 @@ export async function POST(req: NextRequest) {
 
   if (codeError || !codeRow) {
     return NextResponse.json({ success: false, error: "Código inválido" }, { status: 404 });
+  }
+
+  if (isFreeQrCodeType((codeRow as any).type) && !isFreeQrReleaseEnabled()) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: FREE_QR_DISABLED_MESSAGE,
+        code: "free_qr_disabled",
+      },
+      { status: 409 },
+    );
   }
 
   if (codeRow.is_active === false) {
@@ -176,6 +192,11 @@ export async function POST(req: NextRequest) {
   }
   const saleDecision = evaluateEventSales(ensureEventSalesDefaults(eventRow as any));
   const codeType = String((codeRow as any)?.type || "").trim().toLowerCase();
+  const allowsMultipleTicketsPerPerson = Boolean(
+    reservationContext?.id ||
+      (codeRow as any)?.table_reservation_id ||
+      codeType === "table",
+  );
   const requiresPayment = withPayment && codeType === "general";
   const allowsRedemptionWhenSalesBlocked =
     Boolean(reservationContext?.id || (codeRow as any)?.table_reservation_id) ||
@@ -318,7 +339,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: existingError.message }, { status: 500 });
   }
 
-  if (existingTicket?.id && existingTicket.qr_token) {
+  if (
+    existingTicket?.id &&
+    existingTicket.qr_token &&
+    !allowsMultipleTicketsPerPerson
+  ) {
     if (existingTicket.code_id && existingTicket.code_id !== codeRow.id) {
       // Person already has a ticket for this event with a different code — return their existing QR
       console.log("[/api/tickets] Persona ya registrada en evento con otro código, retornando QR existente:", existingTicket.id);
@@ -420,4 +445,3 @@ export async function POST(req: NextRequest) {
     needsPayment: requiresPayment,
   });
 }
-

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     applyNotDeleted(
       serviceSupabase
         .from("promoters")
-        .select("id,code,person:persons(first_name,last_name)")
+        .select("id,code,is_active,person:persons(first_name,last_name)")
         .eq("id", promoter_id),
     ).maybeSingle(),
     applyNotDeleted(
@@ -86,6 +86,12 @@ export async function POST(req: NextRequest) {
   }
   if (!promoterRes.data) {
     return NextResponse.json({ success: false, error: "Promotor no encontrado" }, { status: 404 });
+  }
+  if ((promoterRes.data as any).is_active === false) {
+    return NextResponse.json(
+      { success: false, error: "El promotor está inactivo" },
+      { status: 409 },
+    );
   }
   if (eventRes.error) {
     return NextResponse.json({ success: false, error: eventRes.error.message }, { status: 500 });

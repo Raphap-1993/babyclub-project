@@ -44,11 +44,11 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getFullDisplayViewBox(size: ViewBoxSize): DisplayViewBox {
+export function getFullDisplayViewBox(size: ViewBoxSize): DisplayViewBox {
   return { x: 0, y: 0, width: size.width, height: size.height };
 }
 
-function getFocusedDisplayViewBox(
+export function getFocusedDisplayViewBox(
   slots: MapSlot[],
   size: ViewBoxSize,
   paddingMode: FocusPaddingMode = "default",

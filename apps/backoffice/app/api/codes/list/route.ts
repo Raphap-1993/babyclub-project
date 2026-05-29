@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { resolveBatchState } from "shared/codeBatchPolicy";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
   const to = from + pageSize - 1;
 
   const selectColumns =
-    "id,code,type,event_id,promoter_id,is_active,max_uses,uses,expires_at,created_at,batch_id,event:events(name),promoter:promoters(code,person:persons(first_name,last_name))";
+    "id,code,type,event_id,promoter_id,is_active,max_uses,uses,expires_at,created_at,batch_id,batch:code_batches(closed_at,closed_reason,expires_at),event:events(name),promoter:promoters(code,person:persons(first_name,last_name))";
   const nowIso = new Date().toISOString();
   function applyFilters<T>(query: T & any) {
     if (type) query = query.eq("type", type);
@@ -88,6 +89,15 @@ export async function GET(req: NextRequest) {
       expires_at: c.expires_at,
       created_at: c.created_at,
       batch_id: c.batch_id,
+      ...resolveBatchState(
+        {
+          closed_at: Array.isArray(c.batch) ? c.batch?.[0]?.closed_at : c.batch?.closed_at,
+          closed_reason: Array.isArray(c.batch) ? c.batch?.[0]?.closed_reason : c.batch?.closed_reason,
+          expires_at: Array.isArray(c.batch) ? c.batch?.[0]?.expires_at : c.batch?.expires_at,
+          remaining_usable_codes: Math.max((c.max_uses ?? 1) - (c.uses ?? 0), 0),
+        },
+        nowIso,
+      ),
     }));
   }
 

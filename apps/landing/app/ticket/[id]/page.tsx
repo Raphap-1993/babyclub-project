@@ -16,6 +16,8 @@ type TicketView = {
   id: string;
   event_id: string | null;
   table_reservation_id: string | null;
+  reservation_sale_origin?: "table" | "ticket" | null;
+  reservation_ticket_type_label?: string | null;
   qr_token: string;
   full_name: string | null;
   doc_type: string | null;
@@ -45,6 +47,19 @@ type TicketView = {
   product_name?: string | null;
   product_items?: string[] | null;
 };
+
+function isMissingReservationCommercialColumnsError(error: any) {
+  if (!error) return false;
+  const message = String(error?.message || "");
+  const details = String(error?.details || "");
+  const hint = String(error?.hint || "");
+  const haystack = `${message} ${details} ${hint}`.toLowerCase();
+  return (
+    haystack.includes("does not exist") &&
+    (haystack.includes("sale_origin") ||
+      haystack.includes("ticket_type_label"))
+  );
+}
 
 async function getTicket(id: string): Promise<TicketView | null> {
   if (!supabaseUrl || !supabaseServiceKey) return null;
@@ -121,6 +136,8 @@ async function getTicket(id: string): Promise<TicketView | null> {
         }
       : null,
     reservation_codes: (data as any).reservation_codes ?? null,
+    reservation_sale_origin: null,
+    reservation_ticket_type_label: null,
     table_name: null,
     product_name: null,
     product_items: null,
@@ -154,15 +171,38 @@ async function getTicket(id: string): Promise<TicketView | null> {
   // Fallback determinístico para tickets antiguos sin table_id/product_id:
   // resolver mesa/producto/códigos directamente desde table_reservation_id.
   if (normalized.table_reservation_id) {
-    const reservationQuery = applyNotDeleted(
+    let reservationQuery = applyNotDeleted(
       supabase
         .from("table_reservations")
-        .select("codes,table:tables(name),product:table_products(name,items)")
+        .select(
+          "codes,sale_origin,ticket_type_label,table:tables(name),product:table_products(name,items)",
+        )
         .eq("id", normalized.table_reservation_id)
         .limit(1),
     );
-    const { data: reservationRow } = await reservationQuery.maybeSingle();
+    let { data: reservationRow, error: reservationError } =
+      await reservationQuery.maybeSingle();
+    if (reservationError && isMissingReservationCommercialColumnsError(reservationError)) {
+      reservationQuery = applyNotDeleted(
+        supabase
+          .from("table_reservations")
+          .select("codes,table:tables(name),product:table_products(name,items)")
+          .eq("id", normalized.table_reservation_id)
+          .limit(1),
+      );
+      ({ data: reservationRow, error: reservationError } =
+        await reservationQuery.maybeSingle());
+    }
     if (reservationRow) {
+      normalized.reservation_sale_origin =
+        (reservationRow as any).sale_origin === "table" ||
+        (reservationRow as any).sale_origin === "ticket"
+          ? (reservationRow as any).sale_origin
+          : null;
+      normalized.reservation_ticket_type_label =
+        typeof (reservationRow as any).ticket_type_label === "string"
+          ? (reservationRow as any).ticket_type_label
+          : null;
       if (!normalized.table_name) {
         const tableRel = Array.isArray((reservationRow as any).table)
           ? (reservationRow as any).table[0]
@@ -203,18 +243,31 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
 
   if (!ticket.table_reservation_id) return [];
 
-  const reservationByIdQuery = applyNotDeleted(
+  let reservationByIdQuery = applyNotDeleted(
     supabase
       .from("table_reservations")
-      .select("codes,status,full_name,email,phone,document")
+      .select("codes,status,sale_origin,full_name,email,phone,document")
       .eq("id", ticket.table_reservation_id)
       .limit(1),
   );
-  const { data: reservationById } = await reservationByIdQuery.maybeSingle();
+  let { data: reservationById, error: reservationError } =
+    await reservationByIdQuery.maybeSingle();
+  if (reservationError && isMissingReservationCommercialColumnsError(reservationError)) {
+    reservationByIdQuery = applyNotDeleted(
+      supabase
+        .from("table_reservations")
+        .select("codes,status,full_name,email,phone,document")
+        .eq("id", ticket.table_reservation_id)
+        .limit(1),
+    );
+    ({ data: reservationById } = await reservationByIdQuery.maybeSingle());
+  }
   const status = String((reservationById as any)?.status || "").toLowerCase();
   const activeStatuses = new Set(["approved", "confirmed", "paid"]);
   if (
     reservationById &&
+    (ticket.reservation_sale_origin || (reservationById as any)?.sale_origin || null) ===
+      "table" &&
     activeStatuses.has(status) &&
     Array.isArray((reservationById as any).codes) &&
     isReservationOwner(ticket, reservationById as any)
@@ -246,7 +299,9 @@ export default async function TicketPage({
     ticket.code.promoter_id || ticket.promoter?.code,
   );
   const hasTableContext = Boolean(
-    ticket.table_name || ticket.product_name || ticket.table_reservation_id,
+    ticket.table_name ||
+      ticket.product_name ||
+      ticket.reservation_sale_origin === "table",
   );
   const showAdditionalInfo = codeType === "general" || codeType === "free";
   const expiresAt = ticket.code.expires_at
@@ -277,6 +332,8 @@ export default async function TicketPage({
     expiresLabel,
     entryLimitLabel,
     eventTimeLabel,
+    ticketTypeLabel: ticket.reservation_ticket_type_label || null,
+    reservationSaleOrigin: ticket.reservation_sale_origin || null,
   });
 
   return (
@@ -332,7 +389,7 @@ function VerticalTicket({
   ticket: TicketView;
   promoterName: string | null;
   extraCodes: string[];
-  warnings: Array<{ title: string; body: string }>;
+  warnings: Array<{ title: string; body: string; tone: WarningTone }>;
   showAdditionalInfo: boolean;
   eventDateLabel: string;
   eventTimeLabel: string;
@@ -375,12 +432,14 @@ function VerticalTicket({
             {warnings.map((warn) => (
               <div
                 key={warn.title}
-                className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-50"
+                className={`rounded-xl border px-3 py-2 text-[11px] ${getWarningToneClasses(
+                  warn.tone,
+                )}`}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em]">
                   {warn.title}
                 </p>
-                <p className="text-xs leading-relaxed text-amber-50/90">
+                <p className="text-xs leading-relaxed opacity-90">
                   {warn.body}
                 </p>
               </div>
@@ -405,7 +464,16 @@ function VerticalTicket({
           <Info label="Email" value={ticket.email || "—"} />
           <Info label="Teléfono" value={ticket.phone || "—"} />
           <Info label="Promotor" value={promoterName || "Sin promotor"} />
-          {!ticket.table_name && ticket.table_reservation_id && (
+          {ticket.reservation_sale_origin === "ticket" &&
+            ticket.reservation_ticket_type_label && (
+              <Info
+                label="Tipo de entrada"
+                value={ticket.reservation_ticket_type_label}
+              />
+            )}
+          {!ticket.table_name &&
+            ticket.table_reservation_id &&
+            ticket.reservation_sale_origin !== "ticket" && (
             <Info label="Origen" value="Reserva de mesa" />
           )}
           {ticket.table_name && <Info label="Mesa" value={ticket.table_name} />}
@@ -514,6 +582,8 @@ function buildWarnings({
   expiresLabel,
   entryLimitLabel,
   eventTimeLabel,
+  ticketTypeLabel,
+  reservationSaleOrigin,
 }: {
   codeType: string;
   isPromoterCode: boolean;
@@ -521,14 +591,17 @@ function buildWarnings({
   expiresLabel: string | null;
   entryLimitLabel: string | null;
   eventTimeLabel: string;
+  ticketTypeLabel: string | null;
+  reservationSaleOrigin: "table" | "ticket" | null;
 }) {
-  const items: { title: string; body: string }[] = [];
+  const items: { title: string; body: string; tone: WarningTone }[] = [];
   if (codeType === "free") {
     items.push({
       title: "QR libre",
       body: expiresLabel
         ? `Hora límite de ingreso: ${expiresLabel}.`
         : "QR libre con hora límite configurable. Llega temprano para asegurar tu ingreso.",
+      tone: "free",
     });
   } else if (codeType === "general") {
     items.push({
@@ -536,14 +609,68 @@ function buildWarnings({
       body: entryLimitLabel
         ? `Hora límite de ingreso: ${entryLimitLabel}. Horario del evento: ${eventTimeLabel}.`
         : eventTimeLabel
-          ? `Hora de ingreso del evento: ${eventTimeLabel}.`
-          : "QR con hora límite configurable.",
+        ? `Hora de ingreso del evento: ${eventTimeLabel}.`
+        : "QR con hora límite configurable.",
+      tone: "general",
+    });
+  } else if (reservationSaleOrigin === "ticket" && ticketTypeLabel) {
+    items.push({
+      title: ticketTypeLabel,
+      body: "Entrada nominada emitida desde una compra por paquetes.",
+      tone: "ticket",
+    });
+  } else if (hasTableContext) {
+    items.push({
+      title: "Mesa / Box",
+      body: "Este QR corresponde a un cupo individual de mesa o box.",
+      tone: "table",
+    });
+  } else if (isPromoterCode) {
+    items.push({
+      title: "QR promotor",
+      body: "Este QR no tiene límite de hora de ingreso.",
+      tone: "promoter",
+    });
+  } else if (codeType === "courtesy") {
+    items.push({
+      title: "QR cortesía",
+      body: "Este QR no tiene límite de hora de ingreso.",
+      tone: "courtesy",
     });
   } else {
     items.push({
-      title: isPromoterCode || hasTableContext ? "QR de mesa / promotor" : "QR",
+      title: "QR",
       body: "Este QR no tiene límite de hora de ingreso.",
+      tone: "neutral",
     });
   }
   return items;
+}
+
+type WarningTone =
+  | "free"
+  | "general"
+  | "ticket"
+  | "table"
+  | "promoter"
+  | "courtesy"
+  | "neutral";
+
+function getWarningToneClasses(tone: WarningTone) {
+  switch (tone) {
+    case "free":
+      return "border-amber-400/40 bg-amber-400/10 text-amber-50";
+    case "general":
+      return "border-fuchsia-400/35 bg-fuchsia-400/10 text-fuchsia-50";
+    case "ticket":
+      return "border-emerald-400/40 bg-emerald-400/10 text-emerald-50";
+    case "table":
+      return "border-cyan-400/40 bg-cyan-400/10 text-cyan-50";
+    case "promoter":
+      return "border-sky-400/40 bg-sky-400/10 text-sky-50";
+    case "courtesy":
+      return "border-rose-400/40 bg-rose-400/10 text-rose-50";
+    default:
+      return "border-white/15 bg-white/5 text-white";
+  }
 }

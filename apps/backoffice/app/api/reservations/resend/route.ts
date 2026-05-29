@@ -3,6 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { createTicketForReservation } from "../utils";
 import { sendApprovalEmail, sendTicketEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import {
+  isValidEmailAddress,
+  normalizeEmailAddress,
+} from "shared/email/address";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -59,9 +63,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const email = typeof (reservation as any).email === "string" ? (reservation as any).email.trim() : "";
+  const email = normalizeEmailAddress(
+    typeof (reservation as any).email === "string"
+      ? (reservation as any).email
+      : "",
+  );
   if (!email) {
     return NextResponse.json({ success: false, error: "Ingresa un correo para notificar" }, { status: 400 });
+  }
+  if (!isValidEmailAddress(email)) {
+    return NextResponse.json(
+      { success: false, error: "El correo de la reserva es inválido. Corrígelo antes de reenviar." },
+      { status: 400 },
+    );
   }
 
   const tableRel = Array.isArray((reservation as any).table) ? (reservation as any).table?.[0] : (reservation as any).table;

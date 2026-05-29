@@ -46,12 +46,42 @@ async function loadEventWithTicketTypes(supabase: any, eventId: string) {
 
   return {
     event,
+    ticketTypeRows: rows || [],
     ticketTypes: buildAdminTicketTypes(event, rows || []),
   };
 }
 
 function jsonError(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
+}
+
+async function softDeleteRemovedTicketTypes(
+  supabase: any,
+  eventId: string,
+  currentRows: any[],
+  nextTicketTypes: Array<{ code: string }>,
+) {
+  const persistedCodes = currentRows
+    .map((row) => (typeof row?.code === "string" ? row.code.trim() : ""))
+    .filter(Boolean);
+  const nextCodes = new Set(nextTicketTypes.map((ticketType) => ticketType.code));
+  const removedCodes = persistedCodes.filter((code) => !nextCodes.has(code));
+
+  if (removedCodes.length === 0) return { error: null };
+
+  const deletedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("event_ticket_types")
+    .update({
+      deleted_at: deletedAt,
+      updated_at: deletedAt,
+      is_active: false,
+    })
+    .eq("event_id", eventId)
+    .in("code", removedCodes)
+    .is("deleted_at", null);
+
+  return { error };
 }
 
 export async function GET(
@@ -117,6 +147,20 @@ export async function PUT(
 
   if (upsertError) {
     return jsonError(`No se pudieron guardar las entradas: ${upsertError.message}`, 500);
+  }
+
+  const { error: deleteError } = await softDeleteRemovedTicketTypes(
+    supabase,
+    eventId,
+    loaded.ticketTypeRows || [],
+    merged.ticketTypes,
+  );
+
+  if (deleteError) {
+    return jsonError(
+      `Entradas guardadas, pero no se pudieron remover las ausentes: ${deleteError.message}`,
+      500,
+    );
   }
 
   const legacyPayload = buildLegacyEventPricePayload(merged.ticketTypes);

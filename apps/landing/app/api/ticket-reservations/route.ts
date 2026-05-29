@@ -5,6 +5,10 @@ import {
   validateDocument,
   type DocumentType,
 } from "shared/document";
+import {
+  isPresentButInvalidEmailAddress,
+  normalizeOptionalEmailAddress,
+} from "shared/email/address";
 import { applyNotDeleted } from "shared/db/softDelete";
 import {
   ensureEventSalesDefaults,
@@ -15,6 +19,7 @@ import {
   resolveTicketTypeSelection,
   type TicketSalePhase,
 } from "shared/ticketTypes";
+import { buildReservationUnits } from "shared/ticketReservationUnits";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -48,8 +53,17 @@ function isMissingTicketTypeReservationColumnsError(error: any) {
     haystack.includes("ticket_type_code") ||
     haystack.includes("ticket_type_label") ||
     haystack.includes("ticket_unit_price") ||
-    haystack.includes("ticket_total_amount")
+    haystack.includes("ticket_total_amount") ||
+    haystack.includes("package_quantity") ||
+    haystack.includes("total_ticket_units")
   );
+}
+
+function isMissingReservationUnitsTableError(error: any) {
+  if (!error) return false;
+  const haystack =
+    `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return haystack.includes("ticket_reservation_units");
 }
 
 function isMissingReservationAttendeesColumnError(error: any) {
@@ -126,7 +140,7 @@ function normalizeAttendeeInput(input: any) {
     typeof input?.apellido_materno === "string"
       ? input.apellido_materno.trim()
       : "";
-  const email = typeof input?.email === "string" ? input.email.trim() : "";
+  const email = normalizeOptionalEmailAddress(input?.email);
   const phone =
     typeof input?.telefono === "string"
       ? input.telefono.trim()
@@ -189,6 +203,9 @@ function buildReservationAttendees({
         `Nombre y apellidos requeridos para entrada ${index + 1}`,
       );
     }
+    if (isPresentButInvalidEmailAddress(attendee.email)) {
+      throw new Error(`Email inválido para entrada ${index + 1}`);
+    }
 
     attendees.push({
       person_index: index + 1,
@@ -203,6 +220,47 @@ function buildReservationAttendees({
     });
   }
   return attendees;
+}
+
+function buildReservationAttendeeSnapshot({
+  rawAttendees,
+  totalTicketUnits,
+  primary,
+}: {
+  rawAttendees: any[];
+  totalTicketUnits: number;
+  primary: ReturnType<typeof normalizeAttendeeInput>;
+}) {
+  if (rawAttendees.length === 0) {
+    if (!validateDocument(primary.doc_type, primary.document)) {
+      throw new Error("Documento inválido para la compra");
+    }
+    if (!primary.full_name) {
+      throw new Error("Nombre y apellidos requeridos");
+    }
+    if (isPresentButInvalidEmailAddress(primary.email)) {
+      throw new Error("Email inválido para la compra");
+    }
+    return [
+      {
+        person_index: 1,
+        doc_type: primary.doc_type,
+        document: primary.document,
+        full_name: primary.full_name,
+        first_name: primary.nombre || null,
+        last_name_p: primary.apellido_paterno || null,
+        last_name_m: primary.apellido_materno || null,
+        email: primary.email || null,
+        phone: primary.phone || null,
+      },
+    ];
+  }
+
+  return buildReservationAttendees({
+    rawAttendees,
+    quantity: Math.min(totalTicketUnits, rawAttendees.length),
+    primary,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -258,7 +316,7 @@ export async function POST(req: NextRequest) {
     .filter(Boolean)
     .join(" ")
     .trim();
-  const email = typeof body?.email === "string" ? body.email.trim() : "";
+  const email = normalizeOptionalEmailAddress(body?.email);
   const phone = typeof body?.telefono === "string" ? body.telefono.trim() : "";
   const voucher_url =
     typeof body?.voucher_url === "string" ? body.voucher_url.trim() : "";
@@ -271,6 +329,13 @@ export async function POST(req: NextRequest) {
   const ticket_quantity = Number.isFinite(quantityRaw)
     ? Math.floor(quantityRaw)
     : NaN;
+  const packageQuantityRaw =
+    typeof body?.package_quantity === "number"
+      ? body.package_quantity
+      : parseInt(body?.package_quantity, 10);
+  const package_quantity = Number.isFinite(packageQuantityRaw)
+    ? Math.floor(packageQuantityRaw)
+    : 1;
   const ticketTypeCode =
     typeof body?.ticket_type_code === "string"
       ? body.ticket_type_code.trim()
@@ -294,9 +359,21 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  if (isPresentButInvalidEmailAddress(email)) {
+    return NextResponse.json(
+      { success: false, error: "Email inválido" },
+      { status: 400 },
+    );
+  }
   if (!ticketTypeCode && ticket_quantity !== 1 && ticket_quantity !== 2) {
     return NextResponse.json(
       { success: false, error: "ticket_quantity debe ser 1 o 2" },
+      { status: 400 },
+    );
+  }
+  if (!Number.isInteger(package_quantity) || package_quantity < 1) {
+    return NextResponse.json(
+      { success: false, error: "package_quantity debe ser mayor o igual a 1" },
       { status: 400 },
     );
   }
@@ -402,24 +479,26 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const finalTicketQuantity = selectedTicketType.ticketQuantity;
-  const unitPrice = selectedTicketType.price / finalTicketQuantity;
-  const totalAmount = selectedTicketType.price;
+  const unitsPerPackage = selectedTicketType.ticketQuantity;
+  const totalTicketUnits = unitsPerPackage * package_quantity;
+  const unitPrice = selectedTicketType.price / unitsPerPackage;
+  const totalAmount = selectedTicketType.price * package_quantity;
   let attendees: ReturnType<typeof buildReservationAttendees> = [];
+  const primaryAttendee = {
+    doc_type: docType,
+    document,
+    nombre: first_name,
+    apellido_paterno: last_name_p,
+    apellido_materno: last_name_m,
+    full_name,
+    email,
+    phone,
+  };
   try {
-    attendees = buildReservationAttendees({
+    attendees = buildReservationAttendeeSnapshot({
       rawAttendees,
-      quantity: finalTicketQuantity,
-      primary: {
-        doc_type: docType,
-        document,
-        nombre: first_name,
-        apellido_paterno: last_name_p,
-        apellido_materno: last_name_m,
-        full_name,
-        email,
-        phone,
-      },
+      totalTicketUnits,
+      primary: primaryAttendee,
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -441,6 +520,8 @@ export async function POST(req: NextRequest) {
     ticket_type_label: selectedTicketType.label,
     ticket_unit_price: unitPrice,
     ticket_total_amount: totalAmount,
+    package_quantity,
+    total_ticket_units: totalTicketUnits,
     full_name,
     doc_type: docType,
     document,
@@ -448,7 +529,7 @@ export async function POST(req: NextRequest) {
     phone: phone || null,
     voucher_url,
     status: "pending",
-    ticket_quantity: finalTicketQuantity,
+    ticket_quantity: totalTicketUnits,
     promoter_id: promoter_id || null,
     promoter_link_code_id: promoterLinkCodeId,
     promoter_link_code: promoterLinkCode,
@@ -483,13 +564,41 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  try {
+    const unitRows = buildReservationUnits({
+      reservationId: reservation.id,
+      eventId: event_id,
+      packageQuantity: package_quantity,
+      unitsPerPackage,
+    });
+    const { error: unitsError } = await supabase
+      .from("ticket_reservation_units")
+      .insert(unitRows);
+    if (unitsError && !isMissingReservationUnitsTableError(unitsError)) {
+      return NextResponse.json(
+        { success: false, error: unitsError.message },
+        { status: 500 },
+      );
+    }
+  } catch (err: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: err?.message || "No se pudieron preparar las unidades",
+      },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     success: true,
     reservationId: reservation?.id,
     ticket_type_code: selectedTicketType.code,
     ticket_type_label: selectedTicketType.label,
     pricing_phase: selectedTicketType.salePhase,
-    ticket_quantity: finalTicketQuantity,
+    ticket_quantity: totalTicketUnits,
+    package_quantity,
+    total_ticket_units: totalTicketUnits,
     amount: totalAmount,
     amount_cents: Math.round(totalAmount * 100),
     currency_code: selectedTicketType.currencyCode,

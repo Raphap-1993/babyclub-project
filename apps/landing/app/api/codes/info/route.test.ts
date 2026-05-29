@@ -266,4 +266,37 @@ describe("GET /api/codes/info", () => {
       ),
     ).toBe(true);
   });
+
+  it("bloquea códigos free mientras el release flag no esté habilitado", async () => {
+    delete process.env.ENABLE_FREE_QR_CODES;
+
+    const { supabase } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-free-1",
+            code: "FREE-LOCKED",
+            type: "free",
+            promoter_id: null,
+            event_id: "event-1",
+            is_active: true,
+            expires_at: null,
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL("http://localhost/api/codes/info?code=FREE-LOCKED"),
+    } as any;
+    const res = await GET(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.code).toBe("free_qr_disabled");
+  });
 });

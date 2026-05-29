@@ -2,13 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { createTicketForReservation } from "../../../../reservations/utils";
-import { sendApprovalEmail } from "../../../../reservations/email";
+import {
+  sendApprovalEmail,
+  sendTicketEmail,
+} from "../../../../reservations/email";
 import {
   normalizeDocument,
   validateDocument,
   type DocumentType,
 } from "shared/document";
+import {
+  isValidEmailAddress,
+  normalizeEmailAddress,
+  resolveFirstValidEmailAddress,
+} from "shared/email/address";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,7 +47,9 @@ function readReservationAttendees(value: unknown) {
       const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
       const fullName =
         typeof raw.full_name === "string" ? raw.full_name.trim() : "";
-      const email = typeof raw.email === "string" ? raw.email.trim() : "";
+      const email = normalizeEmailAddress(
+        typeof raw.email === "string" ? raw.email : "",
+      );
       const phone = typeof raw.phone === "string" ? raw.phone.trim() : "";
       if (!fullName || !validateDocument(docType, document)) return null;
       return {
@@ -97,14 +108,16 @@ export async function POST(
         phone,
         doc_type,
         document,
+        sale_origin,
         status,
         codes,
         ticket_quantity,
+        total_ticket_units,
         attendees,
         event_id,
         promoter_id,
         table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))
-        `,
+      `,
       )
       .eq("id", id),
   );
@@ -131,10 +144,11 @@ export async function POST(
     );
   }
 
-  const email =
+  const email = normalizeEmailAddress(
     typeof (reservation as any).email === "string"
-      ? (reservation as any).email.trim()
-      : "";
+      ? (reservation as any).email
+      : "",
+  );
   if (!email) {
     return NextResponse.json(
       { success: false, error: "Reserva sin correo de contacto" },
@@ -154,16 +168,99 @@ export async function POST(
   const eventId =
     tableRel?.event_id || eventRel?.id || (reservation as any).event_id || null;
   const tableName = tableRel?.name || "Entrada";
-  const reservationTicketQty =
-    typeof (reservation as any).ticket_quantity === "number" &&
-    (reservation as any).ticket_quantity > 0
-      ? Math.floor((reservation as any).ticket_quantity)
-      : 0;
-  const tableTicketQty =
-    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0
-      ? Math.floor(tableRel.ticket_count)
-      : 0;
-  const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
+  const isTicketOnlyReservation =
+    (reservation as any).sale_origin === "ticket" || !tableRel?.id;
+  const ticketQuantity = resolveReservationTicketQuantity({
+    totalTicketUnits: (reservation as any).total_ticket_units,
+    ticketQuantity: (reservation as any).ticket_quantity,
+    codesCount: Array.isArray((reservation as any).codes)
+      ? (reservation as any).codes.length
+      : 0,
+    liveTableTicketCount: tableRel?.ticket_count,
+    minimum: 1,
+  });
+
+  if (isTicketOnlyReservation) {
+    const { data: unitRows, error: unitsError } = await applyNotDeleted(
+      supabase
+        .from("ticket_reservation_units")
+        .select("id,status,ticket_id,email")
+        .eq("reservation_id", id),
+    );
+
+    if (unitsError) {
+      return NextResponse.json(
+        { success: false, error: unitsError.message },
+        { status: 500 },
+      );
+    }
+
+    const units = Array.isArray(unitRows) ? unitRows : [];
+    const issuedUnits = units.filter(
+      (unit: any) =>
+        String(unit?.status || "").toLowerCase() === "issued" &&
+        typeof unit?.ticket_id === "string" &&
+        unit.ticket_id.trim(),
+    );
+
+    if (issuedUnits.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No hay unidades emitidas para reenviar en esta reserva",
+        },
+        { status: 400 },
+      );
+    }
+
+    let sentCount = 0;
+    let invalidRecipientCount = 0;
+    for (const unit of issuedUnits) {
+      const toEmail = resolveFirstValidEmailAddress(
+        typeof unit.email === "string" ? unit.email : null,
+        email,
+      );
+      if (!toEmail) {
+        invalidRecipientCount += 1;
+        continue;
+      }
+      await sendTicketEmail({
+        supabase,
+        ticketId: String(unit.ticket_id),
+        toEmail,
+      });
+      sentCount += 1;
+    }
+
+    if (sentCount === 0 && invalidRecipientCount > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "No hay correos válidos para reenviar en esta reserva. Corrige el email del comprador o de las unidades nominadas.",
+        },
+        { status: 400 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      sentCount,
+      skippedCount:
+        Math.max(0, units.length - issuedUnits.length) + invalidRecipientCount,
+    });
+  }
+
+  if (!isValidEmailAddress(email)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "El correo de la reserva es inválido. Corrígelo antes de reenviar.",
+      },
+      { status: 400 },
+    );
+  }
 
   const reservationCodes = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes

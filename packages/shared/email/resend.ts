@@ -1,4 +1,9 @@
 import { Resend, type CreateEmailOptions } from "resend";
+import {
+  isValidEmailAddress,
+  normalizeEmailAddress,
+  normalizeEmailRecipients,
+} from "./address";
 
 const DEFAULT_FROM_RAW = (process.env.RESEND_FROM ?? "BabyClub Access <no-reply@babyclubaccess.com>").trim();
 const EXPECTED_DOMAIN = "@babyclubaccess.com";
@@ -35,13 +40,27 @@ export async function sendEmail({
 }) {
   const resend = getResendClient();
   validateFromAddress(DEFAULT_FROM_RAW);
+  const normalizedTo = normalizeEmailRecipients(to);
+  const recipientList = Array.isArray(normalizedTo) ? normalizedTo : [normalizedTo];
+  if (recipientList.length === 0) {
+    throw new Error("Recipient email missing");
+  }
+  if (!recipientList.every((email) => isValidEmailAddress(email))) {
+    throw new Error("Email inválido");
+  }
   const payload: any = {
     from: DEFAULT_FROM_RAW,
-    to,
+    to: normalizedTo,
     subject,
   };
   if (html) payload.html = html;
   if (text) payload.text = text;
-  if (replyTo) (payload as any).reply_to = replyTo;
+  if (replyTo) {
+    const normalizedReplyTo = normalizeEmailAddress(replyTo);
+    if (!isValidEmailAddress(normalizedReplyTo)) {
+      throw new Error("Reply-to inválido");
+    }
+    (payload as any).reply_to = normalizedReplyTo;
+  }
   return resend.emails.send(payload);
 }

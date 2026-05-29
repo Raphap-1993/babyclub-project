@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  getEmailDomain,
+  normalizeEmailAddress,
+} from "shared/email/address";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { logProcessEvent } from "../logs/logger";
@@ -44,6 +48,8 @@ export async function sendApprovalEmail({
   })();
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
+  const recipientEmail = normalizeEmailAddress(email);
+  const recipientDomain = getEmailDomain(recipientEmail);
 
   // ✅ NUEVO: Generar HTML con tickets individuales (cada uno con su QR único)
   const ticketsHtml =
@@ -136,7 +142,7 @@ export async function sendApprovalEmail({
 
   try {
     const result: any = await sendEmail({
-      to: email,
+      to: recipientEmail,
       subject,
       html,
       text: textBody,
@@ -151,11 +157,11 @@ export async function sendApprovalEmail({
       action: "reservation_approved",
       status: "success",
       message: subject,
-      toEmail: email,
+      toEmail: recipientEmail,
       provider: "resend",
       providerId,
       reservationId: id,
-      meta: { codes_count: codes.length },
+      meta: { codes_count: codes.length, recipient_domain: recipientDomain },
     });
   } catch (err: any) {
     await logProcessEvent({
@@ -164,10 +170,11 @@ export async function sendApprovalEmail({
       action: "reservation_approved",
       status: "error",
       message: err?.message || "No se pudo enviar correo",
-      toEmail: email,
+      toEmail: recipientEmail,
       provider: "resend",
       providerId,
       reservationId: id,
+      meta: { recipient_domain: recipientDomain },
     });
     throw err;
   }
@@ -204,6 +211,8 @@ export async function sendCancellationEmail({
       return null;
     }
   })();
+  const recipientEmail = normalizeEmailAddress(email);
+  const recipientDomain = getEmailDomain(recipientEmail);
 
   const html = `
   <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
@@ -259,7 +268,7 @@ export async function sendCancellationEmail({
 
   try {
     const result: any = await sendEmail({
-      to: email,
+      to: recipientEmail,
       subject,
       html,
       text: textBody,
@@ -274,10 +283,11 @@ export async function sendCancellationEmail({
       action: "reservation_cancelled",
       status: "success",
       message: subject,
-      toEmail: email,
+      toEmail: recipientEmail,
       provider: "resend",
       providerId,
       reservationId: id,
+      meta: { recipient_domain: recipientDomain },
     });
   } catch (err: any) {
     await logProcessEvent({
@@ -286,10 +296,11 @@ export async function sendCancellationEmail({
       action: "reservation_cancelled",
       status: "error",
       message: err?.message || "No se pudo enviar correo",
-      toEmail: email,
+      toEmail: recipientEmail,
       provider: "resend",
       providerId,
       reservationId: id,
+      meta: { recipient_domain: recipientDomain },
     });
     throw err;
   }
@@ -305,6 +316,8 @@ export async function sendTicketEmail({
   toEmail: string;
 }) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
+  const recipientEmail = normalizeEmailAddress(toEmail);
+  const recipientDomain = getEmailDomain(recipientEmail);
 
   const { data, error } = await supabase
     .from("tickets")
@@ -432,7 +445,7 @@ export async function sendTicketEmail({
   try {
     if (!process.env.RESEND_API_KEY) throw new Error("Correo no disponible: configura RESEND_API_KEY");
     const result: any = await sendEmail({
-      to: toEmail,
+      to: recipientEmail,
       subject,
       html,
       text: textBody,
@@ -447,11 +460,14 @@ export async function sendTicketEmail({
       action: "ticket_send",
       status: "success",
       message: subject,
-      toEmail,
+      toEmail: recipientEmail,
       provider: "resend",
       providerId,
       ticketId,
-      meta: { event: eventRel?.name || null },
+      meta: {
+        event: eventRel?.name || null,
+        recipient_domain: recipientDomain,
+      },
     });
   } catch (err: any) {
     await logProcessEvent({
@@ -460,11 +476,14 @@ export async function sendTicketEmail({
       action: "ticket_send",
       status: "error",
       message: err?.message || "No se pudo enviar correo",
-      toEmail,
+      toEmail: recipientEmail,
       provider: "resend",
       providerId,
       ticketId,
-      meta: { event: eventRel?.name || null },
+      meta: {
+        event: eventRel?.name || null,
+        recipient_domain: recipientDomain,
+      },
     });
     throw err;
   }

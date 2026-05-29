@@ -6,6 +6,11 @@ import {
   evaluateEventSales,
   isMissingEventSalesColumnsError,
 } from "shared/eventSales";
+import {
+  FREE_QR_DISABLED_MESSAGE,
+  isFreeQrCodeType,
+  isFreeQrReleaseEnabled,
+} from "shared/freeQrGate";
 
 type TicketSalePhase = "early_bird" | "all_night";
 
@@ -67,6 +72,16 @@ export async function GET(req: NextRequest) {
 
   if (data.expires_at && new Date(data.expires_at) < new Date()) {
     return NextResponse.json({ error: "Código expirado" }, { status: 400 });
+  }
+
+  if (isFreeQrCodeType(data.type) && !isFreeQrReleaseEnabled()) {
+    return NextResponse.json(
+      {
+        error: FREE_QR_DISABLED_MESSAGE,
+        code: "free_qr_disabled",
+      },
+      { status: 409 },
+    );
   }
 
   let sale_status: "on_sale" | "sold_out" | "paused" = "on_sale";

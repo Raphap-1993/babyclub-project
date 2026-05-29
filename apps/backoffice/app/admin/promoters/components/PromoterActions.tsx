@@ -3,32 +3,37 @@
 import Link from "next/link";
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, TicketPlus, Trash2 } from "lucide-react";
+import { Ban, Pencil, RotateCcw, TicketPlus } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-type Props = { id: string; compact?: boolean };
+type Props = { id: string; isActive?: boolean | null; compact?: boolean };
 
-export default function PromoterActions({ id, compact }: Props) {
+export default function PromoterActions({ id, isActive, compact }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const active = isActive !== false;
 
-  const onDelete = () => {
-    const confirmed = window.confirm("¿Eliminar promotor?");
+  const onToggleStatus = () => {
+    const confirmed = window.confirm(
+      active
+        ? "¿Desactivar este promotor? No podrá generar códigos ni links nuevos."
+        : "¿Reactivar este promotor?",
+    );
     if (!confirmed) return;
     setError(null);
     startTransition(async () => {
-      const res = await authedFetch("/api/promoters/delete", {
+      const res = await authedFetch("/api/promoters/set-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, is_active: !active }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setError(data?.error || "No se pudo eliminar");
+        setError(data?.error || "No se pudo actualizar el estado");
         return;
       }
       router.refresh();
@@ -44,12 +49,14 @@ export default function PromoterActions({ id, compact }: Props) {
               <Link
                 href={`/admin/promoters/${encodeURIComponent(id)}/codes`}
                 className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
-                aria-label="Generar códigos"
+                aria-label="Ver códigos del promotor"
               >
                 <TicketPlus className="h-4 w-4" />
               </Link>
             </TooltipTrigger>
-            <TooltipContent>Generar códigos</TooltipContent>
+            <TooltipContent>
+              {active ? "Códigos y links" : "Ver historial de códigos"}
+            </TooltipContent>
           </Tooltip>
         ) : (
           <Link
@@ -57,7 +64,7 @@ export default function PromoterActions({ id, compact }: Props) {
             className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
           >
             <TicketPlus className="h-4 w-4" />
-            Códigos
+            {active ? "Códigos" : "Historial"}
           </Link>
         )}
         {compact ? (
@@ -87,21 +94,33 @@ export default function PromoterActions({ id, compact }: Props) {
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                onClick={onDelete}
+                onClick={onToggleStatus}
                 disabled={pending}
-                variant="danger"
+                variant={active ? "danger" : "ghost"}
                 size="icon"
-                aria-label="Eliminar promotor"
+                aria-label={active ? "Desactivar promotor" : "Reactivar promotor"}
               >
-                <Trash2 className="h-4 w-4" />
+                {active ? (
+                  <Ban className="h-4 w-4" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Eliminar promotor</TooltipContent>
+            <TooltipContent>
+              {active ? "Desactivar promotor" : "Reactivar promotor"}
+            </TooltipContent>
           </Tooltip>
         ) : (
-          <Button type="button" onClick={onDelete} disabled={pending} variant="danger" size="sm">
-            <Trash2 className="h-4 w-4" />
-            Eliminar
+          <Button
+            type="button"
+            onClick={onToggleStatus}
+            disabled={pending}
+            variant={active ? "danger" : "ghost"}
+            size="sm"
+          >
+            {active ? <Ban className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+            {active ? "Desactivar" : "Reactivar"}
           </Button>
         )}
         {error && <span className="text-xs text-red-200">{error}</span>}

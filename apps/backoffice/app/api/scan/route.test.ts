@@ -232,4 +232,171 @@ describe("POST /api/scan", () => {
     expect(payload.qr_kind).toBe("ticket_general");
     expect(payload.qr_kind_label).toBe("Entrada General");
   });
+
+  it("bloquea tickets mapeados a unidad todavía no emitida", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-4",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [{ data: null, error: null }],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-unit-1",
+            code_id: "code-unit-1",
+            full_name: "Ana Ticket",
+            dni: null,
+            email: "ana@test.com",
+            phone: "999999999",
+            used: false,
+            table_id: null,
+            product_id: null,
+            table_reservation_id: "res-ticket-unit-1",
+            code: { type: "general" },
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: {
+            id: "unit-1",
+            ticket_id: "ticket-unit-1",
+            status: "nominated",
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-unit-1",
+            table_id: null,
+            product_id: null,
+            sale_origin: "ticket",
+            ticket_pricing_phase: "all_night",
+            ticket_type_label: "1 QR ALL NIGHT",
+            table: null,
+            product: null,
+          },
+          error: null,
+        },
+      ],
+      "scan_logs.insert": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "QR-UNIT-1", event_id: "event-4" }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.result).toBe("invalid");
+    expect(payload.reason).toBe("nomination_required");
+    expect(payload.qr_kind).toBe("ticket_all_night");
+    expect(payload.qr_kind_label).toBe("1 QR ALL NIGHT");
+  });
+
+  it("no marca como duplicado un QR de mesa solo porque otro ticket del mismo DNI ya ingresó", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-5",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: {
+            id: "code-table-5",
+            code: "TABLE-555",
+            type: "table",
+            event_id: "event-5",
+            is_active: true,
+            max_uses: 1,
+            uses: 0,
+            expires_at: null,
+            table_reservation_id: "res-table-5",
+          },
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-table-5",
+            full_name: "Ana Mesa",
+            dni: "12345678",
+            email: "ana@mesa.com",
+            phone: "999999999",
+            used: false,
+            table_id: "table-5",
+            product_id: "prod-5",
+            table_reservation_id: "res-table-5",
+          },
+          error: null,
+        },
+        {
+          data: {
+            id: "ticket-used-same-dni",
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-table-5",
+            table_id: "table-5",
+            product_id: "prod-5",
+            sale_origin: "table",
+            ticket_pricing_phase: null,
+            ticket_type_label: null,
+            table: { name: "Box 5" },
+            product: { name: "Pack Box" },
+          },
+          error: null,
+        },
+      ],
+      "scan_logs.insert": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "TABLE-555", event_id: "event-5" }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.result).toBe("valid");
+    expect(payload.reason).toBeNull();
+    expect(payload.qr_kind).toBe("table");
+    expect(payload.person_already_entered).toBe(false);
+  });
 });

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import {
+  isValidEmailAddress,
+  normalizeEmailAddress,
+} from "shared/email/address";
 import { sendTicketEmail } from "../../reservations/email";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -24,14 +28,15 @@ export async function POST(req: NextRequest) {
   }
 
   const ticketId = typeof body?.ticketId === "string" ? body.ticketId.trim() : "";
-  const toEmail = typeof body?.email === "string" ? body.email.trim() : "";
+  const toEmail = normalizeEmailAddress(
+    typeof body?.email === "string" ? body.email : "",
+  );
 
   if (!ticketId || !toEmail) {
     return NextResponse.json({ success: false, error: "ticketId y email requeridos" }, { status: 400 });
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(toEmail)) {
+  if (!isValidEmailAddress(toEmail)) {
     return NextResponse.json({ success: false, error: "Email inválido" }, { status: 400 });
   }
 
