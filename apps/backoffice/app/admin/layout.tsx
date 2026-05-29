@@ -243,9 +243,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    RESUMEN: true,
+  });
 
   const isDoorSession = pathname === DOOR_LANDING;
   const isDoorAllowedPath = pathname === DOOR_LANDING;
+
+  useEffect(() => {
+    const activeSection =
+      menuItems.find((group) =>
+        group.items.some((item) =>
+          item.children
+            ? item.children.some((child) =>
+                child.isActive
+                  ? child.isActive(pathname)
+                  : pathname === child.href || pathname.startsWith(`${child.href}/`),
+              )
+            : item.href
+              ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+              : false,
+        ),
+      )?.section || null;
+
+    if (!activeSection) return;
+
+    setOpenSections((current) => ({
+      ...current,
+      [activeSection]: true,
+    }));
+  }, [pathname]);
 
   useEffect(() => {
     const ensureSession = async () => {
@@ -319,20 +346,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div className="space-y-5">
                 {menuItems.map((group) => (
                   <section key={group.section} className="space-y-2">
-                    <div className="px-3">
-                      <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                        <span className="text-[11px] text-rose-300">{sectionMeta[group.section]?.glyph || "•"}</span>
-                        {group.section}
-                      </p>
-                      <p className="mt-1 text-[11px] leading-4 text-neutral-600">
-                        {sectionMeta[group.section]?.description || ""}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      {group.items.map((item) => (
-                        <NavEntry key={item.id} item={item} pathname={pathname} />
-                      ))}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenSections((current) => ({
+                          ...current,
+                          [group.section]: !current[group.section],
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-neutral-800/80 bg-neutral-950/60 px-3 py-2 text-left transition hover:border-neutral-700 hover:bg-neutral-900/60"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                            <span className="text-[11px] text-rose-300">
+                              {sectionMeta[group.section]?.glyph || "•"}
+                            </span>
+                            {group.section}
+                          </p>
+                          <p className="mt-1 text-[11px] leading-4 text-neutral-600">
+                            {sectionMeta[group.section]?.description || ""}
+                          </p>
+                        </div>
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-800 bg-black text-neutral-300">
+                          {openSections[group.section] ? "−" : "+"}
+                        </span>
+                      </div>
+                    </button>
+                    {openSections[group.section] ? (
+                      <div className="space-y-1 pl-1">
+                        {group.items.map((item) => (
+                          <NavEntry key={item.id} item={item} pathname={pathname} />
+                        ))}
+                      </div>
+                    ) : null}
                   </section>
                 ))}
               </div>
@@ -360,21 +407,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
                 <div className="space-y-5 overflow-y-auto pb-6">
                   {menuItems.map((group) => (
-                  <section key={group.section} className="space-y-2">
-                      <div className="px-3">
-                        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                          <span className="text-[11px] text-rose-300">{sectionMeta[group.section]?.glyph || "•"}</span>
-                          {group.section}
-                        </p>
-                        <p className="mt-1 text-[11px] leading-4 text-neutral-600">
-                          {sectionMeta[group.section]?.description || ""}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        {group.items.map((item) => (
-                          <NavEntry key={item.id} item={item} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
-                        ))}
-                      </div>
+                    <section key={group.section} className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenSections((current) => ({
+                            ...current,
+                            [group.section]: !current[group.section],
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-neutral-800/80 bg-neutral-950/60 px-3 py-2 text-left transition hover:border-neutral-700 hover:bg-neutral-900/60"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                              <span className="text-[11px] text-rose-300">
+                                {sectionMeta[group.section]?.glyph || "•"}
+                              </span>
+                              {group.section}
+                            </p>
+                            <p className="mt-1 text-[11px] leading-4 text-neutral-600">
+                              {sectionMeta[group.section]?.description || ""}
+                            </p>
+                          </div>
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-800 bg-black text-neutral-300">
+                            {openSections[group.section] ? "−" : "+"}
+                          </span>
+                        </div>
+                      </button>
+                      {openSections[group.section] ? (
+                        <div className="space-y-1 pl-1">
+                          {group.items.map((item) => (
+                            <NavEntry
+                              key={item.id}
+                              item={item}
+                              pathname={pathname}
+                              onNavigate={() => setMobileOpen(false)}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
                     </section>
                   ))}
                 </div>
