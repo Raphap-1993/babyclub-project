@@ -81,4 +81,26 @@ describe("PurchaseModeControls", () => {
     expect(html).toContain("Reserva temporalmente pausada.");
     expect(html).not.toContain("Compra segura y validada por BABY");
   });
+
+  it("keeps the event section visible with an explicit empty-state message when there are no events", () => {
+    const html = renderToStaticMarkup(
+      <PurchaseModeControls
+        mode="ticket"
+        onModeChange={vi.fn()}
+        ticketEventId=""
+        onTicketEventChange={vi.fn()}
+        ticketEventOptions={[]}
+        ticketSaleBlock={null}
+        resolveEventSaleBlock={() => null}
+        selectedEventId=""
+        onMesaEventChange={vi.fn()}
+        mesaEventOptions={[]}
+        mesaSaleBlock={null}
+      />,
+    );
+
+    expect(html).toContain("Evento");
+    expect(html).toContain("No hay eventos con entradas disponibles ahora.");
+    expect(html).not.toContain("<select");
+  });
 });

@@ -47,6 +47,7 @@ last_reviewed: 2026-05-28
 - Dashboard tickets: el resumen ahora trata `sale_origin='ticket' + codes.type='courtesy'` como `general` para métricas, corrigiendo las `37` entradas pagadas de `BABY RAVE | ABYSS` que el schema legacy obligaba a guardar con tipo técnico `courtesy`.
 - Landing compra: el selector de `Evento` ya vive arriba del flujo publico en `Solo entrada` y `Reserva mesa`, mientras `Compra segura y validada por BABY` baja al tramo legal junto a la aceptacion final.
 - Landing compra: si hay multiples eventos activos, `/compra` ya no autoselecciona el primero por fecha ni muestra su lote/precio como default; solo autoselecciona cuando existe exactamente un evento habilitado.
+- Landing compra/registro: `Bugfix 09` ya corrige copy de estados vacios, compacta el bloque legal final y reintroduce branding BABY consistente en `/registro` usando `logoUrl` cuando existe.
 - Backoffice reservas: aprobacion y reenvio de mesas ya respetan la cantidad snapshot guardada en la reserva y no sobreemiten tickets si la mesa o el pack fueron editados despues.
 - Backoffice tickets: la lista y el detalle ya muestran badge operativo para `Entrada comprada`, `QR libre`, `QR cortesia`, `QR promotor` y `Mesa / Box`, usando `sale_origin` + `ticket_type_label` para no confundir compras pagadas legacy con `courtesy`.
 - QR free: la liberacion comercial queda explicitamente bloqueada por defecto con `ENABLE_FREE_QR_CODES`; hoy no existe generacion por lotes en backoffice ni data `codes.type='free'` en la clonacion local, asi que `REQ-0009` sigue pendiente como feature real.
@@ -74,4 +75,5 @@ last_reviewed: 2026-05-28
 - Cuando aparezca un item concreto, clonarlo a un REQ individual desde [99-Templates/tpl-requirement.md](./99-Templates/tpl-requirement.md).
 - REQ tecnico cerrado mas reciente: [REQ-0011-liquidaciones-promotores-ledger.md](./01-Requirements/REQ-0011-liquidaciones-promotores-ledger.md), actualizado con CRUD separado, reporte consolidado y migraciones remotas aplicadas.
 - REQ tecnico cerrado mas reciente: [REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md](./01-Requirements/REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md), implementado en el worktree `req-0012-flexible-tickets` y validado con typecheck landing/backoffice mas suite focalizada de 25 tests.
+- REQ tecnico cerrado mas reciente: [REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md](./01-Requirements/REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md), validado con suite focalizada de landing, `pnpm typecheck:landing` y smoke DOM local en `/compra` y `/registro`.
 - Si el requerimiento toca tenancy, contratos API, auth, pagos, logs o migraciones, abrir revison de arquitectura antes de codificar.

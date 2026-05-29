@@ -20,14 +20,16 @@ import {
   type TicketTypeOption,
 } from "shared/ticketTypes";
 import { loadImageDimensions, optimizeImageUrl } from "lib/imageOptimization";
-import { legalLinks } from "lib/legalLinks";
 import { useCulqiAvailability } from "lib/useCulqiAvailability";
 import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
+import { LegalTrustStrip } from "./LegalTrustStrip";
 import { PurchaseModeControls } from "./PurchaseModeControls";
 import {
+  getTicketEmptyStateMessage,
   getTicketSubmitLabel,
   resolveInitialTicketEventId,
+  shouldShowTicketTypeEmptyState,
 } from "./purchaseState";
 
 const CULQI_ENABLED =
@@ -1153,6 +1155,15 @@ function CompraContent() {
     selectedEventId || tableInfo?.event_id || null,
   );
   const ticketRequiresEvent = ticketEventOptions.length > 0;
+  const showTicketTypeEmptyState = shouldShowTicketTypeEmptyState({
+    hasTicketEvents: ticketEventOptions.length > 0,
+    hasSelectedTicketType: Boolean(selectedTicketType),
+  });
+  const ticketEmptyStateMessage = getTicketEmptyStateMessage({
+    hasTicketEvents: ticketEventOptions.length > 0,
+    ticketEventId,
+    hasSelectedTicketType: Boolean(selectedTicketType),
+  });
 
   useEffect(() => {
     setTicketEventId((prev) =>
@@ -1255,11 +1266,11 @@ function CompraContent() {
                       </label>
                     );
                   })
-                ) : (
+                ) : showTicketTypeEmptyState ? (
                   <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white/60 md:col-span-2">
-                    Selecciona un evento con entradas disponibles.
+                    {ticketEmptyStateMessage}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-[220px,1fr]">
@@ -1404,7 +1415,7 @@ function CompraContent() {
                 ticketTotalPrice > 0 ? `S/ ${ticketTotalPrice}` : null
               }
             />
-            <LegalComplianceStrip />
+            <LegalTrustStrip />
             <LegalAcceptance
               checked={ticketLegalAccepted}
               onChange={setTicketLegalAccepted}
@@ -1439,6 +1450,7 @@ function CompraContent() {
                 loading: ticketLoading,
                 ticketSaleBlocked: Boolean(ticketSaleBlock),
                 ticketRequiresEvent,
+                hasTicketEvents: ticketEventOptions.length > 0,
                 ticketEventId,
                 hasSelectedTicketType: Boolean(selectedTicketType),
               })}
@@ -1764,7 +1776,7 @@ function CompraContent() {
                     amountLabel={totalLabel}
                     compact
                   />
-                  <LegalComplianceStrip />
+                  <LegalTrustStrip />
                   <LegalAcceptance
                     checked={mesaLegalAccepted}
                     onChange={setMesaLegalAccepted}
@@ -2602,28 +2614,6 @@ function CompraContent() {
         />
       )}
     </main>
-  );
-}
-
-function LegalComplianceStrip() {
-  return (
-    <section className="rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-xs text-white/60">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="font-semibold text-white">
-          Compra segura y validada por BABY
-        </span>
-        <span>Entradas digitales y reservas de mesa BABY</span>
-        {legalLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="font-semibold text-[#ff77ad] underline-offset-4 hover:underline"
-          >
-            {link.label}
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 }
 

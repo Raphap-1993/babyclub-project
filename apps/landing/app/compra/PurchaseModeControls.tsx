@@ -70,51 +70,57 @@ export function PurchaseModeControls({
         </button>
       </div>
 
-      {eventOptions.length > 0 && (
-        <section className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
-              Evento
-            </p>
-            <select
-              value={eventValue}
-              onChange={(event) => handleEventChange(event.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
-            >
-              <option value="">Selecciona el evento</option>
-              {eventOptions.map((eventOption) => {
-                const optionSaleBlock = resolveEventSaleBlock(eventOption.id);
-                const optionStatus = optionSaleBlock?.status;
+      <section className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
+            Evento
+          </p>
+          {eventOptions.length > 0 ? (
+            <>
+              <select
+                value={eventValue}
+                onChange={(event) => handleEventChange(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+              >
+                <option value="">Selecciona el evento</option>
+                {eventOptions.map((eventOption) => {
+                  const optionSaleBlock = resolveEventSaleBlock(eventOption.id);
+                  const optionStatus = optionSaleBlock?.status;
 
-                return (
-                  <option
-                    key={eventOption.id}
-                    value={eventOption.id}
-                    disabled={Boolean(optionSaleBlock)}
-                  >
-                    {eventOption.name || `Evento ${eventOption.id.slice(0, 6)}`}
-                    {optionStatus === "sold_out"
-                      ? " (Sold out)"
-                      : optionStatus === "paused"
-                        ? " (Pausado)"
-                        : ""}
-                  </option>
-                );
-              })}
-            </select>
-            {!eventValue && (
-              <p className="text-xs text-[#ff9a9a]">
-                Selecciona el evento para continuar.
-              </p>
-            )}
-            {activeSaleBlock && (
-              <p className="text-xs font-semibold text-[#ff9a9a]">
-                {activeSaleBlock.message}
-              </p>
-            )}
-          </div>
-        </section>
-      )}
+                  return (
+                    <option
+                      key={eventOption.id}
+                      value={eventOption.id}
+                      disabled={Boolean(optionSaleBlock)}
+                    >
+                      {eventOption.name || `Evento ${eventOption.id.slice(0, 6)}`}
+                      {optionStatus === "sold_out"
+                        ? " (Sold out)"
+                        : optionStatus === "paused"
+                          ? " (Pausado)"
+                          : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              {!eventValue && (
+                <p className="text-xs text-[#ff9a9a]">
+                  Selecciona el evento para continuar.
+                </p>
+              )}
+              {activeSaleBlock && (
+                <p className="text-xs font-semibold text-[#ff9a9a]">
+                  {activeSaleBlock.message}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white/60">
+              No hay eventos con entradas disponibles ahora.
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

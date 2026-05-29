@@ -39,6 +39,7 @@ import {
 import { loadImageDimensions, optimizeImageUrl } from "lib/imageOptimization";
 import { useCulqiAvailability } from "lib/useCulqiAvailability";
 import CulqiCheckout from "./CulqiCheckout";
+import { RegistroHero } from "./RegistroHero";
 
 const CULQI_ENABLED =
   process.env.NEXT_PUBLIC_CULQI_ENABLED?.toLowerCase() === "true";
@@ -809,7 +810,7 @@ function RegistroContent() {
 
         {step === 1 && (
           <div className="space-y-2 pt-4 text-center lg:space-y-3 lg:pt-6">
-            <h1 className="text-2xl font-semibold lg:text-3xl">Registro</h1>
+            <RegistroHero logoUrl={logoUrl} />
 
             <div className="mx-auto max-w-md space-y-3">
               {codeType !== "promoter_link" && (

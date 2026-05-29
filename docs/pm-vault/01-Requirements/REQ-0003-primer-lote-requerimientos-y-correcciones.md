@@ -114,7 +114,7 @@ Usar esta nota como intake inicial del primer lote y luego separar cada item con
 - [x] P0/Bugfix 06: validar liberacion de QRs free pendiente antes de prometer salida comercial
 - [x] P1/Bugfix 07: revisar mesas/reservas/cantidad de QRs por mesa contra data real
 - [x] P1/Bugfix 08: corregir precio inicial si carga mostrando lote/precio viejo
-- [ ] P2/Bugfix 09: pulidos visuales de logo, textos, etiquetas y scroll
+- [x] P2/Bugfix 09: pulidos visuales de logo, textos, etiquetas y scroll
 
 ### Items para revision de arquitectura
 
@@ -132,6 +132,7 @@ Usar esta nota como intake inicial del primer lote y luego separar cada item con
 - [x] REQ-0008 - diferenciacion visual QR comprado/free/cortesia
 - [x] REQ-0009 - liberacion QR free por lotes y reglas horarias
 - [x] REQ-0010 - tipos de entradas/lotes persistidos por evento
+- [x] REQ-0013 - pulidos visuales compra/registro y estados vacios
 
 ## Evidencia esperada
 
