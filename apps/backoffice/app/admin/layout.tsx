@@ -62,19 +62,6 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
     items: [
       { id: "dashboard", label: "Inicio", href: "/admin" },
       {
-        id: "events",
-        label: "Eventos",
-        children: [
-          {
-            id: "events-list",
-            label: "Eventos",
-            href: "/admin/events",
-            isActive: (pathname) => isCollectionListPath(pathname, "/admin/events", ["create"]),
-          },
-          { id: "events-create", label: "Crear evento", href: "/admin/events/create" },
-        ],
-      },
-      {
         id: "reservations",
         label: "Reservas",
         href: "/admin/reservations",
@@ -91,12 +78,25 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
     section: "OPERACIÓN",
     items: [
       {
+        id: "events",
+        label: "Gestión de eventos",
+        children: [
+          {
+            id: "events-list",
+            label: "Listado de eventos",
+            href: "/admin/events",
+            isActive: (pathname) => isCollectionListPath(pathname, "/admin/events", ["create"]),
+          },
+          { id: "events-create", label: "Crear evento", href: "/admin/events/create" },
+        ],
+      },
+      {
         id: "organizers",
         label: "Organizadores y croquis",
         children: [
           {
             id: "organizers-list",
-            label: "Organizadores / croquis",
+            label: "Listado de organizadores",
             href: "/admin/organizers",
             isActive: (pathname) => isCollectionListPath(pathname, "/admin/organizers", ["create"]),
           },
@@ -109,12 +109,12 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
         children: [
           {
             id: "promoters-list",
-            label: "Promotores",
+            label: "Listado de promotores",
             href: "/admin/promoters",
             isActive: (pathname) => isCollectionListPath(pathname, "/admin/promoters", ["create"]),
           },
           { id: "promoters-create", label: "Crear promotor", href: "/admin/promoters/create" },
-          { id: "codes-batches", label: "Códigos / lotes", href: "/admin/codes" },
+          { id: "codes-batches", label: "Lotes de códigos", href: "/admin/codes" },
         ],
       },
       { id: "ticket-types", label: "Entradas y precios", href: "/admin/ticket-types" },
@@ -125,15 +125,15 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
     section: "REPORTES",
     items: [
       {
+        id: "reports-hub",
+        label: "Hub de reportes",
+        href: "/admin/reportes",
+        isActive: (pathname) => pathname === "/admin/reportes",
+      },
+      {
         id: "reports",
-        label: "Reportes",
+        label: "Analítica operativa",
         children: [
-          {
-            id: "reports-hub",
-            label: "Hub de reportes",
-            href: "/admin/reportes",
-            isActive: (pathname) => pathname === "/admin/reportes",
-          },
           {
             id: "reports-attendance-sales",
             label: "Operación de eventos",
