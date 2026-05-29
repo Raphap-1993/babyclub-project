@@ -5,14 +5,16 @@ import {
   validateDocument,
   type DocumentType,
 } from "shared/document";
-import { applyNotDeleted } from "shared/db/softDelete";
+import { applyNotDeleted, buildArchivePayload } from "shared/db/softDelete";
+import { createTicketForReservation } from "../../../../../../backoffice/app/api/reservations/utils";
+import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const RESERVATION_SELECT =
-  "id,event_id,sale_origin,status,ticket_type_label,package_quantity,total_ticket_units,full_name,email,phone,event:events(name,starts_at,location)";
+  "id,event_id,promoter_id,sale_origin,status,ticket_type_label,package_quantity,total_ticket_units,full_name,email,phone,doc_type,document,event:events(name,starts_at,location)";
 const UNIT_SELECT =
   "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id,nominated_at,issued_at,used_at,cancelled_at";
 
@@ -65,6 +67,44 @@ async function loadUnits(supabase: any, reservationId: string) {
       : [],
     error,
   };
+}
+
+function normalizeComparableUnitState(raw: any, reservationDocType: DocumentType) {
+  const fullName = typeof raw?.full_name === "string" ? raw.full_name.trim() : "";
+  const docTypeRaw =
+    typeof raw?.doc_type === "string" && raw.doc_type.trim()
+      ? (raw.doc_type as DocumentType)
+      : reservationDocType;
+  const documentRaw = typeof raw?.document === "string" ? raw.document.trim() : "";
+  const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
+  const email = normalizeOptionalEmailAddress(raw?.email);
+  const phone = typeof raw?.phone === "string" ? raw.phone.trim() : "";
+  return { fullName, docType, document, email, phone };
+}
+
+function sameNominationState(existing: any, next: ReturnType<typeof normalizeComparableUnitState>) {
+  const existingState = normalizeComparableUnitState(
+    existing,
+    (existing?.doc_type as DocumentType) || "dni",
+  );
+  return (
+    existingState.fullName === next.fullName &&
+    existingState.docType === next.docType &&
+    existingState.document === next.document &&
+    existingState.email === next.email &&
+    existingState.phone === next.phone
+  );
+}
+
+async function loadTicketForUnit(supabase: any, ticketId: string) {
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,code_id,code:codes(code)")
+      .eq("id", ticketId),
+  ).maybeSingle();
+
+  return { data, error };
 }
 
 export async function GET(
@@ -129,6 +169,7 @@ export async function PUT(
     (reservation.data as any).doc_type.trim()
       ? ((reservation.data as any).doc_type as DocumentType)
       : "dni";
+  const reissueTimestamp = new Date().toISOString();
 
   for (const raw of inputs) {
     const unitId = typeof raw?.id === "string" ? raw.id.trim() : "";
@@ -143,44 +184,131 @@ export async function PUT(
         409,
       );
     }
-    if (existingUnit.status === "issued" || existingUnit.status === "used") {
+    if (existingUnit.status === "used" || existingUnit.status === "cancelled") {
       return jsonError(`No puedes editar ${unitLabel} ya emitida o usada`, 409);
     }
 
-    const fullName =
-      typeof raw?.full_name === "string" ? raw.full_name.trim() : "";
-    const docTypeRaw = (
-      typeof raw?.doc_type === "string" && raw.doc_type.trim()
-        ? raw.doc_type
-        : typeof existingUnit.doc_type === "string" && existingUnit.doc_type.trim()
-          ? existingUnit.doc_type
-          : reservationDocType
-    ) as DocumentType;
-    const documentRaw =
-      typeof raw?.document === "string" ? raw.document.trim() : "";
-    const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
-    const email = normalizeOptionalEmailAddress(raw?.email);
-    const phone = typeof raw?.phone === "string" ? raw.phone.trim() : "";
-
-    if (!fullName) {
+    const normalizedInput = normalizeComparableUnitState(raw, reservationDocType);
+    if (!normalizedInput.fullName) {
       return jsonError(`${unitLabel} necesita nombre completo`, 400);
     }
-    if (!validateDocument(docType, document)) {
+    if (!validateDocument(normalizedInput.docType, normalizedInput.document)) {
       return jsonError(`Documento inválido para ${unitLabel}`, 400);
     }
-    if (isPresentButInvalidEmailAddress(email)) {
+    if (isPresentButInvalidEmailAddress(normalizedInput.email)) {
       return jsonError(`Email inválido para ${unitLabel}`, 400);
     }
 
+    const isIssuedUnit = String(existingUnit.status || "").toLowerCase() === "issued";
+    const nominationChanged = !sameNominationState(existingUnit, normalizedInput);
+
+    if (isIssuedUnit && !nominationChanged) {
+      continue;
+    }
+
+    if (isIssuedUnit && existingUnit.ticket_id && nominationChanged) {
+      const { data: oldTicket, error: oldTicketError } = await loadTicketForUnit(
+        supabase,
+        String(existingUnit.ticket_id),
+      );
+      if (oldTicketError) return jsonError(oldTicketError.message, 500);
+      if (!oldTicket) {
+        return jsonError("No se encontró el QR anterior para reemitir", 404);
+      }
+
+      const oldCodeRel = Array.isArray((oldTicket as any).code)
+        ? (oldTicket as any).code?.[0]
+        : (oldTicket as any).code;
+      const oldCode = typeof oldCodeRel?.code === "string" ? oldCodeRel.code : "";
+
+      const { error: archiveError } = await supabase
+        .from("tickets")
+        .update(buildArchivePayload(null))
+        .eq("id", oldTicket.id);
+      if (archiveError) return jsonError(archiveError.message, 500);
+
+      if ((oldTicket as any).code_id) {
+        const { data: codeRow, error: codeRowError } = await supabase
+          .from("codes")
+          .select("uses,max_uses,is_active")
+          .eq("id", (oldTicket as any).code_id)
+          .maybeSingle();
+        if (codeRowError) return jsonError(codeRowError.message, 500);
+        if (codeRow) {
+          const newUses = Math.max(0, Number(codeRow.uses ?? 1) - 1);
+          const shouldReactivate =
+            !codeRow.is_active &&
+            codeRow.max_uses != null &&
+            newUses < Number(codeRow.max_uses);
+          const { error: codeUpdateError } = await supabase
+            .from("codes")
+            .update({
+              uses: newUses,
+              ...(shouldReactivate ? { is_active: true } : {}),
+            })
+            .eq("id", (oldTicket as any).code_id);
+          if (codeUpdateError) return jsonError(codeUpdateError.message, 500);
+        }
+      }
+
+      const effectiveEmail = normalizedInput.email || (reservation.data as any).email || "";
+      const result = await createTicketForReservation(supabase, {
+        eventId: (reservation.data as any).event_id,
+        tableName: (reservation.data as any).ticket_type_label || "Entrada",
+        fullName: normalizedInput.fullName,
+        email: effectiveEmail || null,
+        phone: normalizedInput.phone || null,
+        dni: normalizedInput.docType === "dni" ? normalizedInput.document : null,
+        docType: normalizedInput.docType,
+        document: normalizedInput.document,
+        promoterId: (reservation.data as any).promoter_id || null,
+        reuseCodes: oldCode ? [oldCode] : [],
+        codeType: "courtesy",
+        tableId: null,
+        productId: null,
+        tableReservationId: id,
+      });
+
+      const reissuePatch = {
+        full_name: normalizedInput.fullName,
+        doc_type: normalizedInput.docType,
+        document: normalizedInput.document,
+        email: normalizedInput.email || null,
+        phone: normalizedInput.phone || null,
+        status: "issued",
+        ticket_id: result.ticketId,
+        issued_at: reissueTimestamp,
+        nominated_at: reissueTimestamp,
+        updated_at: reissueTimestamp,
+      };
+
+      const { error: updateError } = await supabase
+        .from("ticket_reservation_units")
+        .update(reissuePatch)
+        .eq("id", unitId)
+        .eq("reservation_id", id);
+
+      if (updateError) return jsonError(updateError.message, 500);
+
+      if (effectiveEmail) {
+        await sendTicketEmail({
+          supabase,
+          ticketId: result.ticketId,
+          toEmail: effectiveEmail,
+        });
+      }
+      continue;
+    }
+
     const patch = {
-      full_name: fullName,
-      doc_type: docType,
-      document,
-      email: email || null,
-      phone: phone || null,
+      full_name: normalizedInput.fullName,
+      doc_type: normalizedInput.docType,
+      document: normalizedInput.document,
+      email: normalizedInput.email || null,
+      phone: normalizedInput.phone || null,
       status: "nominated",
-      nominated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      nominated_at: reissueTimestamp,
+      updated_at: reissueTimestamp,
     };
 
     const { error } = await supabase

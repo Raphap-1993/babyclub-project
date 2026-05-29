@@ -19,7 +19,7 @@ export type NominationUnitLike = {
   ticket_url?: string | null;
 };
 
-const TERMINAL_UNIT_STATUSES = new Set(["issued", "used", "cancelled"]);
+const TERMINAL_UNIT_STATUSES = new Set(["used", "cancelled"]);
 
 export function getBuyerUnit<T extends { unit_index: number }>(units: T[]) {
   return units.find((unit) => unit.unit_index === 1) ?? null;

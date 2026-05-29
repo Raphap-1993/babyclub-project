@@ -81,7 +81,6 @@ const ISSUE_READY_STATUSES = new Set<ReservationStatus>([
 ]);
 
 const UNIT_TERMINAL_STATUSES = new Set<UnitStatus>([
-  "issued",
   "used",
   "cancelled",
 ]);
@@ -382,11 +381,13 @@ function StatusBadge({ status }: { status: ReservationStatus | UnitStatus }) {
 
 function ReservationStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2.5 sm:px-4 sm:py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45 sm:text-xs sm:tracking-[0.18em]">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-white">{value}</p>
+      <p className="mt-1.5 text-sm font-semibold leading-5 text-white sm:mt-2">
+        {value}
+      </p>
     </div>
   );
 }
@@ -483,6 +484,14 @@ export default function NominationClient({
   const buyerUnit = useMemo(() => getBuyerUnit(units), [units]);
   const assistantUnits = useMemo(() => getAssistantUnits(units), [units]);
   const editableUnits = assistantUnits;
+  const pendingAssistantUnits = useMemo(
+    () => assistantUnits.filter((unit) => unit.status === "pending_nomination"),
+    [assistantUnits],
+  );
+  const editableIssuedUnits = useMemo(
+    () => assistantUnits.filter((unit) => unit.status === "issued"),
+    [assistantUnits],
+  );
   const pendingNominationCount = useMemo(
     () =>
       editableUnits.filter((unit) => unit.status === "pending_nomination")
@@ -509,8 +518,12 @@ export default function NominationClient({
         .length,
     [units],
   );
-  const allAssistantsCompleted = assistantUnits.length === 0;
+  const allAssistantsCompleted = pendingNominationCount === 0;
   const buyerDisplayName = getBuyerDisplayName(reservation, buyerUnit);
+  const saveButtonLabel =
+    editableIssuedUnits.length > 0
+      ? "Guardar y reemitir QR"
+      : "Completar asistentes";
 
   function updateUnit(unitId: string, patch: Partial<ReservationUnit>) {
     setUnits((current) =>
@@ -644,26 +657,30 @@ export default function NominationClient({
   }
 
   return (
-    <main className="flex min-h-screen items-start justify-center bg-black px-3 py-4 text-white sm:px-6 lg:px-8 lg:py-6">
-      <div className="w-full max-w-6xl space-y-4 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f0f0f] to-[#050505] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
+    <main className="flex min-h-screen items-start justify-center bg-black px-2 py-2 text-white sm:px-4 sm:py-4 lg:px-8 lg:py-6">
+      <div className="w-full max-w-6xl space-y-3 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f0f0f] to-[#050505] p-3 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:space-y-4 sm:p-4 lg:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/45">
               BABY
             </p>
             <div className="space-y-1">
-              <h1 className="text-3xl font-semibold">Completar asistentes</h1>
+              <h1 className="text-2xl font-semibold sm:text-3xl">
+                Completar asistentes
+              </h1>
               <p className="text-sm text-white/65">
                 Reserva{" "}
-                <span className="font-mono text-white">{reservationId}</span>
+                <span className="block font-mono text-xs text-white sm:inline sm:text-sm">
+                  {reservationId}
+                </span>
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <Link
               href="/compra"
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+              className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold btn-smoke-outline transition sm:px-4"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver a compra
@@ -672,7 +689,7 @@ export default function NominationClient({
               type="button"
               onClick={() => void loadUnits()}
               disabled={loading || saving || issuing}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60 sm:px-4"
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -714,7 +731,7 @@ export default function NominationClient({
           </section>
         ) : (
           <>
-            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <section className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-5">
               <ReservationStat
                 label="Evento"
                 value={reservation?.event_name || "—"}
@@ -740,19 +757,21 @@ export default function NominationClient({
               />
             </section>
 
-            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-3 sm:p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold">
+                  <h2 className="text-lg font-semibold sm:text-xl">
                     Comprador y asistentes
                   </h2>
-                  <p className="mt-1 text-sm text-white/60">
-                    {assistantUnits.length > 0
+                  <p className="mt-1 text-sm leading-6 text-white/60">
+                    {pendingAssistantUnits.length > 0
                       ? "Tus códigos QR se generarán automáticamente cuando completes los datos de los asistentes restantes."
-                      : "Tu QR ya fue generado automáticamente. Aquí puedes revisar al comprador y cerrar la reserva cuando quieras."}
+                      : editableIssuedUnits.length > 0
+                        ? "Ya puedes corregir asistentes emitidos y, al guardar, se reemitirá su QR con los nuevos datos."
+                        : "Tu QR ya fue generado automáticamente. Aquí puedes revisar al comprador y cerrar la reserva cuando quieras."}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70">
+                <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70 sm:max-w-xs">
                   {issuedCount > 0 ? (
                     <span>{issuedCount} QR ya emitidos.</span>
                   ) : allAssistantsCompleted && buyerUnit ? (
@@ -772,10 +791,10 @@ export default function NominationClient({
                 </div>
               </div>
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3 sm:mt-5 sm:space-y-4">
                 {buyerUnit ? (
-                  <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                  <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 p-3 sm:p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-base font-semibold text-white">
@@ -805,8 +824,8 @@ export default function NominationClient({
                       ) : null}
                     </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <UnitField label="Nombre completo">
+                        <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2 lg:grid-cols-3">
+                          <UnitField label="Nombre completo">
                         <input
                           value={
                             buyerUnit.full_name ||
@@ -840,7 +859,7 @@ export default function NominationClient({
                 ) : null}
 
                 {assistantUnits.length === 0 ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-6 text-sm text-white/65">
+                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-5 text-sm text-white/65">
                     No hay asistentes pendientes por completar.
                   </div>
                 ) : (
@@ -852,9 +871,9 @@ export default function NominationClient({
                     return (
                       <article
                         key={unit.id}
-                        className="rounded-2xl border border-white/10 bg-black/30 p-4"
+                        className="rounded-2xl border border-white/10 bg-black/30 p-3 sm:p-4"
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <h3 className="text-base font-semibold text-white">
@@ -881,7 +900,7 @@ export default function NominationClient({
                           ) : null}
                         </div>
 
-                        <div className="mt-4 grid gap-3 md:grid-cols-[0.65fr,1fr,1fr]">
+                        <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2 lg:grid-cols-[0.65fr,1fr,1fr]">
                           <UnitField label="Tipo de documento">
                             <select
                               value={unit.doc_type}
@@ -940,7 +959,7 @@ export default function NominationClient({
                           </UnitField>
                         </div>
 
-                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
                           <UnitField label="Email">
                             <input
                               value={unit.email}
@@ -968,6 +987,13 @@ export default function NominationClient({
                           </UnitField>
                         </div>
 
+                        {unit.status === "issued" ? (
+                          <p className="mt-3 text-xs leading-6 text-amber-100/90">
+                            Si corriges este asistente y guardas, el QR anterior
+                            se reemitirá con los nuevos datos.
+                          </p>
+                        ) : null}
+
                         {validationMessage &&
                         !UNIT_TERMINAL_STATUSES.has(unit.status) ? (
                           <p className="mt-3 text-xs font-semibold text-[#ff9a9a]">
@@ -981,11 +1007,13 @@ export default function NominationClient({
               </div>
             </section>
 
-            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-3 sm:p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold">Emisión de QR</h2>
-                  <p className="mt-1 text-sm text-white/60">
+                  <h2 className="text-lg font-semibold sm:text-xl">
+                    Emisión de QR
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-white/60">
                     Cuando la reserva esté aprobada, confirmada o pagada podrás
                     emitir los QR desde aquí.
                   </p>
@@ -995,7 +1023,7 @@ export default function NominationClient({
                 ) : null}
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-3 space-y-3 sm:mt-4">
                 {reservation &&
                 !ISSUE_READY_STATUSES.has(reservation.status) ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/65">
@@ -1025,21 +1053,21 @@ export default function NominationClient({
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap gap-2">
+                <div className="grid gap-2 sm:flex sm:flex-wrap">
                   <button
                     type="button"
                     onClick={() => void handleSave()}
                     disabled={saving || issuing || editableUnits.length === 0}
-                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition disabled:opacity-60"
                   >
                     <Save className="h-4 w-4" />
-                    {saving ? "Guardando..." : "Completar asistentes"}
+                    {saving ? "Guardando..." : saveButtonLabel}
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleIssue()}
                     disabled={!readyToIssue || issuing || units.length === 0}
-                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
                   >
                     <Ticket className="h-4 w-4" />
                     {issuing ? "Emitiendo..." : "Emitir QR"}

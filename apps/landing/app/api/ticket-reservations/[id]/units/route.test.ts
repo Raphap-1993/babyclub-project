@@ -4,8 +4,26 @@ import { createSupabaseMock } from "../../../../../../../tests/utils/supabaseMoc
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
 }));
+vi.mock(
+  "../../../../../../backoffice/app/api/reservations/utils",
+  () => ({
+    createTicketForReservation: vi.fn(),
+  }),
+);
+vi.mock(
+  "../../../../../../backoffice/app/api/reservations/email",
+  () => ({
+    sendTicketEmail: vi.fn(),
+  }),
+);
 
 const { createClient } = await import("@supabase/supabase-js");
+const { createTicketForReservation } = await import(
+  "../../../../../../backoffice/app/api/reservations/utils"
+);
+const { sendTicketEmail } = await import(
+  "../../../../../../backoffice/app/api/reservations/email"
+);
 
 describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
   beforeEach(() => {
@@ -457,5 +475,144 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           call.table === "ticket_reservation_units" && call.op === "update",
       ),
     ).toBeFalsy();
+  });
+
+  it("reemplaza el QR cuando se corrige una unidad ya emitida", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+            event_id: "event-1",
+            promoter_id: null,
+            ticket_type_label: "ALL NIGHT DUO",
+            full_name: "Comprador",
+            email: "buyer@test.com",
+            phone: "999999999",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-2",
+              unit_index: 2,
+              status: "issued",
+              full_name: "Nombre Viejo",
+              doc_type: "dni",
+              document: "12345678",
+              email: "old@test.com",
+              phone: "999999999",
+              ticket_id: "old-ticket",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: {
+            id: "old-ticket",
+            code_id: "code-1",
+            code: { code: "old-code" },
+          },
+          error: null,
+        },
+      ],
+      "tickets.update": [{ data: null, error: null }],
+      "codes.select": [
+        {
+          data: {
+            uses: 1,
+            max_uses: 1,
+            is_active: true,
+          },
+          error: null,
+        },
+      ],
+      "codes.update": [{ data: null, error: null }],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "new-ticket",
+      code: "old-code",
+    });
+    (sendTicketEmail as any).mockResolvedValue({ data: { id: "mail-1" } });
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-2",
+              full_name: "Nombre Nuevo",
+              doc_type: "dni",
+              document: "87654321",
+              email: "new@test.com",
+              phone: "988888888",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(createTicketForReservation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        fullName: "Nombre Nuevo",
+        email: "new@test.com",
+        phone: "988888888",
+        docType: "dni",
+        document: "87654321",
+        reuseCodes: ["old-code"],
+        tableReservationId: "res-ticket-1",
+      }),
+    );
+    expect(sendTicketEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ticketId: "new-ticket",
+        toEmail: "new@test.com",
+      }),
+    );
+
+    const unitUpdate = calls.find(
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "update",
+    );
+    expect(unitUpdate?.payload).toMatchObject({
+      full_name: "Nombre Nuevo",
+      doc_type: "dni",
+      document: "87654321",
+      email: "new@test.com",
+      phone: "988888888",
+      status: "issued",
+      ticket_id: "new-ticket",
+    });
+    expect(unitUpdate?.payload?.deleted_at).toBeUndefined();
+
+    const ticketArchive = calls.find(
+      (call) => call.table === "tickets" && call.op === "update",
+    );
+    expect(ticketArchive?.payload?.deleted_at).toBeTruthy();
+    const codeUpdate = calls.find(
+      (call) => call.table === "codes" && call.op === "update",
+    );
+    expect(codeUpdate?.payload).toMatchObject({ uses: 0 });
   });
 });

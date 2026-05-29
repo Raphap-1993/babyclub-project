@@ -6,7 +6,7 @@ import {
 } from "./nominationWorkspace";
 
 describe("nominationWorkspace", () => {
-  it("keeps unit 1 as buyer and only exposes the remaining units for completion", () => {
+  it("keeps unit 1 as buyer and exposes the remaining units except used or cancelled", () => {
     const units = [
       {
         unit_index: 1,
@@ -35,7 +35,7 @@ describe("nominationWorkspace", () => {
     ];
 
     expect(getBuyerUnit(units)).toEqual(units[0]);
-    expect(getAssistantUnits(units)).toEqual([units[1]]);
+    expect(getAssistantUnits(units)).toEqual([units[1], units[2]]);
   });
 
   it("prefers the reservation buyer name and falls back to the buyer unit", () => {
