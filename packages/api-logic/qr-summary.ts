@@ -5,11 +5,11 @@ export interface QRSummary {
   name: string;
   date: string;
   total_qr: number;
-  free_qr: number;
-  courtesy_qr: number;
-  sold_qr: number;
-  table_qr: number;
-  table_count: number;
+  free_qr?: number;
+  courtesy_qr?: number;
+  sold_qr?: number;
+  table_qr?: number;
+  table_count?: number;
   by_type: Record<string, number>;
   error?: string;
 }
