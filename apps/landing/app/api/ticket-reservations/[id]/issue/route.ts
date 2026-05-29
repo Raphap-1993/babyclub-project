@@ -157,14 +157,30 @@ export async function POST(
     });
 
     issuedCodes.push(result.code);
+    const unitPatch: Record<string, any> = {
+      status: "issued",
+      ticket_id: result.ticketId,
+      issued_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isBuyerUnit) {
+      unitPatch.full_name = fullName;
+      unitPatch.email = email;
+      unitPatch.phone = phone;
+      unitPatch.doc_type = docType;
+      unitPatch.document = document || null;
+    } else {
+      if (fullName) unitPatch.full_name = fullName;
+      if (email) unitPatch.email = email;
+      if (phone) unitPatch.phone = phone;
+      if (docType) unitPatch.doc_type = docType;
+      if (document) unitPatch.document = document;
+    }
+
     const { error: updateError } = await supabase
       .from("ticket_reservation_units")
-      .update({
-        status: "issued",
-        ticket_id: result.ticketId,
-        issued_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(unitPatch)
       .eq("id", unit.id)
       .eq("reservation_id", id);
 

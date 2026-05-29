@@ -149,6 +149,11 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
         call.table === "ticket_reservation_units" && call.op === "update",
     );
     expect(unitUpdate?.payload).toMatchObject({
+      full_name: "Comprador Principal",
+      email: "buyer@test.com",
+      phone: "999999999",
+      doc_type: "dni",
+      document: "11112222",
       status: "issued",
       ticket_id: "ticket-new-1",
     });
