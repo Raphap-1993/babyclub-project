@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import {
   normalizeDocument,
   validateDocument,
   type DocumentType,
 } from "shared/document";
-import { applyNotDeleted, buildArchivePayload } from "shared/db/softDelete";
-import { createTicketForReservation } from "../../../../../../backoffice/app/api/reservations/utils";
+import { applyNotDeleted } from "shared/db/softDelete";
 import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -94,17 +94,6 @@ function sameNominationState(existing: any, next: ReturnType<typeof normalizeCom
     existingState.email === next.email &&
     existingState.phone === next.phone
   );
-}
-
-async function loadTicketForUnit(supabase: any, ticketId: string) {
-  const { data, error } = await applyNotDeleted(
-    supabase
-      .from("tickets")
-      .select("id,code_id,code:codes(code)")
-      .eq("id", ticketId),
-  ).maybeSingle();
-
-  return { data, error };
 }
 
 export async function GET(
@@ -207,67 +196,26 @@ export async function PUT(
     }
 
     if (isIssuedUnit && existingUnit.ticket_id && nominationChanged) {
-      const { data: oldTicket, error: oldTicketError } = await loadTicketForUnit(
-        supabase,
-        String(existingUnit.ticket_id),
-      );
-      if (oldTicketError) return jsonError(oldTicketError.message, 500);
-      if (!oldTicket) {
-        return jsonError("No se encontró el QR anterior para reemitir", 404);
-      }
+      const effectiveEmail =
+        normalizedInput.email || (reservation.data as any).email || "";
+      const newQrToken = randomUUID();
 
-      const oldCodeRel = Array.isArray((oldTicket as any).code)
-        ? (oldTicket as any).code?.[0]
-        : (oldTicket as any).code;
-      const oldCode = typeof oldCodeRel?.code === "string" ? oldCodeRel.code : "";
-
-      const { error: archiveError } = await supabase
+      const { error: ticketUpdateError } = await supabase
         .from("tickets")
-        .update(buildArchivePayload(null))
-        .eq("id", oldTicket.id);
-      if (archiveError) return jsonError(archiveError.message, 500);
-
-      if ((oldTicket as any).code_id) {
-        const { data: codeRow, error: codeRowError } = await supabase
-          .from("codes")
-          .select("uses,max_uses,is_active")
-          .eq("id", (oldTicket as any).code_id)
-          .maybeSingle();
-        if (codeRowError) return jsonError(codeRowError.message, 500);
-        if (codeRow) {
-          const newUses = Math.max(0, Number(codeRow.uses ?? 1) - 1);
-          const shouldReactivate =
-            !codeRow.is_active &&
-            codeRow.max_uses != null &&
-            newUses < Number(codeRow.max_uses);
-          const { error: codeUpdateError } = await supabase
-            .from("codes")
-            .update({
-              uses: newUses,
-              ...(shouldReactivate ? { is_active: true } : {}),
-            })
-            .eq("id", (oldTicket as any).code_id);
-          if (codeUpdateError) return jsonError(codeUpdateError.message, 500);
-        }
-      }
-
-      const effectiveEmail = normalizedInput.email || (reservation.data as any).email || "";
-      const result = await createTicketForReservation(supabase, {
-        eventId: (reservation.data as any).event_id,
-        tableName: (reservation.data as any).ticket_type_label || "Entrada",
-        fullName: normalizedInput.fullName,
-        email: effectiveEmail || null,
-        phone: normalizedInput.phone || null,
-        dni: normalizedInput.docType === "dni" ? normalizedInput.document : null,
-        docType: normalizedInput.docType,
-        document: normalizedInput.document,
-        promoterId: (reservation.data as any).promoter_id || null,
-        reuseCodes: oldCode ? [oldCode] : [],
-        codeType: "courtesy",
-        tableId: null,
-        productId: null,
-        tableReservationId: id,
-      });
+        .update({
+          full_name: normalizedInput.fullName,
+          doc_type: normalizedInput.docType,
+          document: normalizedInput.document,
+          dni: normalizedInput.docType === "dni" ? normalizedInput.document : null,
+          email: effectiveEmail || null,
+          phone: normalizedInput.phone || null,
+          qr_token: newQrToken,
+          updated_at: reissueTimestamp,
+          issued_at: reissueTimestamp,
+        })
+        .eq("id", existingUnit.ticket_id)
+        .eq("event_id", (reservation.data as any).event_id);
+      if (ticketUpdateError) return jsonError(ticketUpdateError.message, 500);
 
       const reissuePatch = {
         full_name: normalizedInput.fullName,
@@ -276,7 +224,7 @@ export async function PUT(
         email: normalizedInput.email || null,
         phone: normalizedInput.phone || null,
         status: "issued",
-        ticket_id: result.ticketId,
+        ticket_id: existingUnit.ticket_id,
         issued_at: reissueTimestamp,
         nominated_at: reissueTimestamp,
         updated_at: reissueTimestamp,
@@ -293,7 +241,7 @@ export async function PUT(
       if (effectiveEmail) {
         await sendTicketEmail({
           supabase,
-          ticketId: result.ticketId,
+          ticketId: String(existingUnit.ticket_id),
           toEmail: effectiveEmail,
         });
       }
