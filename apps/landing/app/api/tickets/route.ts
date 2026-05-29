@@ -10,6 +10,7 @@ import {
   isFreeQrReleaseEnabled,
 } from "shared/freeQrGate";
 import { isAdult } from "shared/datetime";
+import { getPublicAppUrl } from "shared/publicUrl";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -430,7 +431,7 @@ export async function POST(req: NextRequest) {
       const eventLocation = (eventRow as any)?.location || "";
       const eventStartsAt = (eventRow as any)?.starts_at || null;
       const dateLabel = eventStartsAt ? new Date(eventStartsAt).toLocaleString("es-PE", { dateStyle: "full", timeStyle: "short", timeZone: "America/Lima" }) : "";
-      const ticketUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/ticket/${ticketData?.id}`;
+      const ticketUrl = `${getPublicAppUrl()}/ticket/${ticketData?.id}`;
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(qr_token)}`;
       const html = `
         <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">

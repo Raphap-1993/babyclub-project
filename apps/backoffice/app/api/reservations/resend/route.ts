@@ -9,6 +9,7 @@ import {
   isValidEmailAddress,
   normalizeEmailAddress,
 } from "shared/email/address";
+import { getPublicAppUrl } from "shared/publicUrl";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
     (reservation as any).event_id ||
     eventDirectRel?.id ||
     null;
-  const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra?reservationId=${encodeURIComponent(id)}`;
+  const nominationUrl = `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
   const codesList = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];

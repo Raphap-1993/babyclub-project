@@ -9,6 +9,7 @@ import {
   normalizeOptionalEmailAddress,
   resolveFirstValidEmailAddress,
 } from "shared/email/address";
+import { getPublicAppUrl } from "shared/publicUrl";
 import { formatLimaFromDb } from "shared/limaTime";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
 import { logProcessEvent } from "../../logs/logger";
@@ -463,7 +464,7 @@ async function sendReservationEmail({
     const qrToken = Array.isArray(resv.ticket) ? resv.ticket[0]?.qr_token : (resv as any).ticket?.qr_token;
     const productRel = Array.isArray(resv.product) ? resv.product[0] : (resv as any).product;
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
+    const appUrl = getPublicAppUrl();
     const ticketUrl = `${appUrl}/ticket/${ticketId}`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(
       qrToken || ticketId

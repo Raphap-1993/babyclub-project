@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getEmailDomain, normalizeEmailAddress } from "shared/email/address";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
+import { getPublicAppUrl } from "shared/publicUrl";
 import { logProcessEvent } from "../logs/logger";
 
 type Supabase = SupabaseClient<any, "public", any>;
@@ -56,8 +57,7 @@ export async function sendApprovalEmail({
     }
   })();
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
+  const appUrl = getPublicAppUrl();
   const recipientEmail = normalizeEmailAddress(email);
   const recipientDomain = getEmailDomain(recipientEmail);
 
@@ -354,8 +354,7 @@ export async function sendTicketEmail({
   ticketId: string;
   toEmail: string;
 }) {
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
+  const appUrl = getPublicAppUrl();
   const recipientEmail = normalizeEmailAddress(toEmail);
   const recipientDomain = getEmailDomain(recipientEmail);
 

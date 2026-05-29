@@ -5,6 +5,7 @@ import { sendApprovalEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { buildReservationUnits } from "shared/ticketReservationUnits";
+import { getPublicAppUrl } from "shared/publicUrl";
 import {
   normalizeDocument,
   validateDocument,
@@ -211,7 +212,7 @@ export async function POST(req: NextRequest) {
     minimum: 1,
   });
   const tableName = tableRel?.name || "Entrada";
-  const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra?reservationId=${encodeURIComponent(id)}`;
+  const nominationUrl = `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
   const isTableReservation =
     (reservation as any).sale_origin === "table" || Boolean(tableRel?.id);
   trace.push(`eventId:${eventId || "null"}`);
@@ -270,7 +271,7 @@ export async function POST(req: NextRequest) {
     if (!isTableReservation) {
       const ticketTypeLabel =
         (reservation as any).ticket_type_label || "Entrada";
-      const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra?reservationId=${encodeURIComponent(id)}`;
+      const nominationUrl = `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
       const { data: unitsRows, error: unitsError } = await supabase
         .from("ticket_reservation_units")
         .select("id,status,ticket_id")

@@ -19,6 +19,7 @@ import {
   normalizeEmailAddress,
   resolveFirstValidEmailAddress,
 } from "shared/email/address";
+import { getPublicAppUrl } from "shared/publicUrl";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -262,7 +263,7 @@ export async function POST(
       resourceLabel: "Entrada",
       callToAction: {
         label: "Completar asistentes",
-        url: `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra?reservationId=${encodeURIComponent(id)}`,
+        url: `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`,
       },
     });
 
