@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { buildReservationUnits } from "shared/ticketReservationUnits";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { createTicketForReservation } from "../../../../reservations/utils";
 import {
@@ -184,7 +185,7 @@ export async function POST(
     const { data: unitRows, error: unitsError } = await applyNotDeleted(
       supabase
         .from("ticket_reservation_units")
-        .select("id,status,ticket_id,email")
+        .select("id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id")
         .eq("reservation_id", id),
     );
 
@@ -196,22 +197,34 @@ export async function POST(
     }
 
     const units = Array.isArray(unitRows) ? unitRows : [];
+    if (units.length === 0 && eventId) {
+      const { error: insertUnitsError } = await supabase
+        .from("ticket_reservation_units")
+        .insert(
+          buildReservationUnits({
+            reservationId: id,
+            eventId,
+            packageQuantity: 1,
+            unitsPerPackage: ticketQuantity,
+          }),
+        );
+      if (insertUnitsError) {
+        return NextResponse.json(
+          { success: false, error: insertUnitsError.message },
+          { status: 500 },
+        );
+      }
+    }
+
     const issuedUnits = units.filter(
       (unit: any) =>
         String(unit?.status || "").toLowerCase() === "issued" &&
         typeof unit?.ticket_id === "string" &&
         unit.ticket_id.trim(),
     );
-
-    if (issuedUnits.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No hay unidades emitidas para reenviar en esta reserva",
-        },
-        { status: 400 },
-      );
-    }
+    const issuedTicketIds = uniqueStrings(
+      issuedUnits.map((unit: any) => unit.ticket_id),
+    );
 
     let sentCount = 0;
     let invalidRecipientCount = 0;
@@ -232,22 +245,31 @@ export async function POST(
       sentCount += 1;
     }
 
-    if (sentCount === 0 && invalidRecipientCount > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "No hay correos válidos para reenviar en esta reserva. Corrige el email del comprador o de las unidades nominadas.",
-        },
-        { status: 400 },
-      );
-    }
+    await sendApprovalEmail({
+      supabase,
+      id,
+      full_name: (reservation as any).full_name || "",
+      email,
+      phone: (reservation as any).phone || null,
+      codes: Array.isArray((reservation as any).codes)
+        ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
+        : [],
+      ticketIds: issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
+      tableName: (reservation as any).ticket_type_label || "Entrada",
+      event: eventData,
+      resourceLabel: "Entrada",
+      callToAction: {
+        label: "Completar nominación",
+        url: `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra/reserva/${encodeURIComponent(id)}`,
+      },
+    });
 
     return NextResponse.json({
       success: true,
       sentCount,
       skippedCount:
         Math.max(0, units.length - issuedUnits.length) + invalidRecipientCount,
+      unitsPrepared: units.length === 0,
     });
   }
 
