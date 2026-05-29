@@ -28,6 +28,7 @@ import { ExternalPagination } from "../components/ExternalPagination";
 type TicketRow = {
   id: string;
   created_at: string;
+  code_id: string | null;
   dni: string | null;
   full_name: string | null;
   email: string | null;

@@ -9,6 +9,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 type TicketRow = {
   id: string;
   created_at: string;
+  code_id: string | null;
   dni: string | null;
   full_name: string | null;
   email: string | null;
@@ -38,9 +39,6 @@ async function getTickets(params: {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const start = (params.page - 1) * params.pageSize;
-  const end = start + params.pageSize - 1;
-
   let query = applyNotDeleted(
     supabase
       .from("tickets")
@@ -49,8 +47,7 @@ async function getTickets(params: {
         { count: "exact" },
       )
       .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .range(start, end),
+      .order("created_at", { ascending: false }),
   );
 
   if (params.event_id) {
@@ -85,13 +82,27 @@ async function getTickets(params: {
     query = query.or(promoterFilters.join(","));
   }
 
-  const { data, error, count } = await query;
+  const { data, error } = await query;
   if (error || !data)
     return {
       tickets: [],
       total: 0,
       error: error?.message || "No se pudieron cargar tickets",
     };
+
+  const dedupedTickets: any[] = [];
+  const seenKeys = new Set<string>();
+  for (const row of data as any[]) {
+    const codeRel = Array.isArray((row as any).code)
+      ? (row as any).code?.[0]
+      : (row as any).code;
+    const dedupeKey = String(codeRel?.id || row.code_id || row.id || "").trim();
+    if (!dedupeKey || seenKeys.has(dedupeKey)) {
+      continue;
+    }
+    seenKeys.add(dedupeKey);
+    dedupedTickets.push(row);
+  }
 
   const eventIds = Array.from(
     new Set((data as any[]).map((t) => t.event_id).filter(Boolean)),
@@ -216,7 +227,7 @@ async function getTickets(params: {
     });
   });
 
-  const normalized: TicketRow[] = (data as any[]).map((t) => {
+  const normalized: TicketRow[] = dedupedTickets.map((t) => {
     const codeRel = Array.isArray((t as any).code)
       ? (t as any).code?.[0]
       : (t as any).code;
@@ -231,6 +242,7 @@ async function getTickets(params: {
     return {
     id: t.id,
     created_at: t.created_at,
+    code_id: t.code_id ?? codeRel?.id ?? null,
     dni: t.dni ?? null,
     full_name: t.full_name ?? null,
     email: t.email ?? null,
@@ -255,7 +267,11 @@ async function getTickets(params: {
   };
   });
 
-  return { tickets: normalized, total: count ?? normalized.length };
+  const pageStart = (params.page - 1) * params.pageSize;
+  const pageEnd = pageStart + params.pageSize;
+  const pagedTickets = normalized.slice(pageStart, pageEnd);
+
+  return { tickets: pagedTickets, total: normalized.length };
 }
 
 export const dynamic = "force-dynamic";
