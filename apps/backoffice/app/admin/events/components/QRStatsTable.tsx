@@ -9,15 +9,17 @@ export function QRStatsTable({ events }: { events: any[] }) {
           <TableHead>Evento</TableHead>
           <TableHead>Fecha</TableHead>
           <TableHead>Total QRs</TableHead>
-          <TableHead>Entradas</TableHead>
-          <TableHead>Mesas</TableHead>
-          <TableHead>Cortesía</TableHead>
+          <TableHead>Vendidas</TableHead>
+          <TableHead>Free</TableHead>
+          <TableHead>Cortesías</TableHead>
+          <TableHead>Mesas QR</TableHead>
+          <TableHead>Mesas separadas</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {events.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={6} className="py-10 text-center text-white/55">
+            <TableCell colSpan={8} className="py-10 text-center text-white/55">
               Sin resultados para el rango seleccionado.
             </TableCell>
           </TableRow>
@@ -27,9 +29,11 @@ export function QRStatsTable({ events }: { events: any[] }) {
             <TableCell className="font-semibold text-white/90">{ev.name}</TableCell>
             <TableCell className="text-white/70">{ev.date}</TableCell>
             <TableCell>{ev.total_qr}</TableCell>
-            <TableCell>{ev.by_type.general || ev.by_type.entrada || 0}</TableCell>
-            <TableCell>{ev.by_type.table || ev.by_type.mesa || 0}</TableCell>
-            <TableCell>{ev.by_type.courtesy || ev.by_type.cortesia || 0}</TableCell>
+            <TableCell>{ev.sold_qr ?? ev.by_type.sold ?? 0}</TableCell>
+            <TableCell>{ev.free_qr ?? ev.by_type.free ?? 0}</TableCell>
+            <TableCell>{ev.courtesy_qr ?? ev.by_type.courtesy ?? 0}</TableCell>
+            <TableCell>{ev.table_qr ?? ev.by_type.table ?? 0}</TableCell>
+            <TableCell>{ev.table_count ?? 0}</TableCell>
           </TableRow>
         ))}
       </TableBody>

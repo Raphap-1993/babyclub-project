@@ -43,6 +43,15 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 
 ## Notas recientes
 
+### 2026-05-29 - REQ-0012 buyer-first promovido a master
+
+- El flujo publico de nominacion ya quedo ajustado para que el comprador sea la primera unidad, reciba su QR inmediato y deje el workspace solo para completar asistentes restantes.
+- `apps/landing/app/compra/reserva/[id]/NominationClient.tsx` muestra al comprador en solo lectura y renombra la accion principal a `Completar asistentes`.
+- `apps/landing/app/api/ticket-reservations/[id]/issue/route.ts` emite primero la unidad 1 con los datos del comprador y `apps/landing/app/api/ticket-reservations/[id]/units/route.ts` bloquea su edicion desde el workspace.
+- `apps/backoffice/app/api/reservations/update/route.ts`, `apps/backoffice/app/api/reservations/resend/route.ts` y `apps/backoffice/app/api/admin/reservations/[id]/resend/route.ts` ya usan el CTA `Completar asistentes`.
+- Verificacion final antes de publicar `master`: `pnpm exec vitest run apps/backoffice/app/api/reservations/update/route.test.ts apps/backoffice/app/api/reservations/resend/route.test.ts apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts apps/landing/app/api/ticket-reservations/[id]/units/route.test.ts`, `pnpm typecheck:backoffice`, `pnpm typecheck:landing`, `git diff --check`.
+- Commit publicado en `master`: `616bc72` (`fix: make ticket nominations buyer-first`).
+
 ### 2026-05-28 - Fix operativo promotores reactivables
 
 - `POST /api/promoters/create` ahora busca un promotor existente por `person_id + organizer_id` antes de insertar.

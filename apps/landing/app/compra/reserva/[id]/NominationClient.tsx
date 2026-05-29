@@ -747,8 +747,9 @@ export default function NominationClient({
                     Comprador y asistentes
                   </h2>
                   <p className="mt-1 text-sm text-white/60">
-                    El comprador ya queda como primer asistente. Completa solo
-                    los asistentes restantes.
+                    {assistantUnits.length > 0
+                      ? "Tus códigos QR se generarán automáticamente cuando completes los datos de los asistentes restantes."
+                      : "Tu QR ya fue generado automáticamente. Aquí puedes revisar al comprador y cerrar la reserva cuando quieras."}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70">

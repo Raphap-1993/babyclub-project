@@ -5,9 +5,16 @@ export interface QRSummary {
   name: string;
   date: string;
   total_qr: number;
+  free_qr: number;
+  courtesy_qr: number;
+  sold_qr: number;
+  table_qr: number;
+  table_count: number;
   by_type: Record<string, number>;
   error?: string;
 }
+
+export type QRSummaryBucket = "free" | "courtesy" | "sold" | "table";
 
 type EventRow = {
   id: string;
@@ -31,7 +38,7 @@ type CodeRow = {
   is_active: boolean | null;
 };
 
-type ReservationCommercialRow = {
+type ReservationRow = {
   id: string;
   sale_origin: "table" | "ticket" | null;
 };
@@ -41,17 +48,140 @@ type RpcQrSummaryRow = {
   name: string | null;
   date: string | null;
   total_qr: number | null;
+  free_qr: number | null;
+  courtesy_qr: number | null;
+  sold_qr: number | null;
+  table_qr: number | null;
+  table_count: number | null;
   by_type: Record<string, unknown> | null;
 };
 
-function normalizeByType(input: Record<string, unknown> | null | undefined): Record<string, number> {
-  if (!input || typeof input !== "object") return {};
+type SummaryCounts = Record<QRSummaryBucket, number>;
 
-  return Object.entries(input).reduce<Record<string, number>>((acc, [key, value]) => {
+function makeSummaryCounts(): SummaryCounts {
+  return { free: 0, courtesy: 0, sold: 0, table: 0 };
+}
+
+function normalizeCodeType(value: string | null | undefined): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isFreeSummaryType(type: string) {
+  return type === "general" || type === "free" || type === "promoter_link";
+}
+
+function isCourtesySummaryType(type: string) {
+  return type === "courtesy" || type === "promoter";
+}
+
+function isTableSummaryType(type: string) {
+  return type === "table";
+}
+
+export function classifyQrBucket({
+  codeType,
+  saleOrigin,
+  ticketTableId,
+  codeReservationId,
+}: {
+  codeType: string | null;
+  saleOrigin: string | null;
+  ticketTableId: string | null;
+  codeReservationId: string | null;
+}): { bucket: QRSummaryBucket; tableKey: string | null } {
+  const normalizedType = normalizeCodeType(codeType);
+  const normalizedSaleOrigin = normalizeCodeType(saleOrigin);
+  const tableKey = ticketTableId || codeReservationId || null;
+
+  if (tableKey || isTableSummaryType(normalizedType)) {
+    return { bucket: "table", tableKey };
+  }
+
+  if (isCourtesySummaryType(normalizedType)) {
+    return { bucket: "courtesy", tableKey: null };
+  }
+
+  if (isFreeSummaryType(normalizedType)) {
+    return { bucket: "free", tableKey: null };
+  }
+
+  if (normalizedSaleOrigin === "ticket") {
+    return { bucket: "sold", tableKey: null };
+  }
+
+  return { bucket: "sold", tableKey: null };
+}
+
+export function normalizeByType(input: Record<string, unknown> | null | undefined): SummaryCounts {
+  const counts = makeSummaryCounts();
+  if (!input || typeof input !== "object") return counts;
+
+  Object.entries(input).forEach(([key, value]) => {
     const parsed = typeof value === "number" ? value : Number(value);
-    acc[key] = Number.isFinite(parsed) ? parsed : 0;
-    return acc;
-  }, {});
+    const qty = Number.isFinite(parsed) ? parsed : 0;
+    const normalizedKey = normalizeCodeType(key);
+
+    if (isTableSummaryType(normalizedKey)) {
+      counts.table += qty;
+      return;
+    }
+    if (isCourtesySummaryType(normalizedKey)) {
+      counts.courtesy += qty;
+      return;
+    }
+    if (isFreeSummaryType(normalizedKey)) {
+      counts.free += qty;
+      return;
+    }
+    counts.sold += qty;
+  });
+
+  return counts;
+}
+
+function buildSummaryCounts({
+  byType,
+  totalQr,
+}: {
+  byType: SummaryCounts;
+  totalQr: number;
+}): SummaryCounts {
+  const soldFromResidual = Math.max(totalQr - byType.free - byType.courtesy - byType.table, 0);
+  return {
+    free: byType.free,
+    courtesy: byType.courtesy,
+    sold: byType.sold > 0 ? byType.sold : soldFromResidual,
+    table: byType.table,
+  };
+}
+
+function hasExpandedSummaryColumns(row: RpcQrSummaryRow): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(row, "free_qr") ||
+    Object.prototype.hasOwnProperty.call(row, "courtesy_qr") ||
+    Object.prototype.hasOwnProperty.call(row, "sold_qr") ||
+    Object.prototype.hasOwnProperty.call(row, "table_qr") ||
+    Object.prototype.hasOwnProperty.call(row, "table_count")
+  );
+}
+
+function mapSummaryRow(row: RpcQrSummaryRow): QRSummary {
+  const totalQr = Number(row.total_qr || 0);
+  const byType = normalizeByType(row.by_type);
+  const counts = buildSummaryCounts({ byType, totalQr });
+
+  return {
+    event_id: row.event_id,
+    name: row.name || row.event_id,
+    date: row.date || "",
+    total_qr: totalQr,
+    free_qr: Number(row.free_qr ?? counts.free),
+    courtesy_qr: Number(row.courtesy_qr ?? counts.courtesy),
+    sold_qr: Number(row.sold_qr ?? counts.sold),
+    table_qr: Number(row.table_qr ?? counts.table),
+    table_count: Number(row.table_count ?? 0),
+    by_type: counts,
+  };
 }
 
 async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRSummary[]> {
@@ -91,7 +221,7 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
 
   let codeMap = new Map<string, CodeRow>();
   let codesErrorMessage: string | undefined;
-  let reservationMap = new Map<string, ReservationCommercialRow>();
+  let reservationMap = new Map<string, ReservationRow>();
   let reservationsErrorMessage: string | undefined;
 
   if (codeIds.length > 0) {
@@ -112,26 +242,24 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
         ),
       );
       if (reservationIds.length > 0) {
-        const { data: reservationsRaw, error: reservationsError } =
-          await supabase
-            .from("table_reservations")
-            .select("id,sale_origin")
-            .is("deleted_at", null)
-            .in("id", reservationIds);
+        const { data: reservationsRaw, error: reservationsError } = await supabase
+          .from("table_reservations")
+          .select("id,sale_origin")
+          .is("deleted_at", null)
+          .in("id", reservationIds);
         if (reservationsError) {
           reservationsErrorMessage = reservationsError.message;
         } else {
           reservationMap = new Map(
-            ((reservationsRaw || []) as ReservationCommercialRow[]).map(
-              (reservation) => [reservation.id, reservation],
-            ),
+            ((reservationsRaw || []) as ReservationRow[]).map((row) => [row.id, row]),
           );
         }
       }
     }
   }
 
-  const byEvent: Record<string, { by_type: Record<string, number>; total_qr: number }> = {};
+  const byEvent: Record<string, { by_type: SummaryCounts; total_qr: number; table_count: number }> = {};
+  const tableKeysByEvent: Record<string, Set<string>> = {};
 
   (ticketsRaw as TicketWithCodeRow[] | null)?.forEach((row) => {
     const eid = row.event_id;
@@ -142,35 +270,51 @@ async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRS
       return;
     }
 
-    const reservationRow =
-      codeRow?.table_reservation_id
-        ? reservationMap.get(codeRow.table_reservation_id)
-        : null;
-    const type = row.table_id
-      ? "table"
-      : codeRow?.type === "courtesy" && reservationRow?.sale_origin === "ticket"
-        ? "general"
-        : codeRow?.type || "desconocido";
+    const reservationRow = codeRow?.table_reservation_id
+      ? reservationMap.get(codeRow.table_reservation_id)
+      : null;
+    const classified = classifyQrBucket({
+      codeType: codeRow?.type || null,
+      saleOrigin: reservationRow?.sale_origin || null,
+      ticketTableId: row.table_id || null,
+      codeReservationId: codeRow?.table_reservation_id || null,
+    });
 
     if (!byEvent[eid]) {
-      byEvent[eid] = { by_type: {}, total_qr: 0 };
+      byEvent[eid] = { by_type: makeSummaryCounts(), total_qr: 0, table_count: 0 };
+      tableKeysByEvent[eid] = new Set<string>();
     }
 
-    byEvent[eid].by_type[type] = (byEvent[eid].by_type[type] || 0) + 1;
+    byEvent[eid].by_type[classified.bucket] += 1;
     byEvent[eid].total_qr += 1;
+    if (classified.bucket === "table" && classified.tableKey) {
+      tableKeysByEvent[eid].add(classified.tableKey);
+      byEvent[eid].table_count = tableKeysByEvent[eid].size;
+    }
   });
 
-  return events.map((event) => ({
-    event_id: event.id,
-    name: event.name,
-    date: event.starts_at || "",
-    total_qr: byEvent[event.id]?.total_qr || 0,
-    by_type: byEvent[event.id]?.by_type || {},
-    error:
-      ticketsError?.message ||
-      codesErrorMessage ||
-      reservationsErrorMessage,
-  }));
+  return events.map((event) => {
+    const eventCounts = byEvent[event.id];
+    const totalQr = eventCounts?.total_qr || 0;
+    const counts = buildSummaryCounts({
+      byType: eventCounts?.by_type || makeSummaryCounts(),
+      totalQr,
+    });
+
+    return {
+      event_id: event.id,
+      name: event.name,
+      date: event.starts_at || "",
+      total_qr: totalQr,
+      free_qr: counts.free,
+      courtesy_qr: counts.courtesy,
+      sold_qr: counts.sold,
+      table_qr: counts.table,
+      table_count: eventCounts?.table_count || 0,
+      by_type: counts,
+      error: ticketsError?.message || codesErrorMessage || reservationsErrorMessage,
+    };
+  });
 }
 
 export async function getQrSummaryAll({
@@ -187,14 +331,11 @@ export async function getQrSummaryAll({
     p_cutoff: cutoffIso,
   });
 
-  if (!rpcError && Array.isArray(rpcData)) {
-    return (rpcData as RpcQrSummaryRow[]).map((row) => ({
-      event_id: row.event_id,
-      name: row.name || row.event_id,
-      date: row.date || "",
-      total_qr: Number(row.total_qr || 0),
-      by_type: normalizeByType(row.by_type),
-    }));
+  if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+    const rows = rpcData as RpcQrSummaryRow[];
+    if (rows.some((row) => hasExpandedSummaryColumns(row))) {
+      return rows.map((row) => mapSummaryRow(row));
+    }
   }
 
   return getQrSummaryLegacy(supabase, cutoffIso);

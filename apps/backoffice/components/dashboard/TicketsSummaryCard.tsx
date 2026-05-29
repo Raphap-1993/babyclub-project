@@ -6,10 +6,10 @@ import type { QRSummary } from "@repo/api-logic/qr-summary";
 
 function TicketsSummaryCard() {
   const typeLabelMap: Record<string, string> = {
-    table: "Mesa",
-    courtesy: "Cortesia",
-    general: "General",
+    sold: "Vendidas",
     free: "Free",
+    courtesy: "Cortesías",
+    table: "Mesas",
   };
   const [events, setEvents] = useState<QRSummary[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -84,7 +84,7 @@ function TicketsSummaryCard() {
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <CardTitle className="flex-1 text-base font-semibold text-white sm:text-lg">
-            Tickets generados por evento
+            QR clasificados por evento
           </CardTitle>
           <Select
             value={selected}
@@ -127,14 +127,26 @@ function TicketsSummaryCard() {
             <div className="text-4xl font-bold text-neutral-400">
               {event.total_qr}
             </div>
-            <div className="text-xs text-neutral-400 mb-2">Tickets generados</div>
-            <div className="grid w-full max-w-xl grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-start sm:justify-center sm:gap-6">
-              {Object.entries(event.by_type).map(([type, count]) => (
-                <div key={type} className="text-center">
-                  <div className="text-lg font-semibold text-white">{count}</div>
-                  <div className="text-xs text-neutral-400">{typeLabelMap[type] || type}</div>
+            <div className="text-xs text-neutral-400 mb-2">Total QR</div>
+            <div className="grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+              {[
+                { key: "sold", value: event.sold_qr, label: typeLabelMap.sold },
+                { key: "free", value: event.free_qr, label: typeLabelMap.free },
+                { key: "courtesy", value: event.courtesy_qr, label: typeLabelMap.courtesy },
+                { key: "table", value: event.table_qr, label: typeLabelMap.table },
+              ].map((item) => (
+                <div
+                  key={item.key}
+                  className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center"
+                >
+                  <div className="text-xl font-semibold text-white">{item.value}</div>
+                  <div className="text-xs text-neutral-400">{item.label}</div>
                 </div>
               ))}
+            </div>
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center">
+              <div className="text-lg font-semibold text-white">{event.table_count}</div>
+              <div className="text-xs text-neutral-400">Mesas separadas</div>
             </div>
             <div className="text-xs text-neutral-500 mt-2">{formatEventDate(event.date)}</div>
             {event.error ? (

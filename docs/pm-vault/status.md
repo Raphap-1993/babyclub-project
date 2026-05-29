@@ -3,8 +3,8 @@ type: status
 project: babyclub-monorepo
 status: active
 owner: Patroclo
-updated: 2026-05-28
-last_reviewed: 2026-05-28
+updated: 2026-05-29
+last_reviewed: 2026-05-29
 ---
 
 # Status
@@ -36,6 +36,7 @@ last_reviewed: 2026-05-28
 - Supabase remoto `babyclub-access`: aplicadas `20260428112000_add_ticket_reservation_attendees`, `20260428112100_add_promoter_link_trace_to_reservations` y `20260428112200_promoter_settlements_ledger`.
 - `pnpm smoke:local` valida la landing sobre `http://localhost:3001`.
 - `REQ-0012` ya quedo implementado en branch aislada con catalogo flexible por evento, compra por `package_quantity`, workspace publico de nominacion posterior, emision por unidad y gate de scanner por estado unitario.
+- `REQ-0012` ya quedo promovido a `master` con el flujo buyer-first: el comprador es el primer asistente, recibe su QR inmediato y la UI publica ahora pide `Completar asistentes` solo para los cupos restantes.
 - Backoffice promotores: la creacion ya rehidrata promotores archivados para la misma persona/organizer y evita duplicados activos al reintentar el alta.
 - Backoffice promotores: el estado operativo ya se maneja como `activo/inactivo` visible; el listado permite desactivar/reactivar sin archivar y los promotores inactivos ya no pueden generar códigos ni links nuevos.
 - Cortesias por lote: `REQ-0015` ya quedo implementado con politica por tipo, validacion de expiracion y cierre autoritativo por cupos/expiracion en el listado.
@@ -76,7 +77,7 @@ last_reviewed: 2026-05-28
 - Usar [REQ-0003-primer-lote-requerimientos-y-correcciones.md](./01-Requirements/REQ-0003-primer-lote-requerimientos-y-correcciones.md) como intake del primer lote.
 - Cuando aparezca un item concreto, clonarlo a un REQ individual desde [99-Templates/tpl-requirement.md](./99-Templates/tpl-requirement.md).
 - REQ tecnico cerrado mas reciente: [REQ-0011-liquidaciones-promotores-ledger.md](./01-Requirements/REQ-0011-liquidaciones-promotores-ledger.md), actualizado con CRUD separado, reporte consolidado y migraciones remotas aplicadas.
-- REQ tecnico cerrado mas reciente: [REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md](./01-Requirements/REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md), implementado en el worktree `req-0012-flexible-tickets` y validado con typecheck landing/backoffice mas suite focalizada de 25 tests.
+- REQ tecnico cerrado mas reciente: [REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md](./01-Requirements/REQ-0012-catalogo-flexible-entradas-y-nominacion-posterior.md), implementado en el worktree `req-0012-flexible-tickets`, promovido a `master` con buyer-first nomination y validado con typecheck landing/backoffice mas suite focalizada de 25 tests.
 - REQ tecnico cerrado mas reciente: [REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md](./01-Requirements/REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md), validado con suite focalizada de landing, `pnpm typecheck:landing` y smoke DOM local en `/compra` y `/registro`.
 - REQ tecnico cerrado mas reciente: [REQ-0014-estado-operativo-promotores-y-bloqueo-de-codigos.md](./01-Requirements/REQ-0014-estado-operativo-promotores-y-bloqueo-de-codigos.md), validado con suite focalizada de promotores, `pnpm typecheck:backoffice` y `git diff --check`.
 - Si el requerimiento toca tenancy, contratos API, auth, pagos, logs o migraciones, abrir revison de arquitectura antes de codificar.
