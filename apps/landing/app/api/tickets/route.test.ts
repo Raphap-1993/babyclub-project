@@ -5,7 +5,12 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock("shared/email/resend", () => ({
+  sendEmail: vi.fn(),
+}));
+
 const { createClient } = await import("@supabase/supabase-js");
+const { sendEmail } = await import("shared/email/resend");
 
 describe("POST /api/tickets", () => {
   beforeEach(() => {
@@ -132,6 +137,80 @@ describe("POST /api/tickets", () => {
     expect(payload.success).toBe(true);
     expect(payload.ticketId).toBe("ticket-1");
     expect(typeof payload.qr).toBe("string");
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("envía correo automático al crear un ticket de entrada", async () => {
+    const { supabase } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-2",
+            code: "ENTRY-123",
+            event_id: "event-2",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 999,
+            uses: 0,
+            expires_at: null,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        { data: null, error: null },
+        {
+          data: {
+            id: "event-2",
+            name: "Evento Baby",
+            location: "Club",
+            starts_at: "2026-06-01T20:00:00Z",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
+      "persons.select": [{ data: null, error: null }],
+      "persons.insert": [{ data: { id: "person-2" }, error: null }],
+      "tickets.select": [
+        { data: null, error: null },
+        { data: null, error: null },
+      ],
+      "tickets.insert": [{ data: { id: "ticket-2" }, error: null }],
+      "codes.update": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    (sendEmail as any).mockResolvedValue({ data: { id: "email-1" }, error: null });
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "ENTRY-123",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Ana",
+        apellido_paterno: "Perez",
+        apellido_materno: "Lopez",
+        email: "ana@example.com",
+        telefono: "+51999999999",
+        birthdate: "1999-01-01",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.ticketId).toBe("ticket-2");
+    expect(payload.emailSent).toBe(true);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it("bloquea código de mesa si la reserva aún no está aprobada", async () => {
