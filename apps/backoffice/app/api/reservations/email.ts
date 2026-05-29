@@ -1,8 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  getEmailDomain,
-  normalizeEmailAddress,
-} from "shared/email/address";
+import { getEmailDomain, normalizeEmailAddress } from "shared/email/address";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { logProcessEvent } from "../logs/logger";
@@ -30,12 +27,20 @@ export async function sendApprovalEmail({
   codes: string[];
   ticketIds?: string[]; // ✅ IDs de tickets generados
   tableName?: string | null;
-  event?: { name?: string | null; starts_at?: string | null; location?: string | null } | null;
+  event?: {
+    name?: string | null;
+    starts_at?: string | null;
+    location?: string | null;
+  } | null;
   resourceLabel?: string;
   callToAction?: { label: string; url: string } | null;
 }) {
   const escape = (value: string) =>
-    value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
 
   const safeName = full_name ? escape(full_name) : "";
   const safeTable = tableName ? escape(tableName) : "—";
@@ -51,7 +56,8 @@ export async function sendApprovalEmail({
     }
   })();
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
   const recipientEmail = normalizeEmailAddress(email);
   const recipientDomain = getEmailDomain(recipientEmail);
 
@@ -64,14 +70,20 @@ export async function sendApprovalEmail({
               // Obtener datos del ticket para mostrar qr_token, event_id, organizer
               const { data: ticketData } = await supabase
                 .from("tickets")
-                .select("qr_token,event:events(id,name,organizer:organizers(name))")
+                .select(
+                  "qr_token,event:events(id,name,organizer:organizers(name))",
+                )
                 .eq("id", ticketId)
                 .maybeSingle();
 
               const qrToken = ticketData?.qr_token || ticketId;
-              const eventRel = Array.isArray(ticketData?.event) ? ticketData.event[0] : ticketData?.event;
-              const organizerRel = Array.isArray(eventRel?.organizer) ? eventRel.organizer[0] : eventRel?.organizer;
-              
+              const eventRel = Array.isArray(ticketData?.event)
+                ? ticketData.event[0]
+                : ticketData?.event;
+              const organizerRel = Array.isArray(eventRel?.organizer)
+                ? eventRel.organizer[0]
+                : eventRel?.organizer;
+
               const ticketUrl = `${appUrl}/ticket/${ticketId}`;
               const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(qrToken)}`;
 
@@ -88,12 +100,12 @@ export async function sendApprovalEmail({
           </div>
         </div>
       `;
-            })
+            }),
           )
         ).join("")
       : codes.length > 0
-      ? `<p style="color:#f5f5f5;font-size:14px;">Códigos generados: ${codes.join(", ")}</p>`
-      : `<p style="color:#f5f5f5;font-size:14px;">No se generaron códigos para esta reserva.</p>`;
+        ? `<p style="color:#f5f5f5;font-size:14px;">Códigos generados: ${codes.join(", ")}</p>`
+        : `<p style="color:#f5f5f5;font-size:14px;">No se generaron códigos para esta reserva.</p>`;
 
   const html = `
   <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
@@ -121,7 +133,7 @@ export async function sendApprovalEmail({
                   callToAction?.url
                     ? `
                 <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
-                  Tu reserva quedó lista. Asigna los asistentes desde el enlace de abajo para asociar cada QR a una persona antes de usarlo en puerta.
+                  Tu reserva quedó lista. Completa los asistentes desde el enlace de abajo para asociar cada QR a una persona antes de usarlo en puerta.
                   <div style="margin-top:12px;">
                     <a href="${escape(callToAction.url)}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;letter-spacing:0.02em;">${escape(callToAction.label)}</a>
                   </div>
@@ -148,7 +160,9 @@ export async function sendApprovalEmail({
     phone ? `Teléfono: ${phone}` : null,
     "",
     "Códigos:",
-    codes.length > 0 ? codes.map((c) => `- ${c}`).join("\n") : "- (sin códigos)",
+    codes.length > 0
+      ? codes.map((c) => `- ${c}`).join("\n")
+      : "- (sin códigos)",
     callToAction?.url ? `${callToAction.label}: ${callToAction.url}` : null,
   ]
     .filter(Boolean)
@@ -210,10 +224,18 @@ export async function sendCancellationEmail({
   full_name: string;
   email: string;
   tableName?: string | null;
-  event?: { name?: string | null; starts_at?: string | null; location?: string | null } | null;
+  event?: {
+    name?: string | null;
+    starts_at?: string | null;
+    location?: string | null;
+  } | null;
 }) {
   const escape = (value: string) =>
-    value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
 
   const safeName = full_name ? escape(full_name) : "";
   const safeTable = tableName ? escape(tableName) : "—";
@@ -332,29 +354,39 @@ export async function sendTicketEmail({
   ticketId: string;
   toEmail: string;
 }) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com";
   const recipientEmail = normalizeEmailAddress(toEmail);
   const recipientDomain = getEmailDomain(recipientEmail);
 
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location)"
+      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location)",
     )
     .eq("id", ticketId)
     .maybeSingle();
-  if (error || !data) throw new Error("Ticket no encontrado para enviar correo");
+  if (error || !data)
+    throw new Error("Ticket no encontrado para enviar correo");
 
-  const eventRel = Array.isArray((data as any).event) ? (data as any).event?.[0] : (data as any).event;
-  const codeRel = Array.isArray((data as any).code) ? (data as any).code?.[0] : (data as any).code;
+  const eventRel = Array.isArray((data as any).event)
+    ? (data as any).event?.[0]
+    : (data as any).event;
+  const codeRel = Array.isArray((data as any).code)
+    ? (data as any).code?.[0]
+    : (data as any).code;
   const docValue = (data as any).document || (data as any).dni || "";
   const docTypeRaw = (data as any).doc_type || ((data as any).dni ? "dni" : "");
   const docTypeLabel = docTypeRaw ? String(docTypeRaw).toUpperCase() : "";
-  const documentLabel = docValue ? `${docTypeLabel ? `${docTypeLabel} ` : ""}${docValue}`.trim() : "—";
-  const dateLabel = eventRel?.starts_at ? formatLimaFromDb(eventRel.starts_at) : "";
+  const documentLabel = docValue
+    ? `${docTypeLabel ? `${docTypeLabel} ` : ""}${docValue}`.trim()
+    : "—";
+  const dateLabel = eventRel?.starts_at
+    ? formatLimaFromDb(eventRel.starts_at)
+    : "";
   const ticketUrl = `${appUrl}/ticket/${ticketId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(
-    data.qr_token
+    data.qr_token,
   )}`;
   const qrImg = qrUrl;
   const isFreeCode = (codeRel?.type || "").toLowerCase() === "free";
@@ -374,17 +406,19 @@ export async function sendTicketEmail({
     warnings.push(
       expiresLabel
         ? `QR libre con hora límite: puedes ingresar hasta las ${expiresLabel}.`
-        : "QR libre con hora límite configurable. Llega temprano para asegurar tu ingreso."
+        : "QR libre con hora límite configurable. Llega temprano para asegurar tu ingreso.",
     );
   }
   if (isPromoterCode && !isFreeCode) {
-    warnings.push("QR de promotor: no tiene límite de hora de ingreso. Coordina con tu promotor.");
+    warnings.push(
+      "QR de promotor: no tiene límite de hora de ingreso. Coordina con tu promotor.",
+    );
   }
 
   const warningsHtml = warnings
     .map(
       (w) =>
-        `<div style="margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(233,30,99,0.35);background:linear-gradient(120deg,rgba(233,30,99,0.12),rgba(233,30,99,0.04));color:#ffddea;font-size:13px;line-height:1.4;">${w}</div>`
+        `<div style="margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(233,30,99,0.35);background:linear-gradient(120deg,rgba(233,30,99,0.12),rgba(233,30,99,0.04));color:#ffddea;font-size:13px;line-height:1.4;">${w}</div>`,
     )
     .join("");
 
@@ -453,14 +487,16 @@ export async function sendTicketEmail({
     </table>
   </div>`;
 
-  const textWarnings = warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
+  const textWarnings =
+    warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
   const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDocumento: ${documentLabel}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}`;
 
   const subject = `BABY - Entrada ${eventRel?.name || "evento"}`;
   let providerId: string | null = null;
 
   try {
-    if (!process.env.RESEND_API_KEY) throw new Error("Correo no disponible: configura RESEND_API_KEY");
+    if (!process.env.RESEND_API_KEY)
+      throw new Error("Correo no disponible: configura RESEND_API_KEY");
     const result: any = await sendEmail({
       to: recipientEmail,
       subject,

@@ -29,7 +29,9 @@ vi.mock("shared/ticketReservationUnits", () => ({
 
 const { createClient } = await import("@supabase/supabase-js");
 const { requireStaffRole } = await import("shared/auth/requireStaff");
-const { sendApprovalEmail, sendTicketEmail } = await import("../../../../reservations/email");
+const { sendApprovalEmail, sendTicketEmail } = await import(
+  "../../../../reservations/email"
+);
 
 describe("POST /api/admin/reservations/[id]/resend", () => {
   beforeEach(() => {
@@ -40,7 +42,12 @@ describe("POST /api/admin/reservations/[id]/resend", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://babyclubaccess.com";
     (requireStaffRole as any).mockResolvedValue({
       ok: true,
-      context: { user: { id: "user-1" }, staffId: "staff-1", role: "admin", staff: {} },
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "admin",
+        staff: {},
+      },
     });
   });
 
@@ -68,9 +75,7 @@ describe("POST /api/admin/reservations/[id]/resend", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.select": [
-        { data: [], error: null },
-      ],
+      "ticket_reservation_units.select": [{ data: [], error: null }],
       "ticket_reservation_units.insert": [
         { data: [{ id: "unit-1" }], error: null },
       ],
@@ -101,7 +106,7 @@ describe("POST /api/admin/reservations/[id]/resend", () => {
       email: "ana@example.com",
       resourceLabel: "Entrada",
       callToAction: {
-        label: "Asignar asistentes",
+        label: "Completar asistentes",
         url: "https://babyclubaccess.com/compra?reservationId=res-1",
       },
     });

@@ -15,6 +15,11 @@ import {
   validateDocument,
   type DocumentType,
 } from "shared/document";
+import {
+  getAssistantUnits,
+  getBuyerDisplayName,
+  getBuyerUnit,
+} from "../../nominationWorkspace";
 import { LegalFooterLinks } from "../../../legal/LegalFooterLinks";
 
 type ReservationStatus =
@@ -43,6 +48,8 @@ type ReservationSummary = {
   package_quantity: number | null;
   total_ticket_units: number | null;
   buyer_full_name: string | null;
+  buyer_email: string | null;
+  buyer_phone: string | null;
   amount: number | null;
   currency_code: string | null;
 };
@@ -191,6 +198,8 @@ function normalizeReservationSummary(
       readText(source?.buyer_full_name) ??
       readText(source?.full_name) ??
       readText(payload?.buyer_full_name),
+    buyer_email: readText(source?.email) ?? readText(payload?.buyer_email),
+    buyer_phone: readText(source?.phone) ?? readText(payload?.buyer_phone),
     amount:
       readNumber(source?.ticket_total_amount) ??
       readNumber(source?.amount) ??
@@ -219,6 +228,8 @@ function mergeReservationSummary(
     package_quantity: next.package_quantity ?? current.package_quantity,
     total_ticket_units: next.total_ticket_units ?? current.total_ticket_units,
     buyer_full_name: next.buyer_full_name ?? current.buyer_full_name,
+    buyer_email: next.buyer_email ?? current.buyer_email,
+    buyer_phone: next.buyer_phone ?? current.buyer_phone,
     amount: next.amount ?? current.amount,
     currency_code: next.currency_code ?? current.currency_code,
   };
@@ -336,7 +347,7 @@ function statusLabel(status: ReservationStatus | UnitStatus) {
     case "cancelled":
       return "Cancelada";
     case "pending_nomination":
-      return "Pendiente de nominación";
+      return "Pendiente de completar";
     case "nominated":
       return "Nominada";
     case "issued":
@@ -463,15 +474,15 @@ export default function NominationClient({
     () =>
       units.filter(
         (unit) =>
+          unit.unit_index !== 1 &&
           !UNIT_TERMINAL_STATUSES.has(unit.status) &&
           !isUnitNominationValid(unit),
       ),
     [units],
   );
-  const editableUnits = useMemo(
-    () => units.filter((unit) => !UNIT_TERMINAL_STATUSES.has(unit.status)),
-    [units],
-  );
+  const buyerUnit = useMemo(() => getBuyerUnit(units), [units]);
+  const assistantUnits = useMemo(() => getAssistantUnits(units), [units]);
+  const editableUnits = assistantUnits;
   const pendingNominationCount = useMemo(
     () =>
       editableUnits.filter((unit) => unit.status === "pending_nomination")
@@ -485,20 +496,21 @@ export default function NominationClient({
       ).length,
     [editableUnits],
   );
-  const readyToIssue =
-    Boolean(
-      reservation &&
-        ISSUE_READY_STATUSES.has(reservation.status) &&
-        invalidUnits.length === 0 &&
-        pendingNominationCount === 0 &&
-        nominatedReadyCount > 0,
-    );
+  const readyToIssue = Boolean(
+    reservation &&
+      ISSUE_READY_STATUSES.has(reservation.status) &&
+      invalidUnits.length === 0 &&
+      pendingNominationCount === 0 &&
+      nominatedReadyCount > 0,
+  );
   const issuedCount = useMemo(
     () =>
       units.filter((unit) => unit.status === "issued" || unit.status === "used")
         .length,
     [units],
   );
+  const allAssistantsCompleted = assistantUnits.length === 0;
+  const buyerDisplayName = getBuyerDisplayName(reservation, buyerUnit);
 
   function updateUnit(unitId: string, patch: Partial<ReservationUnit>) {
     setUnits((current) =>
@@ -520,12 +532,12 @@ export default function NominationClient({
     const firstInvalid = invalidUnits[0];
     if (firstInvalid) {
       setError(
-        `Completa la unidad ${firstInvalid.unit_index}: ${unitValidationMessage(firstInvalid)}`,
+        `Completa el asistente ${firstInvalid.unit_index}: ${unitValidationMessage(firstInvalid)}`,
       );
       return;
     }
     if (editableUnits.length === 0) {
-      setSuccess("No hay unidades pendientes por guardar.");
+      setSuccess("No hay asistentes pendientes por completar.");
       return;
     }
 
@@ -576,7 +588,7 @@ export default function NominationClient({
         mergeReservationSummary(current, payload, reservationId),
       );
       setSuccess(
-        "Nominaciones guardadas. Puedes volver cuando necesites editar.",
+        "Asistentes guardados. Puedes volver cuando necesites editar.",
       );
     } catch (err: any) {
       setError(err?.message || "Error al guardar nominaciones.");
@@ -640,9 +652,7 @@ export default function NominationClient({
               BABY
             </p>
             <div className="space-y-1">
-              <h1 className="text-3xl font-semibold">
-                Workspace de nominación
-              </h1>
+              <h1 className="text-3xl font-semibold">Completar asistentes</h1>
               <p className="text-sm text-white/65">
                 Reserva{" "}
                 <span className="font-mono text-white">{reservationId}</span>
@@ -714,11 +724,11 @@ export default function NominationClient({
                 value={formatDate(reservation?.event_starts_at || null)}
               />
               <ReservationStat
-                label="Comprador"
-                value={reservation?.buyer_full_name || "—"}
+                label="Primer asistente"
+                value={buyerDisplayName}
               />
               <ReservationStat
-                label="Paquetes / QR"
+                label="Paquetes / asistentes"
                 value={`${reservation?.package_quantity ?? "—"} / ${reservation?.total_ticket_units ?? units.length}`}
               />
               <ReservationStat
@@ -734,16 +744,21 @@ export default function NominationClient({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-semibold">
-                    Asistentes por unidad
+                    Comprador y asistentes
                   </h2>
                   <p className="mt-1 text-sm text-white/60">
-                    Completa nombre, documento y contacto para cada QR del
-                    paquete.
+                    El comprador ya queda como primer asistente. Completa solo
+                    los asistentes restantes.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70">
                   {issuedCount > 0 ? (
                     <span>{issuedCount} QR ya emitidos.</span>
+                  ) : allAssistantsCompleted && buyerUnit ? (
+                    <span>
+                      El comprador queda registrado y no hay asistentes
+                      pendientes.
+                    </span>
                   ) : invalidUnits.length === 0 ? (
                     <span>
                       Todo listo para guardar o emitir cuando aplique.
@@ -757,12 +772,78 @@ export default function NominationClient({
               </div>
 
               <div className="mt-5 space-y-4">
-                {units.length === 0 ? (
+                {buyerUnit ? (
+                  <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-semibold text-white">
+                            Comprador / primer asistente
+                          </h3>
+                          <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                            Solo lectura
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-white/50">
+                          Se registra automáticamente y recibe su QR al
+                          aprobarse la compra.
+                        </p>
+                      </div>
+
+                      {buyerUnit.ticket_id ? (
+                        <Link
+                          href={
+                            buyerUnit.ticket_url ||
+                            `/ticket/${buyerUnit.ticket_id}`
+                          }
+                          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
+                        >
+                          <Ticket className="h-3.5 w-3.5" />
+                          Ver ticket {buyerUnit.ticket_id}
+                        </Link>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <UnitField label="Nombre completo">
+                        <input
+                          value={
+                            buyerUnit.full_name ||
+                            reservation?.buyer_full_name ||
+                            ""
+                          }
+                          readOnly
+                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/80 focus:outline-none"
+                        />
+                      </UnitField>
+                      <UnitField label="Email">
+                        <input
+                          value={
+                            buyerUnit.email || reservation?.buyer_email || ""
+                          }
+                          readOnly
+                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/80 focus:outline-none"
+                        />
+                      </UnitField>
+                      <UnitField label="Teléfono">
+                        <input
+                          value={
+                            buyerUnit.phone || reservation?.buyer_phone || ""
+                          }
+                          readOnly
+                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/80 focus:outline-none"
+                        />
+                      </UnitField>
+                    </div>
+                  </article>
+                ) : null}
+
+                {assistantUnits.length === 0 ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-6 text-sm text-white/65">
-                    Todavía no hay unidades disponibles para esta reserva.
+                    No hay asistentes pendientes por completar.
                   </div>
                 ) : (
-                  units.map((unit) => {
+                  assistantUnits.map((unit) => {
                     const validationMessage = unitValidationMessage(unit);
                     const unitLocked =
                       unit.status === "used" || unit.status === "cancelled";
@@ -776,7 +857,7 @@ export default function NominationClient({
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <h3 className="text-base font-semibold text-white">
-                                Unidad {unit.unit_index}
+                                Asistente {unit.unit_index}
                               </h3>
                               <StatusBadge status={unit.status} />
                             </div>
@@ -927,8 +1008,8 @@ export default function NominationClient({
                 ISSUE_READY_STATUSES.has(reservation.status) &&
                 (invalidUnits.length > 0 || pendingNominationCount > 0) ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/65">
-                    Guarda primero la nominación completa de todas las unidades
-                    para emitir los QR.
+                    Completa primero los asistentes restantes para emitir los
+                    QR.
                   </div>
                 ) : null}
                 {reservation &&
@@ -951,7 +1032,7 @@ export default function NominationClient({
                     className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition disabled:opacity-60"
                   >
                     <Save className="h-4 w-4" />
-                    {saving ? "Guardando..." : "Guardar nominación"}
+                    {saving ? "Guardando..." : "Completar asistentes"}
                   </button>
                   <button
                     type="button"

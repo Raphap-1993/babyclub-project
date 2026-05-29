@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { type DocumentType } from "shared/document";
 import { createTicketForReservation } from "../../../../../../backoffice/app/api/reservations/utils";
 import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
 
@@ -71,7 +72,11 @@ export async function POST(
   if ((reservation.data as any).sale_origin !== "ticket") {
     return jsonError("La reserva no pertenece al flujo ticket-only", 400);
   }
-  if (!APPROVED_STATUSES.has(String((reservation.data as any).status || "").toLowerCase())) {
+  if (
+    !APPROVED_STATUSES.has(
+      String((reservation.data as any).status || "").toLowerCase(),
+    )
+  ) {
     return jsonError("La reserva aún no está approved para emitir QRs", 400);
   }
 
@@ -79,26 +84,70 @@ export async function POST(
   if (units.error) return jsonError(units.error.message, 500);
 
   const pendingNominationCount = units.data.filter(
-    (unit: any) => unit.status === "pending_nomination",
+    (unit: any) =>
+      Number(unit.unit_index || 0) > 1 && unit.status === "pending_nomination",
   ).length;
-  const issuableUnits = units.data.filter(
-    (unit: any) => unit.status === "nominated" && !unit.ticket_id,
+  const buyerUnit =
+    units.data.find((unit: any) => Number(unit.unit_index || 0) === 1) || null;
+  const buyerNeedsIssue = Boolean(buyerUnit && !buyerUnit.ticket_id);
+  const issuableAssistantUnits = units.data.filter(
+    (unit: any) =>
+      Number(unit.unit_index || 0) > 1 &&
+      unit.status === "nominated" &&
+      !unit.ticket_id,
   );
+  const issuableUnits = [
+    ...(buyerNeedsIssue ? [buyerUnit] : []),
+    ...issuableAssistantUnits,
+  ].filter(Boolean);
   if (issuableUnits.length === 0) {
-    return jsonError("No hay unidades nominadas listas para emitir", 409);
+    return NextResponse.json({
+      success: true,
+      issuedCount: 0,
+      pendingNominationCount,
+      codes: Array.isArray((reservation.data as any).codes)
+        ? (reservation.data as any).codes
+        : [],
+      units: units.data,
+    });
   }
 
   const issuedCodes: string[] = [];
-  for (const unit of issuableUnits) {
+  for (const unit of issuableUnits as any[]) {
+    const isBuyerUnit = Number(unit.unit_index || 0) === 1;
+    const buyerName = String((reservation.data as any).full_name || "").trim();
+    const buyerEmail = String((reservation.data as any).email || "").trim();
+    const buyerPhone = String((reservation.data as any).phone || "").trim();
+    const buyerDocType =
+      String((reservation.data as any).doc_type || "dni").trim() || "dni";
+    const buyerDocument = String(
+      (reservation.data as any).document || "",
+    ).trim();
+    const fullName =
+      String(unit.full_name || "").trim() ||
+      (isBuyerUnit ? buyerName : "") ||
+      buyerName;
+    const email =
+      String(unit.email || "").trim() ||
+      (isBuyerUnit ? buyerEmail : "") ||
+      null;
+    const phone =
+      String(unit.phone || "").trim() ||
+      (isBuyerUnit ? buyerPhone : "") ||
+      null;
+    const docType = (String(unit.doc_type || "").trim() ||
+      (isBuyerUnit ? buyerDocType : "dni")) as DocumentType;
+    const document =
+      String(unit.document || "").trim() || (isBuyerUnit ? buyerDocument : "");
     const result = await createTicketForReservation(supabase, {
       eventId: (reservation.data as any).event_id,
       tableName: (reservation.data as any).ticket_type_label || "Entrada",
-      fullName: unit.full_name,
-      email: unit.email || null,
-      phone: unit.phone || null,
-      dni: unit.doc_type === "dni" ? unit.document : null,
-      docType: unit.doc_type || "dni",
-      document: unit.document || "",
+      fullName,
+      email,
+      phone,
+      dni: docType === "dni" ? document : null,
+      docType,
+      document,
       promoterId: (reservation.data as any).promoter_id || null,
       reuseCodes: [],
       codeType: "courtesy",
@@ -121,11 +170,11 @@ export async function POST(
 
     if (updateError) return jsonError(updateError.message, 500);
 
-    if (unit.email) {
+    if (email) {
       await sendTicketEmail({
         supabase,
         ticketId: result.ticketId,
-        toEmail: unit.email,
+        toEmail: email,
       });
     }
   }

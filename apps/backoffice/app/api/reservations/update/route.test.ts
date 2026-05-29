@@ -128,7 +128,7 @@ describe("POST /api/reservations/update", () => {
 
     expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
       callToAction: {
-        label: "Asignar asistentes",
+        label: "Completar asistentes",
         url: "https://babyclubaccess.com/compra?reservationId=res-ticket-1",
       },
     });
@@ -156,7 +156,10 @@ describe("POST /api/reservations/update", () => {
             phone: "999999999",
             doc_type: "dni",
             document: "12345678",
-            codes: Array.from({ length: 10 }, (_, index) => `CODE-${index + 1}`),
+            codes: Array.from(
+              { length: 10 },
+              (_, index) => `CODE-${index + 1}`,
+            ),
             ticket_quantity: 10,
             total_ticket_units: 10,
             attendees: [],
@@ -193,9 +196,7 @@ describe("POST /api/reservations/update", () => {
           error: null,
         },
       ],
-      "table_reservations.update": [
-        { data: null, error: null },
-      ],
+      "table_reservations.update": [{ data: null, error: null }],
     });
     (createClient as any).mockReturnValue(supabase);
     (createTicketForReservation as any).mockImplementation(

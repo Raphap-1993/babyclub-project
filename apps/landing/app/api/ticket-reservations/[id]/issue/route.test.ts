@@ -4,18 +4,12 @@ import { createSupabaseMock } from "../../../../../../../tests/utils/supabaseMoc
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
 }));
-vi.mock(
-  "../../../../../../backoffice/app/api/reservations/utils",
-  () => ({
-    createTicketForReservation: vi.fn(),
-  }),
-);
-vi.mock(
-  "../../../../../../backoffice/app/api/reservations/email",
-  () => ({
-    sendTicketEmail: vi.fn(),
-  }),
-);
+vi.mock("../../../../../../backoffice/app/api/reservations/utils", () => ({
+  createTicketForReservation: vi.fn(),
+}));
+vi.mock("../../../../../../backoffice/app/api/reservations/email", () => ({
+  sendTicketEmail: vi.fn(),
+}));
 
 const { createClient } = await import("@supabase/supabase-js");
 const { createTicketForReservation } = await import(
@@ -33,7 +27,7 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
   });
 
-  it("emite solo unidades nominated sin ticket_id y tolera pending_nomination", async () => {
+  it("emite primero la unidad 1 del comprador y deja el resto pendiente", async () => {
     const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [
         {
@@ -59,6 +53,19 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
         {
           data: [
             {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+            {
               id: "unit-2",
               unit_index: 2,
               package_index: 1,
@@ -69,19 +76,6 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
               document: null,
               email: null,
               phone: null,
-              ticket_id: null,
-            },
-            {
-              id: "unit-1",
-              unit_index: 1,
-              package_index: 1,
-              person_index: 1,
-              status: "nominated",
-              full_name: "Ana Torres",
-              doc_type: "dni",
-              document: "12345678",
-              email: "ana@test.com",
-              phone: "999999999",
               ticket_id: null,
             },
             {
@@ -135,11 +129,11 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
       expect.objectContaining({
         eventId: "event-1",
         tableName: "Entrada",
-        fullName: "Ana Torres",
-        email: "ana@test.com",
+        fullName: "Comprador Principal",
+        email: "buyer@test.com",
         phone: "999999999",
         docType: "dni",
-        document: "12345678",
+        document: "11112222",
         tableReservationId: "res-ticket-1",
         codeType: "courtesy",
       }),
@@ -147,11 +141,12 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
     expect(sendTicketEmail).toHaveBeenCalledWith({
       supabase,
       ticketId: "ticket-new-1",
-      toEmail: "ana@test.com",
+      toEmail: "buyer@test.com",
     });
 
     const unitUpdate = calls.find(
-      (call) => call.table === "ticket_reservation_units" && call.op === "update",
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "update",
     );
     expect(unitUpdate?.payload).toMatchObject({
       status: "issued",
@@ -224,8 +219,8 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
         {
           data: [
             {
-              id: "unit-1",
-              unit_index: 1,
+              id: "unit-2",
+              unit_index: 2,
               package_index: 1,
               person_index: 1,
               status: "nominated",
@@ -242,8 +237,8 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
         {
           data: [
             {
-              id: "unit-1",
-              unit_index: 1,
+              id: "unit-2",
+              unit_index: 2,
               package_index: 1,
               person_index: 1,
               status: "issued",

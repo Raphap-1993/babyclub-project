@@ -9,8 +9,8 @@ describe("getNominationReservationId", () => {
       ),
     ).toBe("res-123");
 
-    expect(getNominationReservationId(new URLSearchParams("reserva=res-456"))).toBe(
-      "res-456",
-    );
+    expect(
+      getNominationReservationId(new URLSearchParams("reserva=res-456")),
+    ).toBe("res-456");
   });
 });

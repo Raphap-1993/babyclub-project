@@ -101,10 +101,13 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
         },
       },
     });
-    expect(payload.units.map((unit: any) => unit.id)).toEqual(["unit-1", "unit-2"]);
+    expect(payload.units.map((unit: any) => unit.id)).toEqual([
+      "unit-1",
+      "unit-2",
+    ]);
   });
 
-  it("nomina unidades válidas sin emitir tickets", async () => {
+  it("nomina solo los asistentes restantes sin tocar la unidad 1", async () => {
     const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [
         {
@@ -151,14 +154,6 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
         body: JSON.stringify({
           units: [
             {
-              id: "unit-1",
-              full_name: "Ana Torres",
-              doc_type: "dni",
-              document: "12345678",
-              email: "ana@test.com",
-              phone: "999999999",
-            },
-            {
               id: "unit-2",
               full_name: "Luis Perez",
               doc_type: "dni",
@@ -179,27 +174,28 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     expect(res.status).toBe(200);
     expect(payload).toMatchObject({
       success: true,
-      updatedCount: 2,
+      updatedCount: 1,
     });
 
     const updates = calls.filter(
-      (call) => call.table === "ticket_reservation_units" && call.op === "update",
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "update",
     );
-    expect(updates).toHaveLength(2);
+    expect(updates).toHaveLength(1);
     expect(updates[0].payload).toMatchObject({
-      full_name: "Ana Torres",
+      full_name: "Luis Perez",
       doc_type: "dni",
-      document: "12345678",
-      email: "ana@test.com",
-      phone: "999999999",
+      document: "87654321",
+      email: "luis@test.com",
+      phone: "988888888",
       status: "nominated",
     });
     expect(typeof updates[0].payload.nominated_at).toBe("string");
     expect(updates[0].payload.ticket_id).toBeUndefined();
   });
 
-  it("rechaza nominaciones con identidad mínima inválida", async () => {
-    const { supabase, calls } = createSupabaseMock({
+  it("rechaza editar la unidad 1 porque es del comprador", async () => {
+    const { supabase } = createSupabaseMock({
       "table_reservations.select": [
         {
           data: {
@@ -236,6 +232,65 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           units: [
             {
               id: "unit-1",
+              full_name: "Comprador Principal",
+              doc_type: "dni",
+              document: "11112222",
+              email: "buyer@test.com",
+              phone: "999999999",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("comprador");
+  });
+
+  it("rechaza nominaciones con identidad mínima inválida", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-2",
+              unit_index: 2,
+              status: "pending_nomination",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-2",
               full_name: "Ana Torres",
               doc_type: "dni",
               document: "123",
@@ -253,7 +308,7 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
 
     expect(res.status).toBe(400);
     expect(payload.success).toBe(false);
-    expect(String(payload.error || "")).toContain("unidad 1");
+    expect(String(payload.error || "")).toContain("unidad 2");
     expect(
       calls.find(
         (call) =>
@@ -278,8 +333,8 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
         {
           data: [
             {
-              id: "unit-1",
-              unit_index: 1,
+              id: "unit-2",
+              unit_index: 2,
               status: "pending_nomination",
               ticket_id: null,
             },
@@ -299,7 +354,7 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
         body: JSON.stringify({
           units: [
             {
-              id: "unit-1",
+              id: "unit-2",
               full_name: "Ana Torres",
               doc_type: "dni",
               document: "12345678",

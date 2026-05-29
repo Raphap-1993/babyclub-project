@@ -275,7 +275,10 @@ export async function POST(req: NextRequest) {
         .from("ticket_reservation_units")
         .select("id,status,ticket_id")
         .eq("reservation_id", id);
-      if (unitsError && !isMissingTicketReservationUnitsTableError(unitsError)) {
+      if (
+        unitsError &&
+        !isMissingTicketReservationUnitsTableError(unitsError)
+      ) {
         return NextResponse.json(
           { success: false, error: unitsError.message, trace },
           { status: 500 },
@@ -322,11 +325,15 @@ export async function POST(req: NextRequest) {
 
       const issuedTicketIds = uniqueStrings(
         existingUnits
-          .filter((unit: any) => unit && String(unit.status || "").toLowerCase() === "issued")
+          .filter(
+            (unit: any) =>
+              unit && String(unit.status || "").toLowerCase() === "issued",
+          )
           .map((unit: any) => unit.ticket_id),
       );
       const existingCodes = uniqueStrings(
-        (reservation as any).codes?.map((code: any) => String(code).trim()) || [],
+        (reservation as any).codes?.map((code: any) => String(code).trim()) ||
+          [],
       );
 
       try {
@@ -342,7 +349,7 @@ export async function POST(req: NextRequest) {
           event: eventRel || eventDirectRel || null,
           resourceLabel: "Entrada",
           callToAction: {
-            label: "Asignar asistentes",
+            label: "Completar asistentes",
             url: nominationUrl,
           },
         });
@@ -482,7 +489,7 @@ export async function POST(req: NextRequest) {
           callToAction: isTableReservation
             ? null
             : {
-                label: "Asignar asistentes",
+                label: "Completar asistentes",
                 url: nominationUrl,
               },
         });

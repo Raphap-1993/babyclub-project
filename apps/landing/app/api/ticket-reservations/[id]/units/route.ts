@@ -59,7 +59,8 @@ async function loadUnits(supabase: any, reservationId: string) {
   return {
     data: Array.isArray(data)
       ? [...data].sort(
-          (a: any, b: any) => Number(a?.unit_index || 0) - Number(b?.unit_index || 0),
+          (a: any, b: any) =>
+            Number(a?.unit_index || 0) - Number(b?.unit_index || 0),
         )
       : [],
     error,
@@ -131,6 +132,12 @@ export async function PUT(
       return jsonError("Unidad no encontrada para esta reserva", 404);
     }
     const unitLabel = `unidad ${existingUnit.unit_index || "?"}`;
+    if (Number(existingUnit.unit_index || 0) === 1) {
+      return jsonError(
+        "La unidad 1 corresponde al comprador y no se puede editar desde el workspace",
+        409,
+      );
+    }
     if (existingUnit.status === "issued" || existingUnit.status === "used") {
       return jsonError(`No puedes editar ${unitLabel} ya emitida o usada`, 409);
     }

@@ -45,7 +45,12 @@ describe("POST /api/reservations/resend", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://babyclubaccess.com";
     (requireStaffRole as any).mockResolvedValue({
       ok: true,
-      context: { user: { id: "user-1" }, staffId: "staff-1", role: "admin", staff: {} },
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "admin",
+        staff: {},
+      },
     });
   });
 
@@ -73,9 +78,7 @@ describe("POST /api/reservations/resend", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.select": [
-        { data: [], error: null },
-      ],
+      "ticket_reservation_units.select": [{ data: [], error: null }],
       "ticket_reservation_units.insert": [
         { data: [{ reservation_id: "res-1" }], error: null },
       ],
@@ -108,7 +111,7 @@ describe("POST /api/reservations/resend", () => {
       email: "ana@example.com",
       resourceLabel: "Entrada",
       callToAction: {
-        label: "Asignar asistentes",
+        label: "Completar asistentes",
         url: "https://babyclubaccess.com/compra?reservationId=res-1",
       },
     });

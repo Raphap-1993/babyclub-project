@@ -185,7 +185,9 @@ export async function POST(
     const { data: unitRows, error: unitsError } = await applyNotDeleted(
       supabase
         .from("ticket_reservation_units")
-        .select("id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id")
+        .select(
+          "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id",
+        )
         .eq("reservation_id", id),
     );
 
@@ -259,7 +261,7 @@ export async function POST(
       event: eventData,
       resourceLabel: "Entrada",
       callToAction: {
-        label: "Asignar asistentes",
+        label: "Completar asistentes",
         url: `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra?reservationId=${encodeURIComponent(id)}`,
       },
     });
