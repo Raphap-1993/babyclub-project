@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { validateDocument, normalizeDocument, type DocumentType } from "shared/document";
+import { sendEmail } from "shared/email/resend";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { ensureEventSalesDefaults, evaluateEventSales, isMissingEventSalesColumnsError } from "shared/eventSales";
 import { isAdult } from "shared/datetime";
@@ -396,6 +397,71 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: ticketError.message }, { status: 500 });
   }
 
+  let emailSent = false;
+  let emailError: string | null = null;
+  if (email && !requiresPayment) {
+    try {
+      const eventName = (eventRow as any)?.name || "evento";
+      const eventLocation = (eventRow as any)?.location || "";
+      const eventStartsAt = (eventRow as any)?.starts_at || null;
+      const dateLabel = eventStartsAt ? new Date(eventStartsAt).toLocaleString("es-PE", { dateStyle: "full", timeStyle: "short", timeZone: "America/Lima" }) : "";
+      const ticketUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/ticket/${ticketData?.id}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(qr_token)}`;
+      const html = `
+        <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#050505;padding:24px 12px;">
+            <tr>
+              <td align="center">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;background:#0b0b0b;border-radius:24px;border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
+                  <tr>
+                    <td style="padding:28px 32px 16px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(233,30,99,0.1));color:#ffffff;">
+                      <div style="text-transform:uppercase;font-size:12px;letter-spacing:0.28em;color:#f2f2f2;opacity:0.8;margin-bottom:6px;">Baby</div>
+                      <h1 style="margin:0;font-size:26px;line-height:1.2;color:#ffffff;">Entrada generada</h1>
+                      <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">${eventName}${dateLabel ? ` • ${dateLabel}` : ""}</p>
+                      ${eventLocation ? `<p style="margin:4px 0 0;font-size:13px;color:#c8c8c8;">${eventLocation}</p>` : ""}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:20px 32px 28px;">
+                      <div style="text-align:center;padding:12px 0 18px;">
+                        <img src="${qrUrl}" alt="QR" width="220" height="220" style="border-radius:18px;border:8px solid #0f0f0f;background:#fff;display:block;margin:0 auto;" />
+                      </div>
+                      <p style="margin:0 0 14px;font-size:14px;color:#d7d7d7;line-height:1.6;">
+                        Tu QR ya está listo. Si no ves la imagen, usa el enlace del ticket.
+                      </p>
+                      <div style="text-align:center;">
+                        <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket</a>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </div>`;
+      const textBody = [
+        `Tu QR para ${eventName}`,
+        `Nombre: ${first_name} ${last_name}`.trim(),
+        eventLocation ? `Lugar: ${eventLocation}` : null,
+        dateLabel ? `Fecha: ${dateLabel}` : null,
+        `Enlace del ticket: ${ticketUrl}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await sendEmail({
+        to: email,
+        subject: `BABY - Entrada ${eventName}`,
+        html,
+        text: textBody,
+      });
+      emailSent = true;
+    } catch (err: any) {
+      emailError = err?.message || "No se pudo enviar el correo automático";
+      console.error("[/api/tickets] Error enviando correo automático:", err);
+    }
+  }
+
   console.log("[/api/tickets] Ticket creado exitosamente:", {
     ticketId: ticketData?.id,
     person_id,
@@ -418,6 +484,7 @@ export async function POST(req: NextRequest) {
     code: codeRow?.code || null,
     eventId,
     needsPayment: requiresPayment,
+    emailSent,
+    emailError,
   });
 }
-
