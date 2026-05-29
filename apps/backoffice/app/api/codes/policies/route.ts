@@ -118,7 +118,7 @@ export async function PUT(req: NextRequest) {
 
   const parsed = parsePolicyRows(body?.policies);
   if ("error" in parsed) {
-    return jsonError(parsed.error, 400);
+    return jsonError(parsed.error || "policies inválidas", 400);
   }
 
   const nowIso = new Date().toISOString();

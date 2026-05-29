@@ -30,14 +30,12 @@ describe("POST /api/codes/batches/generate", () => {
     const { supabase, calls } = createSupabaseMock({
       "code_type_policies.select": [
         {
-          data: [
-            {
-              code_type: "promoter",
-              requires_expiration: true,
-              updated_by_staff_id: "staff-1",
-              updated_at: "2026-05-28T18:00:00.000Z",
-            },
-          ],
+          data: {
+            code_type: "promoter",
+            requires_expiration: true,
+            updated_by_staff_id: "staff-1",
+            updated_at: "2026-05-28T18:00:00.000Z",
+          },
           error: null,
         },
       ],
@@ -47,7 +45,10 @@ describe("POST /api/codes/batches/generate", () => {
     const { POST } = await import("./route");
     const req = new Request("http://localhost/api/codes/batches/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-token",
+      },
       body: JSON.stringify({
         event_id: "event-1",
         type: "promoter",
@@ -77,14 +78,12 @@ describe("POST /api/codes/batches/generate", () => {
     const { supabase } = createSupabaseMock({
       "code_type_policies.select": [
         {
-          data: [
-            {
-              code_type: "promoter",
-              requires_expiration: true,
-              updated_by_staff_id: "staff-1",
-              updated_at: "2026-05-28T18:00:00.000Z",
-            },
-          ],
+          data: {
+            code_type: "promoter",
+            requires_expiration: true,
+            updated_by_staff_id: "staff-1",
+            updated_at: "2026-05-28T18:00:00.000Z",
+          },
           error: null,
         },
       ],
@@ -107,7 +106,10 @@ describe("POST /api/codes/batches/generate", () => {
     const { POST } = await import("./route");
     const req = new Request("http://localhost/api/codes/batches/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-token",
+      },
       body: JSON.stringify({
         event_id: "event-1",
         type: "promoter",

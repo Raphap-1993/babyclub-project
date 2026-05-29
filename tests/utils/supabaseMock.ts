@@ -1,9 +1,9 @@
-type Response = { data: any; error: any };
+type Response = { data: any; error: any; count?: number };
 type ResponseMap = Record<string, Response | Response[]>;
 
 type QueryState = {
   table: string;
-  op: "select" | "insert" | "update" | "delete" | "upsert";
+  op: "select" | "insert" | "update" | "delete" | "upsert" | "rpc";
   payload?: any;
   filters?: { type: string; args: any[] }[];
 };
@@ -66,7 +66,9 @@ export function createSupabaseMock(responses: ResponseMap) {
       in: (...args: any[]) => chain._addFilter("in", args),
       neq: (...args: any[]) => chain._addFilter("neq", args),
       is: (...args: any[]) => chain._addFilter("is", args),
+      lt: (...args: any[]) => chain._addFilter("lt", args),
       gte: (...args: any[]) => chain._addFilter("gte", args),
+      range: (...args: any[]) => chain._addFilter("range", args),
       limit: () => chain,
       order: () => chain,
       maybeSingle: () => {
@@ -90,6 +92,7 @@ export function createSupabaseMock(responses: ResponseMap) {
   return {
     supabase: {
       from: (table: string) => makeChain({ table, op: "select" }),
+      rpc: (name: string, payload: any) => makeChain({ table: name, op: "rpc", payload }),
     },
     rpc: (name: string, payload: any) =>
       makeChain({ table: name, op: "rpc", payload }),

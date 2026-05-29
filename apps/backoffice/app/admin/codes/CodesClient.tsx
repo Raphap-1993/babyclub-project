@@ -28,6 +28,8 @@ type CodeRow = {
   expires_at: string | null;
   created_at: string;
   batch_id: string | null;
+  batch_state?: "active" | "closed";
+  batch_close_reason?: "closed" | "expired" | "quota" | null;
 };
 
 type Filters = {
@@ -622,6 +624,14 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
                 .slice(0, 3)
                 .map((row) => row.code)
                 .join(" · ");
+              const batchStateLabel =
+                sample.batch_state === "closed"
+                  ? `Cerrado${sample.batch_close_reason ? ` · ${sample.batch_close_reason}` : ""}`
+                  : "Activo";
+              const batchStateClass =
+                sample.batch_state === "closed"
+                  ? "border-rose-500/30 bg-rose-500/15 text-rose-200"
+                  : "border-emerald-500/25 bg-emerald-500/15 text-emerald-200";
 
               return (
                 <div
@@ -634,6 +644,9 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
                         <span className="truncate font-mono text-[14px] font-semibold text-white">{lotLabel}</span>
                         <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/55">
                           {group.batchId === "no-batch" ? "Sin batch" : "Lote"}
+                        </span>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${batchStateClass}`}>
+                          {batchStateLabel}
                         </span>
                         <span className="text-[11px] text-white/45">
                           A {activeCount}/{group.codes.length} · E {expiredCount}/{group.codes.length} · U {totalUses}/{totalMax}

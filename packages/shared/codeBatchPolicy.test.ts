@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   requiresExpirationForCodeType,
   resolveBatchCloseReason,
+  resolveBatchState,
 } from "./codeBatchPolicy";
 
 describe("codeBatchPolicy", () => {
@@ -68,5 +69,20 @@ describe("codeBatchPolicy", () => {
         new Date("2026-05-28T19:00:00.000Z"),
       ),
     ).toBeNull();
+  });
+
+  it("deriva el estado del lote a partir de su motivo de cierre", () => {
+    expect(
+      resolveBatchState(
+        {
+          closed_at: "2026-05-28T18:00:00.000Z",
+          closed_reason: "expired",
+        },
+        new Date("2026-05-28T19:00:00.000Z"),
+      ),
+    ).toEqual({
+      batch_state: "closed",
+      batch_close_reason: "expired",
+    });
   });
 });

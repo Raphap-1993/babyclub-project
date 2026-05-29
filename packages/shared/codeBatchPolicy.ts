@@ -15,6 +15,11 @@ export type CodeBatchCloseCandidate = {
   remaining_usable_codes?: number | null;
 };
 
+export type CodeBatchState = {
+  batch_state: "active" | "closed";
+  batch_close_reason: CodeBatchCloseReason;
+};
+
 function toTimeValue(value: string | Date | number | null | undefined) {
   if (value === null || value === undefined) return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -63,4 +68,15 @@ export function resolveBatchCloseReason(
   }
 
   return null;
+}
+
+export function resolveBatchState(
+  batch: CodeBatchCloseCandidate | null | undefined,
+  now: Date | string | number,
+): CodeBatchState {
+  const batchCloseReason = resolveBatchCloseReason(batch, now);
+  return {
+    batch_state: batchCloseReason ? "closed" : "active",
+    batch_close_reason: batchCloseReason,
+  };
 }

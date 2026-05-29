@@ -51,15 +51,23 @@ describe("GET /api/codes/policies", () => {
     const payload = await res.json();
 
     expect(res.status).toBe(200);
-    expect(payload).toMatchObject({
-      success: true,
-      policies: [
-        {
+    expect(payload.success).toBe(true);
+    expect(payload.policies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code_type: "courtesy",
+          requires_expiration: false,
+        }),
+        expect.objectContaining({
           code_type: "promoter",
           requires_expiration: true,
-        },
-      ],
-    });
+        }),
+        expect.objectContaining({
+          code_type: "table",
+          requires_expiration: false,
+        }),
+      ]),
+    );
   });
 });
 
