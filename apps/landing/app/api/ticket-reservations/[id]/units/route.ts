@@ -5,14 +5,11 @@ import {
   validateDocument,
   type DocumentType,
 } from "shared/document";
-import {
-  isPresentButInvalidEmailAddress,
-  normalizeOptionalEmailAddress,
-} from "shared/email/address";
 import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const RESERVATION_SELECT =
   "id,event_id,sale_origin,status,ticket_type_label,package_quantity,total_ticket_units,full_name,email,phone,event:events(name,starts_at,location)";
@@ -28,6 +25,15 @@ function getSupabase() {
 
 function jsonError(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
+}
+
+function normalizeOptionalEmailAddress(value: unknown) {
+  const email = typeof value === "string" ? value.trim() : "";
+  return email ? email.toLowerCase() : "";
+}
+
+function isPresentButInvalidEmailAddress(value: string) {
+  return Boolean(value && !EMAIL_PATTERN.test(value));
 }
 
 async function loadReservation(supabase: any, reservationId: string) {
