@@ -19,6 +19,8 @@ export async function sendApprovalEmail({
   ticketIds,
   tableName,
   event,
+  resourceLabel = "Mesa",
+  callToAction,
 }: {
   supabase?: Supabase | null;
   id: string;
@@ -29,6 +31,8 @@ export async function sendApprovalEmail({
   ticketIds?: string[]; // ✅ IDs de tickets generados
   tableName?: string | null;
   event?: { name?: string | null; starts_at?: string | null; location?: string | null } | null;
+  resourceLabel?: string;
+  callToAction?: { label: string; url: string } | null;
 }) {
   const escape = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -101,7 +105,7 @@ export async function sendApprovalEmail({
               <td style="padding:28px 32px 16px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(233,30,99,0.12));color:#ffffff;">
                 <div style="text-transform:uppercase;font-size:12px;letter-spacing:0.28em;color:#f2f2f2;opacity:0.8;margin-bottom:6px;">Baby</div>
                 <h1 style="margin:0;font-size:26px;line-height:1.2;color:#ffffff;">Reserva aprobada</h1>
-                <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">Mesa ${safeTable}${safeEventName ? ` • ${safeEventName}` : ""}${dateLabel ? ` • ${dateLabel}` : ""}</p>
+                <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">${resourceLabel} ${safeTable}${safeEventName ? ` • ${safeEventName}` : ""}${dateLabel ? ` • ${dateLabel}` : ""}</p>
                 ${safeLocation ? `<p style="margin:4px 0 0;font-size:13px;color:#c8c8c8;">${safeLocation}</p>` : ""}
               </td>
             </tr>
@@ -113,6 +117,18 @@ export async function sendApprovalEmail({
                   ${phone ? `<br/>Teléfono registrado: ${phone}` : ""}
                 </p>
                 ${ticketsHtml}
+                ${
+                  callToAction?.url
+                    ? `
+                <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
+                  Tu reserva quedó lista. Completa la nominación desde el enlace de abajo para asignar cada QR a una persona antes de usarlo en puerta.
+                  <div style="margin-top:12px;">
+                    <a href="${escape(callToAction.url)}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;letter-spacing:0.02em;">${escape(callToAction.label)}</a>
+                  </div>
+                </div>
+                    `
+                    : ""
+                }
                 <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
                   Si algún código no funciona, muestra este correo en puerta o responde a este mensaje para que podamos ayudarte.
                 </div>
@@ -133,6 +149,7 @@ export async function sendApprovalEmail({
     "",
     "Códigos:",
     codes.length > 0 ? codes.map((c) => `- ${c}`).join("\n") : "- (sin códigos)",
+    callToAction?.url ? `${callToAction.label}: ${callToAction.url}` : null,
   ]
     .filter(Boolean)
     .join("\n");

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { POST as approveReservation } from "../../../reservations/update/route";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -145,18 +146,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ success: false, error: "Estado inválido" }, { status: 400 });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+  const forwardedRequest = new Request(req.url, {
+    method: "POST",
+    headers: req.headers,
+    body: JSON.stringify({ ...body, id, status }),
   });
 
-  const { error } = await supabase
-    .from("table_reservations")
-    .update({ status })
-    .eq("id", id);
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, message: "Estado actualizado" });
+  return approveReservation(forwardedRequest as unknown as NextRequest);
 }

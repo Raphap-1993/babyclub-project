@@ -4,6 +4,7 @@ import { createTicketForReservation } from "../utils";
 import { sendApprovalEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
+import { buildReservationUnits } from "shared/ticketReservationUnits";
 import {
   normalizeDocument,
   validateDocument,
@@ -37,6 +38,14 @@ function isMissingColumnError(error: any): boolean {
   const hint = String(error?.hint || "");
   const haystack = `${message} ${details} ${hint}`.toLowerCase();
   return haystack.includes("does not exist") && haystack.includes("column");
+}
+
+function isMissingTicketReservationUnitsTableError(error: any): boolean {
+  const message = String(error?.message || "");
+  const details = String(error?.details || "");
+  const hint = String(error?.hint || "");
+  const haystack = `${message} ${details} ${hint}`.toLowerCase();
+  return haystack.includes("ticket_reservation_units");
 }
 
 function readReservationAttendees(value: unknown) {
@@ -123,7 +132,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,total_ticket_units,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))",
+      "id,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,total_ticket_units,package_quantity,ticket_type_label,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -258,6 +267,44 @@ export async function POST(req: NextRequest) {
 
   if (isApproval) {
     if (!isTableReservation) {
+      const ticketTypeLabel =
+        (reservation as any).ticket_type_label || "Entrada";
+      const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra/reserva/${encodeURIComponent(id)}`;
+      const { data: unitsRows, error: unitsError } = await supabase
+        .from("ticket_reservation_units")
+        .select("id,status,ticket_id")
+        .eq("reservation_id", id);
+      if (unitsError && !isMissingTicketReservationUnitsTableError(unitsError)) {
+        return NextResponse.json(
+          { success: false, error: unitsError.message, trace },
+          { status: 500 },
+        );
+      }
+
+      const existingUnits = Array.isArray(unitsRows) ? unitsRows : [];
+      if (existingUnits.length === 0 && eventId && ticketQuantity > 0) {
+        const { error: insertUnitsError } = await supabase
+          .from("ticket_reservation_units")
+          .insert(
+            buildReservationUnits({
+              reservationId: id,
+              eventId,
+              packageQuantity: 1,
+              unitsPerPackage: ticketQuantity,
+            }),
+          );
+        if (
+          insertUnitsError &&
+          !isMissingTicketReservationUnitsTableError(insertUnitsError)
+        ) {
+          return NextResponse.json(
+            { success: false, error: insertUnitsError.message, trace },
+            { status: 500 },
+          );
+        }
+        trace.push(`ticketUnitsPrepared:${ticketQuantity}`);
+      }
+
       const { error } = await supabase
         .from("table_reservations")
         .update({
@@ -267,9 +314,43 @@ export async function POST(req: NextRequest) {
         .eq("id", id);
       if (error) {
         return NextResponse.json(
-          { success: false, error: error.message },
+          { success: false, error: error.message, trace },
           { status: 500 },
         );
+      }
+
+      const issuedTicketIds = uniqueStrings(
+        existingUnits
+          .filter((unit: any) => unit && String(unit.status || "").toLowerCase() === "issued")
+          .map((unit: any) => unit.ticket_id),
+      );
+      const existingCodes = uniqueStrings(
+        (reservation as any).codes?.map((code: any) => String(code).trim()) || [],
+      );
+
+      try {
+        await sendApprovalEmail({
+          supabase,
+          id,
+          full_name: resolvedFullName,
+          email: resolvedEmail,
+          phone: resolvedPhone || null,
+          codes: existingCodes,
+          ticketIds: issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
+          tableName: ticketTypeLabel,
+          event: eventRel || eventDirectRel || null,
+          resourceLabel: "Entrada",
+          callToAction: {
+            label: "Completar nominación",
+            url: nominationUrl,
+          },
+        });
+        emailSent = true;
+        trace.push("approvalEmailSent:ticket-only");
+      } catch (err: any) {
+        emailError =
+          err?.message || "No se pudo enviar el correo de aprobación";
+        trace.push(`approvalEmailError:${emailError}`);
       }
 
       return NextResponse.json({ success: true, emailSent, emailError, trace });
