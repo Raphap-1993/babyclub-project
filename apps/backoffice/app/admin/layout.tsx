@@ -1,245 +1,84 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
-import { ClientAuthGate } from "@/components/ClientAuthGate";
 import { supabaseClient } from "@/lib/supabaseClient";
-import { authedFetch } from "@/lib/authedFetch";
-import EditUserModal from "@/app/admin/users/EditUserModal";
-import { Sidebar } from "@/components/dashboard";
-import type { Role, StaffUser } from "@/app/admin/users/types";
-import type { User } from "@supabase/supabase-js";
-import { isDoorRole } from "@/lib/roles";
 
-const DOOR_LANDING = "/admin/door";
-
-const joinName = (...parts: Array<string | null | undefined>) => {
-  return parts
-    .map((part) => (typeof part === "string" ? part.trim() : ""))
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-};
-
-const nameFromEmail = (email?: string | null) => {
-  if (!email) return null;
-  const [local] = email.split("@");
-  if (!local) return null;
-  const cleaned = local.replace(/[._-]+/g, " ").trim();
-  if (!cleaned) return null;
-  return cleaned
-    .split(" ")
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-};
-
-const getPreferredSessionName = (user?: User | null) => {
-  if (!user) return null;
-  const meta = (user.user_metadata || {}) as Record<string, any>;
-  const appMeta = (user.app_metadata || {}) as Record<string, any>;
-
-  const candidates = [
-    joinName(meta.full_name),
-    joinName(meta.fullName),
-    joinName(meta.name),
-    joinName(meta.first_name, meta.last_name),
-    joinName(appMeta.full_name),
-    joinName(appMeta.name),
-    joinName(appMeta.first_name, appMeta.last_name),
-    typeof meta.user_name === "string" ? meta.user_name.trim() : null,
-    typeof meta.username === "string" ? meta.username.trim() : null,
-  ];
-
-  const found = candidates.find((value) => !!value);
-  return (found as string | undefined) || nameFromEmail(user.email) || null;
-};
+const navLinks = [
+  { href: "/admin", label: "Inicio" },
+  { href: "/admin/events", label: "Eventos" },
+  { href: "/admin/promoters", label: "Promotores" },
+  { href: "/admin/reservations", label: "Reservas" },
+  { href: "/admin/reportes", label: "Reportes" },
+  { href: "/admin/scan", label: "Escaneo QR" },
+];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [profileModal, setProfileModal] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [topbarLogoUrl, setTopbarLogoUrl] = useState<string | null>(null);
-  const [userStaff, setUserStaff] = useState<StaffUser | null>(null);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [initialRole, setInitialRole] = useState<string | null>(null);
-  const [resolvedRoleCode, setResolvedRoleCode] = useState<string | null>(null);
-  const [roleResolved, setRoleResolved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const ensureSession = async () => {
       if (!supabaseClient) {
-        setRoleResolved(true);
+        setLoading(false);
         return;
       }
+
       const { data } = await supabaseClient.auth.getSession();
-      const sessionUser = data.session?.user;
-      const authUserId = data.session?.user.id;
-      const sessionMetaRole =
-        (sessionUser?.user_metadata?.role as string | undefined) ||
-        (sessionUser?.app_metadata?.role as string | undefined) ||
-        (sessionUser?.app_metadata?.user_role as string | undefined) ||
-        null;
-      setInitialRole(sessionMetaRole);
-      let effectiveRole = sessionMetaRole;
-
-      if (!authUserId) {
-        setResolvedRoleCode(sessionMetaRole);
-        setRoleResolved(true);
+      if (!data.session && process.env.NODE_ENV === "production") {
+        router.replace("/auth/login");
         return;
       }
 
-      try {
-        const roleRes = await authedFetch("/api/auth/staff-context");
-        const rolePayload = await roleRes.json().catch(() => null);
-
-        if (!roleRes.ok || !rolePayload?.success) {
-          router.replace("/auth/login");
-          return;
-        }
-
-        const staff = rolePayload?.data?.staff;
-        const roleCode =
-          typeof rolePayload?.data?.role_code === "string" ? rolePayload.data.role_code : null;
-        if (roleCode) {
-          effectiveRole = roleCode;
-          setResolvedRoleCode(roleCode);
-        }
-        if (staff?.role && staff?.person) {
-          setUserStaff({
-            id: staff.id,
-            is_active: staff.is_active,
-            created_at: staff.created_at,
-            auth_user_id: staff.auth_user_id,
-            role: staff.role,
-            person: staff.person,
-          });
-        }
-      } catch (_err) {
-        console.error("Error fetching profile:", _err);
-        router.replace("/auth/login");
-      } finally {
-        if (!effectiveRole) {
-          setResolvedRoleCode(sessionMetaRole);
-        }
-        setRoleResolved(true);
-      }
+      setLoading(false);
     };
 
-    fetchProfile().finally(() => setProfileLoading(false));
+    ensureSession().catch(() => {
+      router.replace("/auth/login");
+    });
   }, [router]);
 
-  useEffect(() => {
-    fetch("/api/branding")
-      .then((res) => res.json())
-      .then((data) => { if (data?.logo_url) setTopbarLogoUrl(data.logo_url); })
-      .catch(() => null);
-  }, []);
-
-  useEffect(() => {
-    if (!roleResolved) return;
-    if (isDoorRole(resolvedRoleCode || initialRole)) return;
-    authedFetch("/api/admin/users/roles")
-      .then((res) => res.json())
-      .then((payload) => {
-        if (payload?.success) setRoles(payload.data || []);
-      })
-      .catch(() => null);
-  }, [initialRole, resolvedRoleCode, roleResolved]);
-
-  const staffRoleCode =
-    (typeof userStaff?.role?.code === "string" ? userStaff.role.code : null) ||
-    resolvedRoleCode ||
-    initialRole ||
-    "";
-  const isDoorSession = isDoorRole(staffRoleCode);
-  const isDoorAllowedPath = pathname === DOOR_LANDING;
-
-  useEffect(() => {
-    if (!roleResolved) return;
-    if (isDoorSession && !isDoorAllowedPath) {
-      router.replace(DOOR_LANDING);
-    }
-  }, [isDoorAllowedPath, isDoorSession, roleResolved, router]);
-
-  if (profileLoading || !roleResolved) {
+  if (loading) {
     return (
-      <ClientAuthGate>
-        <div className="flex min-h-screen items-center justify-center bg-black text-white">
-          <p className="rounded-lg border border-white/10 bg-[#0b0b0b] px-4 py-3 text-sm">
-            Cargando sesión...
-          </p>
-        </div>
-      </ClientAuthGate>
-    );
-  }
-
-  if (isDoorSession && !isDoorAllowedPath) {
-    return (
-      <ClientAuthGate>
-        <div className="flex min-h-screen items-center justify-center bg-black text-white">
-          <p className="rounded-lg border border-white/10 bg-[#0b0b0b] px-4 py-3 text-sm">
-            Redirigiendo al módulo de escaneo...
-          </p>
-        </div>
-      </ClientAuthGate>
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        <p className="rounded-lg border border-white/10 bg-[#0b0b0b] px-4 py-3 text-sm">
+          Cargando sesión...
+        </p>
+      </div>
     );
   }
 
   return (
-    <ClientAuthGate>
-      <div className="flex min-h-screen overflow-x-hidden bg-black text-white">
-        {!isDoorSession ? (
-          <Sidebar open={mobileMenuOpen} setOpen={setMobileMenuOpen} />
-        ) : null}
-        <div className={isDoorSession ? "flex-1 min-w-0" : "flex flex-col flex-1 min-w-0 md:ml-64"}>
-          {/* Mobile topbar — solo visible en mobile, toma espacio real en el flujo */}
-          {!isDoorSession && (
-            <div className="md:hidden sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950/95 backdrop-blur-sm px-4">
-              <div className="flex items-center gap-2">
-                {topbarLogoUrl ? (
-                  <img
-                    src={topbarLogoUrl}
-                    alt="Logo"
-                    className="h-8 w-auto max-w-[140px] object-contain"
-                  />
-                ) : (
-                  <>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-rose-400 to-rose-600">
-                      <span className="text-xs font-bold text-white">BC</span>
-                    </div>
-                    <span className="text-sm font-semibold text-white">BabyClub Access</span>
-                  </>
-                )}
-              </div>
-              <button
-                onClick={() => setMobileMenuOpen((v) => !v)}
-                aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 touch-manipulation"
-              >
-                {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-              </button>
-            </div>
-          )}
-          <main className={isDoorSession ? "p-2 md:p-4" : "flex-1 p-3 sm:p-4 md:p-6 lg:p-8"}>
-            {children}
-          </main>
+    <div className="min-h-screen bg-black text-white">
+      <header className="sticky top-0 z-40 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-rose-300/70">BabyClub Access</p>
+            <h1 className="text-sm font-semibold text-white">Backoffice administrativo</h1>
+          </div>
+          <nav className="flex flex-wrap gap-2">
+            {navLinks.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                    active
+                      ? "border-rose-500/40 bg-rose-500/15 text-rose-100"
+                      : "border-neutral-800 bg-neutral-900/80 text-neutral-300 hover:border-neutral-700 hover:text-white"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-      </div>
-      {!isDoorSession ? (
-        <EditUserModal
-          open={profileModal}
-          onClose={() => setProfileModal(false)}
-          user={userStaff}
-          roles={roles}
-          onSaved={() => {
-            window.location.reload();
-          }}
-        />
-      ) : null}
-    </ClientAuthGate>
+      </header>
+      <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">{children}</main>
+    </div>
   );
 }
