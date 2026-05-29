@@ -38,6 +38,7 @@ last_reviewed: 2026-05-28
 - `REQ-0012` ya quedo implementado en branch aislada con catalogo flexible por evento, compra por `package_quantity`, workspace publico de nominacion posterior, emision por unidad y gate de scanner por estado unitario.
 - Backoffice promotores: la creacion ya rehidrata promotores archivados para la misma persona/organizer y evita duplicados activos al reintentar el alta.
 - Backoffice promotores: el estado operativo ya se maneja como `activo/inactivo` visible; el listado permite desactivar/reactivar sin archivar y los promotores inactivos ya no pueden generar códigos ni links nuevos.
+- Cortesias por lote: se formalizo REQ-0015 para cerrar automaticamente lotes por cupos o expiracion, con politica por tipo y scheduler cada 5 minutos; aun no se implementa codigo.
 - Landing mesas: `registro` y `compra` ya enfocan el grupo real de mesas al abrir el croquis, evitando que se vean demasiado pequeñas en desktop/mobile.
 - Scanner y QR de mesa/box: cada codigo de una misma reserva ya puede emitir tickets independientes aunque repita comprador, el scanner no los bloquea por DNI duplicado y ahora muestra el tipo comercial en paneles de color mas evidentes.
 - Correos de tickets: el endpoint publico `/api/tickets/email` ya usa el sender compartido con `process_logs`, no devuelve exito falso si Resend responde error y normaliza dominios de destinatario antes de enviar.
