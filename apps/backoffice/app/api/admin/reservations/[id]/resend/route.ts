@@ -260,7 +260,7 @@ export async function POST(
       resourceLabel: "Entrada",
       callToAction: {
         label: "Asignar asistentes",
-        url: `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra/reserva/${encodeURIComponent(id)}`,
+        url: `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra?reservationId=${encodeURIComponent(id)}`,
       },
     });
 

@@ -129,7 +129,7 @@ describe("POST /api/reservations/update", () => {
     expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
       callToAction: {
         label: "Asignar asistentes",
-        url: "https://babyclubaccess.com/compra/reserva/res-ticket-1",
+        url: "https://babyclubaccess.com/compra?reservationId=res-ticket-1",
       },
     });
 

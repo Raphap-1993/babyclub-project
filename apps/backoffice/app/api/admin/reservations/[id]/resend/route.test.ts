@@ -102,7 +102,7 @@ describe("POST /api/admin/reservations/[id]/resend", () => {
       resourceLabel: "Entrada",
       callToAction: {
         label: "Asignar asistentes",
-        url: "https://babyclubaccess.com/compra/reserva/res-1",
+        url: "https://babyclubaccess.com/compra?reservationId=res-1",
       },
     });
     expect(sendTicketEmail).not.toHaveBeenCalled();

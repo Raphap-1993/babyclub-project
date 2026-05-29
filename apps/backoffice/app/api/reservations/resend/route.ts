@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     : null;
   const eventData = eventRel || eventDirectRel || null;
   const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || eventDirectRel?.id || null;
-  const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra/reserva/${encodeURIComponent(id)}`;
+  const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra?reservationId=${encodeURIComponent(id)}`;
   const codesList = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];
