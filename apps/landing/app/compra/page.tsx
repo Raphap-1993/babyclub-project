@@ -87,13 +87,6 @@ type EventOption = {
 type PaymentMethod = "yape" | "culqi";
 
 export default function CompraPage() {
-  const searchParams = useSearchParams();
-  const reservationIdFromUrl = getNominationReservationId(searchParams);
-
-  if (reservationIdFromUrl) {
-    return <NominationClient reservationId={reservationIdFromUrl} />;
-  }
-
   return (
     <Suspense>
       <CompraRouter />
@@ -103,8 +96,7 @@ export default function CompraPage() {
 
 function CompraRouter() {
   const searchParams = useSearchParams();
-  const reservationIdFromUrl =
-    searchParams.get("reservationId") || searchParams.get("reserva");
+  const reservationIdFromUrl = getNominationReservationId(searchParams);
 
   if (reservationIdFromUrl) {
     return <NominationClient reservationId={reservationIdFromUrl} />;
