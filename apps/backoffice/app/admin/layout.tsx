@@ -61,62 +61,18 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
     section: "RESUMEN",
     items: [
       { id: "dashboard", label: "Inicio", href: "/admin" },
-      {
-        id: "reservations",
-        label: "Reservas",
-        href: "/admin/reservations",
-      },
-      {
-        id: "tickets",
-        label: "Tickets / QR",
-        href: "/admin/tickets",
-      },
+      { id: "reservations", label: "Reservas", href: "/admin/reservations" },
+      { id: "tickets", label: "Tickets / QR", href: "/admin/tickets" },
       { id: "scan", label: "Escaneo QR", href: "/admin/scan" },
     ],
   },
   {
     section: "OPERACIÓN",
     items: [
-      {
-        id: "events",
-        label: "Gestión de eventos",
-        children: [
-          {
-            id: "events-list",
-            label: "Listado de eventos",
-            href: "/admin/events",
-            isActive: (pathname) => isCollectionListPath(pathname, "/admin/events", ["create"]),
-          },
-          { id: "events-create", label: "Crear evento", href: "/admin/events/create" },
-        ],
-      },
-      {
-        id: "organizers",
-        label: "Organizadores y croquis",
-        children: [
-          {
-            id: "organizers-list",
-            label: "Listado de organizadores",
-            href: "/admin/organizers",
-            isActive: (pathname) => isCollectionListPath(pathname, "/admin/organizers", ["create"]),
-          },
-          { id: "table-products", label: "Productos de mesa", href: "/admin/table-products" },
-        ],
-      },
-      {
-        id: "promoters",
-        label: "Promotores y códigos",
-        children: [
-          {
-            id: "promoters-list",
-            label: "Listado de promotores",
-            href: "/admin/promoters",
-            isActive: (pathname) => isCollectionListPath(pathname, "/admin/promoters", ["create"]),
-          },
-          { id: "promoters-create", label: "Crear promotor", href: "/admin/promoters/create" },
-          { id: "codes-batches", label: "Lotes de códigos", href: "/admin/codes" },
-        ],
-      },
+      { id: "events", label: "Eventos", href: "/admin/events" },
+      { id: "organizers", label: "Organizadores / croquis", href: "/admin/organizers" },
+      { id: "promoters", label: "Promotores", href: "/admin/promoters" },
+      { id: "codes-batches", label: "Códigos / lotes", href: "/admin/codes" },
       { id: "ticket-types", label: "Entradas y precios", href: "/admin/ticket-types" },
       { id: "settlements", label: "Liquidaciones", href: "/admin/liquidaciones" },
     ],
@@ -124,30 +80,11 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
   {
     section: "REPORTES",
     items: [
-      {
-        id: "reports-hub",
-        label: "Hub de reportes",
-        href: "/admin/reportes",
-        isActive: (pathname) => pathname === "/admin/reportes",
-      },
-      {
-        id: "reports",
-        label: "Analítica operativa",
-        children: [
-          {
-            id: "reports-attendance-sales",
-            label: "Operación de eventos",
-            href: "/admin/reportes/mesas",
-            isActive: (pathname) =>
-              pathname === "/admin/reportes/mesas" ||
-              pathname === "/admin/asistencia" ||
-              pathname === "/admin/ingresos",
-          },
-          { id: "reports-promoters", label: "Promotores", href: "/admin/reportes/promotores" },
-          { id: "reports-settlements", label: "Liquidaciones", href: "/admin/reportes/liquidaciones" },
-          { id: "logs", label: "Logs", href: "/admin/logs" },
-        ],
-      },
+      { id: "reports-hub", label: "Hub de reportes", href: "/admin/reportes" },
+      { id: "reports-attendance-sales", label: "Operación de eventos", href: "/admin/reportes/mesas" },
+      { id: "reports-promoters", label: "Promotores", href: "/admin/reportes/promotores" },
+      { id: "reports-settlements", label: "Liquidaciones", href: "/admin/reportes/liquidaciones" },
+      { id: "logs", label: "Logs", href: "/admin/logs" },
     ],
   },
   {
