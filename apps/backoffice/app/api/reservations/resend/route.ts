@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { applyNotDeleted } from "shared/db/softDelete";
+import { buildReservationUnits } from "shared/ticketReservationUnits";
 import { createTicketForReservation } from "../utils";
 import { sendApprovalEmail, sendTicketEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,doc_type,document,status,codes,event_id,promoter_id,table:tables(id,name,event_id,event:events(id,name,starts_at,location)),event:event_id(id,name,starts_at,location)"
+      "id,full_name,email,phone,doc_type,document,status,codes,sale_origin,ticket_quantity,event_id,promoter_id,table:tables(id,name,event_id,event:events(id,name,starts_at,location)),event:event_id(id,name,starts_at,location)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -67,6 +69,8 @@ export async function POST(req: NextRequest) {
   const tableRel = Array.isArray((reservation as any).table) ? (reservation as any).table?.[0] : (reservation as any).table;
   const isTableReservation = Boolean(tableRel?.id);
   const tableName = tableRel?.name || "Entrada";
+  const saleOrigin = String((reservation as any).sale_origin || "").toLowerCase();
+  const isTicketOnlyReservation = saleOrigin === "ticket" || !isTableReservation;
   const eventRel = tableRel?.event
     ? Array.isArray(tableRel.event)
       ? tableRel.event[0]
@@ -79,9 +83,96 @@ export async function POST(req: NextRequest) {
     : null;
   const eventData = eventRel || eventDirectRel || null;
   const eventId = tableRel?.event_id || eventRel?.id || (reservation as any).event_id || eventDirectRel?.id || null;
+  const nominationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://babyclubaccess.com"}/compra/reserva/${encodeURIComponent(id)}`;
   const codesList = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];
+  const reservationTicketQty =
+    typeof (reservation as any).ticket_quantity === "number" &&
+    (reservation as any).ticket_quantity > 0
+      ? Math.floor((reservation as any).ticket_quantity)
+      : 0;
+  const tableTicketQty =
+    typeof tableRel?.ticket_count === "number" && tableRel.ticket_count > 0
+      ? Math.floor(tableRel.ticket_count)
+      : 0;
+  const ticketQuantity = Math.max(reservationTicketQty, tableTicketQty, 1);
+
+  if (isTicketOnlyReservation) {
+    const { data: unitRows, error: unitsError } = await applyNotDeleted(
+      supabase
+        .from("ticket_reservation_units")
+        .select("id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id")
+        .eq("reservation_id", id)
+        .order("unit_index", { ascending: true }),
+    );
+
+    if (unitsError) {
+      return NextResponse.json(
+        { success: false, error: unitsError.message },
+        { status: 500 },
+      );
+    }
+
+    const units = Array.isArray(unitRows) ? unitRows : [];
+    if (units.length === 0 && eventId) {
+      const unitsToInsert = buildReservationUnits({
+        reservationId: id,
+        eventId,
+        packageQuantity: 1,
+        unitsPerPackage: ticketQuantity,
+      });
+      const { error: insertUnitsError } = await supabase
+        .from("ticket_reservation_units")
+        .insert(unitsToInsert);
+      if (insertUnitsError) {
+        return NextResponse.json(
+          { success: false, error: insertUnitsError.message },
+          { status: 500 },
+        );
+      }
+    }
+
+    const issuedUnits = units.filter(
+      (unit: any) =>
+        String(unit?.status || "").toLowerCase() === "issued" &&
+        typeof unit?.ticket_id === "string" &&
+        unit.ticket_id.trim(),
+    );
+    const issuedTicketIds = Array.from(
+      new Set(
+        issuedUnits
+          .map((unit: any) => String(unit.ticket_id || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    await sendApprovalEmail({
+      supabase,
+      id,
+      full_name: (reservation as any).full_name || "",
+      email,
+      phone: (reservation as any).phone || null,
+      codes: codesList,
+      ticketIds: issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
+      tableName: (reservation as any).ticket_type_label || "Entrada",
+      event: eventData,
+      resourceLabel: "Entrada",
+      callToAction: {
+        label: "Completar nominación",
+        url: nominationUrl,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      ticketId: issuedTicketIds[0] || null,
+      ticketEmailError: null,
+      reservationEmailError: null,
+      ticketsCreated: 0,
+      unitsPrepared: units.length === 0,
+    });
+  }
 
   let ticketId: string | null = null;
   let ticketCode: string | null = null;
