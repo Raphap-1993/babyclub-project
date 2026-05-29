@@ -9,6 +9,13 @@ import { Input } from "@/components/ui/input";
 import { SelectNative } from "@/components/ui/select-native";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ExternalPagination } from "../components/ExternalPagination";
+import { type CodeTypePolicy } from "shared/codeBatchPolicy";
+import {
+  CODE_TYPE_POLICY_ROWS,
+  CodeTypePoliciesPanel,
+  normalizeCodeTypePolicies,
+  type SupportedCodeType,
+} from "./CodeTypePoliciesPanel";
 
 type Option = { id: string; name: string };
 
@@ -44,6 +51,7 @@ type ViewMode = "lots" | "codes";
 const TYPE_OPTIONS = [
   { value: "courtesy", label: "Cortesía (promotores)" },
   { value: "promoter", label: "Promotor" },
+  { value: "table", label: "Mesa" },
 ];
 
 const STATUS_OPTIONS = [
@@ -87,6 +95,17 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
   const [viewMode, setViewMode] = useState<ViewMode>("lots");
   const [showGeneratedCodes, setShowGeneratedCodes] = useState(false);
   const [totalCodesInLots, setTotalCodesInLots] = useState(0);
+  const [policies, setPolicies] = useState<CodeTypePolicy[]>(
+    CODE_TYPE_POLICY_ROWS.map((policy) => ({
+      code_type: policy.code_type,
+      requires_expiration: false,
+      updated_at: null,
+      updated_by_staff_id: null,
+    })),
+  );
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policySaving, setPolicySaving] = useState<SupportedCodeType | null>(null);
+  const [policyError, setPolicyError] = useState<string | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / filters.pageSize)), [total, filters.pageSize]);
   const currentPage = Math.min(filters.page, totalPages);
@@ -109,6 +128,11 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
   const pageSizeOptions = useMemo(
     () => (viewMode === "lots" ? [30, 50, 100, 200] : PAGE_SIZES),
     [viewMode]
+  );
+  const normalizedPolicies = useMemo(() => normalizeCodeTypePolicies(policies), [policies]);
+  const promoterRequiresExpiration = useMemo(
+    () => normalizedPolicies.find((policy) => policy.code_type === "promoter")?.requires_expiration === true,
+    [normalizedPolicies],
   );
   const lotDetailGroup = useMemo(
     () => groupedCodes.find((group) => group.batchId === lotDetailBatchId) || null,
@@ -149,6 +173,11 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
     }));
   }, [viewMode, filters.pageSize]);
 
+  useEffect(() => {
+    void fetchPolicies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const activeBatchId = filters.batch_id || selectedBatchId || generated?.batchId || "";
 
   async function fetchCodes() {
@@ -181,6 +210,25 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
       setError(err?.message || "Error al cargar códigos");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchPolicies() {
+    setPolicyLoading(true);
+    setPolicyError(null);
+    try {
+      const res = await fetch("/api/codes/policies", {
+        headers: await getAuthHeaders(),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || "No se pudieron cargar las políticas");
+      }
+      setPolicies(normalizeCodeTypePolicies(payload.policies || payload.data));
+    } catch (err: any) {
+      setPolicyError(err?.message || "Error al cargar políticas");
+    } finally {
+      setPolicyLoading(false);
     }
   }
 
@@ -301,6 +349,50 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
     return promoters;
   }, [promoters, filters.type]);
 
+  async function handlePolicyToggle(codeType: SupportedCodeType, nextValue: boolean) {
+    const previousPolicies = policies;
+    const nextPolicies = previousPolicies.map((policy) =>
+      policy.code_type === codeType ? { ...policy, requires_expiration: nextValue } : policy,
+    );
+    setPolicies(nextPolicies);
+    setPolicySaving(codeType);
+    setPolicyError(null);
+    try {
+      const res = await fetch("/api/codes/policies", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({
+          code_type: codeType,
+          requires_expiration: nextValue,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || "No se pudo guardar la política");
+      }
+      setPolicies((prev) =>
+        prev.map((policy) =>
+          policy.code_type === codeType
+            ? {
+                ...policy,
+                requires_expiration: payload.policy?.requires_expiration ?? nextValue,
+                updated_at: payload.policy?.updated_at ?? policy.updated_at,
+                updated_by_staff_id: payload.policy?.updated_by_staff_id ?? policy.updated_by_staff_id,
+              }
+            : policy,
+        ),
+      );
+    } catch (err: any) {
+      setPolicies(previousPolicies);
+      setPolicyError(err?.message || "Error al guardar política");
+    } finally {
+      setPolicySaving(null);
+    }
+  }
+
   return (
     <main className="space-y-4 lg:space-y-5">
       <ScreenHeader
@@ -345,6 +437,14 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
             </Button>
           </>
         }
+      />
+
+      <CodeTypePoliciesPanel
+        policies={normalizedPolicies}
+        loading={policyLoading}
+        savingCodeType={policySaving}
+        error={policyError}
+        onToggle={handlePolicyToggle}
       />
 
       <section className="space-y-3">
@@ -740,6 +840,7 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
           events={events}
           promoters={promoters}
           defaultEventId={filters.event_id}
+          requiresExpiration={promoterRequiresExpiration}
           onClose={() => setShowModal(false)}
           onCreated={(batchId, list) => {
             setShowModal(false);
@@ -892,16 +993,18 @@ function LotDetailModal({
   );
 }
 
-function GenerateBatchModal({
+export function GenerateBatchModal({
   events,
   promoters,
   defaultEventId,
+  requiresExpiration,
   onClose,
   onCreated,
 }: {
   events: Option[];
   promoters: Option[];
   defaultEventId: string;
+  requiresExpiration?: boolean;
   onClose: () => void;
   onCreated: (batchId: string, codes: string[]) => void;
 }) {
@@ -909,6 +1012,7 @@ function GenerateBatchModal({
   const [promoterId, setPromoterId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
@@ -932,6 +1036,16 @@ function GenerateBatchModal({
       setError("Cantidad debe estar entre 1 y 500");
       return;
     }
+    if (requiresExpiration && !expiresAt) {
+      setError("Completa la fecha de expiración");
+      return;
+    }
+    const parsedExpiresAt = expiresAt ? new Date(expiresAt) : null;
+    const expiresAtIso = parsedExpiresAt && !Number.isNaN(parsedExpiresAt.getTime()) ? parsedExpiresAt.toISOString() : null;
+    if (requiresExpiration && !expiresAtIso) {
+      setError("Expiración inválida");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -946,7 +1060,7 @@ function GenerateBatchModal({
           promoter_id: promoterId || null,
           type: "promoter",
           quantity,
-          expires_at: null,
+          expires_at: expiresAtIso,
           max_uses: 1,
           prefix: null,
           notes: notes || null,
@@ -1031,6 +1145,23 @@ function GenerateBatchModal({
                 placeholder="Contexto interno"
                 className="h-10 rounded-2xl border-white/15 bg-[#0a0a0a] text-sm text-white focus:border-white"
               />
+            </div>
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <label className="text-xs uppercase tracking-[0.15em] text-white/60">
+                Expiración {requiresExpiration ? <span className="text-[#ff77b6]">*</span> : null}
+              </label>
+              <Input
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                required={!!requiresExpiration}
+                className="h-10 rounded-2xl border-white/15 bg-[#0a0a0a] text-sm text-white focus:border-white"
+              />
+              <p className="text-xs text-white/45">
+                {requiresExpiration
+                  ? "La política del tipo promoter requiere capturar expires_at."
+                  : "Opcional: si no lo completas, el sistema usará la expiración estándar del batch."}
+              </p>
             </div>
           </div>
 

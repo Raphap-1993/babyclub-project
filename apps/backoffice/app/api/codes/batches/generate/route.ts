@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
+import { requiresExpirationForCodeType } from "shared/codeBatchPolicy";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+function getServiceSupabase() {
+  if (!supabaseUrl || !supabaseServiceKey) return null;
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+function parseExpiresAt(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
 
 export async function POST(req: NextRequest) {
   const guard = await requireStaffRole(req);
@@ -32,10 +47,26 @@ export async function POST(req: NextRequest) {
   const max_uses = Math.max(1, parseInt(body?.max_uses, 10) || 1);
   const prefix = typeof body?.prefix === "string" ? body.prefix : null;
   const notes = typeof body?.notes === "string" ? body.notes : null;
-  const expires_at_input = typeof body?.expires_at === "string" ? body.expires_at : null;
+  const expires_at_input = typeof body?.expires_at === "string" ? body.expires_at.trim() : "";
 
-  const expires_at = expires_at_input ? new Date(expires_at_input) : null;
-  const expires_at_iso = expires_at && !Number.isNaN(expires_at.getTime()) ? expires_at.toISOString() : null;
+  const serviceSupabase = getServiceSupabase();
+  if (!serviceSupabase) {
+    return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
+  }
+
+  const { data: policyRow, error: policyError } = await serviceSupabase
+    .from("code_type_policies")
+    .select("code_type,requires_expiration")
+    .eq("code_type", type)
+    .maybeSingle();
+
+  if (policyError) {
+    return NextResponse.json({ success: false, error: policyError.message }, { status: 500 });
+  }
+
+  const requiresExpiration = requiresExpirationForCodeType(type, policyRow ? [policyRow] : []);
+  const expires_at = expires_at_input ? parseExpiresAt(expires_at_input) : null;
+  const expires_at_iso = expires_at ? expires_at.toISOString() : null;
 
   if (!event_id || !type) {
     return NextResponse.json({ success: false, error: "event_id y type son requeridos" }, { status: 400 });
@@ -45,6 +76,12 @@ export async function POST(req: NextRequest) {
   }
   if (type === "promoter" && !promoter_id) {
     return NextResponse.json({ success: false, error: "promoter_id requerido para tipo promoter" }, { status: 400 });
+  }
+  if (requiresExpiration && !expires_at_iso) {
+    return NextResponse.json(
+      { success: false, error: "expires_at requerido para este tipo de código" },
+      { status: 400 },
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
