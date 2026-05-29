@@ -25,6 +25,7 @@ import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
 import { LegalTrustStrip } from "./LegalTrustStrip";
 import { PurchaseModeControls } from "./PurchaseModeControls";
+import NominationClient from "./reserva/[id]/NominationClient";
 import {
   getTicketEmptyStateMessage,
   getTicketSubmitLabel,
@@ -87,19 +88,45 @@ type PaymentMethod = "yape" | "culqi";
 export default function CompraPage() {
   return (
     <Suspense>
-      <CompraContent />
+      <CompraRouter />
     </Suspense>
   );
 }
 
-function CompraContent() {
+function CompraRouter() {
   const searchParams = useSearchParams();
-  const promoterIdFromUrl = searchParams.get("promoter_id") || null;
-  const promoterLinkCodeIdFromUrl =
-    searchParams.get("promoter_link_code_id") || null;
-  const promoterLinkCodeFromUrl =
-    searchParams.get("promoter_link_code") || null;
-  const tabFromUrl = searchParams.get("tab");
+  const reservationIdFromUrl =
+    searchParams.get("reservationId") || searchParams.get("reserva");
+
+  if (reservationIdFromUrl) {
+    return <NominationClient reservationId={reservationIdFromUrl} />;
+  }
+
+  return (
+    <CompraContent
+      promoterIdFromUrl={searchParams.get("promoter_id") || null}
+      promoterLinkCodeIdFromUrl={
+        searchParams.get("promoter_link_code_id") || null
+      }
+      promoterLinkCodeFromUrl={
+        searchParams.get("promoter_link_code") || null
+      }
+      tabFromUrl={searchParams.get("tab")}
+    />
+  );
+}
+
+function CompraContent({
+  promoterIdFromUrl,
+  promoterLinkCodeIdFromUrl,
+  promoterLinkCodeFromUrl,
+  tabFromUrl,
+}: {
+  promoterIdFromUrl: string | null;
+  promoterLinkCodeIdFromUrl: string | null;
+  promoterLinkCodeFromUrl: string | null;
+  tabFromUrl: string | null;
+}) {
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [form, setForm] = useState({
@@ -1432,7 +1459,7 @@ function CompraContent() {
                   asistentes desde el workspace de la reserva.
                 </p>
                 <Link
-                  href={`/compra/reserva/${encodeURIComponent(ticketReservationId)}`}
+                  href={`/compra?reservationId=${encodeURIComponent(ticketReservationId)}`}
                   className="mt-3 inline-flex rounded-full px-4 py-2 text-xs font-semibold btn-smoke transition"
                 >
                   Ir a mi workspace
@@ -2514,7 +2541,7 @@ function CompraContent() {
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               {ticketReservationId && (
                 <Link
-                  href={`/compra/reserva/${encodeURIComponent(ticketReservationId)}`}
+                    href={`/compra?reservationId=${encodeURIComponent(ticketReservationId)}`}
                   className="rounded-full px-5 py-2.5 text-center text-sm font-semibold btn-smoke transition"
                 >
                   Ir a nominar asistentes
