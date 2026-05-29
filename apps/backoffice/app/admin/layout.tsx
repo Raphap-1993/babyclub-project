@@ -29,14 +29,38 @@ const isCollectionListPath = (pathname: string, href: string, excludedSegments: 
   return !excludedSegments.includes(nextSegment);
 };
 
+const sectionMeta: Record<string, { glyph: string; description: string }> = {
+  RESUMEN: { glyph: "⌂", description: "Vista rápida de operación diaria" },
+  OPERACIÓN: { glyph: "⚙", description: "Gestión y ejecución del día a día" },
+  REPORTES: { glyph: "≡", description: "Lectura consolidada y auditoría" },
+  SISTEMA: { glyph: "⛭", description: "Configuración y control interno" },
+};
+
+const itemGlyph = (label: string) => {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("evento")) return "◉";
+  if (normalized.includes("reserva")) return "↳";
+  if (normalized.includes("ticket")) return "▣";
+  if (normalized.includes("escaneo") || normalized.includes("qr")) return "◌";
+  if (normalized.includes("promotor")) return "∴";
+  if (normalized.includes("código")) return "#";
+  if (normalized.includes("liquid")) return "$";
+  if (normalized.includes("log")) return "•";
+  if (normalized.includes("usuario")) return "@";
+  if (normalized.includes("seguridad")) return "!";
+  if (normalized.includes("branding")) return "◈";
+  if (normalized.includes("integr")) return "↔";
+  if (normalized.includes("backup")) return "⇪";
+  if (normalized.includes("mesa")) return "▤";
+  if (normalized.includes("precio") || normalized.includes("entrada")) return "¤";
+  return "•";
+};
+
 const menuItems: Array<{ section: string; items: NavItem[] }> = [
   {
-    section: "INICIO",
-    items: [{ id: "dashboard", label: "Inicio", href: "/admin" }],
-  },
-  {
-    section: "GESTIÓN",
+    section: "RESUMEN",
     items: [
+      { id: "dashboard", label: "Inicio", href: "/admin" },
       {
         id: "events",
         label: "Eventos",
@@ -50,6 +74,22 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
           { id: "events-create", label: "Crear evento", href: "/admin/events/create" },
         ],
       },
+      {
+        id: "reservations",
+        label: "Reservas",
+        href: "/admin/reservations",
+      },
+      {
+        id: "tickets",
+        label: "Tickets / QR",
+        href: "/admin/tickets",
+      },
+      { id: "scan", label: "Escaneo QR", href: "/admin/scan" },
+    ],
+  },
+  {
+    section: "OPERACIÓN",
+    items: [
       {
         id: "organizers",
         label: "Organizadores y croquis",
@@ -77,20 +117,9 @@ const menuItems: Array<{ section: string; items: NavItem[] }> = [
           { id: "codes-batches", label: "Códigos / lotes", href: "/admin/codes" },
         ],
       },
-    ],
-  },
-  {
-    section: "VENTAS",
-    items: [
       { id: "ticket-types", label: "Entradas y precios", href: "/admin/ticket-types" },
-      { id: "reservations", label: "Reservas", href: "/admin/reservations" },
-      { id: "tickets", label: "Tickets / QR", href: "/admin/tickets" },
       { id: "settlements", label: "Liquidaciones", href: "/admin/liquidaciones" },
     ],
-  },
-  {
-    section: "OPERACIÓN",
-    items: [{ id: "scan", label: "Escaneo QR", href: "/admin/scan" }],
   },
   {
     section: "REPORTES",
@@ -159,11 +188,11 @@ function NavEntry({
         }`}
       >
         <span
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold ${
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold ${
             active ? "bg-rose-500/20 text-rose-100" : "bg-neutral-800 text-neutral-400"
           }`}
         >
-          {itemBadge(item.label)}
+          {itemGlyph(item.label)}
         </span>
         <span className="truncate">{item.label}</span>
       </Link>
@@ -173,8 +202,8 @@ function NavEntry({
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-white">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-rose-500/15 text-[10px] font-semibold text-rose-200">
-          {itemBadge(item.label)}
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-rose-500/15 text-[11px] font-semibold text-rose-200">
+          {itemGlyph(item.label)}
         </span>
         <span className="truncate">{item.label}</span>
       </div>
@@ -193,11 +222,11 @@ function NavEntry({
               }`}
             >
               <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[9px] font-semibold ${
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold ${
                   childActive ? "bg-rose-500/20 text-rose-100" : "bg-neutral-800 text-neutral-500"
                 }`}
               >
-                {itemBadge(child.label)}
+                {itemGlyph(child.label)}
               </span>
               <span className="truncate">{child.label}</span>
             </Link>
@@ -214,9 +243,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    RESUMEN: true,
+  });
 
   const isDoorSession = pathname === DOOR_LANDING;
   const isDoorAllowedPath = pathname === DOOR_LANDING;
+
+  useEffect(() => {
+    const activeSection =
+      menuItems.find((group) =>
+        group.items.some((item) =>
+          item.children
+            ? item.children.some((child) =>
+                child.isActive
+                  ? child.isActive(pathname)
+                  : pathname === child.href || pathname.startsWith(`${child.href}/`),
+              )
+            : item.href
+              ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+              : false,
+        ),
+      )?.section || null;
+
+    if (!activeSection) return;
+
+    setOpenSections((current) => ({
+      ...current,
+      [activeSection]: true,
+    }));
+  }, [pathname]);
 
   useEffect(() => {
     const ensureSession = async () => {
@@ -290,14 +346,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div className="space-y-5">
                 {menuItems.map((group) => (
                   <section key={group.section} className="space-y-2">
-                    <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      {group.section}
-                    </p>
-                    <div className="space-y-1">
-                      {group.items.map((item) => (
-                        <NavEntry key={item.id} item={item} pathname={pathname} />
-                      ))}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenSections((current) => ({
+                          ...current,
+                          [group.section]: !current[group.section],
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-neutral-800/80 bg-neutral-950/60 px-3 py-2 text-left transition hover:border-neutral-700 hover:bg-neutral-900/60"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                            <span className="text-[11px] text-rose-300">
+                              {sectionMeta[group.section]?.glyph || "•"}
+                            </span>
+                            {group.section}
+                          </p>
+                          <p className="mt-1 text-[11px] leading-4 text-neutral-600">
+                            {sectionMeta[group.section]?.description || ""}
+                          </p>
+                        </div>
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-800 bg-black text-neutral-300">
+                          {openSections[group.section] ? "−" : "+"}
+                        </span>
+                      </div>
+                    </button>
+                    {openSections[group.section] ? (
+                      <div className="space-y-1 pl-1">
+                        {group.items.map((item) => (
+                          <NavEntry key={item.id} item={item} pathname={pathname} />
+                        ))}
+                      </div>
+                    ) : null}
                   </section>
                 ))}
               </div>
@@ -326,14 +408,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="space-y-5 overflow-y-auto pb-6">
                   {menuItems.map((group) => (
                     <section key={group.section} className="space-y-2">
-                      <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                        {group.section}
-                      </p>
-                      <div className="space-y-1">
-                        {group.items.map((item) => (
-                          <NavEntry key={item.id} item={item} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
-                        ))}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenSections((current) => ({
+                            ...current,
+                            [group.section]: !current[group.section],
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-neutral-800/80 bg-neutral-950/60 px-3 py-2 text-left transition hover:border-neutral-700 hover:bg-neutral-900/60"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                              <span className="text-[11px] text-rose-300">
+                                {sectionMeta[group.section]?.glyph || "•"}
+                              </span>
+                              {group.section}
+                            </p>
+                            <p className="mt-1 text-[11px] leading-4 text-neutral-600">
+                              {sectionMeta[group.section]?.description || ""}
+                            </p>
+                          </div>
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-800 bg-black text-neutral-300">
+                            {openSections[group.section] ? "−" : "+"}
+                          </span>
+                        </div>
+                      </button>
+                      {openSections[group.section] ? (
+                        <div className="space-y-1 pl-1">
+                          {group.items.map((item) => (
+                            <NavEntry
+                              key={item.id}
+                              item={item}
+                              pathname={pathname}
+                              onNavigate={() => setMobileOpen(false)}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
                     </section>
                   ))}
                 </div>
