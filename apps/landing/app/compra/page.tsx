@@ -27,7 +27,6 @@ import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
 import { LegalTrustStrip } from "./LegalTrustStrip";
 import { PurchaseModeControls } from "./PurchaseModeControls";
-import NominationClient from "./reserva/[id]/NominationClient";
 import {
   getTicketEmptyStateMessage,
   getTicketSubmitLabel,
