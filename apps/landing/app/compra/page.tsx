@@ -5,6 +5,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CreditCard, Smartphone } from "lucide-react";
+import NominationClient from "./reserva/[id]/NominationClient";
+import { getNominationReservationId } from "./nominationRouting";
 import TableMap from "../registro/TableMap";
 import {
   buildMapSlotsFromTables,
@@ -25,7 +27,6 @@ import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
 import { LegalTrustStrip } from "./LegalTrustStrip";
 import { PurchaseModeControls } from "./PurchaseModeControls";
-import NominationClient from "./reserva/[id]/NominationClient";
 import {
   getTicketEmptyStateMessage,
   getTicketSubmitLabel,
@@ -95,8 +96,7 @@ export default function CompraPage() {
 
 function CompraRouter() {
   const searchParams = useSearchParams();
-  const reservationIdFromUrl =
-    searchParams.get("reservationId") || searchParams.get("reserva");
+  const reservationIdFromUrl = getNominationReservationId(searchParams);
 
   if (reservationIdFromUrl) {
     return <NominationClient reservationId={reservationIdFromUrl} />;
