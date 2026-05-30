@@ -3,11 +3,28 @@ type: status
 project: babyclub-monorepo
 status: active
 owner: Patroclo
-updated: 2026-05-29
-last_reviewed: 2026-05-29
+updated: 2026-05-30
+last_reviewed: 2026-05-30
 ---
 
 # Status
+
+## 2026-05-30 - Reenvio selectivo de nominaciones
+
+- Se ejecuto reenvio selectivo para `BABY RAVE | ABYSS` solo sobre reservas `ticket-only` aprobadas con unidades pendientes de nominacion.
+- Resultado: `33` reservas revisadas, `26` candidatas, `25` correos enviados, `0` fallas de proveedor, `1` email invalido corregido y reenviado aparte.
+- El motivo de las `23` emisiones previas al envio fue operativo, no nuevo bug: eran reservas ya `approved` cuya `unidad 1` seguia `pending_nomination` y sin `ticket_id`, asi que el QR del comprador se emitio antes de mandar el correo.
+- Decision: no se necesita un segundo blast masivo, porque esas personas ya recibieron el correo actualizado con QR del comprador y CTA `Completar asistentes`.
+
+## 2026-05-30 - Cierre operativo evento
+
+- `master` queda publicado con el paquete operativo del evento: nominaciones publicas, scanner de puerta, dashboard comercial y modal de lotes por tipo.
+- Nominaciones: links de correo corregidos al dominio publico; UI publica minima y responsive; lookup por DNI con boton unico; popup para exito/error; `Ver ticket` y reenvio desde la misma vista; reemision de nominados emitidos compatible con el esquema legacy.
+- Emision: se corrige el lookup del documento del comprador en `unidad 1`, con lo que guardar nominaciones + emitir QR deja de fallar por datos incompletos del comprador.
+- Puerta: `scan` y `scan/confirm` ya bloquean mismatch de evento, tickets inactivos o `pending`, consumen el mismo ticket de forma mas segura y marcan la unidad como `used`.
+- Dashboard: `Entradas` ya refleja unidades vendidas reales (`sale_origin='ticket'`), mientras `QR emitidos` sigue siendo el total emitido; `Mesas`, `Cortesias` y `Free` quedan alineados a buckets comerciales.
+- Lotes: el modal de generacion ya respeta el `Tipo` seleccionado y la politica por tipo; el label visible queda simplemente como `Cortesia`.
+- Verificacion consolidada: suites focalizadas de `publicUrl`, `ticket-reservations issue/units`, `nominationLookup`, `scan`, `qr-summary`, `dashboardModel`, `codeBatchPolicy` y `codes batches generate` pasan; `tsc` de `landing` y `backoffice` pasa.
 
 ## Snapshot
 
@@ -49,6 +66,9 @@ last_reviewed: 2026-05-29
 - Ticket publico: la vista `/ticket/[id]` ya separa `Mesa / Box`, `QR promotor`, `QR cortesia`, `QR libre`, `QR general` y `ticket-only` con copy/tonos distintos; deja de usar el bloque ambiguo `QR de mesa / promotor`.
 - Dashboard QR remoto: el RPC `public.get_qr_summary_all` ya fue aplicado puntualmente en `babyclub-access` via `supabase db query --linked -f supabase/manual/2026-05-28-hotfix-get_qr_summary_all.sql`, sin empujar las otras migraciones pendientes del branch.
 - Dashboard tickets: el resumen ahora trata `sale_origin='ticket' + codes.type='courtesy'` como `general` para métricas, corrigiendo las `37` entradas pagadas de `BABY RAVE | ABYSS` que el schema legacy obligaba a guardar con tipo técnico `courtesy`.
+- Dashboard comercial: para `BABY RAVE | ABYSS` se dejo evidenciado que `QR emitidos` (`196`) y `Entradas` vendidas reales (`59`) no son la misma metrica; el home ya no mezcla ambas cifras.
+- Scanner de puerta: el contrato operativo sigue amarrado a tipos canonicos `courtesy/promoter/table/general/free`; cambios de label visual o del dashboard no modifican puerta, pero cualquier `code.type` nuevo debe incorporarse explicitamente.
+- Codes/lotes: la politica `expiracion obligatoria por codigo` solo decide si el tipo exige fecha manual al crear lotes; no redefine clasificaciones comerciales ni scanner.
 - Landing compra: el selector de `Evento` ya vive arriba del flujo publico en `Solo entrada` y `Reserva mesa`, mientras `Compra segura y validada por BABY` baja al tramo legal junto a la aceptacion final.
 - Landing compra: si hay multiples eventos activos, `/compra` ya no autoselecciona el primero por fecha ni muestra su lote/precio como default; solo autoselecciona cuando existe exactamente un evento habilitado.
 - Landing compra/registro: `Bugfix 09` ya corrige copy de estados vacios, compacta el bloque legal final y reintroduce branding BABY consistente en `/registro` usando `logoUrl` cuando existe.
@@ -89,3 +109,11 @@ last_reviewed: 2026-05-29
 - REQ tecnico cerrado mas reciente: [REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md](./01-Requirements/REQ-0013-pulidos-visuales-compra-registro-estados-vacios.md), validado con suite focalizada de landing, `pnpm typecheck:landing` y smoke DOM local en `/compra` y `/registro`.
 - REQ tecnico cerrado mas reciente: [REQ-0014-estado-operativo-promotores-y-bloqueo-de-codigos.md](./01-Requirements/REQ-0014-estado-operativo-promotores-y-bloqueo-de-codigos.md), validado con suite focalizada de promotores, `pnpm typecheck:backoffice` y `git diff --check`.
 - Si el requerimiento toca tenancy, contratos API, auth, pagos, logs o migraciones, abrir revison de arquitectura antes de codificar.
+
+## Hotfix 2026-05-30 17:25 America/Lima - Unicidad QR por evento
+
+- Regla vigente: una persona puede tener QRs para eventos distintos, pero solo `1 QR activo por evento`.
+- El guard ya cruza `person_id`, `documento`, `nombre+email` y `nombre+telefono` dentro del mismo `event_id`.
+- El cambio aplica en registro publico, ticket-only, aprobacion/reenvio de reservas, alta manual admin y scanner de puerta.
+- Produccion: se archivo el ticket general incorrecto del caso reportado y se dejo activo solo el QR correcto.
+- Commit publicado: `23f2efb` `Enforce one QR per person per event`.

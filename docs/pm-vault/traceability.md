@@ -3,11 +3,30 @@ type: traceability
 project: babyclub-monorepo
 status: active
 owner: Patroclo
-updated: 2026-05-28
-last_reviewed: 2026-05-28
+updated: 2026-05-30
+last_reviewed: 2026-05-30
 ---
 
 # Traceability
+
+## 2026-05-30 - Reenvio selectivo nominaciones evento actual
+
+- Origen: cierre operativo posterior a los fixes del flujo de nominaciones; habia que decidir y ejecutar si correspondia reenviar correos a compradores del ultimo evento.
+- Handoff: se ejecuto solo sobre reservas `ticket-only` aprobadas con `pending_nomination`, evitando blast masivo innecesario.
+- Archivos: `apps/backoffice/app/api/reservations/resend/route.ts`, `apps/backoffice/app/api/reservations/ticketOnlyFlow.ts`, `apps/backoffice/app/api/reservations/email.ts`, `packages/shared/email/resend.ts`, `docs/CHANGELOG-2026-05-30-nominaciones-puerta-dashboard.md`.
+- Cambios: `25` correos enviados a compradores con pendientes reales; `23` de esas reservas emitieron primero el QR del comprador porque la `unidad 1` aun no tenia `ticket_id`; caso `55f9e5c7-f72d-4e5f-b0b5-70752693067b` se corrigio de `celinagaray23@gmail` a `celinagaray23@gmail.com` y luego se reenviaron QR + CTA.
+- Verificacion: consolidado operativo `33` revisadas / `26` candidatas / `25` enviadas / `0` fallas; reenvio corregido con `providerId=6700aefb-4db5-4b66-8121-a127bd63e84a`.
+- Decision: no repetir envio masivo; solo soporte puntual si un comprador reporta ausencia del correo o un dato mal digitado.
+
+## 2026-05-30 - Cierre operativo nominaciones + puerta + dashboard
+
+- Origen: cadena de ajustes del dia del evento para estabilizar correo/nominaciones, emision, scanner, dashboard y generacion de lotes.
+- Handoff: `master` queda como rama de deploy con el paquete consolidado para operacion.
+- Archivos: `packages/shared/publicUrl.ts`, `apps/landing/app/compra/reserva/[id]/NominationClient.tsx`, `apps/landing/app/compra/reserva/[id]/nominationLookup.ts`, `apps/landing/app/api/ticket-reservations/[id]/issue/route.ts`, `apps/landing/app/api/ticket-reservations/[id]/units/route.ts`, `apps/backoffice/app/api/scan/route.ts`, `apps/backoffice/app/api/scan/confirm/route.ts`, `packages/api-logic/qr-summary.ts`, `apps/backoffice/app/admin/dashboardModel.ts`, `apps/backoffice/app/admin/codes/CodesClient.tsx`, `packages/shared/codeBatchPolicy.ts`, `docs/CHANGELOG-2026-05-30-nominaciones-puerta-dashboard.md`.
+- Cambios: links publicos de correo corregidos; nominaciones mobile-first con lookup DNI, modal popup y `Ver ticket`; issue del documento del comprador corregido; reemision legacy estable; scanner endurecido contra tickets inactivos/pending, mismatch y doble confirmacion; dashboard comercial ya separa `QR emitidos` de `Entradas` vendidas reales; modal de lotes usa el tipo seleccionado y su politica por tipo; `Cortesia` queda con label simplificado.
+- Verificacion: `pnpm exec vitest run packages/shared/publicUrl.test.ts 'apps/backoffice/app/api/admin/reservations/[id]/resend/route.test.ts' apps/backoffice/app/api/reservations/update/route.test.ts apps/backoffice/app/api/reservations/resend/route.test.ts 'apps/landing/app/api/ticket-reservations/[id]/issue/route.test.ts' 'apps/landing/app/api/ticket-reservations/[id]/units/route.test.ts' 'apps/landing/app/compra/reserva/[id]/nominationLookup.test.ts' 'apps/landing/app/ticket/[id]/page.ticket-only.test.tsx' 'apps/landing/app/ticket/[id]/page.presentation.test.tsx' 'apps/backoffice/app/api/scan/confirm/route.test.ts' 'apps/backoffice/app/api/scan/route.test.ts' packages/api-logic/qr-summary.test.ts packages/api-logic/qr-summary.rpc.test.ts apps/backoffice/app/admin/dashboardModel.test.ts apps/backoffice/app/admin/events/__tests__/QRStatsTable.test.tsx packages/shared/codeBatchPolicy.test.ts apps/backoffice/app/api/codes/batches/generate/route.test.ts`; `pnpm exec tsc -p apps/landing/tsconfig.json --noEmit`; `pnpm exec tsc -p apps/backoffice/tsconfig.json --noEmit`.
+- Decision: puerta sigue dependiendo de tipos canonicos y del `qr_token`; labels visuales y buckets del dashboard no cambian la validacion de escaneo.
+- Pendiente: smoke final en produccion y eventual slice si negocio agrega tipos nuevos o auditoria historica de reemplazos.
 
 ## Regla
 
@@ -226,3 +245,16 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
 - `supabase db push --linked --yes` aplico `20260428112000_add_ticket_reservation_attendees`, `20260428112100_add_promoter_link_trace_to_reservations` y `20260428112200_promoter_settlements_ledger` en `babyclub-access`.
 - Verificacion remota por metadata: `table_reservations.attendees`, `table_reservations.promoter_link_code_id`, `table_reservations.promoter_link_code`, `promoter_settlements`, `promoter_settlement_items` y bucket `event-assets` existen.
 - Nota tecnica: las migraciones historicas con guiones son omitidas por Supabase CLI; las nuevas quedan con formato timestamp valido.
+
+### 2026-05-30 - Hotfix one-QR-per-event
+
+- Incidente: una misma persona obtuvo dos tickets activos del mismo evento por flujos `general` y `courtesy`.
+- Regla cerrada: unicidad por `event_id`; una persona si puede tener QRs para otros eventos.
+- Implementacion:
+  - helper compartido `packages/shared/eventTicketIdentity.ts`;
+  - guard central en emision publica, ticket-only, aprobacion/reenvio de reservas y alta manual admin;
+  - scanner de puerta ya no exceptua `table` en la politica de duplicado.
+- Verificacion:
+  - `28` tests focalizados OK;
+  - `tsc` landing/backoffice OK.
+- Produccion: se archivo el ticket equivocado del caso reportado y se preservo el QR correcto.
