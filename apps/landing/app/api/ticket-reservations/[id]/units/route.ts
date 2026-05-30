@@ -223,7 +223,6 @@ export async function PUT(
           phone: normalizedInput.phone || null,
           qr_token: newQrToken,
           updated_at: reissueTimestamp,
-          issued_at: reissueTimestamp,
         })
         .eq("id", existingUnit.ticket_id)
         .eq("event_id", (reservation.data as any).event_id);

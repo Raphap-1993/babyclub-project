@@ -575,12 +575,6 @@ export default function NominationClient({
   return (
     <main className="min-h-screen bg-black px-3 py-4 text-white sm:px-5 sm:py-6">
       <div className="mx-auto w-full max-w-4xl rounded-[28px] border border-white/10 bg-[#070707] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-6">
-        {error ? (
-          <div className="mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-            {error}
-          </div>
-        ) : null}
-
         {loading ? (
           <section className="flex min-h-[320px] items-center justify-center">
             <div className="flex items-center gap-3 text-sm text-white/70">
@@ -868,6 +862,43 @@ export default function NominationClient({
             <button
               type="button"
               onClick={() => setSuccess(null)}
+              className="w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold btn-smoke transition"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6">
+          <div className="w-full max-w-md space-y-4 rounded-3xl border border-red-500/25 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(239,68,68,0.22)]">
+            <div className="space-y-2 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10">
+                <svg
+                  className="h-7 w-7 text-red-300"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-white">
+                Ocurrió un problema
+              </h3>
+              <p className="text-sm leading-relaxed text-red-100/90">
+                {error}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError(null)}
               className="w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold btn-smoke transition"
             >
               Entendido
