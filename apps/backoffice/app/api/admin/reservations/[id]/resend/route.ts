@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { buildReservationUnits } from "shared/ticketReservationUnits";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { createTicketForReservation } from "../../../../reservations/utils";
 import {
@@ -19,7 +18,8 @@ import {
   normalizeEmailAddress,
   resolveFirstValidEmailAddress,
 } from "shared/email/address";
-import { getPublicAppUrl } from "shared/publicUrl";
+import { getPublicLandingUrl } from "shared/publicUrl";
+import { ensureTicketOnlyBuyerIssued } from "../../../../reservations/ticketOnlyFlow";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -183,43 +183,23 @@ export async function POST(
   });
 
   if (isTicketOnlyReservation) {
-    const { data: unitRows, error: unitsError } = await applyNotDeleted(
-      supabase
-        .from("ticket_reservation_units")
-        .select(
-          "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id",
-        )
-        .eq("reservation_id", id),
-    );
-
-    if (unitsError) {
+    let ticketOnlyState;
+    try {
+      ticketOnlyState = await ensureTicketOnlyBuyerIssued({
+        supabase,
+        reservation: reservation as any,
+        reservationId: id,
+        eventId,
+        ticketQuantity,
+      });
+    } catch (err: any) {
       return NextResponse.json(
-        { success: false, error: unitsError.message },
-        { status: 500 },
+        { success: false, error: err?.message || "No se pudo preparar la reserva" },
+        { status: 400 },
       );
     }
 
-    const units = Array.isArray(unitRows) ? unitRows : [];
-    if (units.length === 0 && eventId) {
-      const { error: insertUnitsError } = await supabase
-        .from("ticket_reservation_units")
-        .insert(
-          buildReservationUnits({
-            reservationId: id,
-            eventId,
-            packageQuantity: 1,
-            unitsPerPackage: ticketQuantity,
-          }),
-        );
-      if (insertUnitsError) {
-        return NextResponse.json(
-          { success: false, error: insertUnitsError.message },
-          { status: 500 },
-        );
-      }
-    }
-
-    const issuedUnits = units.filter(
+    const issuedUnits = ticketOnlyState.units.filter(
       (unit: any) =>
         String(unit?.status || "").toLowerCase() === "issued" &&
         typeof unit?.ticket_id === "string" &&
@@ -248,22 +228,33 @@ export async function POST(
       sentCount += 1;
     }
 
+    const mergedCodes = uniqueStrings([
+      ...Array.isArray((reservation as any).codes)
+        ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
+        : [],
+      ...(ticketOnlyState.buyerCode ? [ticketOnlyState.buyerCode] : []),
+    ]);
+    if (ticketOnlyState.buyerCode) {
+      await supabase
+        .from("table_reservations")
+        .update({ codes: mergedCodes, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    }
+
     await sendApprovalEmail({
       supabase,
       id,
       full_name: (reservation as any).full_name || "",
       email,
       phone: (reservation as any).phone || null,
-      codes: Array.isArray((reservation as any).codes)
-        ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
-        : [],
+      codes: mergedCodes,
       ticketIds: issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
       tableName: (reservation as any).ticket_type_label || "Entrada",
       event: eventData,
       resourceLabel: "Entrada",
       callToAction: {
         label: "Completar asistentes",
-        url: `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`,
+        url: `${getPublicLandingUrl()}/compra?reservationId=${encodeURIComponent(id)}`,
       },
     });
 
@@ -271,8 +262,9 @@ export async function POST(
       success: true,
       sentCount,
       skippedCount:
-        Math.max(0, units.length - issuedUnits.length) + invalidRecipientCount,
-      unitsPrepared: units.length === 0,
+        Math.max(0, ticketOnlyState.units.length - issuedUnits.length) +
+        invalidRecipientCount,
+      unitsPrepared: ticketOnlyState.unitsPrepared,
     });
   }
 

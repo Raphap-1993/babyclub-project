@@ -5,7 +5,8 @@ import { sendApprovalEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { buildReservationUnits } from "shared/ticketReservationUnits";
-import { getPublicAppUrl } from "shared/publicUrl";
+import { getPublicLandingUrl } from "shared/publicUrl";
+import { ensureTicketOnlyBuyerIssued } from "../ticketOnlyFlow";
 import {
   normalizeDocument,
   validateDocument,
@@ -212,7 +213,7 @@ export async function POST(req: NextRequest) {
     minimum: 1,
   });
   const tableName = tableRel?.name || "Entrada";
-  const nominationUrl = `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
+  const nominationUrl = `${getPublicLandingUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
   const isTableReservation =
     (reservation as any).sale_origin === "table" || Boolean(tableRel?.id);
   trace.push(`eventId:${eventId || "null"}`);
@@ -271,61 +272,29 @@ export async function POST(req: NextRequest) {
     if (!isTableReservation) {
       const ticketTypeLabel =
         (reservation as any).ticket_type_label || "Entrada";
-      const nominationUrl = `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
-      const { data: unitsRows, error: unitsError } = await supabase
-        .from("ticket_reservation_units")
-        .select("id,status,ticket_id")
-        .eq("reservation_id", id);
-      if (
-        unitsError &&
-        !isMissingTicketReservationUnitsTableError(unitsError)
-      ) {
+      const nominationUrl = `${getPublicLandingUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
+      let ticketOnlyState;
+      try {
+        ticketOnlyState = await ensureTicketOnlyBuyerIssued({
+          supabase,
+          reservation: reservation as any,
+          reservationId: id,
+          eventId,
+          ticketQuantity,
+        });
+      } catch (err: any) {
         return NextResponse.json(
-          { success: false, error: unitsError.message, trace },
-          { status: 500 },
-        );
-      }
-
-      const existingUnits = Array.isArray(unitsRows) ? unitsRows : [];
-      if (existingUnits.length === 0 && eventId && ticketQuantity > 0) {
-        const { error: insertUnitsError } = await supabase
-          .from("ticket_reservation_units")
-          .insert(
-            buildReservationUnits({
-              reservationId: id,
-              eventId,
-              packageQuantity: 1,
-              unitsPerPackage: ticketQuantity,
-            }),
-          );
-        if (
-          insertUnitsError &&
-          !isMissingTicketReservationUnitsTableError(insertUnitsError)
-        ) {
-          return NextResponse.json(
-            { success: false, error: insertUnitsError.message, trace },
-            { status: 500 },
-          );
-        }
-        trace.push(`ticketUnitsPrepared:${ticketQuantity}`);
-      }
-
-      const { error } = await supabase
-        .from("table_reservations")
-        .update({
-          ...updateData,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-      if (error) {
-        return NextResponse.json(
-          { success: false, error: error.message, trace },
-          { status: 500 },
+          {
+            success: false,
+            error: err?.message || "No se pudo preparar el ticket del comprador",
+            trace,
+          },
+          { status: 400 },
         );
       }
 
       const issuedTicketIds = uniqueStrings(
-        existingUnits
+        ticketOnlyState.units
           .filter(
             (unit: any) =>
               unit && String(unit.status || "").toLowerCase() === "issued",
@@ -336,6 +305,33 @@ export async function POST(req: NextRequest) {
         (reservation as any).codes?.map((code: any) => String(code).trim()) ||
           [],
       );
+      const mergedCodes = uniqueStrings([
+        ...existingCodes,
+        ...(ticketOnlyState.buyerCode ? [ticketOnlyState.buyerCode] : []),
+      ]);
+
+      const approvalUpdatePayload: Record<string, any> = {
+        ...updateData,
+        updated_at: new Date().toISOString(),
+      };
+      if (mergedCodes.length > 0) {
+        approvalUpdatePayload.codes = mergedCodes;
+      }
+
+      const { error } = await supabase
+        .from("table_reservations")
+        .update(approvalUpdatePayload)
+        .eq("id", id);
+      if (error) {
+        return NextResponse.json(
+          { success: false, error: error.message, trace },
+          { status: 500 },
+        );
+      }
+
+      if (ticketOnlyState.unitsPrepared) {
+        trace.push(`ticketUnitsPrepared:${ticketQuantity}`);
+      }
 
       try {
         await sendApprovalEmail({
@@ -344,7 +340,7 @@ export async function POST(req: NextRequest) {
           full_name: resolvedFullName,
           email: resolvedEmail,
           phone: resolvedPhone || null,
-          codes: existingCodes,
+          codes: mergedCodes,
           ticketIds: issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
           tableName: ticketTypeLabel,
           event: eventRel || eventDirectRel || null,

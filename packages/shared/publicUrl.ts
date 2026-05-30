@@ -1,6 +1,6 @@
 const FALLBACK_PUBLIC_APP_URL = "https://babyclubaccess.com";
 
-function normalizeBaseUrl(value: string) {
+function normalizeBaseUrl(value: string, options?: { allowPanelHost?: boolean }) {
   const trimmed = value.trim();
   if (!trimmed) return "";
   try {
@@ -10,6 +10,9 @@ function normalizeBaseUrl(value: string) {
       url.hostname === "127.0.0.1" ||
       url.hostname === "::1"
     ) {
+      return "";
+    }
+    if (!options?.allowPanelHost && url.hostname.startsWith("panel.")) {
       return "";
     }
     return `${url.protocol}//${url.host}`.replace(/\/$/, "");
@@ -22,6 +25,25 @@ export function getPublicAppUrl() {
   const candidates = [
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.NEXT_PUBLIC_LANDING_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "",
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
+    FALLBACK_PUBLIC_APP_URL,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeBaseUrl(String(candidate || ""));
+    if (normalized) return normalized;
+  }
+
+  return FALLBACK_PUBLIC_APP_URL;
+}
+
+export function getPublicLandingUrl() {
+  const candidates = [
+    process.env.NEXT_PUBLIC_LANDING_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
     process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
       : "",

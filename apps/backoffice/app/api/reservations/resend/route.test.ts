@@ -33,6 +33,7 @@ vi.mock("shared/ticketReservationUnits", () => ({
 
 const { createClient } = await import("@supabase/supabase-js");
 const { requireStaffRole } = await import("shared/auth/requireStaff");
+const { createTicketForReservation } = await import("../utils");
 const { sendApprovalEmail, sendTicketEmail } = await import("../email");
 
 describe("POST /api/reservations/resend", () => {
@@ -78,13 +79,59 @@ describe("POST /api/reservations/resend", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.select": [{ data: [], error: null }],
-      "ticket_reservation_units.insert": [
-        { data: [{ reservation_id: "res-1" }], error: null },
+      "ticket_reservation_units.select": [
+        { data: [], error: null },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "pending_nomination",
+              full_name: "Ana Pérez",
+              doc_type: "dni",
+              document: "12345678",
+              email: "ana@example.com",
+              phone: "+51999999999",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "issued",
+              full_name: "Ana Pérez",
+              doc_type: "dni",
+              document: "12345678",
+              email: "ana@example.com",
+              phone: "+51999999999",
+              ticket_id: "ticket-1",
+            },
+          ],
+          error: null,
+        },
       ],
+      "ticket_reservation_units.insert": [{ data: [{ reservation_id: "res-1" }], error: null }],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "table_reservations.update": [{ data: null, error: null }],
     });
 
     (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-1",
+      code: "BUYER-CODE",
+    });
     (sendApprovalEmail as any).mockResolvedValue(undefined);
     (sendTicketEmail as any).mockResolvedValue(undefined);
 
@@ -103,18 +150,20 @@ describe("POST /api/reservations/resend", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(payload.sentCount).toBe(0);
+    expect(payload.sentCount).toBe(1);
     expect(payload.unitsPrepared).toBe(true);
+    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
     expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
     expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
       id: "res-1",
       email: "ana@example.com",
       resourceLabel: "Entrada",
+      ticketIds: ["ticket-1"],
       callToAction: {
         label: "Completar asistentes",
         url: "https://babyclubaccess.com/compra?reservationId=res-1",
       },
     });
-    expect(sendTicketEmail).not.toHaveBeenCalled();
+    expect(sendTicketEmail).toHaveBeenCalledTimes(1);
   });
 });

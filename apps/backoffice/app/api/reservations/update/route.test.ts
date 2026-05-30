@@ -20,30 +20,28 @@ const { requireStaffRole } = await import("shared/auth/requireStaff");
 const { createTicketForReservation } = await import("../utils");
 const { sendApprovalEmail } = await import("../email");
 
-function createRouteSupabaseMock() {
-  const calls: Array<{
-    table: string;
-    op: "select" | "update" | "insert";
-    payload?: any;
-  }> = [];
+describe("POST /api/reservations/update", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.SUPABASE_URL = "http://localhost:54321";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+    delete process.env.RESEND_API_KEY;
+    (requireStaffRole as any).mockResolvedValue({
+      ok: true,
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "admin",
+        staff: {},
+      },
+    });
+  });
 
-  const chainFor = (table: string) => {
-    const chain: any = {
-      select: () => {
-        calls.push({ table, op: "select" });
-        return chain;
-      },
-      insert: (payload: any) => {
-        calls.push({ table, op: "insert", payload });
-        return chain;
-      },
-      update: (payload: any) => {
-        calls.push({ table, op: "update", payload });
-        return chain;
-      },
-      eq: () => chain,
-      maybeSingle: () =>
-        Promise.resolve({
+  it("aprueba ticket-only y envía correo de nominación aunque aún no haya QR emitidos", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
           data: {
             id: "res-ticket-1",
             sale_origin: "ticket",
@@ -68,41 +66,60 @@ function createRouteSupabaseMock() {
             table: null,
           },
           error: null,
-        }),
-      then: (resolve: any) => resolve({ data: null, error: null }),
-    };
-    return chain;
-  };
-
-  return {
-    supabase: {
-      from: (table: string) => chainFor(table),
-    },
-    calls,
-  };
-}
-
-describe("POST /api/reservations/update", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    process.env.SUPABASE_URL = "http://localhost:54321";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
-    delete process.env.RESEND_API_KEY;
-    (requireStaffRole as any).mockResolvedValue({
-      ok: true,
-      context: {
-        user: { id: "user-1" },
-        staffId: "staff-1",
-        role: "admin",
-        staff: {},
-      },
+        },
+      ],
+      "ticket_reservation_units.select": [
+        { data: [], error: null },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "pending_nomination",
+              full_name: "Comprador Principal",
+              doc_type: "dni",
+              document: "11112222",
+              email: "buyer@test.com",
+              phone: "999999999",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "issued",
+              full_name: "Comprador Principal",
+              doc_type: "dni",
+              document: "11112222",
+              email: "buyer@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-1",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.insert": [{ data: [{ id: "unit-1" }], error: null }],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "table_reservations.update": [{ data: null, error: null }],
     });
-  });
-
-  it("aprueba ticket-only y envía correo de nominación aunque aún no haya QR emitidos", async () => {
-    const { supabase, calls } = createRouteSupabaseMock();
     (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-1",
+      code: "BUYER-CODE",
+    });
     (sendApprovalEmail as any).mockResolvedValue(undefined);
 
     const { POST } = await import("./route");
@@ -117,16 +134,18 @@ describe("POST /api/reservations/update", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(createTicketForReservation).not.toHaveBeenCalled();
+    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
     expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
     expect(
       calls.some(
         (call) =>
-          call.table === "ticket_reservation_units" && call.op === "insert",
+          call.table === "ticket_reservation_units" &&
+          (call.op === "insert" || call.op === "update"),
       ),
     ).toBe(true);
 
     expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
+      ticketIds: ["ticket-1"],
       callToAction: {
         label: "Completar asistentes",
         url: "https://babyclubaccess.com/compra?reservationId=res-ticket-1",

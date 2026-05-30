@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { buildReservationUnits } from "shared/ticketReservationUnits";
 import { createTicketForReservation } from "../utils";
 import { sendApprovalEmail, sendTicketEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
@@ -9,11 +8,22 @@ import {
   isValidEmailAddress,
   normalizeEmailAddress,
 } from "shared/email/address";
-import { getPublicAppUrl } from "shared/publicUrl";
+import { getPublicLandingUrl } from "shared/publicUrl";
+import { ensureTicketOnlyBuyerIssued } from "../ticketOnlyFlow";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const resendApiKey = process.env.RESEND_API_KEY;
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => (value ? String(value).trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+}
 
 export async function POST(req: NextRequest) {
   const guard = await requireStaffRole(req);
@@ -136,7 +146,7 @@ export async function POST(req: NextRequest) {
     (reservation as any).event_id ||
     eventDirectRel?.id ||
     null;
-  const nominationUrl = `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
+  const nominationUrl = `${getPublicLandingUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
   const codesList = Array.isArray((reservation as any).codes)
     ? (reservation as any).codes.map((c: any) => String(c)).filter(Boolean)
     : [];
@@ -153,44 +163,23 @@ export async function POST(req: NextRequest) {
   );
 
   if (isTicketOnlyReservation) {
-    const { data: unitRows, error: unitsError } = await applyNotDeleted(
-      supabase
-        .from("ticket_reservation_units")
-        .select(
-          "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id",
-        )
-        .eq("reservation_id", id)
-        .order("unit_index", { ascending: true }),
-    );
-
-    if (unitsError) {
+    let ticketOnlyState;
+    try {
+      ticketOnlyState = await ensureTicketOnlyBuyerIssued({
+        supabase,
+        reservation: reservation as any,
+        reservationId: id,
+        eventId,
+        ticketQuantity,
+      });
+    } catch (err: any) {
       return NextResponse.json(
-        { success: false, error: unitsError.message },
-        { status: 500 },
+        { success: false, error: err?.message || "No se pudo preparar la reserva" },
+        { status: 400 },
       );
     }
 
-    const units = Array.isArray(unitRows) ? unitRows : [];
-    if (units.length === 0 && eventId) {
-      const { error: insertUnitsError } = await supabase
-        .from("ticket_reservation_units")
-        .insert(
-          buildReservationUnits({
-            reservationId: id,
-            eventId,
-            packageQuantity: 1,
-            unitsPerPackage: ticketQuantity,
-          }),
-        );
-      if (insertUnitsError) {
-        return NextResponse.json(
-          { success: false, error: insertUnitsError.message },
-          { status: 500 },
-        );
-      }
-    }
-
-    const issuedUnits = units.filter(
+    const issuedUnits = ticketOnlyState.units.filter(
       (unit: any) =>
         String(unit?.status || "").toLowerCase() === "issued" &&
         typeof unit?.ticket_id === "string" &&
@@ -219,13 +208,24 @@ export async function POST(req: NextRequest) {
       sentCount += 1;
     }
 
+    const mergedCodes = uniqueStrings([
+      ...codesList,
+      ...(ticketOnlyState.buyerCode ? [ticketOnlyState.buyerCode] : []),
+    ]);
+    if (ticketOnlyState.buyerCode) {
+      await supabase
+        .from("table_reservations")
+        .update({ codes: mergedCodes, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    }
+
     await sendApprovalEmail({
       supabase,
       id,
       full_name: (reservation as any).full_name || "",
       email,
       phone: (reservation as any).phone || null,
-      codes: codesList,
+      codes: mergedCodes,
       ticketIds: issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
       tableName: (reservation as any).ticket_type_label || "Entrada",
       event: eventData,
@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
       ticketEmailError: null,
       reservationEmailError: null,
       sentCount,
-      unitsPrepared: units.length === 0,
+      unitsPrepared: ticketOnlyState.unitsPrepared,
     });
   }
 
