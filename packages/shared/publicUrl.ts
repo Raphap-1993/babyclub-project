@@ -1,5 +1,14 @@
 const FALLBACK_PUBLIC_APP_URL = "https://babyclubaccess.com";
 
+function isNonProductionVercelPreviewHost(url: URL) {
+  const vercelEnv = String(process.env.VERCEL_ENV || "").trim().toLowerCase();
+  return (
+    Boolean(vercelEnv) &&
+    vercelEnv !== "production" &&
+    url.hostname.endsWith(".vercel.app")
+  );
+}
+
 function normalizeBaseUrl(value: string, options?: { allowPanelHost?: boolean }) {
   const trimmed = value.trim();
   if (!trimmed) return "";
@@ -10,6 +19,9 @@ function normalizeBaseUrl(value: string, options?: { allowPanelHost?: boolean })
       url.hostname === "127.0.0.1" ||
       url.hostname === "::1"
     ) {
+      return "";
+    }
+    if (isNonProductionVercelPreviewHost(url)) {
       return "";
     }
     if (!options?.allowPanelHost && url.hostname.startsWith("panel.")) {
