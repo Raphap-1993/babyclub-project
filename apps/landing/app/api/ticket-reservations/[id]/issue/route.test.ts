@@ -353,4 +353,91 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
     expect(createTicketForReservation).not.toHaveBeenCalled();
     expect(sendTicketEmail).not.toHaveBeenCalled();
   });
+
+  it("consulta doc_type y document del comprador para emitir la unidad 1", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-4",
+            sale_origin: "ticket",
+            status: "approved",
+            event_id: "event-4",
+            full_name: "Comprador Principal",
+            email: "buyer@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "11112222",
+            promoter_id: null,
+            codes: [],
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "issued",
+              full_name: "Comprador Principal",
+              doc_type: "dni",
+              document: "11112222",
+              email: "buyer@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-new-4",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-new-4",
+      code: "CODE-NEW-4",
+    });
+    (sendTicketEmail as any).mockResolvedValue(undefined);
+
+    const { POST } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-4/issue",
+      { method: "POST" },
+    );
+
+    const res = await POST(req as any, {
+      params: Promise.resolve({ id: "res-ticket-4" }),
+    });
+
+    expect(res.status).toBe(200);
+
+    const reservationSelect = calls.find(
+      (call) => call.table === "table_reservations" && call.op === "select",
+    );
+    expect(reservationSelect?.selectClause).toContain("doc_type");
+    expect(reservationSelect?.selectClause).toContain("document");
+  });
 });

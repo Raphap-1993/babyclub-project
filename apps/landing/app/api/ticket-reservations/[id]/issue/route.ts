@@ -10,7 +10,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const APPROVED_STATUSES = new Set(["approved", "confirmed", "paid"]);
 const RESERVATION_SELECT =
-  "id,event_id,sale_origin,status,promoter_id,full_name,email,phone,ticket_type_label,codes";
+  "id,event_id,sale_origin,status,promoter_id,full_name,email,phone,doc_type,document,ticket_type_label,codes";
 const UNIT_SELECT =
   "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id";
 

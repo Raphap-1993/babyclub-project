@@ -5,6 +5,7 @@ type QueryState = {
   table: string;
   op: "select" | "insert" | "update" | "delete" | "upsert" | "rpc";
   payload?: any;
+  selectClause?: string;
   filters?: { type: string; args: any[] }[];
 };
 
@@ -28,10 +29,11 @@ export function createSupabaseMock(responses: ResponseMap) {
         state.filters.push({ type, args });
         return chain;
       },
-      select: () => {
+      select: (clause?: string) => {
         if (!["insert", "update", "delete"].includes(state.op)) {
           state.op = "select";
         }
+        state.selectClause = clause;
         return chain;
       },
       insert: (payload: any) => {
