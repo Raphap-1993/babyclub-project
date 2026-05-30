@@ -47,6 +47,10 @@ describe("POST /api/admin/reservations/[id]/resend", () => {
     process.env.SUPABASE_URL = "http://localhost:54321";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
     process.env.NEXT_PUBLIC_APP_URL = "https://babyclubaccess.com";
+    delete process.env.NEXT_PUBLIC_LANDING_URL;
+    delete process.env.VERCEL_ENV;
+    delete process.env.VERCEL_URL;
+    delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
     (requireStaffRole as any).mockResolvedValue({
       ok: true,
       context: {
@@ -166,5 +170,97 @@ describe("POST /api/admin/reservations/[id]/resend", () => {
       },
     });
     expect(sendTicketEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("usa el dominio público para nominaciones aunque el backoffice corra en preview", async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_URL =
+      "babyclub-backoffice-b5kque4ky-raphaels-projects-0f60af52.vercel.app";
+
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-preview-1",
+            full_name: "Ana Pérez",
+            email: "ana@example.com",
+            phone: "+51999999999",
+            doc_type: "dni",
+            document: "12345678",
+            sale_origin: "ticket",
+            status: "approved",
+            codes: [],
+            ticket_quantity: 2,
+            total_ticket_units: 2,
+            event_id: "event-1",
+            promoter_id: null,
+            table: null,
+            attendees: [],
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        { data: [], error: null },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-preview-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "issued",
+              full_name: "Ana Pérez",
+              doc_type: "dni",
+              document: "12345678",
+              email: "ana@example.com",
+              phone: "+51999999999",
+              ticket_id: "ticket-1",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-1",
+            table_reservation_id: "res-preview-1",
+            qr_token: "qr-token-1",
+          },
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-1",
+      code: "CODE-1",
+    });
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/admin/reservations/res-preview-1/resend", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-123",
+        },
+      }) as any,
+      { params: Promise.resolve({ id: "res-preview-1" }) } as any,
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
+      callToAction: {
+        label: "Completar asistentes",
+        url: "https://babyclubaccess.com/compra?reservationId=res-preview-1",
+      },
+    });
   });
 });
