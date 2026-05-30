@@ -36,6 +36,15 @@ describe("getPublicAppUrl", () => {
     const { getPublicAppUrl } = await import("./publicUrl");
     expect(getPublicAppUrl()).toBe("https://babyclubaccess.com");
   });
+
+  it("ignora hosts de vercel del backoffice incluso en producción", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "babyclub-backoffice.vercel.app";
+    process.env.VERCEL_URL =
+      "babyclub-backoffice-7g1fgdusg-raphaels-projects-0f60af52.vercel.app";
+    const { getPublicAppUrl } = await import("./publicUrl");
+    expect(getPublicAppUrl()).toBe("https://babyclubaccess.com");
+  });
 });
 
 describe("getPublicLandingUrl", () => {
@@ -65,6 +74,15 @@ describe("getPublicLandingUrl", () => {
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_URL =
       "babyclub-backoffice-b5kque4ky-raphaels-projects-0f60af52.vercel.app";
+    const { getPublicLandingUrl } = await import("./publicUrl");
+    expect(getPublicLandingUrl()).toBe("https://babyclubaccess.com");
+  });
+
+  it("ignora hosts de vercel del backoffice incluso en producción", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "babyclub-backoffice.vercel.app";
+    process.env.VERCEL_URL =
+      "babyclub-backoffice-7g1fgdusg-raphaels-projects-0f60af52.vercel.app";
     const { getPublicLandingUrl } = await import("./publicUrl");
     expect(getPublicLandingUrl()).toBe("https://babyclubaccess.com");
   });
