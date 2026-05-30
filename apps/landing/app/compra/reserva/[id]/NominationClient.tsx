@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { CheckCircle2, LoaderCircle, Save, Search } from "lucide-react";
 import {
   DOCUMENT_TYPES,
@@ -612,11 +613,28 @@ export default function NominationClient({
             </header>
 
             <section className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
-                  Comprador
-                </p>
-                <h2 className="mt-1 text-lg font-semibold">{buyerDisplayName}</h2>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                    Comprador
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold">
+                    {buyerDisplayName}
+                  </h2>
+                </div>
+
+                {buyerUnit?.ticket_id ? (
+                  <Link
+                    href={
+                      buyerUnit.ticket_url || `/ticket/${buyerUnit.ticket_id}`
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+                  >
+                    Ver ticket
+                  </Link>
+                ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -684,6 +702,17 @@ export default function NominationClient({
                             </p>
                           ) : null}
                         </div>
+
+                        {unit.ticket_id ? (
+                          <Link
+                            href={unit.ticket_url || `/ticket/${unit.ticket_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+                          >
+                            Ver ticket
+                          </Link>
+                        ) : null}
                       </div>
 
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
