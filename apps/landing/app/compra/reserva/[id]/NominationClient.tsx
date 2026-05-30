@@ -581,13 +581,6 @@ export default function NominationClient({
           </div>
         ) : null}
 
-        {success ? (
-          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-            <CheckCircle2 className="h-4 w-4" />
-            {success}
-          </div>
-        ) : null}
-
         {loading ? (
           <section className="flex min-h-[320px] items-center justify-center">
             <div className="flex items-center gap-3 text-sm text-white/70">
@@ -857,6 +850,31 @@ export default function NominationClient({
           </div>
         )}
       </div>
+
+      {success ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6">
+          <div className="w-full max-w-md space-y-4 rounded-3xl border border-emerald-500/25 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(16,185,129,0.22)]">
+            <div className="space-y-2 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10">
+                <CheckCircle2 className="h-7 w-7 text-emerald-300" />
+              </div>
+              <h3 className="text-xl font-semibold text-white">
+                Nominaciones guardadas
+              </h3>
+              <p className="text-sm leading-relaxed text-emerald-100/90">
+                {success}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuccess(null)}
+              className="w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold btn-smoke transition"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
