@@ -577,6 +577,7 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     });
     expect(ticketUpdate?.payload?.qr_token).toBeDefined();
     expect(ticketUpdate?.payload?.issued_at).toBeUndefined();
+    expect(ticketUpdate?.payload?.updated_at).toBeUndefined();
     expect(
       calls.find((call) => call.table === "tickets" && call.op === "insert"),
     ).toBeFalsy();
