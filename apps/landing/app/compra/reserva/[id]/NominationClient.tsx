@@ -658,7 +658,7 @@ export default function NominationClient({
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-black px-2 py-2 text-white sm:px-4 sm:py-4 lg:px-8 lg:py-6">
-      <div className="w-full max-w-6xl space-y-3 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f0f0f] to-[#050505] p-3 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:space-y-4 sm:p-4 lg:p-5">
+      <div className="w-full max-w-6xl space-y-2.5 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f0f0f] to-[#050505] p-2.5 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:space-y-4 sm:p-4 lg:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/45">
@@ -677,7 +677,7 @@ export default function NominationClient({
             </div>
           </div>
 
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <Link
               href="/compra"
               className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold btn-smoke-outline transition sm:px-4"
@@ -731,7 +731,7 @@ export default function NominationClient({
           </section>
         ) : (
           <>
-            <section className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-5">
+            <section className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-5">
               <ReservationStat
                 label="Evento"
                 value={reservation?.event_name || "—"}
@@ -763,12 +763,12 @@ export default function NominationClient({
                   <h2 className="text-lg font-semibold sm:text-xl">
                     Comprador y asistentes
                   </h2>
-                  <p className="mt-1 text-sm leading-6 text-white/60">
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-white/60">
                     {pendingAssistantUnits.length > 0
-                      ? "Tus códigos QR se generarán automáticamente cuando completes los datos de los asistentes restantes."
+                      ? "Completa los asistentes restantes para generar sus QR automáticamente."
                       : editableIssuedUnits.length > 0
-                        ? "Ya puedes corregir asistentes emitidos y, al guardar, se reemitirá su QR con los nuevos datos."
-                        : "Tu QR ya fue generado automáticamente. Aquí puedes revisar al comprador y cerrar la reserva cuando quieras."}
+                        ? "Corrige asistentes emitidos y guarda para reemitir su QR."
+                        : "Tu QR ya fue generado automáticamente."}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70 sm:max-w-xs">
@@ -824,7 +824,7 @@ export default function NominationClient({
                       ) : null}
                     </div>
 
-                        <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2 lg:grid-cols-3">
                           <UnitField label="Nombre completo">
                         <input
                           value={
@@ -959,7 +959,7 @@ export default function NominationClient({
                           </UnitField>
                         </div>
 
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <UnitField label="Email">
                             <input
                               value={unit.email}

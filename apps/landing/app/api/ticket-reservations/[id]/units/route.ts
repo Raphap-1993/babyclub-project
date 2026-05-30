@@ -96,6 +96,18 @@ function sameNominationState(existing: any, next: ReturnType<typeof normalizeCom
   );
 }
 
+function friendlyNominationUpdateError(message: string, unitLabel: string) {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("ticket_reservation_units_nomination_name_check") ||
+    normalized.includes("ticket_reservation_units_nomination_doc_type_check") ||
+    normalized.includes("ticket_reservation_units_nomination_document_check")
+  ) {
+    return `Completa el nombre y documento de ${unitLabel} antes de guardar.`;
+  }
+  return message;
+}
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -236,7 +248,12 @@ export async function PUT(
         .eq("id", unitId)
         .eq("reservation_id", id);
 
-      if (updateError) return jsonError(updateError.message, 500);
+      if (updateError) {
+        return jsonError(
+          friendlyNominationUpdateError(updateError.message, unitLabel),
+          400,
+        );
+      }
 
       if (effectiveEmail) {
         await sendTicketEmail({
@@ -265,7 +282,12 @@ export async function PUT(
       .eq("id", unitId)
       .eq("reservation_id", id);
 
-    if (error) return jsonError(error.message, 500);
+    if (error) {
+      return jsonError(
+        friendlyNominationUpdateError(error.message, unitLabel),
+        400,
+      );
+    }
   }
 
   const reloadedUnits = await loadUnits(supabase, id);

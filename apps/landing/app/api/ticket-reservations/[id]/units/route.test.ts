@@ -580,4 +580,81 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
       calls.find((call) => call.table === "tickets" && call.op === "insert"),
     ).toBeFalsy();
   });
+
+  it("convierte el error crudo de constraint en un mensaje legible", async () => {
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+            doc_type: "dni",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-2",
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: "",
+              doc_type: null,
+              document: "",
+              email: "",
+              phone: "",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.update": [
+        {
+          data: null,
+          error: {
+            message:
+              'new row for relation "ticket_reservation_units" violates check constraint "ticket_reservation_units_nomination_document_check"',
+          },
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-2",
+              full_name: "Luis Perez",
+              doc_type: "dni",
+              document: "87654321",
+              email: "luis@test.com",
+              phone: "988888888",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain(
+      "Completa el nombre y documento de unidad 2 antes de guardar.",
+    );
+    expect(String(payload.error || "")).not.toContain("violates check constraint");
+  });
 });
