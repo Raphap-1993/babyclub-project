@@ -58,7 +58,7 @@ type CodeTypePolicyRow = {
 };
 
 const TYPE_OPTIONS = [
-  { value: "courtesy", label: "Cortesía (promotores)" },
+  { value: "courtesy", label: "Cortesía" },
   { value: "promoter", label: "Promotor" },
   { value: "table", label: "Mesa" },
 ];
