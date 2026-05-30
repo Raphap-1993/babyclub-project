@@ -37,10 +37,6 @@ export function getPublicAppUrl() {
   const candidates = [
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.NEXT_PUBLIC_LANDING_URL,
-    process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "",
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
     FALLBACK_PUBLIC_APP_URL,
   ];
 
@@ -56,10 +52,6 @@ export function getPublicLandingUrl() {
   const candidates = [
     process.env.NEXT_PUBLIC_LANDING_URL,
     process.env.NEXT_PUBLIC_APP_URL,
-    process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "",
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
     FALLBACK_PUBLIC_APP_URL,
   ];
 
