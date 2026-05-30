@@ -42,10 +42,10 @@ const TYPE_LABELS: Record<DashboardTypeKey, string> = {
   unknown: "Sin clasificar",
 };
 
-const TYPE_ORDER: DashboardTypeKey[] = ["general", "table", "courtesy", "free", "unknown"];
+const TYPE_ORDER: DashboardTypeKey[] = ["general", "table", "courtesy", "free"];
 
 const TYPE_ALIASES: Record<string, DashboardTypeKey> = {
-  general: "general",
+  general: "free",
   entrada: "general",
   entradas: "general",
   ticket: "general",
@@ -56,6 +56,8 @@ const TYPE_ALIASES: Record<string, DashboardTypeKey> = {
   courtesy: "courtesy",
   cortesia: "courtesy",
   cortesia_general: "courtesy",
+  promoter: "courtesy",
+  promoter_link: "courtesy",
   free: "free",
 };
 

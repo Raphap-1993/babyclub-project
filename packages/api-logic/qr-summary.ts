@@ -67,11 +67,11 @@ function normalizeCodeType(value: string | null | undefined): string {
 }
 
 function isFreeSummaryType(type: string) {
-  return type === "free" || type === "promoter_link";
+  return type === "general" || type === "free";
 }
 
 function isCourtesySummaryType(type: string) {
-  return type === "courtesy" || type === "promoter";
+  return type === "courtesy" || type === "promoter" || type === "promoter_link";
 }
 
 function isTableSummaryType(type: string) {
@@ -79,7 +79,7 @@ function isTableSummaryType(type: string) {
 }
 
 function isSoldSummaryType(type: string) {
-  return type === "general" || type === "sold" || type === "ticket" || type === "entrada" || type === "entradas";
+  return type === "sold" || type === "ticket" || type === "entrada" || type === "entradas";
 }
 
 export function classifyQrBucket({
@@ -167,10 +167,28 @@ function buildSummaryCounts({
   };
 }
 
+function hasExpandedSummaryColumns(row: RpcQrSummaryRow): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(row, "free_qr") ||
+    Object.prototype.hasOwnProperty.call(row, "courtesy_qr") ||
+    Object.prototype.hasOwnProperty.call(row, "sold_qr") ||
+    Object.prototype.hasOwnProperty.call(row, "table_qr")
+  );
+}
+
 function mapSummaryRow(row: RpcQrSummaryRow): QRSummary {
   const totalQr = Number(row.total_qr || 0);
-  const byType = normalizeByType(row.by_type);
-  const counts = buildSummaryCounts({ byType, totalQr });
+  const counts = hasExpandedSummaryColumns(row)
+    ? {
+        free: Number(row.free_qr || 0),
+        courtesy: Number(row.courtesy_qr || 0),
+        sold: Number(row.sold_qr || 0),
+        table: Number(row.table_qr || 0),
+      }
+    : buildSummaryCounts({
+        byType: normalizeByType(row.by_type),
+        totalQr,
+      });
 
   return {
     event_id: row.event_id,
@@ -333,7 +351,7 @@ export async function getQrSummaryAll({
     p_cutoff: cutoffIso,
   });
 
-  if (!rpcError && Array.isArray(rpcData)) {
+  if (!rpcError && Array.isArray(rpcData) && rpcData.some((row) => hasExpandedSummaryColumns(row as RpcQrSummaryRow))) {
     const rows = rpcData as RpcQrSummaryRow[];
     return rows.map((row) => mapSummaryRow(row));
   }

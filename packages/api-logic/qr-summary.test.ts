@@ -10,7 +10,7 @@ describe("qr-summary classification", () => {
         ticketTableId: null,
         codeReservationId: null,
       }).bucket,
-    ).toBe("sold");
+    ).toBe("free");
 
     expect(
       classifyQrBucket({
@@ -19,7 +19,7 @@ describe("qr-summary classification", () => {
         ticketTableId: null,
         codeReservationId: null,
       }).bucket,
-    ).toBe("free");
+    ).toBe("courtesy");
 
     expect(
       classifyQrBucket({
@@ -62,6 +62,7 @@ describe("qr-summary classification", () => {
     expect(
       normalizeByType({
         general: 7,
+        free: 1,
         promoter_link: 2,
         courtesy: 3,
         promoter: 4,
@@ -70,9 +71,9 @@ describe("qr-summary classification", () => {
         desconocido: 8,
       }),
     ).toEqual({
-      free: 2,
-      courtesy: 7,
-      sold: 21,
+      free: 8,
+      courtesy: 9,
+      sold: 14,
       table: 5,
     });
   });
