@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
 
   const code_id = typeof body?.code_id === "string" ? body.code_id.trim() : null;
   const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id.trim() : null;
+  const event_id = typeof body?.event_id === "string" ? body.event_id.trim() : null;
 
   if (!code_id && !ticket_id) {
     return NextResponse.json({ success: false, error: "code_id o ticket_id es requerido" }, { status: 400 });
@@ -71,6 +72,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (ticket) {
+    if (event_id && ticket.event_id !== event_id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "El ticket pertenece a otro evento",
+          result: "invalid",
+          reason: "event_mismatch",
+        },
+        { status: 409 },
+      );
+    }
     if (ticket.used) {
       return NextResponse.json({ success: false, error: "Este ticket ya fue usado", result: "duplicate" }, { status: 400 });
     }
@@ -104,12 +116,37 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const { error: updErr } = await supabase
+    const { data: updatedTicket, error: updErr } = await supabase
       .from("tickets")
       .update({ used: true, used_at: now })
-      .eq("id", ticket.id);
+      .eq("id", ticket.id)
+      .eq("used", false)
+      .select("id")
+      .maybeSingle();
     if (updErr) {
       return NextResponse.json({ success: false, error: updErr.message }, { status: 400 });
+    }
+    if (!updatedTicket?.id) {
+      return NextResponse.json(
+        { success: false, error: "Este ticket ya fue usado", result: "duplicate" },
+        { status: 409 },
+      );
+    }
+
+    const { error: unitUpdateError } = await supabase
+      .from("ticket_reservation_units")
+      .update({
+        status: "used",
+        used_at: now,
+        updated_at: now,
+      })
+      .eq("ticket_id", ticket.id)
+      .neq("status", "cancelled");
+    if (unitUpdateError) {
+      return NextResponse.json(
+        { success: false, error: unitUpdateError.message },
+        { status: 400 },
+      );
     }
 
     await supabase.from("scan_logs").insert({
@@ -144,6 +181,17 @@ export async function POST(req: NextRequest) {
   }
   if (!codeRow) {
     return NextResponse.json({ success: false, error: "Código no encontrado", result: "not_found" }, { status: 404 });
+  }
+  if (event_id && codeRow.event_id !== event_id) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "El código pertenece a otro evento",
+        result: "invalid",
+        reason: "event_mismatch",
+      },
+      { status: 409 },
+    );
   }
   if (!codeRow.is_active) {
     return NextResponse.json({ success: false, error: "Código inactivo", result: "inactive" }, { status: 400 });
@@ -181,9 +229,21 @@ export async function POST(req: NextRequest) {
   }
 
   const nextUses = (codeRow.uses ?? 0) + 1;
-  const { error: updateErr } = await supabase.from("codes").update({ uses: nextUses }).eq("id", codeRow.id);
+  const { data: updatedCode, error: updateErr } = await supabase
+    .from("codes")
+    .update({ uses: nextUses })
+    .eq("id", codeRow.id)
+    .eq("uses", codeRow.uses ?? 0)
+    .select("id")
+    .maybeSingle();
   if (updateErr) {
     return NextResponse.json({ success: false, error: updateErr.message }, { status: 400 });
+  }
+  if (!updatedCode?.id) {
+    return NextResponse.json(
+      { success: false, error: "Código sin cupos", result: "exhausted" },
+      { status: 409 },
+    );
   }
 
   await supabase.from("scan_logs").insert({

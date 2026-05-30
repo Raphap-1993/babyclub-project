@@ -399,4 +399,65 @@ describe("POST /api/scan", () => {
     expect(payload.qr_kind).toBe("table");
     expect(payload.person_already_entered).toBe(false);
   });
+
+  it("marca como duplicado cuando ya ingresó otra entrada con el mismo documento CE en el evento", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-6",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [{ data: null, error: null }],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-ce-1",
+            code_id: "code-ce-1",
+            full_name: "Invitado CE",
+            dni: null,
+            doc_type: "ce",
+            document: "ce123456",
+            email: "ce@test.com",
+            phone: "900000000",
+            used: false,
+            table_id: null,
+            product_id: null,
+            table_reservation_id: null,
+            code: { type: "courtesy" },
+          },
+          error: null,
+        },
+        {
+          data: {
+            id: "ticket-ce-used",
+          },
+          error: null,
+        },
+      ],
+      "scan_logs.insert": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "QR-CE-1", event_id: "event-6" }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.result).toBe("duplicate");
+    expect(payload.reason).toBe("person_already_entered");
+    expect(payload.person_already_entered).toBe(true);
+  });
 });

@@ -819,6 +819,7 @@ export default function ScanClient({
                           body: JSON.stringify({
                             code_id: modal.code_id,
                             ticket_id: modal.ticket_id,
+                            event_id: eventId,
                           }),
                         });
                         const payload = await res.json().catch(() => null);

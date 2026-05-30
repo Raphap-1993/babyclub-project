@@ -331,6 +331,8 @@ export async function POST(req: NextRequest) {
     email: string | null;
     phone: string | null;
   } | null = null;
+  let person_doc_type: string | null = null;
+  let person_document: string | null = null;
   let ticket_used = false;
   let match_type: MatchType = "none";
   let reason: string | null = null;
@@ -372,7 +374,7 @@ export async function POST(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,full_name,dni,email,phone,used,table_id,product_id,table_reservation_id",
+          "id,full_name,dni,doc_type,document,email,phone,used,table_id,product_id,table_reservation_id",
         )
         .eq("code_id", codeRow.id)
         .eq("event_id", event_id)
@@ -402,6 +404,20 @@ export async function POST(req: NextRequest) {
         email: (ticketData as any).email ?? null,
         phone: (ticketData as any).phone ?? null,
       };
+      person_doc_type =
+        typeof (ticketData as any).doc_type === "string"
+          ? (ticketData as any).doc_type
+          : person?.dni
+            ? "dni"
+            : null;
+      person_document =
+        typeof (ticketData as any).document === "string" &&
+        (ticketData as any).document.trim()
+          ? String((ticketData as any).document).trim().toLowerCase()
+          : typeof (ticketData as any).dni === "string" &&
+              (ticketData as any).dni.trim()
+            ? String((ticketData as any).dni).trim()
+            : null;
       if (ticket_used) {
         result = "duplicate";
         reason = null;
@@ -414,7 +430,7 @@ export async function POST(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,code_id,full_name,dni,email,phone,used,table_id,product_id,table_reservation_id,code:codes(type)",
+          "id,code_id,full_name,dni,doc_type,document,email,phone,used,table_id,product_id,table_reservation_id,code:codes(type)",
         )
         .eq("qr_token", codeValue)
         .eq("event_id", event_id),
@@ -456,6 +472,20 @@ export async function POST(req: NextRequest) {
         email: (ticketRow as any).email ?? null,
         phone: (ticketRow as any).phone ?? null,
       };
+      person_doc_type =
+        typeof (ticketRow as any).doc_type === "string"
+          ? (ticketRow as any).doc_type
+          : person?.dni
+            ? "dni"
+            : null;
+      person_document =
+        typeof (ticketRow as any).document === "string" &&
+        (ticketRow as any).document.trim()
+          ? String((ticketRow as any).document).trim().toLowerCase()
+          : typeof (ticketRow as any).dni === "string" &&
+              (ticketRow as any).dni.trim()
+            ? String((ticketRow as any).dni).trim()
+            : null;
     }
   }
 
@@ -535,17 +565,27 @@ export async function POST(req: NextRequest) {
   // Excepción operativa: los QR de mesa/box representan cupos independientes
   // y no deben bloquearse solo porque comparten el DNI del comprador.
   let person_already_entered = false;
-  if (result === "valid" && person?.dni && qr_kind !== "table") {
-    const { data: otherUsed } = await applyNotDeleted(
+  if (
+    result === "valid" &&
+    qr_kind !== "table" &&
+    ((person_doc_type && person_document) || person?.dni)
+  ) {
+    const duplicateQuery = applyNotDeleted(
       supabase
         .from("tickets")
         .select("id")
         .eq("event_id", event_id)
-        .eq("dni", person.dni)
         .eq("used", true)
         .neq("id", ticket_id ?? "")
         .limit(1),
-    ).maybeSingle();
+    );
+    const scopedDuplicateQuery =
+      person_doc_type && person_document
+        ? duplicateQuery
+            .eq("doc_type", person_doc_type)
+            .eq("document", person_document)
+        : duplicateQuery.eq("dni", person?.dni ?? "");
+    const { data: otherUsed } = await scopedDuplicateQuery.maybeSingle();
     if (otherUsed?.id) {
       person_already_entered = true;
       result = "duplicate";
