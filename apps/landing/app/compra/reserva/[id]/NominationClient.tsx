@@ -1,15 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  LoaderCircle,
-  RefreshCw,
-  Save,
-  Ticket,
-} from "lucide-react";
+import { CheckCircle2, LoaderCircle, Save, Search } from "lucide-react";
 import {
   DOCUMENT_TYPES,
   validateDocument,
@@ -20,7 +12,7 @@ import {
   getBuyerDisplayName,
   getBuyerUnit,
 } from "../../nominationWorkspace";
-import { LegalFooterLinks } from "../../../legal/LegalFooterLinks";
+import { lookupNominationPerson } from "./nominationLookup";
 
 type ReservationStatus =
   | "pending"
@@ -69,21 +61,13 @@ type ReservationUnit = {
   ticket_url: string | null;
 };
 
-type IssuedTicketLink = {
-  ticket_id: string;
-  url: string | null;
-};
-
 const ISSUE_READY_STATUSES = new Set<ReservationStatus>([
   "approved",
   "confirmed",
   "paid",
 ]);
 
-const UNIT_TERMINAL_STATUSES = new Set<UnitStatus>([
-  "used",
-  "cancelled",
-]);
+const UNIT_TERMINAL_STATUSES = new Set<UnitStatus>(["used", "cancelled"]);
 
 function readText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -139,15 +123,6 @@ function normalizeDocType(value: unknown): DocumentType {
   return DOCUMENT_TYPES.some((option) => option.value === docType)
     ? (docType as DocumentType)
     : "dni";
-}
-
-function formatMoney(value: number | null, currencyCode: string | null) {
-  if (value == null) return "—";
-  return new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: currencyCode || "PEN",
-    minimumFractionDigits: 2,
-  }).format(value);
 }
 
 function formatDate(value: string | null) {
@@ -276,46 +251,6 @@ function extractUnits(payload: any): ReservationUnit[] {
     .sort((a, b) => a.unit_index - b.unit_index);
 }
 
-function extractIssuedTickets(payload: any): IssuedTicketLink[] {
-  const candidates = [
-    payload?.issued_tickets,
-    payload?.tickets,
-    payload?.issued,
-  ];
-  const rawTickets = candidates.find((candidate) => Array.isArray(candidate));
-  if (!Array.isArray(rawTickets)) return [];
-
-  const normalizedTickets = rawTickets
-    .map((ticket: any): IssuedTicketLink | null => {
-      const ticketId =
-        readText(ticket?.ticket_id) ?? readText(ticket?.id) ?? readText(ticket);
-      if (!ticketId) return null;
-      return {
-        ticket_id: ticketId,
-        url:
-          readText(ticket?.url) ??
-          readText(ticket?.ticket_url) ??
-          `/ticket/${ticketId}`,
-      };
-    })
-    .filter((ticket: IssuedTicketLink | null): ticket is IssuedTicketLink =>
-      Boolean(ticket),
-    );
-
-  return normalizedTickets;
-}
-
-function buildFallbackIssuedTickets(
-  units: ReservationUnit[],
-): IssuedTicketLink[] {
-  return units
-    .filter((unit) => unit.ticket_id)
-    .map((unit) => ({
-      ticket_id: unit.ticket_id as string,
-      url: unit.ticket_url || `/ticket/${unit.ticket_id}`,
-    }));
-}
-
 function isUnitNominationValid(unit: ReservationUnit) {
   return (
     unit.full_name.trim().length > 0 &&
@@ -331,65 +266,40 @@ function unitValidationMessage(unit: ReservationUnit) {
   return null;
 }
 
-function statusLabel(status: ReservationStatus | UnitStatus) {
-  switch (status) {
-    case "pending":
-      return "Pendiente";
-    case "approved":
-      return "Aprobada";
-    case "confirmed":
-      return "Confirmada";
-    case "paid":
-      return "Pagada";
-    case "rejected":
-      return "Rechazada";
-    case "cancelled":
-      return "Cancelada";
-    case "pending_nomination":
-      return "Pendiente de completar";
-    case "nominated":
-      return "Nominada";
-    case "issued":
-      return "Emitida";
-    case "used":
-      return "Usada";
-    default:
-      return "Sin estado";
-  }
+function isTerminalUnit(unit: ReservationUnit) {
+  return UNIT_TERMINAL_STATUSES.has(unit.status);
 }
 
-function StatusBadge({ status }: { status: ReservationStatus | UnitStatus }) {
-  const palette =
-    status === "approved" ||
-    status === "confirmed" ||
-    status === "paid" ||
-    status === "issued" ||
-    status === "used"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-      : status === "rejected" || status === "cancelled"
-        ? "border-red-500/30 bg-red-500/10 text-red-200"
-        : "border-white/10 bg-white/5 text-white/75";
-
-  return (
-    <span
-      className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${palette}`}
-    >
-      {statusLabel(status)}
-    </span>
-  );
+function lookupButtonLabel(docType: DocumentType) {
+  return docType === "dni" ? "Buscar DNI" : "Buscar documento";
 }
 
-function ReservationStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2.5 sm:px-4 sm:py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45 sm:text-xs sm:tracking-[0.18em]">
-        {label}
-      </p>
-      <p className="mt-1.5 text-sm font-semibold leading-5 text-white sm:mt-2">
-        {value}
-      </p>
-    </div>
+function buildNominationProgress(
+  reservation: ReservationSummary | null,
+  units: ReservationUnit[],
+) {
+  const editableUnits = getAssistantUnits(units).filter(
+    (unit) => !isTerminalUnit(unit),
   );
+  const invalidUnits = editableUnits.filter((unit) => !isUnitNominationValid(unit));
+  const pendingNominationCount = editableUnits.filter(
+    (unit) => unit.status === "pending_nomination",
+  ).length;
+  const nominatedReadyCount = editableUnits.filter(
+    (unit) => unit.status === "nominated" && !unit.ticket_id,
+  ).length;
+
+  return {
+    editableUnits,
+    invalidUnits,
+    readyToAutoIssue: Boolean(
+      reservation &&
+        ISSUE_READY_STATUSES.has(reservation.status) &&
+        invalidUnits.length === 0 &&
+        pendingNominationCount === 0 &&
+        nominatedReadyCount > 0,
+    ),
+  };
 }
 
 function UnitField({
@@ -401,7 +311,7 @@ function UnitField({
 }) {
   return (
     <label className="space-y-1.5">
-      <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-white/50">
+      <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
         {label}
       </span>
       {children}
@@ -418,17 +328,22 @@ export default function NominationClient({
     null,
   );
   const [units, setUnits] = useState<ReservationUnit[]>([]);
-  const [issuedTickets, setIssuedTickets] = useState<IssuedTicketLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [issuing, setIssuing] = useState(false);
+  const [saveStep, setSaveStep] = useState<"saving" | "issuing" | null>(null);
+  const [attemptedSave, setAttemptedSave] = useState(false);
+  const [lookupLoadingByUnitId, setLookupLoadingByUnitId] = useState<
+    Record<string, boolean>
+  >({});
+  const [lookupErrorByUnitId, setLookupErrorByUnitId] = useState<
+    Record<string, string | null>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const loadUnits = async (keepSuccess = false) => {
+  const loadUnits = async () => {
     setLoading(true);
     setError(null);
-    if (!keepSuccess) setSuccess(null);
 
     try {
       const res = await fetch(
@@ -444,20 +359,8 @@ export default function NominationClient({
         );
       }
 
-      const nextUnits = extractUnits(payload);
-      const nextReservation = normalizeReservationSummary(
-        payload,
-        reservationId,
-      );
-      const nextIssuedTickets = extractIssuedTickets(payload);
-
-      setReservation(nextReservation);
-      setUnits(nextUnits);
-      setIssuedTickets(
-        nextIssuedTickets.length > 0
-          ? nextIssuedTickets
-          : buildFallbackIssuedTickets(nextUnits),
-      );
+      setReservation(normalizeReservationSummary(payload, reservationId));
+      setUnits(extractUnits(payload));
     } catch (err: any) {
       setError(err?.message || "Error al cargar la reserva.");
     } finally {
@@ -466,66 +369,42 @@ export default function NominationClient({
   };
 
   useEffect(() => {
-    // Reservation id is the only navigation input for this workspace.
     void loadUnits();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservationId]);
 
-  const invalidUnits = useMemo(
-    () =>
-      units.filter(
-        (unit) =>
-          unit.unit_index !== 1 &&
-          !UNIT_TERMINAL_STATUSES.has(unit.status) &&
-          !isUnitNominationValid(unit),
-      ),
-    [units],
-  );
   const buyerUnit = useMemo(() => getBuyerUnit(units), [units]);
-  const assistantUnits = useMemo(() => getAssistantUnits(units), [units]);
-  const editableUnits = assistantUnits;
-  const pendingAssistantUnits = useMemo(
-    () => assistantUnits.filter((unit) => unit.status === "pending_nomination"),
-    [assistantUnits],
-  );
-  const editableIssuedUnits = useMemo(
-    () => assistantUnits.filter((unit) => unit.status === "issued"),
-    [assistantUnits],
-  );
-  const pendingNominationCount = useMemo(
-    () =>
-      editableUnits.filter((unit) => unit.status === "pending_nomination")
-        .length,
-    [editableUnits],
-  );
-  const nominatedReadyCount = useMemo(
-    () =>
-      editableUnits.filter(
-        (unit) => unit.status === "nominated" && !unit.ticket_id,
-      ).length,
-    [editableUnits],
-  );
-  const readyToIssue = Boolean(
-    reservation &&
-      ISSUE_READY_STATUSES.has(reservation.status) &&
-      invalidUnits.length === 0 &&
-      pendingNominationCount === 0 &&
-      nominatedReadyCount > 0,
-  );
-  const issuedCount = useMemo(
-    () =>
-      units.filter((unit) => unit.status === "issued" || unit.status === "used")
-        .length,
-    [units],
-  );
-  const allAssistantsCompleted = pendingNominationCount === 0;
   const buyerDisplayName = getBuyerDisplayName(reservation, buyerUnit);
-  const saveButtonLabel =
-    editableIssuedUnits.length > 0
-      ? "Guardar y reemitir QR"
-      : "Completar asistentes";
+  const progress = useMemo(
+    () => buildNominationProgress(reservation, units),
+    [reservation, units],
+  );
+  const editableUnits = progress.editableUnits;
+  const invalidUnits = progress.invalidUnits;
+  const assistantUnits = editableUnits;
+  const primaryButtonLabel = useMemo(() => {
+    if (saveStep === "issuing") return "Emitiendo QR...";
+    if (saveStep === "saving") return "Guardando...";
+    if (progress.readyToAutoIssue) return "Guardar y emitir QR";
+    if (assistantUnits.some((unit) => unit.status === "issued")) {
+      return "Guardar cambios";
+    }
+    return "Guardar nominaciones";
+  }, [assistantUnits, progress.readyToAutoIssue, saveStep]);
+
+  function clearLookupError(unitId: string) {
+    setLookupErrorByUnitId((current) =>
+      current[unitId]
+        ? {
+            ...current,
+            [unitId]: null,
+          }
+        : current,
+    );
+  }
 
   function updateUnit(unitId: string, patch: Partial<ReservationUnit>) {
+    clearLookupError(unitId);
     setUnits((current) =>
       current.map((unit) =>
         unit.id === unitId
@@ -538,7 +417,49 @@ export default function NominationClient({
     );
   }
 
+  async function handleLookupDocument(unit: ReservationUnit) {
+    setError(null);
+    setSuccess(null);
+    clearLookupError(unit.id);
+    setLookupLoadingByUnitId((current) => ({
+      ...current,
+      [unit.id]: true,
+    }));
+
+    try {
+      const person = await lookupNominationPerson({
+        document: unit.document,
+        docType: unit.doc_type,
+      });
+
+      if (!person) {
+        setLookupErrorByUnitId((current) => ({
+          ...current,
+          [unit.id]: "No encontramos datos para ese documento.",
+        }));
+        return;
+      }
+
+      updateUnit(unit.id, {
+        full_name: person.full_name || unit.full_name,
+        email: unit.email.trim() || !person.email ? unit.email : person.email,
+        phone: unit.phone.trim() || !person.phone ? unit.phone : person.phone,
+      });
+    } catch (err: any) {
+      setLookupErrorByUnitId((current) => ({
+        ...current,
+        [unit.id]: err?.message || "No se pudo buscar el documento.",
+      }));
+    } finally {
+      setLookupLoadingByUnitId((current) => ({
+        ...current,
+        [unit.id]: false,
+      }));
+    }
+  }
+
   async function handleSave() {
+    setAttemptedSave(true);
     setError(null);
     setSuccess(null);
 
@@ -555,8 +476,10 @@ export default function NominationClient({
     }
 
     setSaving(true);
+    setSaveStep("saving");
+
     try {
-      const res = await fetch(
+      const saveRes = await fetch(
         `/api/ticket-reservations/${encodeURIComponent(reservationId)}/units`,
         {
           method: "PUT",
@@ -577,350 +500,215 @@ export default function NominationClient({
           }),
         },
       );
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.success) {
+      const savePayload = await saveRes.json().catch(() => ({}));
+      if (!saveRes.ok || !savePayload?.success) {
         throw new Error(
-          payload?.error || "No se pudieron guardar las nominaciones.",
+          savePayload?.error || "No se pudieron guardar las nominaciones.",
         );
       }
 
-      const returnedUnits = extractUnits(payload);
-      if (returnedUnits.length > 0) {
-        setUnits(returnedUnits);
+      const savedUnits = extractUnits(savePayload);
+      const nextUnits =
+        savedUnits.length > 0
+          ? savedUnits
+          : units.map((unit) =>
+              isTerminalUnit(unit)
+                ? unit
+                : { ...unit, status: "nominated" as UnitStatus },
+            );
+      const nextReservation = mergeReservationSummary(
+        reservation,
+        savePayload,
+        reservationId,
+      );
+
+      setReservation(nextReservation);
+      setUnits(nextUnits);
+
+      if (buildNominationProgress(nextReservation, nextUnits).readyToAutoIssue) {
+        setSaveStep("issuing");
+
+        const issueRes = await fetch(
+          `/api/ticket-reservations/${encodeURIComponent(reservationId)}/issue`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          },
+        );
+        const issuePayload = await issueRes.json().catch(() => ({}));
+        if (!issueRes.ok || !issuePayload?.success) {
+          throw new Error(
+            issuePayload?.error
+              ? `Se guardaron las nominaciones, pero no se pudieron emitir los QR. ${issuePayload.error}`
+              : "Se guardaron las nominaciones, pero no se pudieron emitir los QR.",
+          );
+        }
+
+        const issuedUnits = extractUnits(issuePayload);
+        setReservation((current) =>
+          mergeReservationSummary(current, issuePayload, reservationId),
+        );
+        if (issuedUnits.length > 0) {
+          setUnits(issuedUnits);
+        }
+        setSuccess("Nominaciones guardadas. Los QR ya quedaron emitidos.");
+      } else if (
+        nextReservation &&
+        !ISSUE_READY_STATUSES.has(nextReservation.status)
+      ) {
+        setSuccess(
+          "Nominaciones guardadas. Los QR se emitirán cuando la reserva quede aprobada.",
+        );
       } else {
-        setUnits((current) =>
-          current.map((unit) =>
-            UNIT_TERMINAL_STATUSES.has(unit.status)
-              ? unit
-              : { ...unit, status: "nominated" },
-          ),
-        );
+        setSuccess("Nominaciones guardadas.");
       }
-
-      setReservation((current) =>
-        mergeReservationSummary(current, payload, reservationId),
-      );
-      setSuccess(
-        "Asistentes guardados. Puedes volver cuando necesites editar.",
-      );
     } catch (err: any) {
       setError(err?.message || "Error al guardar nominaciones.");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleIssue() {
-    if (!reservation) return;
-
-    setIssuing(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const res = await fetch(
-        `/api/ticket-reservations/${encodeURIComponent(reservationId)}/issue`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        },
-      );
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || "No se pudieron emitir los QR.");
-      }
-
-      const returnedUnits = extractUnits(payload);
-      const nextUnits = returnedUnits.length > 0 ? returnedUnits : units;
-      const nextIssuedTickets = extractIssuedTickets(payload);
-
-      setReservation((current) =>
-        mergeReservationSummary(current, payload, reservationId),
-      );
-      setUnits(nextUnits);
-      setIssuedTickets(
-        nextIssuedTickets.length > 0
-          ? nextIssuedTickets
-          : buildFallbackIssuedTickets(nextUnits),
-      );
-      setSuccess("QR emitidos. Ya puedes compartir las entradas generadas.");
-
-      if (returnedUnits.length === 0) {
-        await loadUnits(true);
-      }
-    } catch (err: any) {
-      setError(err?.message || "Error al emitir los QR.");
-    } finally {
-      setIssuing(false);
+      setSaveStep(null);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-start justify-center bg-black px-2 py-2 text-white sm:px-4 sm:py-4 lg:px-8 lg:py-6">
-      <div className="w-full max-w-6xl space-y-2.5 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f0f0f] to-[#050505] p-2.5 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:space-y-4 sm:p-4 lg:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/45">
-              BABY
-            </p>
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold sm:text-3xl">
-                Completar asistentes
-              </h1>
-              <p className="text-sm text-white/65">
-                Reserva{" "}
-                <span className="block font-mono text-xs text-white sm:inline sm:text-sm">
-                  {reservationId}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            <Link
-              href="/compra"
-              className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold btn-smoke-outline transition sm:px-4"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Volver a compra
-            </Link>
-            <button
-              type="button"
-              onClick={() => void loadUnits()}
-              disabled={loading || saving || issuing}
-              className="inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60 sm:px-4"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-              Recargar
-            </button>
-          </div>
-        </div>
-
-        {reservation ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={reservation.status} />
-            {reservation.ticket_type_label ? (
-              <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/75">
-                {reservation.ticket_type_label}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-
+    <main className="min-h-screen bg-black px-3 py-4 text-white sm:px-5 sm:py-6">
+      <div className="mx-auto w-full max-w-4xl rounded-[28px] border border-white/10 bg-[#070707] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-6">
         {error ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
             {error}
           </div>
         ) : null}
+
         {success ? (
-          <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
             <CheckCircle2 className="h-4 w-4" />
             {success}
           </div>
         ) : null}
 
         {loading ? (
-          <section className="flex min-h-[320px] items-center justify-center rounded-3xl border border-white/10 bg-[#0a0a0a]">
+          <section className="flex min-h-[320px] items-center justify-center">
             <div className="flex items-center gap-3 text-sm text-white/70">
               <LoaderCircle className="h-5 w-5 animate-spin" />
-              Cargando reserva y unidades...
+              Cargando nominaciones...
             </div>
           </section>
         ) : (
-          <>
-            <section className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-5">
-              <ReservationStat
-                label="Evento"
-                value={reservation?.event_name || "—"}
-              />
-              <ReservationStat
-                label="Fecha"
-                value={formatDate(reservation?.event_starts_at || null)}
-              />
-              <ReservationStat
-                label="Primer asistente"
-                value={buyerDisplayName}
-              />
-              <ReservationStat
-                label="Paquetes / asistentes"
-                value={`${reservation?.package_quantity ?? "—"} / ${reservation?.total_ticket_units ?? units.length}`}
-              />
-              <ReservationStat
-                label="Monto"
-                value={formatMoney(
-                  reservation?.amount ?? null,
-                  reservation?.currency_code ?? "PEN",
-                )}
-              />
-            </section>
+          <div className="space-y-5">
+            <header className="space-y-2 border-b border-white/10 pb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/40">
+                Completar asistentes
+              </p>
+              <h1 className="text-2xl font-semibold sm:text-3xl">
+                {reservation?.event_name || "Reserva"}
+              </h1>
+              <div className="space-y-1 text-sm text-white/60 sm:flex sm:flex-wrap sm:items-center sm:gap-4 sm:space-y-0">
+                <span>{formatDate(reservation?.event_starts_at || null)}</span>
+                {reservation?.event_location ? (
+                  <span>{reservation.event_location}</span>
+                ) : null}
+              </div>
+            </header>
 
-            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-3 sm:p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold sm:text-xl">
-                    Comprador y asistentes
-                  </h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-white/60">
-                    {pendingAssistantUnits.length > 0
-                      ? "Completa los asistentes restantes para generar sus QR automáticamente."
-                      : editableIssuedUnits.length > 0
-                        ? "Corrige asistentes emitidos y guarda para reemitir su QR."
-                        : "Tu QR ya fue generado automáticamente."}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70 sm:max-w-xs">
-                  {issuedCount > 0 ? (
-                    <span>{issuedCount} QR ya emitidos.</span>
-                  ) : allAssistantsCompleted && buyerUnit ? (
-                    <span>
-                      El comprador queda registrado y no hay asistentes
-                      pendientes.
-                    </span>
-                  ) : invalidUnits.length === 0 ? (
-                    <span>
-                      Todo listo para guardar o emitir cuando aplique.
-                    </span>
-                  ) : (
-                    <span>
-                      Faltan {invalidUnits.length} unidades por completar.
-                    </span>
-                  )}
-                </div>
+            <section className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                  Comprador
+                </p>
+                <h2 className="mt-1 text-lg font-semibold">{buyerDisplayName}</h2>
               </div>
 
-              <div className="mt-4 space-y-3 sm:mt-5 sm:space-y-4">
-                {buyerUnit ? (
-                  <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 p-3 sm:p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-semibold text-white">
-                            Comprador / primer asistente
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <UnitField label="Nombre completo">
+                  <input
+                    value={
+                      buyerUnit?.full_name || reservation?.buyer_full_name || ""
+                    }
+                    readOnly
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white/80 focus:outline-none"
+                  />
+                </UnitField>
+                <UnitField label="Email">
+                  <input
+                    value={buyerUnit?.email || reservation?.buyer_email || ""}
+                    readOnly
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white/80 focus:outline-none"
+                  />
+                </UnitField>
+                <UnitField label="Teléfono">
+                  <input
+                    value={buyerUnit?.phone || reservation?.buyer_phone || ""}
+                    readOnly
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white/80 focus:outline-none"
+                  />
+                </UnitField>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                  Nominaciones
+                </p>
+              </div>
+
+              {assistantUnits.length === 0 ? (
+                <div className="rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-white/65">
+                  No hay asistentes pendientes por completar.
+                </div>
+              ) : (
+                assistantUnits.map((unit) => {
+                  const validationMessage = unitValidationMessage(unit);
+                  const showValidation =
+                    attemptedSave &&
+                    validationMessage &&
+                    !isTerminalUnit(unit);
+                  const lookupError = lookupErrorByUnitId[unit.id];
+                  const lookupLoading = Boolean(lookupLoadingByUnitId[unit.id]);
+
+                  return (
+                    <article
+                      key={unit.id}
+                      className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold">
+                            Asistente {unit.unit_index}
                           </h3>
-                          <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100">
-                            Solo lectura
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-white/50">
-                          Se registra automáticamente y recibe su QR al
-                          aprobarse la compra.
-                        </p>
-                      </div>
-
-                      {buyerUnit.ticket_id ? (
-                        <Link
-                          href={
-                            buyerUnit.ticket_url ||
-                            `/ticket/${buyerUnit.ticket_id}`
-                          }
-                          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
-                        >
-                          <Ticket className="h-3.5 w-3.5" />
-                          Ver ticket {buyerUnit.ticket_id}
-                        </Link>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2 lg:grid-cols-3">
-                          <UnitField label="Nombre completo">
-                        <input
-                          value={
-                            buyerUnit.full_name ||
-                            reservation?.buyer_full_name ||
-                            ""
-                          }
-                          readOnly
-                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/80 focus:outline-none"
-                        />
-                      </UnitField>
-                      <UnitField label="Email">
-                        <input
-                          value={
-                            buyerUnit.email || reservation?.buyer_email || ""
-                          }
-                          readOnly
-                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/80 focus:outline-none"
-                        />
-                      </UnitField>
-                      <UnitField label="Teléfono">
-                        <input
-                          value={
-                            buyerUnit.phone || reservation?.buyer_phone || ""
-                          }
-                          readOnly
-                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/80 focus:outline-none"
-                        />
-                      </UnitField>
-                    </div>
-                  </article>
-                ) : null}
-
-                {assistantUnits.length === 0 ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-5 text-sm text-white/65">
-                    No hay asistentes pendientes por completar.
-                  </div>
-                ) : (
-                  assistantUnits.map((unit) => {
-                    const validationMessage = unitValidationMessage(unit);
-                    const unitLocked =
-                      unit.status === "used" || unit.status === "cancelled";
-
-                    return (
-                      <article
-                        key={unit.id}
-                        className="rounded-2xl border border-white/10 bg-black/30 p-3 sm:p-4"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-base font-semibold text-white">
-                                Asistente {unit.unit_index}
-                              </h3>
-                              <StatusBadge status={unit.status} />
-                            </div>
-                            <p className="mt-1 text-xs text-white/50">
-                              Paquete {unit.package_index} · Persona{" "}
-                              {unit.person_index}
+                          {unit.status === "issued" ? (
+                            <p className="mt-1 text-xs text-white/55">
+                              Si cambias estos datos y guardas, el QR se
+                              reemitirá.
                             </p>
-                          </div>
-
-                          {unit.ticket_id ? (
-                            <Link
-                              href={
-                                unit.ticket_url || `/ticket/${unit.ticket_id}`
-                              }
-                              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
-                            >
-                              <Ticket className="h-3.5 w-3.5" />
-                              Ver ticket {unit.ticket_id}
-                            </Link>
                           ) : null}
                         </div>
+                      </div>
 
-                        <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2 lg:grid-cols-[0.65fr,1fr,1fr]">
-                          <UnitField label="Tipo de documento">
-                            <select
-                              value={unit.doc_type}
-                              onChange={(event) =>
-                                updateUnit(unit.id, {
-                                  doc_type: event.target.value as DocumentType,
-                                  document: "",
-                                })
-                              }
-                              disabled={unitLocked || issuing}
-                              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
-                            >
-                              {DOCUMENT_TYPES.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </UnitField>
-                          <UnitField label="Documento">
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <UnitField label="Tipo de documento">
+                          <select
+                            value={unit.doc_type}
+                            onChange={(event) =>
+                              updateUnit(unit.id, {
+                                doc_type: event.target.value as DocumentType,
+                                document: "",
+                              })
+                            }
+                            disabled={saving}
+                            className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                          >
+                            {DOCUMENT_TYPES.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </UnitField>
+
+                        <UnitField label="Documento">
+                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr),auto]">
                             <input
                               value={unit.document}
                               onChange={(event) =>
@@ -928,7 +716,7 @@ export default function NominationClient({
                                   document: event.target.value,
                                 })
                               }
-                              disabled={unitLocked || issuing}
+                              disabled={saving}
                               inputMode={
                                 unit.doc_type === "dni" ||
                                 unit.doc_type === "ruc"
@@ -942,24 +730,40 @@ export default function NominationClient({
                                     ? 11
                                     : 12
                               }
-                              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
                             />
-                          </UnitField>
-                          <UnitField label="Nombre completo">
-                            <input
-                              value={unit.full_name}
-                              onChange={(event) =>
-                                updateUnit(unit.id, {
-                                  full_name: event.target.value,
-                                })
-                              }
-                              disabled={unitLocked || issuing}
-                              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
-                            />
-                          </UnitField>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleLookupDocument(unit)}
+                              disabled={saving || lookupLoading}
+                              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
+                            >
+                              {lookupLoading ? (
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Search className="h-4 w-4" />
+                              )}
+                              {lookupButtonLabel(unit.doc_type)}
+                            </button>
+                          </div>
+                        </UnitField>
+                      </div>
 
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="mt-3 grid gap-3">
+                        <UnitField label="Nombre completo">
+                          <input
+                            value={unit.full_name}
+                            onChange={(event) =>
+                              updateUnit(unit.id, {
+                                full_name: event.target.value,
+                              })
+                            }
+                            disabled={saving}
+                            className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                          />
+                        </UnitField>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <UnitField label="Email">
                             <input
                               value={unit.email}
@@ -968,9 +772,9 @@ export default function NominationClient({
                                   email: event.target.value,
                                 })
                               }
-                              disabled={unitLocked || issuing}
+                              disabled={saving}
                               type="email"
-                              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
                             />
                           </UnitField>
                           <UnitField label="Teléfono">
@@ -981,131 +785,48 @@ export default function NominationClient({
                                   phone: event.target.value,
                                 })
                               }
-                              disabled={unitLocked || issuing}
-                              className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                              disabled={saving}
+                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
                             />
                           </UnitField>
                         </div>
+                      </div>
 
-                        {unit.status === "issued" ? (
-                          <p className="mt-3 text-xs leading-6 text-amber-100/90">
-                            Si corriges este asistente y guardas, el QR anterior
-                            se reemitirá con los nuevos datos.
-                          </p>
-                        ) : null}
-
-                        {validationMessage &&
-                        !UNIT_TERMINAL_STATUSES.has(unit.status) ? (
-                          <p className="mt-3 text-xs font-semibold text-[#ff9a9a]">
-                            {validationMessage}
-                          </p>
-                        ) : null}
-                      </article>
-                    );
-                  })
-                )}
-              </div>
+                      {lookupError ? (
+                        <p className="mt-3 text-xs font-semibold text-amber-100">
+                          {lookupError}
+                        </p>
+                      ) : null}
+                      {showValidation ? (
+                        <p className="mt-3 text-xs font-semibold text-[#ff9a9a]">
+                          {validationMessage}
+                        </p>
+                      ) : null}
+                    </article>
+                  );
+                })
+              )}
             </section>
 
-            <section className="rounded-3xl border border-white/10 bg-[#0a0a0a] p-3 sm:p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold sm:text-xl">
-                    Emisión de QR
-                  </h2>
-                  <p className="mt-1 text-sm leading-6 text-white/60">
-                    Cuando la reserva esté aprobada, confirmada o pagada podrás
-                    emitir los QR desde aquí.
-                  </p>
-                </div>
-                {reservation ? (
-                  <StatusBadge status={reservation.status} />
-                ) : null}
-              </div>
-
-              <div className="mt-3 space-y-3 sm:mt-4">
-                {reservation &&
-                !ISSUE_READY_STATUSES.has(reservation.status) ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/65">
-                    El estado actual es{" "}
-                    {statusLabel(reservation.status).toLowerCase()}. La emisión
-                    se habilita cuando la reserva esté aprobada, confirmada o
-                    pagada.
-                  </div>
-                ) : null}
-                {reservation &&
-                ISSUE_READY_STATUSES.has(reservation.status) &&
-                (invalidUnits.length > 0 || pendingNominationCount > 0) ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/65">
-                    Completa primero los asistentes restantes para emitir los
-                    QR.
-                  </div>
-                ) : null}
-                {reservation &&
-                ISSUE_READY_STATUSES.has(reservation.status) &&
-                invalidUnits.length === 0 &&
-                pendingNominationCount === 0 &&
-                nominatedReadyCount === 0 &&
-                issuedCount > 0 ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/65">
-                    Todos los QR disponibles ya fueron emitidos para esta
-                    reserva.
-                  </div>
-                ) : null}
-
-                <div className="grid gap-2 sm:flex sm:flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => void handleSave()}
-                    disabled={saving || issuing || editableUnits.length === 0}
-                    className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition disabled:opacity-60"
-                  >
+            {editableUnits.length > 0 ? (
+              <div className="sticky bottom-3 z-10 -mx-1 border-t border-white/10 bg-[#070707]/95 px-1 pt-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:backdrop-blur-none">
+                <button
+                  type="button"
+                  onClick={() => void handleSave()}
+                  disabled={saving}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold btn-smoke transition disabled:opacity-60"
+                >
+                  {saveStep ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
                     <Save className="h-4 w-4" />
-                    {saving ? "Guardando..." : saveButtonLabel}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleIssue()}
-                    disabled={!readyToIssue || issuing || units.length === 0}
-                    className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
-                  >
-                    <Ticket className="h-4 w-4" />
-                    {issuing ? "Emitiendo..." : "Emitir QR"}
-                  </button>
-                </div>
-
-                {issuedTickets.length > 0 ? (
-                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-100">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Entradas emitidas
-                    </div>
-                    <div className="mt-3 grid gap-2">
-                      {issuedTickets.map((ticket) => (
-                        <div
-                          key={ticket.ticket_id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/20 bg-black/30 px-4 py-3 text-sm text-white"
-                        >
-                          <span className="font-mono">{ticket.ticket_id}</span>
-                          {ticket.url ? (
-                            <Link
-                              href={ticket.url}
-                              className="text-xs font-semibold text-emerald-200 underline-offset-4 hover:underline"
-                            >
-                              Ver ticket
-                            </Link>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                  )}
+                  {primaryButtonLabel}
+                </button>
               </div>
-            </section>
-          </>
+            ) : null}
+          </div>
         )}
-
-        <LegalFooterLinks className="pt-2" compact />
       </div>
     </main>
   );
