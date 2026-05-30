@@ -364,7 +364,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             </span>
                             {group.section}
                           </p>
-                          <p className="mt-1 text-[11px] leading-4 text-neutral-600">
+                          <p className="mt-1 hidden text-[11px] leading-4 text-neutral-600 sm:block">
                             {sectionMeta[group.section]?.description || ""}
                           </p>
                         </div>
@@ -389,7 +389,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {mobileOpen ? (
             <div className="fixed inset-0 z-50 bg-black/60 md:hidden" onClick={() => setMobileOpen(false)}>
               <div
-                className="absolute left-0 top-0 h-full w-80 max-w-[88vw] border-r border-neutral-800 bg-neutral-950 p-4 shadow-2xl"
+                className="absolute left-0 top-0 flex h-[100dvh] w-80 max-w-[88vw] flex-col border-r border-neutral-800 bg-neutral-950 p-4 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="mb-4 flex items-center justify-between">
@@ -405,7 +405,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <span className="text-lg leading-none">×</span>
                   </button>
                 </div>
-                <div className="space-y-5 overflow-y-auto pb-6">
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-6">
                   {menuItems.map((group) => (
                     <section key={group.section} className="space-y-2">
                       <button
