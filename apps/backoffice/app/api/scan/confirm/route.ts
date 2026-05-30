@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const ticketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,code_id,event_id,used,used_at")
+      .select("id,code_id,event_id,used,used_at,is_active,payment_status")
       .match(ticket_id ? { id: ticket_id } : { code_id })
       .order("created_at", { ascending: false })
       .limit(1)
@@ -72,6 +72,19 @@ export async function POST(req: NextRequest) {
   }
 
   if (ticket) {
+    if (
+      ticket.is_active === false ||
+      String(ticket.payment_status || "").toLowerCase() === "pending"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Este ticket está inactivo",
+          result: "inactive",
+        },
+        { status: 409 },
+      );
+    }
     if (event_id && ticket.event_id !== event_id) {
       return NextResponse.json(
         {
@@ -90,14 +103,23 @@ export async function POST(req: NextRequest) {
     const codeLookup = applyNotDeleted(supabase.from("codes").select("id,type").eq("id", ticket.code_id));
     const { data: codeRow } = await codeLookup.maybeSingle();
     const codeType = (codeRow?.type || "").toLowerCase();
-    if (codeType === "general") {
-      const eventQuery = applyNotDeleted(
-        supabase.from("events").select("starts_at,entry_limit").eq("id", ticket.event_id)
+    const eventQuery = applyNotDeleted(
+      supabase
+        .from("events")
+        .select("starts_at,entry_limit,is_active,closed_at")
+        .eq("id", ticket.event_id)
+    );
+    const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
+    if (eventError) {
+      return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
+    }
+    if (eventRow?.is_active === false || eventRow?.closed_at) {
+      return NextResponse.json(
+        { success: false, error: "El evento está inactivo", result: "inactive" },
+        { status: 409 },
       );
-      const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
-      if (eventError) {
-        return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
-      }
+    }
+    if (codeType === "general") {
       if (eventRow) {
         const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
         if (entryCutoff && DateTime.now().setZone(EVENT_TZ) > entryCutoff.cutoff) {
@@ -182,6 +204,22 @@ export async function POST(req: NextRequest) {
   if (!codeRow) {
     return NextResponse.json({ success: false, error: "Código no encontrado", result: "not_found" }, { status: 404 });
   }
+  const codeEventQuery = applyNotDeleted(
+    supabase
+      .from("events")
+      .select("starts_at,entry_limit,is_active,closed_at")
+      .eq("id", codeRow.event_id)
+  );
+  const { data: codeEventRow, error: codeEventError } = await codeEventQuery.maybeSingle();
+  if (codeEventError) {
+    return NextResponse.json({ success: false, error: codeEventError.message }, { status: 400 });
+  }
+  if (codeEventRow?.is_active === false || codeEventRow?.closed_at) {
+    return NextResponse.json(
+      { success: false, error: "El evento está inactivo", result: "inactive" },
+      { status: 409 },
+    );
+  }
   if (event_id && codeRow.event_id !== event_id) {
     return NextResponse.json(
       {
@@ -197,15 +235,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código inactivo", result: "inactive" }, { status: 400 });
   }
   if ((codeRow.type || "").toLowerCase() === "general") {
-    const codeEventQuery = applyNotDeleted(
-      supabase.from("events").select("starts_at,entry_limit").eq("id", codeRow.event_id)
-    );
-    const { data: eventRow, error: eventError } = await codeEventQuery.maybeSingle();
-    if (eventError) {
-      return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
-    }
-    if (eventRow) {
-      const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
+    if (codeEventRow) {
+      const entryCutoff = getEntryCutoff(codeEventRow.starts_at, codeEventRow.entry_limit);
       if (entryCutoff && DateTime.now().setZone(EVENT_TZ) > entryCutoff.cutoff) {
         return NextResponse.json(
           {

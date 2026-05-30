@@ -126,4 +126,41 @@ describe("POST /api/scan/confirm", () => {
       ]),
     );
   });
+
+  it("rechaza confirmar un ticket inactivo o pendiente", async () => {
+    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { user: { id: "user-1" }, staffId: "staff-1", role: "door", staff: {} } });
+    const { supabase } = createSupabaseMock({
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-pending-1",
+            code_id: "code-pending-1",
+            event_id: "event-1",
+            used: false,
+            used_at: null,
+            is_active: false,
+            payment_status: "pending",
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/scan/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticket_id: "ticket-pending-1", event_id: "event-1" }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(payload.result).toBe("inactive");
+    expect(String(payload.error || "")).toContain("inactivo");
+  });
 });

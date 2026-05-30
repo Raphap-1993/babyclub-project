@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
   const eventQuery = applyNotDeleted(
     supabase
       .from("events")
-      .select("id,starts_at,entry_limit")
+      .select("id,starts_at,entry_limit,is_active,closed_at")
       .eq("id", event_id),
   );
   const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
@@ -292,6 +292,34 @@ export async function POST(req: NextRequest) {
       { success: false, error: "Evento no encontrado" },
       { status: 404 },
     );
+  }
+  if (eventRow.is_active === false || eventRow.closed_at) {
+    return NextResponse.json({
+      success: true,
+      result: "inactive",
+      reason: "event_inactive",
+      match_type: "none",
+      other_event: null,
+      code_id: null,
+      ticket_id: null,
+      code_type: null,
+      qr_kind: "unknown",
+      qr_kind_label: "QR no clasificado",
+      reservation_id: null,
+      table_name: null,
+      product_name: null,
+      ticket_pricing_phase: null,
+      ticket_type_label: null,
+      sale_origin: null,
+      table_id: null,
+      product_id: null,
+      uses: 0,
+      max_uses: null,
+      expired_at: null,
+      person: null,
+      ticket_used: false,
+      person_already_entered: false,
+    });
   }
 
   const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
@@ -374,7 +402,7 @@ export async function POST(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,full_name,dni,doc_type,document,email,phone,used,table_id,product_id,table_reservation_id",
+          "id,full_name,dni,doc_type,document,email,phone,used,is_active,payment_status,table_id,product_id,table_reservation_id",
         )
         .eq("code_id", codeRow.id)
         .eq("event_id", event_id)
@@ -418,6 +446,14 @@ export async function POST(req: NextRequest) {
               (ticketData as any).dni.trim()
             ? String((ticketData as any).dni).trim()
             : null;
+      if (
+        (ticketData as any).is_active === false ||
+        String((ticketData as any).payment_status || "").toLowerCase() ===
+          "pending"
+      ) {
+        result = "inactive";
+        reason = "ticket_inactive";
+      }
       if (ticket_used) {
         result = "duplicate";
         reason = null;
@@ -430,7 +466,7 @@ export async function POST(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,code_id,full_name,dni,doc_type,document,email,phone,used,table_id,product_id,table_reservation_id,code:codes(type)",
+          "id,code_id,full_name,dni,doc_type,document,email,phone,used,is_active,payment_status,table_id,product_id,table_reservation_id,code:codes(type)",
         )
         .eq("qr_token", codeValue)
         .eq("event_id", event_id),
@@ -486,6 +522,14 @@ export async function POST(req: NextRequest) {
               (ticketRow as any).dni.trim()
             ? String((ticketRow as any).dni).trim()
             : null;
+      if (
+        (ticketRow as any).is_active === false ||
+        String((ticketRow as any).payment_status || "").toLowerCase() ===
+          "pending"
+      ) {
+        result = "inactive";
+        reason = "ticket_inactive";
+      }
     }
   }
 

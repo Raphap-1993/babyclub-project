@@ -460,4 +460,62 @@ describe("POST /api/scan", () => {
     expect(payload.reason).toBe("person_already_entered");
     expect(payload.person_already_entered).toBe(true);
   });
+
+  it("rechaza un QR ticket inactivo aunque el token exista", async () => {
+    const { supabase } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-7",
+            starts_at: "2099-02-01T04:00:00.000Z",
+            entry_limit: null,
+            is_active: true,
+            closed_at: null,
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [{ data: null, error: null }],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-inactive-1",
+            code_id: "code-inactive-1",
+            full_name: "Invitado Inactivo",
+            dni: "11112222",
+            doc_type: "dni",
+            document: "11112222",
+            email: "inactive@test.com",
+            phone: "900000001",
+            used: false,
+            is_active: false,
+            payment_status: "pending",
+            table_id: null,
+            product_id: null,
+            table_reservation_id: null,
+            code: { type: "general" },
+          },
+          error: null,
+        },
+      ],
+      "scan_logs.insert": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "QR-INACTIVE-1", event_id: "event-7" }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.result).toBe("inactive");
+    expect(payload.reason).toBe("ticket_inactive");
+  });
 });
