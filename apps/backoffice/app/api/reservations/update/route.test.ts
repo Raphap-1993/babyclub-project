@@ -181,7 +181,13 @@ describe("POST /api/reservations/update", () => {
             ),
             ticket_quantity: 10,
             total_ticket_units: 10,
-            attendees: [],
+            attendees: Array.from({ length: 10 }, (_, index) => ({
+              full_name: `Invitado ${index + 1}`,
+              doc_type: "dni",
+              document: `700000${String(index).padStart(2, "0")}`,
+              email: `guest${index + 1}@test.com`,
+              phone: `9000000${index}`,
+            })),
             event_id: "event-1",
             promoter_id: null,
             event: {
@@ -241,5 +247,76 @@ describe("POST /api/reservations/update", () => {
     expect(createTicketForReservation).toHaveBeenCalledTimes(10);
     expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
     expect((sendApprovalEmail as any).mock.calls[0][0].callToAction).toBeNull();
+  });
+
+  it("rechaza una aprobación de mesa si repite la misma identidad en varios asistentes del mismo evento", async () => {
+    process.env.RESEND_API_KEY = "test-resend-key";
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-table-dup-1",
+            sale_origin: "table",
+            table_id: "table-dup-1",
+            product_id: "product-dup-1",
+            full_name: "Mesa Duplicada",
+            email: "mesa-dup@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "12345678",
+            codes: ["CODE-1", "CODE-2"],
+            ticket_quantity: 2,
+            total_ticket_units: 2,
+            attendees: [],
+            event_id: "event-dup-1",
+            promoter_id: null,
+            event: {
+              id: "event-dup-1",
+              name: "Baby Club",
+              starts_at: "2099-02-01T04:00:00.000Z",
+              location: "Lima",
+            },
+            table: {
+              id: "table-dup-1",
+              name: "Mesa Duplicada",
+              event_id: "event-dup-1",
+              ticket_count: 2,
+              event: {
+                id: "event-dup-1",
+                name: "Baby Club",
+                starts_at: "2099-02-01T04:00:00.000Z",
+                location: "Lima",
+              },
+            },
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: [
+            { code: "CODE-1", is_active: true },
+            { code: "CODE-2", is_active: true },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/reservations/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "res-table-dup-1", status: "approved" }),
+      }) as any,
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("misma persona");
+    expect(createTicketForReservation).not.toHaveBeenCalled();
   });
 });

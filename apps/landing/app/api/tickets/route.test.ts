@@ -595,7 +595,95 @@ describe("POST /api/tickets", () => {
     expect(String(payload.error || "")).toContain("otra persona");
   });
 
-  it("permite generar tickets distintos por cada código de una misma reserva de mesa aunque la persona se repita", async () => {
+  it("bloquea un segundo QR cuando el mismo nombre y correo ya tienen un ticket activo en el evento aunque cambie el documento", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-general-66",
+            code: "RAVE256",
+            event_id: "event-66",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 999,
+            uses: 1,
+            expires_at: null,
+            type: "general",
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        { data: null, error: null },
+        {
+          data: {
+            id: "event-66",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
+      "persons.select": [{ data: null, error: null }],
+      "persons.insert": [{ data: { id: "person-66" }, error: null }],
+      "tickets.select": [
+        { data: null, error: null },
+        {
+          data: [
+            {
+              id: "ticket-existing-66",
+              person_id: "person-old-66",
+              qr_token: "qr-existing-66",
+              full_name: "ALVARO VELA DEL AGUILA",
+              email: "alvaro@example.com",
+              phone: "993663940",
+              doc_type: "dni",
+              document: "99366394",
+              dni: "99366394",
+              code: { code: "RAVE256", type: "general" },
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "RAVE256",
+        doc_type: "dni",
+        document: "71126993",
+        nombre: "ALVARO",
+        apellido_paterno: "VELA DEL",
+        apellido_materno: "AGUILA",
+        email: "alvaro@example.com",
+        telefono: "993693940",
+        birthdate: "1999-01-01",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+    const ticketInsertCall = calls.find(
+      (call) => call.table === "tickets" && call.op === "insert",
+    );
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(payload.code).toBe("event_ticket_conflict");
+    expect(payload.match_reason).toBe("full_name_email");
+    expect(String(payload.error || "")).toContain("datos coincidentes");
+    expect(ticketInsertCall).toBeFalsy();
+  });
+
+  it("retorna el QR existente cuando la misma persona intenta usar otro código del mismo evento", async () => {
     const { supabase, calls } = createSupabaseMock({
       "codes.select": [
         {
@@ -643,20 +731,27 @@ describe("POST /api/tickets", () => {
       "tickets.select": [
         { data: null, error: null },
         {
-          data: {
-            id: "ticket-existing-55",
-            qr_token: "qr-existing-55",
-            code_id: "code-table-legacy",
-            table_id: "table-legacy",
-            product_id: "prod-legacy",
-            table_reservation_id: "res-legacy",
-            payment_status: "approved",
-          },
+          data: [
+            {
+              id: "ticket-existing-55",
+              person_id: "person-55",
+              qr_token: "qr-existing-55",
+              code_id: "code-table-legacy",
+              full_name: "Ana Perez Lopez",
+              email: "ana@example.com",
+              phone: "+51999999999",
+              doc_type: "dni",
+              document: "12345678",
+              dni: "12345678",
+              table_id: "table-legacy",
+              product_id: "prod-legacy",
+              table_reservation_id: "res-legacy",
+              code: { code: "LEGACY-55", type: "table" },
+            },
+          ],
           error: null,
         },
       ],
-      "tickets.insert": [{ data: { id: "ticket-55" }, error: null }],
-      "codes.update": [{ data: null, error: null }],
     });
 
     (createClient as any).mockReturnValue(supabase);
@@ -686,9 +781,9 @@ describe("POST /api/tickets", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(payload.ticketId).toBe("ticket-55");
-    expect(ticketInsertCall?.payload?.table_id).toBe("table-55");
-    expect(ticketInsertCall?.payload?.product_id).toBe("prod-55");
-    expect(ticketInsertCall?.payload?.table_reservation_id).toBe("res-5");
+    expect(payload.existing).toBe(true);
+    expect(payload.ticketId).toBe("ticket-existing-55");
+    expect(payload.qr).toBe("qr-existing-55");
+    expect(ticketInsertCall).toBeFalsy();
   });
 });

@@ -312,7 +312,7 @@ describe("POST /api/scan", () => {
     expect(payload.qr_kind_label).toBe("1 QR ALL NIGHT");
   });
 
-  it("no marca como duplicado un QR de mesa solo porque otro ticket del mismo DNI ya ingresó", async () => {
+  it("marca como duplicado un QR de mesa si otro ticket con el mismo documento ya ingresó al evento", async () => {
     const { supabase } = createSupabaseMock({
       "events.select": [
         {
@@ -394,10 +394,10 @@ describe("POST /api/scan", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(payload.result).toBe("valid");
-    expect(payload.reason).toBeNull();
+    expect(payload.result).toBe("duplicate");
+    expect(payload.reason).toBe("person_already_entered");
     expect(payload.qr_kind).toBe("table");
-    expect(payload.person_already_entered).toBe(false);
+    expect(payload.person_already_entered).toBe(true);
   });
 
   it("marca como duplicado cuando ya ingresó otra entrada con el mismo documento CE en el evento", async () => {

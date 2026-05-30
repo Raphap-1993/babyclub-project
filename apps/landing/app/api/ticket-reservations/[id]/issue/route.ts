@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
+import {
+  buildEventTicketIdentityKeys,
+  findActiveEventTicketConflict,
+} from "shared/eventTicketIdentity";
 import { createTicketForReservation } from "../../../../../../backoffice/app/api/reservations/utils";
 import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
 
@@ -121,6 +125,72 @@ export async function POST(
         : [],
       units: units.data,
     });
+  }
+
+  const seenIdentityKeys = new Map<string, string>();
+  for (const unit of issuableUnits as any[]) {
+    const isBuyerUnit = Number(unit.unit_index || 0) === 1;
+    const buyerName = String((reservation.data as any).full_name || "").trim();
+    const buyerEmail = String((reservation.data as any).email || "").trim();
+    const buyerPhone = String((reservation.data as any).phone || "").trim();
+    const buyerDocType =
+      String((reservation.data as any).doc_type || "dni").trim() || "dni";
+    const buyerDocument = String((reservation.data as any).document || "").trim();
+    const fullName =
+      String(unit.full_name || "").trim() ||
+      (isBuyerUnit ? buyerName : "") ||
+      buyerName;
+    const email =
+      String(unit.email || "").trim() ||
+      (isBuyerUnit ? buyerEmail : "") ||
+      null;
+    const phone =
+      String(unit.phone || "").trim() ||
+      (isBuyerUnit ? buyerPhone : "") ||
+      null;
+    const docType = (String(unit.doc_type || "").trim() ||
+      (isBuyerUnit ? buyerDocType : "dni")) as DocumentType;
+    const document =
+      String(unit.document || "").trim() || (isBuyerUnit ? buyerDocument : "");
+
+    for (const key of buildEventTicketIdentityKeys({
+      fullName,
+      email,
+      phone,
+      docType,
+      document,
+      dni: docType === "dni" ? document : null,
+    })) {
+      const previousLabel = seenIdentityKeys.get(key);
+      if (previousLabel) {
+        return jsonError(
+          `No puedes emitir dos QR para la misma persona en este evento. Revisa ${previousLabel} y unidad ${Number(unit.unit_index || 0) || "?"}.`,
+          409,
+        );
+      }
+      seenIdentityKeys.set(
+        key,
+        `unidad ${Number(unit.unit_index || 0) || "?"}`,
+      );
+    }
+    const existingConflict = await findActiveEventTicketConflict(
+      supabase as any,
+      {
+        eventId: String((reservation.data as any).event_id || ""),
+        fullName,
+        email,
+        phone,
+        docType,
+        document,
+        dni: docType === "dni" ? document : null,
+      },
+    );
+    if (existingConflict?.ticketId) {
+      return jsonError(
+        `La ${`unidad ${Number(unit.unit_index || 0) || "?"}`} ya tiene un QR activo en este evento con esos datos. Corrige la nominación antes de emitir.`,
+        409,
+      );
+    }
   }
 
   const issuedCodes: string[] = [];

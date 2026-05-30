@@ -11,6 +11,10 @@ import {
 } from "shared/freeQrGate";
 import { isAdult } from "shared/datetime";
 import { getPublicAppUrl } from "shared/publicUrl";
+import {
+  buildEventTicketConflictMessage,
+  findActiveEventTicketConflict,
+} from "shared/eventTicketIdentity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -194,11 +198,6 @@ export async function POST(req: NextRequest) {
   }
   const saleDecision = evaluateEventSales(ensureEventSalesDefaults(eventRow as any));
   const codeType = String((codeRow as any)?.type || "").trim().toLowerCase();
-  const allowsMultipleTicketsPerPerson = Boolean(
-    reservationContext?.id ||
-      (codeRow as any)?.table_reservation_id ||
-      codeType === "table",
-  );
   const requiresPayment = withPayment && codeType === "general";
   const allowsRedemptionWhenSalesBlocked =
     Boolean(reservationContext?.id || (codeRow as any)?.table_reservation_id) ||
@@ -323,74 +322,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código sin cupos" }, { status: 400 });
   }
 
-  // Si ya tiene ticket ACTIVO (no borrado, is_active=true) para este evento, devolvemos el mismo QR/id.
-  // Tickets con is_active=false (pago pendiente/abandonado) se ignoran para no bloquear el registro.
-  const existingTicketQuery = applyNotDeleted(
-    supabase
-      .from("tickets")
-      .select("id,qr_token,code_id,table_id,product_id,table_reservation_id,payment_status")
-      .eq("event_id", eventId)
-      .eq("person_id", person_id)
-      .eq("is_active", true)
-  );
-  const { data: existingTicket, error: existingError } = await existingTicketQuery
-    .limit(1)
-    .maybeSingle();
+  const eventTicketConflict = await findActiveEventTicketConflict(supabase as any, {
+    eventId,
+    personId: person_id,
+    fullName: full_name,
+    email: email || null,
+    phone: phone || null,
+    docType,
+    document: normalizedDocument,
+    dni,
+  });
 
-  if (existingError && existingError.code !== "PGRST116") {
-    return NextResponse.json({ success: false, error: existingError.message }, { status: 500 });
-  }
-
-  if (
-    existingTicket?.id &&
-    existingTicket.qr_token &&
-    !allowsMultipleTicketsPerPerson
-  ) {
-    if (existingTicket.code_id && existingTicket.code_id !== codeRow.id) {
-      // Person already has a ticket for this event with a different code — return their existing QR
-      console.log("[/api/tickets] Persona ya registrada en evento con otro código, retornando QR existente:", existingTicket.id);
-      const existingIsPending = (existingTicket as any).payment_status === "pending";
+  if (eventTicketConflict?.ticketId) {
+    if (
+      (eventTicketConflict.reason === "person_id" ||
+        eventTicketConflict.reason === "document") &&
+      eventTicketConflict.qrToken
+    ) {
+      console.log(
+        "[/api/tickets] Persona ya registrada en evento, retornando QR existente:",
+        eventTicketConflict.ticketId,
+      );
       return NextResponse.json({
         success: true,
         existing: true,
-        ticketId: existingTicket.id,
-        qr: existingTicket.qr_token,
-        needsPayment: existingIsPending,
+        ticketId: eventTicketConflict.ticketId,
+        qr: eventTicketConflict.qrToken,
+        needsPayment: false,
       });
     }
 
-    if (!existingTicket.code_id) {
-      const { error: linkCodeError } = await supabase
-        .from("tickets")
-        .update({
-          code_id: codeRow.id,
-          table_id: existingTicket.table_id || reservationContext?.table_id || null,
-          product_id: existingTicket.product_id || reservationContext?.product_id || null,
-          table_reservation_id:
-            existingTicket.table_reservation_id ||
-            reservationContext?.id ||
-            (codeRow as any).table_reservation_id ||
-            null,
-        })
-        .eq("id", existingTicket.id);
-
-      if (linkCodeError) {
-        return NextResponse.json({ success: false, error: linkCodeError.message }, { status: 500 });
-      }
-
-      const nextUses = Math.max(Number(codeRow?.uses || 0), 1);
-      await supabase.from("codes").update({ uses: nextUses }).eq("id", codeRow.id);
-    }
-
-    console.log("[/api/tickets] Ticket existente encontrado:", existingTicket.id);
-    const existingIsPending = (existingTicket as any).payment_status === "pending";
-    return NextResponse.json({
-      success: true,
-      existing: true,
-      ticketId: existingTicket.id,
-      qr: existingTicket.qr_token,
-      needsPayment: existingIsPending,
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        error: buildEventTicketConflictMessage(eventTicketConflict.reason),
+        code: "event_ticket_conflict",
+        match_reason: eventTicketConflict.reason,
+        ticketId: eventTicketConflict.ticketId,
+      },
+      { status: 409 },
+    );
   }
 
   const qr_token = crypto.randomUUID();

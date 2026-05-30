@@ -5,6 +5,10 @@ import { sendApprovalEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { buildReservationUnits } from "shared/ticketReservationUnits";
+import {
+  buildEventTicketIdentityKeys,
+  findActiveEventTicketConflict,
+} from "shared/eventTicketIdentity";
 import { getPublicLandingUrl } from "shared/publicUrl";
 import { ensureTicketOnlyBuyerIssued } from "../ticketOnlyFlow";
 import {
@@ -387,10 +391,69 @@ export async function POST(req: NextRequest) {
         docType: resolvedDocType as DocumentType,
         document: resolvedDocument,
       };
+      const plannedAttendees = Array.from({ length: ticketQuantity }, (_, index) =>
+        reservationAttendees[index] || fallbackAttendee,
+      );
+      const seenIdentityKeys = new Map<string, string>();
+      for (let i = 0; i < plannedAttendees.length; i++) {
+        const attendee = plannedAttendees[i];
+        for (const key of buildEventTicketIdentityKeys({
+          fullName: attendee.fullName,
+          email: attendee.email || resolvedEmail,
+          phone: attendee.phone || resolvedPhone,
+          docType: attendee.docType,
+          document: attendee.document,
+          dni: attendee.docType === "dni" ? attendee.document : null,
+        })) {
+          const previousLabel = seenIdentityKeys.get(key);
+          if (previousLabel) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "No puedes emitir dos QR para la misma persona en este evento. Revisa los asistentes repetidos antes de aprobar.",
+                trace,
+                duplicateAttendees: [
+                  previousLabel,
+                  `asistente ${i + 1}`,
+                ],
+              },
+              { status: 409 },
+            );
+          }
+          seenIdentityKeys.set(key, `asistente ${i + 1}`);
+        }
+        const existingConflict = await findActiveEventTicketConflict(
+          supabase as any,
+          {
+            eventId,
+            fullName: attendee.fullName,
+            email: attendee.email || resolvedEmail,
+            phone: attendee.phone || resolvedPhone,
+            docType: attendee.docType,
+            document: attendee.document,
+            dni: attendee.docType === "dni" ? attendee.document : null,
+          },
+        );
+        if (existingConflict?.ticketId) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Uno de los asistentes ya tiene un QR activo para este evento. Corrige la nominación antes de aprobar.",
+              trace,
+              duplicateAttendees: [`asistente ${i + 1}`],
+              conflictTicketId: existingConflict.ticketId,
+              conflictReason: existingConflict.reason,
+            },
+            { status: 409 },
+          );
+        }
+      }
       const ticketResults: Array<{ ticketId: string; code: string }> = [];
       for (let i = 0; i < ticketQuantity; i++) {
         const reuseCodes = reusableCodes[i] ? [reusableCodes[i]] : [];
-        const attendee = reservationAttendees[i] || fallbackAttendee;
+        const attendee = plannedAttendees[i];
         const result = await createTicketForReservation(supabase, {
           eventId,
           tableName,

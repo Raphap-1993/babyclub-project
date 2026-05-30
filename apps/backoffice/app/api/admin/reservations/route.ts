@@ -15,6 +15,7 @@ import { normalizeDocument, validateDocument, type DocumentType } from "shared/d
 import { logProcessEvent } from "../../logs/logger";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { EventTicketConflictError } from "shared/eventTicketIdentity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -414,6 +415,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, reservationId: reservation.id, ticketId: ticketResult.ticketId, codes, eventId });
   } catch (err: any) {
+    if (err instanceof EventTicketConflictError) {
+      return NextResponse.json(
+        { success: false, error: err.message, conflict: err.conflict },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ success: false, error: err?.message || "Error creando reserva" }, { status: 500 });
   }
 }

@@ -10,6 +10,7 @@ import {
 } from "shared/email/address";
 import { getPublicLandingUrl } from "shared/publicUrl";
 import { ensureTicketOnlyBuyerIssued } from "../ticketOnlyFlow";
+import { EventTicketConflictError } from "shared/eventTicketIdentity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -321,6 +322,16 @@ export async function POST(req: NextRequest) {
         ticketId = createdTicketId;
         ticketCode = code;
       } catch (err: any) {
+        if (err instanceof EventTicketConflictError) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: err.message,
+              conflict: err.conflict,
+            },
+            { status: 409 },
+          );
+        }
         ticketLookupError = err?.message || "No se pudo generar ticket";
       }
     }

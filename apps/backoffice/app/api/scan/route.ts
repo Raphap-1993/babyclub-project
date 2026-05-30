@@ -605,13 +605,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Política: 1 ingreso por persona por evento.
-  // Excepción operativa: los QR de mesa/box representan cupos independientes
-  // y no deben bloquearse solo porque comparten el DNI del comprador.
+  // Política: 1 ingreso por persona por evento, sin importar el tipo de QR.
   let person_already_entered = false;
   if (
     result === "valid" &&
-    qr_kind !== "table" &&
     ((person_doc_type && person_document) || person?.dni)
   ) {
     const duplicateQuery = applyNotDeleted(

@@ -20,6 +20,7 @@ import {
 } from "shared/email/address";
 import { getPublicLandingUrl } from "shared/publicUrl";
 import { ensureTicketOnlyBuyerIssued } from "../../../../reservations/ticketOnlyFlow";
+import { EventTicketConflictError } from "shared/eventTicketIdentity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -440,6 +441,16 @@ export async function POST(
       ticketsCreated: createdTicketIds.length,
     });
   } catch (error: any) {
+    if (error instanceof EventTicketConflictError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          conflict: error.conflict,
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       {
         success: false,

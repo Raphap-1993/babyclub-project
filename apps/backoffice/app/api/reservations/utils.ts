@@ -1,6 +1,10 @@
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeDocument, type DocumentType } from "shared/document";
+import {
+  EventTicketConflictError,
+  findActiveEventTicketConflict,
+} from "shared/eventTicketIdentity";
 import { generateReservationCodes } from "shared/friendlyCodes";
 
 type Supabase = SupabaseClient<any, "public", any>;
@@ -179,6 +183,7 @@ export async function createTicketForReservation(
     tableId,
     productId,
     tableReservationId,
+    enforceEventUniqueness = true,
   }: {
     eventId: string;
     tableName: string;
@@ -194,9 +199,25 @@ export async function createTicketForReservation(
     tableId?: string | null;
     productId?: string | null;
     tableReservationId?: string | null;
+    enforceEventUniqueness?: boolean;
   }
 ): Promise<{ ticketId: string; code: string }> {
   const personId = await ensurePerson(supabase, { fullName, email, phone, dni, docType, document });
+  if (enforceEventUniqueness) {
+    const conflict = await findActiveEventTicketConflict(supabase as any, {
+      eventId,
+      personId,
+      fullName,
+      email: email || null,
+      phone: phone || null,
+      docType: docType || "dni",
+      document: document || null,
+      dni: dni || null,
+    });
+    if (conflict?.ticketId) {
+      throw new EventTicketConflictError(conflict);
+    }
+  }
   const { codeId, code } = await ensureCodeForTicket(supabase, {
     eventId,
     tableName,

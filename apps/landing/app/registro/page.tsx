@@ -370,6 +370,29 @@ function RegistroContent() {
     setReservationError(null);
   };
 
+  const clearResolvedIdentityState = useCallback(
+    (nextDocType: DocumentType, nextDocument = "") => {
+      lastPersonLookup.current = null;
+      setExistingTicketId(null);
+      setTicketId(null);
+      setExistingTicketEventId(null);
+      setError(null);
+      setReservation((prev) => ({
+        ...prev,
+        doc_type: nextDocType,
+        document: nextDocument,
+        dni: nextDocType === "dni" ? nextDocument : "",
+        nombre: "",
+        apellidos: "",
+        apellido_paterno: "",
+        apellido_materno: "",
+        email: "",
+        phone: "",
+      }));
+    },
+    [],
+  );
+
   const splitApellidos = (value: string) => {
     const parts = value.split(/\s+/).filter(Boolean);
     return {
@@ -382,8 +405,20 @@ function RegistroContent() {
     [apellidoPaterno, apellidoMaterno].filter(Boolean).join(" ");
 
   const handleChange = (field: keyof typeof form) => (value: string) => {
+    if (field === "document") {
+      clearResolvedIdentityState(form.doc_type as DocumentType, value);
+    }
     setForm((prev) => {
       const next = { ...prev, [field]: value };
+      if (field === "document" && value !== prev.document) {
+        next.nombre = "";
+        next.apellidos = "";
+        next.apellido_paterno = "";
+        next.apellido_materno = "";
+        next.email = "";
+        next.telefono = "";
+        next.birthdate = "";
+      }
       if (field === "apellidos") {
         const { apellido_paterno, apellido_materno } = splitApellidos(value);
         next.apellido_paterno = apellido_paterno;
@@ -981,10 +1016,22 @@ function RegistroContent() {
                   <select
                     value={form.doc_type as DocumentType}
                     onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        doc_type: e.target.value as DocumentType,
-                      }))
+                      {
+                        const nextDocType = e.target.value as DocumentType;
+                        clearResolvedIdentityState(nextDocType);
+                        setForm((prev) => ({
+                          ...prev,
+                          doc_type: nextDocType,
+                          document: "",
+                          nombre: "",
+                          apellidos: "",
+                          apellido_paterno: "",
+                          apellido_materno: "",
+                          email: "",
+                          telefono: "",
+                          birthdate: "",
+                        }));
+                      }
                     }
                     className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-2.5 lg:py-3 text-base text-white focus:border-white focus:outline-none"
                   >
