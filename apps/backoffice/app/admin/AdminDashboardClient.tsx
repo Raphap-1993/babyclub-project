@@ -114,7 +114,7 @@ function EventCard({ event }: { event: DashboardModel["events"][number] }) {
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
-            <div className="mb-3 text-xs uppercase tracking-[0.16em] text-neutral-500">Clasificación QR</div>
+            <div className="mb-3 text-xs uppercase tracking-[0.16em] text-neutral-500">Resumen comercial</div>
             <div className="space-y-3">
               {event.qrBreakdown.map((item) => (
                 <div key={item.key} className="space-y-1">

@@ -10,6 +10,12 @@ import { SelectNative } from "@/components/ui/select-native";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ExternalPagination } from "../components/ExternalPagination";
 import { CodeTypePoliciesPanel } from "./CodeTypePoliciesPanel";
+import {
+  normalizeBatchCodeType,
+  requiresExpirationForCodeType,
+  requiresPromoterForCodeType,
+  type SupportedBatchCodeType,
+} from "shared/codeBatchPolicy";
 
 type Option = { id: string; name: string };
 
@@ -47,8 +53,8 @@ type ViewMode = "lots" | "codes";
 type CodeTypePolicyRow = {
   code_type: string;
   requires_expiration: boolean;
-  updated_at?: string | null;
-  updated_by_staff_id?: string | null;
+  updated_at: string | null;
+  updated_by_staff_id: string | null;
 };
 
 const TYPE_OPTIONS = [
@@ -858,9 +864,8 @@ export default function CodesClient({ events, promoters }: { events: Option[]; p
           events={events}
           promoters={promoters}
           defaultEventId={filters.event_id}
-          requiresExpiration={codeTypePolicies.some(
-            (policy) => policy.code_type === "promoter" && policy.requires_expiration,
-          )}
+          defaultType={normalizeBatchCodeType(filters.type)}
+          policies={codeTypePolicies}
           onClose={() => setShowModal(false)}
           onCreated={(batchId, list) => {
             setShowModal(false);
@@ -1017,18 +1022,21 @@ function GenerateBatchModal({
   events,
   promoters,
   defaultEventId,
-  requiresExpiration,
+  defaultType,
+  policies,
   onClose,
   onCreated,
 }: {
   events: Option[];
   promoters: Option[];
   defaultEventId: string;
-  requiresExpiration: boolean;
+  defaultType: SupportedBatchCodeType;
+  policies: CodeTypePolicyRow[];
   onClose: () => void;
   onCreated: (batchId: string, codes: string[]) => void;
 }) {
   const [eventId, setEventId] = useState(defaultEventId);
+  const [type, setType] = useState<SupportedBatchCodeType>(defaultType);
   const [promoterId, setPromoterId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
@@ -1041,6 +1049,8 @@ function GenerateBatchModal({
   const filteredPromoters = useMemo(() => {
     return promoters;
   }, [promoters]);
+  const requiresExpiration = requiresExpirationForCodeType(type, policies);
+  const needsPromoter = requiresPromoterForCodeType(type);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1048,7 +1058,7 @@ function GenerateBatchModal({
       setError("Selecciona evento");
       return;
     }
-    if (!promoterId) {
+    if (needsPromoter && !promoterId) {
       setError("Selecciona promotor");
       return;
     }
@@ -1071,8 +1081,8 @@ function GenerateBatchModal({
         },
         body: JSON.stringify({
           event_id: eventId,
-          promoter_id: promoterId || null,
-          type: "promoter",
+          promoter_id: needsPromoter ? promoterId || null : null,
+          type,
           quantity,
           expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
           max_uses: 1,
@@ -1126,13 +1136,34 @@ function GenerateBatchModal({
               </SelectNative>
             </div>
             <div className="flex flex-col gap-2">
+              <label className="text-xs uppercase tracking-[0.15em] text-white/60">Tipo</label>
+              <SelectNative
+                value={type}
+                onChange={(e) => {
+                  const nextType = normalizeBatchCodeType(e.target.value, type);
+                  setType(nextType);
+                  if (!requiresPromoterForCodeType(nextType)) {
+                    setPromoterId("");
+                  }
+                }}
+                className="h-10 rounded-2xl border-white/15 bg-[#0a0a0a] text-sm text-white focus:border-white"
+              >
+                {TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectNative>
+            </div>
+            <div className="flex flex-col gap-2">
               <label className="text-xs uppercase tracking-[0.15em] text-white/60">Promotor</label>
               <SelectNative
                 value={promoterId}
                 onChange={(e) => setPromoterId(e.target.value)}
+                disabled={!needsPromoter}
                 className="h-10 rounded-2xl border-white/15 bg-[#0a0a0a] text-sm text-white focus:border-white"
               >
-                <option value="">Selecciona promotor</option>
+                <option value="">{needsPromoter ? "Selecciona promotor" : "No aplica"}</option>
                 {filteredPromoters.map((pr) => (
                   <option key={pr.id} value={pr.id}>
                     {pr.name}

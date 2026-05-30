@@ -8,6 +8,7 @@ export interface QRSummary {
   free_qr?: number;
   courtesy_qr?: number;
   sold_qr?: number;
+  sold_units?: number;
   table_qr?: number;
   table_count?: number;
   by_type: Record<string, number>;
@@ -57,6 +58,15 @@ type RpcQrSummaryRow = {
 };
 
 type SummaryCounts = Record<QRSummaryBucket, number>;
+type ReservationUnitsRow = {
+  event_id: string | null;
+  total_ticket_units: number | null;
+  ticket_quantity: number | null;
+  package_quantity: number | null;
+  status: string | null;
+};
+
+const ACTIVE_TICKET_SALE_STATUSES = ["pending", "approved", "confirmed", "paid"];
 
 function makeSummaryCounts(): SummaryCounts {
   return { free: 0, courtesy: 0, sold: 0, table: 0 };
@@ -202,6 +212,59 @@ function mapSummaryRow(row: RpcQrSummaryRow): QRSummary {
     table_count: Number(row.table_count ?? 0),
     by_type: counts,
   };
+}
+
+function readReservationUnits(row: ReservationUnitsRow) {
+  const explicit = Number(row.total_ticket_units);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const ticketQuantity = Number(row.ticket_quantity);
+  if (Number.isFinite(ticketQuantity) && ticketQuantity > 0) return ticketQuantity;
+  const packageQuantity = Number(row.package_quantity);
+  if (Number.isFinite(packageQuantity) && packageQuantity > 0) return packageQuantity;
+  return 0;
+}
+
+async function attachSoldUnits(
+  supabase: any,
+  summaries: QRSummary[],
+): Promise<QRSummary[]> {
+  if (!Array.isArray(summaries) || summaries.length === 0) return summaries;
+
+  const eventIds = Array.from(
+    new Set(
+      summaries
+        .map((summary) => String(summary.event_id || "").trim())
+        .filter(Boolean),
+    ),
+  );
+  if (eventIds.length === 0) return summaries;
+
+  const { data, error } = await supabase
+    .from("table_reservations")
+    .select("event_id,total_ticket_units,ticket_quantity,package_quantity,status")
+    .is("deleted_at", null)
+    .eq("sale_origin", "ticket")
+    .in("status", ACTIVE_TICKET_SALE_STATUSES)
+    .in("event_id", eventIds);
+
+  if (error || !Array.isArray(data)) {
+    return summaries;
+  }
+
+  const soldUnitsByEvent = new Map<string, number>();
+  (data as ReservationUnitsRow[]).forEach((row) => {
+    const eventId = String(row.event_id || "").trim();
+    if (!eventId) return;
+    soldUnitsByEvent.set(
+      eventId,
+      (soldUnitsByEvent.get(eventId) || 0) + readReservationUnits(row),
+    );
+  });
+
+  return summaries.map((summary) => ({
+    ...summary,
+    sold_units: soldUnitsByEvent.get(String(summary.event_id || "").trim()) || 0,
+  }));
 }
 
 async function getQrSummaryLegacy(supabase: any, cutoffIso: string): Promise<QRSummary[]> {
@@ -353,8 +416,12 @@ export async function getQrSummaryAll({
 
   if (!rpcError && Array.isArray(rpcData) && rpcData.some((row) => hasExpandedSummaryColumns(row as RpcQrSummaryRow))) {
     const rows = rpcData as RpcQrSummaryRow[];
-    return rows.map((row) => mapSummaryRow(row));
+    return attachSoldUnits(
+      supabase,
+      rows.map((row) => mapSummaryRow(row)),
+    );
   }
 
-  return getQrSummaryLegacy(supabase, cutoffIso);
+  const legacySummaries = await getQrSummaryLegacy(supabase, cutoffIso);
+  return attachSoldUnits(supabase, legacySummaries);
 }

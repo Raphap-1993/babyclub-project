@@ -114,6 +114,11 @@ export function buildAdminDashboardModel({
 
   qrEvents.forEach((event) => {
     const normalizedByType = normalizeQrBreakdown(event.by_type);
+    const soldUnits = Number(event.sold_units);
+    const soldValue = Number.isFinite(soldUnits) && soldUnits > 0
+      ? soldUnits
+      : normalizedByType.general;
+    normalizedByType.general = soldValue;
     const qrBreakdown = TYPE_ORDER.map((key) => ({
       key,
       label: TYPE_LABELS[key],

@@ -15,6 +15,7 @@ const qrEvents: QRSummary[] = [
     name: "Babyrave Febrero",
     date: "2026-02-10T22:00:00.000Z",
     total_qr: 80,
+    sold_units: 59,
     by_type: { sold: 57, table: 18, promoter_link: 2, general: 3 },
   },
 ];
@@ -45,7 +46,7 @@ describe("buildAdminDashboardModel", () => {
 
     expect(model.globalTotals.totalQr).toBe(200);
     expect(model.globalTotals.totalTickets).toBe(230);
-    expect(model.globalTotals.byType.general).toBe(157);
+    expect(model.globalTotals.byType.general).toBe(159);
     expect(model.globalTotals.byType.table).toBe(33);
     expect(model.globalTotals.byType.courtesy).toBe(7);
     expect(model.globalTotals.byType.free).toBe(3);
@@ -57,6 +58,12 @@ describe("buildAdminDashboardModel", () => {
       { key: "table", label: "Mesas", value: 15 },
       { key: "courtesy", label: "Cortesías", value: 5 },
       { key: "free", label: "Free", value: 0 },
+    ]);
+    expect(model.events[1].qrBreakdown).toEqual([
+      { key: "general", label: "Entradas", value: 59 },
+      { key: "table", label: "Mesas", value: 18 },
+      { key: "courtesy", label: "Cortesías", value: 2 },
+      { key: "free", label: "Free", value: 3 },
     ]);
     expect(model.events[0].promoters[0]).toEqual({ promoterId: "p-1", name: "Ana", tickets: 90 });
     expect(model.events[0].promoters[1]).toEqual({ promoterId: "direct", name: "Invitacion directa", tickets: 60 });

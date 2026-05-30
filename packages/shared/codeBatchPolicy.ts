@@ -5,6 +5,10 @@ export type CodeTypePolicy = {
   updated_at: string | null;
 };
 
+export const SUPPORTED_BATCH_CODE_TYPES = ["courtesy", "promoter", "table"] as const;
+
+export type SupportedBatchCodeType = (typeof SUPPORTED_BATCH_CODE_TYPES)[number];
+
 export type CodeBatchCloseReason = "closed" | "expired" | "quota" | null;
 
 export type CodeBatchCloseCandidate = {
@@ -25,6 +29,22 @@ function toTimeValue(value: string | Date | number | null | undefined) {
   const date = value instanceof Date ? value : new Date(value);
   const time = date.getTime();
   return Number.isFinite(time) ? time : null;
+}
+
+export function normalizeBatchCodeType(
+  value: string | null | undefined,
+  fallback: SupportedBatchCodeType = "courtesy",
+): SupportedBatchCodeType {
+  const normalized =
+    typeof value === "string" ? value.trim().toLowerCase() : "";
+  return (
+    SUPPORTED_BATCH_CODE_TYPES.find((entry) => entry === normalized) ||
+    fallback
+  );
+}
+
+export function requiresPromoterForCodeType(codeType: string | null | undefined) {
+  return normalizeBatchCodeType(codeType) === "promoter";
 }
 
 export function requiresExpirationForCodeType(

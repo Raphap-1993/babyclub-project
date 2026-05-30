@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSupabaseMock } from "../../tests/utils/supabaseMock";
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
@@ -12,43 +13,59 @@ describe("getQrSummaryAll", () => {
     vi.clearAllMocks();
   });
 
-  it("consume la RPC aunque solo devuelva total_qr y by_type", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: [
+  it("consume la RPC y agrega las unidades vendidas por evento", async () => {
+    const { supabase } = createSupabaseMock({
+      "get_qr_summary_all.rpc": [
         {
-          event_id: "evt-1",
-          name: "BABY RAVE | ABYSS",
-          date: "2026-05-30T22:00:00.000Z",
-          total_qr: 12,
-          free_qr: 2,
-          courtesy_qr: 3,
-          sold_qr: 7,
-          table_qr: 0,
-          table_count: 0,
-          by_type: {
-            general: 10,
-            promoter_link: 2,
-          },
+          data: [
+            {
+              event_id: "evt-1",
+              name: "BABY RAVE | ABYSS",
+              date: "2026-05-30T22:00:00.000Z",
+              total_qr: 12,
+              free_qr: 2,
+              courtesy_qr: 3,
+              sold_qr: 7,
+              table_qr: 0,
+              table_count: 0,
+              by_type: {
+                general: 10,
+                promoter_link: 2,
+              },
+            },
+          ],
+          error: null,
         },
       ],
-      error: null,
+      "table_reservations.select": [
+        {
+          data: [
+            {
+              event_id: "evt-1",
+              sale_origin: "ticket",
+              status: "approved",
+              total_ticket_units: 59,
+              ticket_quantity: null,
+              package_quantity: null,
+            },
+          ],
+          error: null,
+        },
+      ],
     });
-
-    vi.mocked(createClient).mockReturnValue({
-      rpc,
-    } as never);
+    vi.mocked(createClient).mockReturnValue(supabase as never);
 
     const summaries = await getQrSummaryAll({
       supabaseUrl: "https://supabase.test",
       supabaseKey: "service-role",
     });
 
-    expect(rpc).toHaveBeenCalledWith("get_qr_summary_all", expect.any(Object));
     expect(summaries).toEqual([
       expect.objectContaining({
         event_id: "evt-1",
         total_qr: 12,
         sold_qr: 7,
+        sold_units: 59,
         courtesy_qr: 3,
         free_qr: 2,
         by_type: {

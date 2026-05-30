@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizeBatchCodeType,
+  requiresPromoterForCodeType,
   requiresExpirationForCodeType,
   resolveBatchCloseReason,
   resolveBatchState,
@@ -19,6 +21,14 @@ describe("codeBatchPolicy", () => {
         { code_type: "table", requires_expiration: false },
       ]),
     ).toBe(false);
+  });
+
+  it("normaliza el tipo seleccionado y detecta si requiere promotor", () => {
+    expect(normalizeBatchCodeType("promoter")).toBe("promoter");
+    expect(normalizeBatchCodeType("  table  ")).toBe("table");
+    expect(normalizeBatchCodeType("desconocido")).toBe("courtesy");
+    expect(requiresPromoterForCodeType("promoter")).toBe(true);
+    expect(requiresPromoterForCodeType("courtesy")).toBe(false);
   });
 
   it("conserva el motivo almacenado cuando el lote ya esta cerrado", () => {
