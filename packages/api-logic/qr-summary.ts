@@ -67,7 +67,7 @@ function normalizeCodeType(value: string | null | undefined): string {
 }
 
 function isFreeSummaryType(type: string) {
-  return type === "general" || type === "free" || type === "promoter_link";
+  return type === "free" || type === "promoter_link";
 }
 
 function isCourtesySummaryType(type: string) {
@@ -76,6 +76,10 @@ function isCourtesySummaryType(type: string) {
 
 function isTableSummaryType(type: string) {
   return type === "table";
+}
+
+function isSoldSummaryType(type: string) {
+  return type === "general" || type === "sold" || type === "ticket" || type === "entrada" || type === "entradas";
 }
 
 export function classifyQrBucket({
@@ -93,8 +97,12 @@ export function classifyQrBucket({
   const normalizedSaleOrigin = normalizeCodeType(saleOrigin);
   const tableKey = ticketTableId || codeReservationId || null;
 
-  if (tableKey || isTableSummaryType(normalizedType)) {
+  if (ticketTableId || normalizedSaleOrigin === "table" || isTableSummaryType(normalizedType)) {
     return { bucket: "table", tableKey };
+  }
+
+  if (normalizedSaleOrigin === "ticket") {
+    return { bucket: "sold", tableKey: null };
   }
 
   if (isCourtesySummaryType(normalizedType)) {
@@ -105,7 +113,7 @@ export function classifyQrBucket({
     return { bucket: "free", tableKey: null };
   }
 
-  if (normalizedSaleOrigin === "ticket") {
+  if (isSoldSummaryType(normalizedType)) {
     return { bucket: "sold", tableKey: null };
   }
 
@@ -133,6 +141,10 @@ export function normalizeByType(input: Record<string, unknown> | null | undefine
       counts.free += qty;
       return;
     }
+    if (isSoldSummaryType(normalizedKey)) {
+      counts.sold += qty;
+      return;
+    }
     counts.sold += qty;
   });
 
@@ -153,16 +165,6 @@ function buildSummaryCounts({
     sold: byType.sold > 0 ? byType.sold : soldFromResidual,
     table: byType.table,
   };
-}
-
-function hasExpandedSummaryColumns(row: RpcQrSummaryRow): boolean {
-  return (
-    Object.prototype.hasOwnProperty.call(row, "free_qr") ||
-    Object.prototype.hasOwnProperty.call(row, "courtesy_qr") ||
-    Object.prototype.hasOwnProperty.call(row, "sold_qr") ||
-    Object.prototype.hasOwnProperty.call(row, "table_qr") ||
-    Object.prototype.hasOwnProperty.call(row, "table_count")
-  );
 }
 
 function mapSummaryRow(row: RpcQrSummaryRow): QRSummary {
@@ -331,11 +333,9 @@ export async function getQrSummaryAll({
     p_cutoff: cutoffIso,
   });
 
-  if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+  if (!rpcError && Array.isArray(rpcData)) {
     const rows = rpcData as RpcQrSummaryRow[];
-    if (rows.some((row) => hasExpandedSummaryColumns(row))) {
-      return rows.map((row) => mapSummaryRow(row));
-    }
+    return rows.map((row) => mapSummaryRow(row));
   }
 
   return getQrSummaryLegacy(supabase, cutoffIso);

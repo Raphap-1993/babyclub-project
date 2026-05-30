@@ -49,6 +49,7 @@ const TYPE_ALIASES: Record<string, DashboardTypeKey> = {
   entrada: "general",
   entradas: "general",
   ticket: "general",
+  sold: "general",
   table: "table",
   mesa: "table",
   mesas: "table",

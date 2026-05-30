@@ -15,7 +15,7 @@ const qrEvents: QRSummary[] = [
     name: "Babyrave Febrero",
     date: "2026-02-10T22:00:00.000Z",
     total_qr: 80,
-    by_type: { general: 60, table: 18, courtesy: 2 },
+    by_type: { sold: 60, table: 18, courtesy: 2 },
   },
 ];
 
