@@ -2,6 +2,7 @@ import ModernTicketsClient from "./ModernTicketsClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { loadActiveTicketRefs } from "./ticketVisibility";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -90,9 +91,29 @@ async function getTickets(params: {
       error: error?.message || "No se pudieron cargar tickets",
     };
 
+  const { activeTicketIds, trackedReservationIds } =
+    await loadActiveTicketRefs(supabase);
+
+  const visibleTickets: any[] = [];
+  for (const row of data as any[]) {
+    const codeRel = Array.isArray((row as any).code)
+      ? (row as any).code?.[0]
+      : (row as any).code;
+    const reservationId =
+      (row as any).table_reservation_id || codeRel?.table_reservation_id || null;
+    if (
+      reservationId &&
+      trackedReservationIds.has(String(reservationId)) &&
+      !activeTicketIds.has(String(row.id))
+    ) {
+      continue;
+    }
+    visibleTickets.push(row);
+  }
+
   const dedupedTickets: any[] = [];
   const seenKeys = new Set<string>();
-  for (const row of data as any[]) {
+  for (const row of visibleTickets) {
     const codeRel = Array.isArray((row as any).code)
       ? (row as any).code?.[0]
       : (row as any).code;

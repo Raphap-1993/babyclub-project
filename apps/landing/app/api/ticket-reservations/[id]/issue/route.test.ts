@@ -290,4 +290,67 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
     );
     expect(sendTicketEmail).not.toHaveBeenCalled();
   });
+
+  it("bloquea la emisión con un mensaje legible si falta documento en una unidad nominada", async () => {
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-3",
+            sale_origin: "ticket",
+            status: "approved",
+            event_id: "event-3",
+            full_name: "Comprador Principal",
+            email: "buyer@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "11112222",
+            promoter_id: null,
+            codes: [],
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-2",
+              unit_index: 2,
+              package_index: 1,
+              person_index: 1,
+              status: "nominated",
+              full_name: "Invitado Sin Documento",
+              doc_type: "dni",
+              document: "",
+              email: "guest@test.com",
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-3/issue",
+      { method: "POST" },
+    );
+
+    const res = await POST(req as any, {
+      params: Promise.resolve({ id: "res-ticket-3" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain(
+      "Completa el documento de unidad 2 antes de emitir el QR.",
+    );
+    expect(createTicketForReservation).not.toHaveBeenCalled();
+    expect(sendTicketEmail).not.toHaveBeenCalled();
+  });
 });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { type DocumentType } from "shared/document";
+import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
 import { createTicketForReservation } from "../../../../../../backoffice/app/api/reservations/utils";
 import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
 
@@ -56,6 +56,17 @@ function uniqueStrings(values: Array<string | null | undefined>) {
         .filter(Boolean),
     ),
   );
+}
+
+function buildNominationError(unitLabel: string, fullName: string, docType: DocumentType, document: string) {
+  if (!fullName.trim()) {
+    return `Completa el nombre de ${unitLabel} antes de emitir el QR.`;
+  }
+  const { document: normalizedDocument } = normalizeDocument(docType, document);
+  if (!validateDocument(docType, normalizedDocument)) {
+    return `Completa el documento de ${unitLabel} antes de emitir el QR.`;
+  }
+  return null;
 }
 
 export async function POST(
@@ -139,6 +150,13 @@ export async function POST(
       (isBuyerUnit ? buyerDocType : "dni")) as DocumentType;
     const document =
       String(unit.document || "").trim() || (isBuyerUnit ? buyerDocument : "");
+    const validationError = buildNominationError(
+      `unidad ${Number(unit.unit_index || 0) || "?"}`,
+      fullName,
+      docType,
+      document,
+    );
+    if (validationError) return jsonError(validationError, 400);
     const result = await createTicketForReservation(supabase, {
       eventId: (reservation.data as any).event_id,
       tableName: (reservation.data as any).ticket_type_label || "Entrada",

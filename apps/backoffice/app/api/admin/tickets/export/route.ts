@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { loadActiveTicketRefs } from "../../../../admin/tickets/ticketVisibility";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -166,12 +167,31 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const { activeTicketIds, trackedReservationIds } =
+    await loadActiveTicketRefs(supabase);
+
+  const visibleTickets = (data as any[]).filter((row) => {
+    const codeRel = Array.isArray((row as any).code)
+      ? (row as any).code?.[0]
+      : (row as any).code;
+    const reservationId =
+      (row as any).table_reservation_id || codeRel?.table_reservation_id || null;
+    if (
+      reservationId &&
+      trackedReservationIds.has(String(reservationId)) &&
+      !activeTicketIds.has(String(row.id))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
   const eventIds = Array.from(
-    new Set((data as any[]).map((t) => t.event_id).filter(Boolean)),
+    new Set(visibleTickets.map((t) => t.event_id).filter(Boolean)),
   );
   const codeIds = Array.from(
     new Set(
-      (data as any[])
+      visibleTickets
         .map((t) => {
           const cRel = Array.isArray((t as any).code)
             ? (t as any).code?.[0]
@@ -183,7 +203,7 @@ export async function GET(req: NextRequest) {
   );
   const promoterIds = Array.from(
     new Set(
-      (data as any[])
+      visibleTickets
         .flatMap((t) => {
           const codeRel = Array.isArray((t as any).code)
             ? (t as any).code?.[0]
@@ -250,7 +270,7 @@ export async function GET(req: NextRequest) {
   const organizerMap = new Map<string, string>();
   (organizersRes || []).forEach((o: any) => organizerMap.set(o.id, o.name));
 
-  const rows = (data as any[]).map((t) => {
+  const rows = visibleTickets.map((t) => {
     const codeRel = Array.isArray((t as any).code)
       ? (t as any).code?.[0]
       : (t as any).code;
