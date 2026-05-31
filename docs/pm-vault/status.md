@@ -117,3 +117,9 @@ last_reviewed: 2026-05-30
 - El cambio aplica en registro publico, ticket-only, aprobacion/reenvio de reservas, alta manual admin y scanner de puerta.
 - Produccion: se archivo el ticket general incorrecto del caso reportado y se dejo activo solo el QR correcto.
 - Commit publicado: `23f2efb` `Enforce one QR per person per event`.
+
+## Hotfix 2026-05-31 00:35 America/Lima - Ticket-only bloquea duplicado antes de crear reserva
+
+- La compra publica de entrada ya no deja crear una reserva `pending` si el comprador ya tiene un QR activo para ese evento.
+- El pre-check `/api/check-ticket-reservation` ya mira `tickets` activos del evento y `/compra` corta el flujo `Solo entrada` antes del resumen si encuentra conflicto.
+- Commit publicado: `b60489a` `Block duplicate event QR at reservation creation`.

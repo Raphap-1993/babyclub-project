@@ -258,3 +258,15 @@ No cerrar un requerimiento hasta completar su fila con decision, artefactos y va
   - `28` tests focalizados OK;
   - `tsc` landing/backoffice OK.
 - Produccion: se archivo el ticket equivocado del caso reportado y se preservo el QR correcto.
+
+### 2026-05-31 - Hotfix reserve-before-approve gap
+
+- Incidente: el flujo `ticket-only` permitia crear una reserva `pending` aunque la persona ya tuviera QR activo del mismo evento; la aprobacion luego fallaba con el guard nuevo.
+- Implementacion:
+  - guard preventivo en `apps/landing/app/api/ticket-reservations/route.ts`;
+  - pre-check ampliado en `apps/landing/app/api/check-ticket-reservation/route.ts`;
+  - bloqueo UX previo al resumen en `apps/landing/app/compra/page.tsx`.
+- Verificacion:
+  - `8` tests focalizados OK;
+  - `tsc` landing OK.
+- Commit publicado: `b60489a` `Block duplicate event QR at reservation creation`.
