@@ -353,4 +353,89 @@ describe("POST /api/ticket-reservations", () => {
       ),
     ).toBeFalsy();
   });
+
+  it("bloquea la reserva si el comprador ya tiene un QR activo para el mismo evento", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+            early_bird_enabled: true,
+            ticket_types: [
+              {
+                id: "type-all-night-1",
+                code: "all_night_1",
+                label: "ALL NIGHT SOLO",
+                sale_phase: "all_night",
+                ticket_quantity: 1,
+                price: 20,
+                currency_code: "PEN",
+                is_active: true,
+                sort_order: 10,
+              },
+            ],
+          },
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-existing-1",
+              person_id: "person-existing-1",
+              table_reservation_id: null,
+              qr_token: "qr-existing-1",
+              full_name: "Phil Chota Ibaran",
+              email: "francistc2001@gmail.com",
+              phone: "987654321",
+              doc_type: "dni",
+              document: "12345678",
+              dni: "12345678",
+              code: { code: "GENERAL-1", type: "general" },
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = new Request("http://localhost/api/ticket-reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_id: "event-1",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Phil",
+        apellido_paterno: "Chota",
+        apellido_materno: "Ibaran",
+        email: "francistc2001@gmail.com",
+        telefono: "987654321",
+        payment_method: "culqi",
+        ticket_type_code: "all_night_1",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain(
+      "ya tiene un QR activo para este evento",
+    );
+    expect(payload.code).toBe("event_ticket_conflict");
+    expect(
+      calls.find(
+        (call) => call.table === "table_reservations" && call.op === "insert",
+      ),
+    ).toBeFalsy();
+  });
 });

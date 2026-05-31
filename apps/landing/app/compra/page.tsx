@@ -989,10 +989,10 @@ function CompraContent({
 
   const onSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    handleOpenTicketSummary(e);
+    await handleOpenTicketSummary(e);
   };
 
-  const handleOpenTicketSummary = (e: React.FormEvent) => {
+  const handleOpenTicketSummary = async (e: React.FormEvent) => {
     e.preventDefault();
     setTicketError(null);
     setTicketModalError(null);
@@ -1022,6 +1022,32 @@ function CompraContent({
     if (!ticketLegalAccepted) {
       setTicketError("Acepta los términos y políticas para continuar.");
       return;
+    }
+
+    if (ticketEventId && ticketForm.document) {
+      try {
+        const params = new URLSearchParams({
+          event_id: ticketEventId,
+          doc_type: String(ticketForm.doc_type || "dni"),
+          document: ticketForm.document.trim(),
+          full_name: ticketFullName,
+          email: ticketForm.email || "",
+          phone: ticketForm.phone || "",
+        });
+        const checkRes = await fetch(
+          `/api/check-ticket-reservation?${params.toString()}`,
+        );
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkData?.success && checkData?.has_active_ticket) {
+          setTicketError(
+            checkData?.conflict_message ||
+              "Esta persona ya tiene un QR activo para este evento.",
+          );
+          return;
+        }
+      } catch (_err) {
+        // No bloquear por fallo del pre-check; el API final igual corta el caso.
+      }
     }
     setShowTicketSummary(true);
   };

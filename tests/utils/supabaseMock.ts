@@ -67,6 +67,7 @@ export function createSupabaseMock(responses: ResponseMap) {
       ilike: (...args: any[]) => chain._addFilter("ilike", args),
       in: (...args: any[]) => chain._addFilter("in", args),
       neq: (...args: any[]) => chain._addFilter("neq", args),
+      not: (...args: any[]) => chain._addFilter("not", args),
       is: (...args: any[]) => chain._addFilter("is", args),
       lt: (...args: any[]) => chain._addFilter("lt", args),
       gte: (...args: any[]) => chain._addFilter("gte", args),

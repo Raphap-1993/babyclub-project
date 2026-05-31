@@ -20,6 +20,11 @@ import {
   type TicketSalePhase,
 } from "shared/ticketTypes";
 import { buildReservationUnits } from "shared/ticketReservationUnits";
+import {
+  buildEventTicketConflictMessage,
+  buildEventTicketIdentityKeys,
+  findActiveEventTicketConflict,
+} from "shared/eventTicketIdentity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -261,6 +266,12 @@ function buildReservationAttendeeSnapshot({
     quantity: Math.min(totalTicketUnits, rawAttendees.length),
     primary,
   });
+}
+
+function buildDuplicateAttendeeMessage(entryIndex: number) {
+  return entryIndex <= 1
+    ? "No puedes registrar dos entradas para la misma persona en este evento."
+    : `La entrada ${entryIndex} repite datos de una persona ya incluida en esta compra.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -508,6 +519,58 @@ export async function POST(req: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  const seenIdentityKeys = new Map<string, number>();
+  for (const attendee of attendees) {
+    for (const key of buildEventTicketIdentityKeys({
+      fullName: attendee.full_name,
+      email: attendee.email || null,
+      phone: attendee.phone || null,
+      docType: attendee.doc_type,
+      document: attendee.document,
+      dni: attendee.doc_type === "dni" ? attendee.document : null,
+    })) {
+      const previousEntry = seenIdentityKeys.get(key);
+      if (previousEntry) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: buildDuplicateAttendeeMessage(attendee.person_index),
+            code: "duplicate_attendee_in_request",
+            duplicate_entries: [previousEntry, attendee.person_index],
+          },
+          { status: 409 },
+        );
+      }
+      seenIdentityKeys.set(key, attendee.person_index);
+    }
+
+    const existingConflict = await findActiveEventTicketConflict(
+      supabase as any,
+      {
+        eventId: event_id,
+        fullName: attendee.full_name,
+        email: attendee.email || null,
+        phone: attendee.phone || null,
+        docType: attendee.doc_type,
+        document: attendee.document,
+        dni: attendee.doc_type === "dni" ? attendee.document : null,
+      },
+    );
+
+    if (existingConflict?.ticketId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: buildEventTicketConflictMessage(existingConflict.reason),
+          code: "event_ticket_conflict",
+          match_reason: existingConflict.reason,
+          ticketId: existingConflict.ticketId,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const insertPayload: Record<string, any> = {
