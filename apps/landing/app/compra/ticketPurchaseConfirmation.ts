@@ -15,8 +15,6 @@ export type TicketPurchaseConfirmationState = {
   eyebrow: string;
   title: string;
   description: string;
-  supportCodeLabel: string;
-  supportCodeHint: string;
   primaryAction: ConfirmationAction;
   secondaryAction: ConfirmationAction | null;
 };
@@ -51,9 +49,6 @@ export function deriveTicketPurchaseConfirmation({
       title: "Tu compra quedó guardada",
       description:
         "No pudimos emitir el ticket del comprador en este momento. Entra a tu compra para revisar el estado, abrir el workspace y retomar la nominación cuando corresponda.",
-      supportCodeLabel: "Código de compra",
-      supportCodeHint:
-        "Guarda este código para consultar el estado de la compra y retomar el proceso si lo necesitas.",
       primaryAction: {
         label: "Ir a mi compra",
         href: workspaceHref,
@@ -80,11 +75,6 @@ export function deriveTicketPurchaseConfirmation({
     eyebrow: "✓ Compra confirmada",
     title: "Tu entrada ya fue emitida",
     description,
-    supportCodeLabel: "Código de compra",
-    supportCodeHint:
-      pendingNominationCount > 0
-        ? "Guarda este código para consultar la compra y completar la nominación pendiente."
-        : "Guarda este código por si luego necesitas consultar el detalle de tu compra.",
     primaryAction: {
       label: "Ver mi ticket",
       href: `/ticket/${encodeURIComponent(buyerTicketId)}`,

@@ -250,7 +250,10 @@ function CompraContent({
   const culqiPublicKey = culqiAvailability.publicKey;
 
   useEffect(() => {
-    if (!culqiEnabled) {
+    if (culqiEnabled) {
+      setSelectedPaymentMethod("culqi");
+      setSelectedPaymentMethodTicket("culqi");
+    } else {
       setSelectedPaymentMethod("yape");
       setSelectedPaymentMethodTicket("yape");
     }
@@ -265,7 +268,7 @@ function CompraContent({
       r.includes("payments_module_disabled") ||
       r.includes("culqi_public_key")
     )
-      return "El pago con tarjeta está en proceso de implementación. Por ahora usa Yape / Plin.";
+      return "El pago online no está disponible en este momento. Intenta nuevamente en unos minutos.";
     return raw;
   };
 
@@ -737,7 +740,7 @@ function CompraContent({
 
   // header text tweak
   const headerSubtitle = culqiEnabled
-    ? "Genera tu entrada o reserva tu mesa pagando con Yape/Plin o tarjeta."
+    ? "Genera tu entrada o reserva tu mesa pagando online con Culqi."
     : "Genera tu entrada o reserva tu mesa con Yape/Plin; el pago online está en integración.";
   const ticketPrice =
     selectedTicketType?.price ?? ticketTypeOptions[0]?.price ?? 0;
@@ -869,6 +872,11 @@ function CompraContent({
       }
     }
 
+    if (canUseCulqiForMesa && selectedPaymentMethod === "culqi") {
+      await confirmReservation();
+      return;
+    }
+
     setShowSummary(true);
   };
 
@@ -885,10 +893,12 @@ function CompraContent({
 
     if (!useCulqi && !form.voucher_url) {
       setModalError("Sube tu comprobante de pago para continuar.");
+      setError("Sube tu comprobante de pago para continuar.");
       return;
     }
     if (useCulqi && !form.email.trim()) {
       setModalError("Ingresa un email para continuar con el pago online.");
+      setError("Ingresa un email para continuar con el pago online.");
       return;
     }
     if (
@@ -896,13 +906,15 @@ function CompraContent({
       !validateDocument(form.doc_type as DocumentType, form.document) ||
       !mesaNameComplete
     ) {
-      setModalError(
-        "Revisa los datos obligatorios: mesa, documento, nombres y apellidos.",
-      );
+      const message =
+        "Revisa los datos obligatorios: mesa, documento, nombres y apellidos.";
+      setModalError(message);
+      setError(message);
       return;
     }
     if (mesaSaleBlock) {
       setModalError(mesaSaleBlock.message);
+      setError(mesaSaleBlock.message);
       return;
     }
 
@@ -931,7 +943,9 @@ function CompraContent({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setModalError(data?.error || "No se pudo registrar la reserva");
+        const message = data?.error || "No se pudo registrar la reserva";
+        setModalError(message);
+        setError(message);
       } else if (useCulqi && data.reservationId) {
         const amountCentavos = Math.round((totalPrice as number) * 100);
         const orderRes = await fetch("/api/payments/culqi/create-order", {
@@ -945,7 +959,9 @@ function CompraContent({
         });
         const orderData = await orderRes.json().catch(() => ({}));
         if (!orderRes.ok || !orderData?.orderId) {
-          setModalError(friendlyCulqiError(orderData?.error));
+          const message = friendlyCulqiError(orderData?.error);
+          setModalError(message);
+          setError(message);
         } else {
           setMesaReservationId(data.reservationId);
           setCulqiOrderId(orderData.orderId);
@@ -965,7 +981,9 @@ function CompraContent({
         setShowReservationConfirmation(true);
       }
     } catch (err: any) {
-      setModalError(err?.message || "Error al registrar reserva");
+      const message = err?.message || "Error al registrar reserva";
+      setModalError(message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -999,27 +1017,6 @@ function CompraContent({
       } else {
         const textarea = document.createElement("textarea");
         textarea.value = text;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-      setTicketCopyFeedback("copied");
-      setTimeout(() => setTicketCopyFeedback("idle"), 1800);
-    } catch (_err) {
-      setTicketCopyFeedback("error");
-    }
-  };
-
-  const copyTicketPurchaseCode = async () => {
-    if (!ticketReservationId) return;
-
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(ticketReservationId);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = ticketReservationId;
         document.body.appendChild(textarea);
         textarea.select();
         document.execCommand("copy");
@@ -1121,6 +1118,11 @@ function CompraContent({
         // No bloquear por fallo del pre-check; el API final igual corta el caso.
       }
     }
+    if (canUseCulqiForTicket && selectedPaymentMethodTicket === "culqi") {
+      await confirmTicketPurchase();
+      return;
+    }
+
     setShowTicketSummary(true);
   };
 
@@ -1131,6 +1133,7 @@ function CompraContent({
     setTicketConfirmationState(null);
     if (ticketRequiresEvent && !ticketEventId) {
       setTicketModalError("Selecciona el evento");
+      setTicketError("Selecciona el evento");
       return;
     }
     if (
@@ -1141,23 +1144,28 @@ function CompraContent({
       !ticketNameComplete
     ) {
       setTicketModalError("Ingresa documento, nombres y apellidos");
+      setTicketError("Ingresa documento, nombres y apellidos");
       return;
     }
     if (ticketSaleBlock) {
       setTicketModalError(ticketSaleBlock.message);
+      setTicketError(ticketSaleBlock.message);
       return;
     }
     if (!selectedTicketType) {
       setTicketModalError("Selecciona un tipo de entrada disponible.");
+      setTicketError("Selecciona un tipo de entrada disponible.");
       return;
     }
     const useCulqi = culqiEnabled && selectedPaymentMethodTicket === "culqi";
     if (!useCulqi && !ticketVoucherUrl) {
       setTicketModalError("Sube tu comprobante de pago para continuar.");
+      setTicketError("Sube tu comprobante de pago para continuar.");
       return;
     }
     if (useCulqi && !ticketForm.email.trim()) {
       setTicketModalError("Ingresa un email para continuar con el pago online.");
+      setTicketError("Ingresa un email para continuar con el pago online.");
       return;
     }
     setTicketLoading(true);
@@ -1186,7 +1194,9 @@ function CompraContent({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setTicketModalError(data?.error || "No se pudo registrar la reserva");
+        const message = data?.error || "No se pudo registrar la reserva";
+        setTicketModalError(message);
+        setTicketError(message);
       } else if (useCulqi && data.reservationId && data.amount) {
         const amountCentavos =
           typeof data.amount_cents === "number"
@@ -1203,7 +1213,9 @@ function CompraContent({
         });
         const orderData = await orderRes.json().catch(() => ({}));
         if (!orderRes.ok || !orderData?.orderId) {
-          setTicketModalError(friendlyCulqiError(orderData?.error));
+          const message = friendlyCulqiError(orderData?.error);
+          setTicketModalError(message);
+          setTicketError(message);
         } else {
           setTicketReservationId(data.reservationId);
           setCulqiOrderId(orderData.orderId);
@@ -1222,7 +1234,9 @@ function CompraContent({
         setShowTicketConfirmation(true);
       }
     } catch (err: any) {
-      setTicketModalError(err?.message || "Error al registrar reserva");
+      const message = err?.message || "Error al registrar reserva";
+      setTicketModalError(message);
+      setTicketError(message);
     } finally {
       setTicketLoading(false);
     }
@@ -1269,9 +1283,6 @@ function CompraContent({
           title: "Tu compra quedó pendiente de validación",
           description:
             "Registramos el paquete y el comprador. Revisaremos el comprobante y te confirmaremos por correo cuando la compra quede aprobada.",
-          supportCodeLabel: "Código de compra",
-          supportCodeHint:
-            "Guarda este código para consultar el estado de tu compra.",
           primaryAction: {
             label: "Ir a mi compra",
             href: `/compra?reservationId=${encodeURIComponent(ticketReservationId)}`,
@@ -2642,36 +2653,6 @@ function CompraContent({
               </p>
             </div>
 
-            {ticketReservationId && (
-              <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-4 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-white/80">
-                  {ticketConfirmationView?.supportCodeLabel || "Código de compra"}
-                </p>
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-black/40 px-4 py-3">
-                  <span className="font-mono text-lg font-bold text-white tracking-wider">
-                    {ticketReservationId}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void copyTicketPurchaseCode();
-                    }}
-                    className="rounded-lg bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 transition"
-                  >
-                    {ticketCopyFeedback === "copied"
-                      ? "Copiado"
-                      : ticketCopyFeedback === "error"
-                        ? "No se pudo copiar"
-                        : "Copiar"}
-                  </button>
-                </div>
-                <p className="text-xs text-white/60">
-                  {ticketConfirmationView?.supportCodeHint ||
-                    "Guarda este código para consultar el estado de tu compra."}
-                </p>
-              </div>
-            )}
-
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               {ticketConfirmationView?.secondaryAction && (
                 <Link
@@ -2970,54 +2951,73 @@ function PaymentMethodSelector({
         ) : null}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <button
-          type="button"
-          aria-pressed={value === "yape"}
-          onClick={() => onChange("yape")}
-          className={`${cardBase} ${value === "yape" ? activeClass : idleClass}`}
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
-            <Smartphone className="h-4 w-4" />
-          </span>
-          <span className="min-w-0 space-y-1">
-            <span className="block text-sm font-semibold">Yape / Plin</span>
-            {!compact ? (
-              <span className="block text-xs font-medium text-white/60">
-                Transferencia y validación manual con comprobante.
-              </span>
-            ) : null}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={value === "culqi"}
-          onClick={() => {
-            if (culqiAvailable) onChange("culqi");
-          }}
-          disabled={!culqiAvailable}
-          className={`${cardBase} ${
-            !culqiAvailable
-              ? disabledClass
-              : value === "culqi"
-                ? activeClass
-                : idleClass
-          }`}
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
-            <CreditCard className="h-4 w-4" />
-          </span>
-          <span className="min-w-0 space-y-1">
-            <span className="block text-sm font-semibold">Tarjeta</span>
-            <span className="block text-xs font-medium text-white/60">
-              {culqiAvailable
-                ? "Pago online seguro con tarjeta vía Culqi."
-                : "Disponible pronto."}
+      {culqiAvailable ? (
+        <div className="grid gap-2">
+          <button
+            type="button"
+            aria-pressed={value === "culqi"}
+            onClick={() => onChange("culqi")}
+            className={`${cardBase} ${value === "culqi" ? activeClass : idleClass}`}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
+              <CreditCard className="h-4 w-4" />
             </span>
-          </span>
-        </button>
-      </div>
+            <span className="min-w-0 space-y-1">
+              <span className="block text-sm font-semibold">Pago online</span>
+              <span className="block text-xs font-medium text-white/60">
+                Tarjeta, Yape, billeteras y banca móvil vía Culqi.
+              </span>
+            </span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            aria-pressed={value === "yape"}
+            onClick={() => onChange("yape")}
+            className={`${cardBase} ${value === "yape" ? activeClass : idleClass}`}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
+              <Smartphone className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 space-y-1">
+              <span className="block text-sm font-semibold">Yape / Plin</span>
+              {!compact ? (
+                <span className="block text-xs font-medium text-white/60">
+                  Transferencia y validación manual con comprobante.
+                </span>
+              ) : null}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            aria-pressed={value === "culqi"}
+            onClick={() => {
+              if (culqiAvailable) onChange("culqi");
+            }}
+            disabled={!culqiAvailable}
+            className={`${cardBase} ${
+              !culqiAvailable
+                ? disabledClass
+                : value === "culqi"
+                  ? activeClass
+                  : idleClass
+            }`}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
+              <CreditCard className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 space-y-1">
+              <span className="block text-sm font-semibold">Tarjeta</span>
+              <span className="block text-xs font-medium text-white/60">
+                Disponible pronto.
+              </span>
+            </span>
+          </button>
+        </div>
+      )}
     </section>
   );
 }

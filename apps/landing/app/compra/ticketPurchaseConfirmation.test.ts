@@ -24,7 +24,6 @@ describe("deriveTicketPurchaseConfirmation", () => {
         label: "Completar asistentes",
         href: "/compra?reservationId=res-ticket-1",
       },
-      supportCodeLabel: "Código de compra",
     });
     expect(result.description).toContain("ticket del comprador");
     expect(result.description).toContain("Completa la nominación");

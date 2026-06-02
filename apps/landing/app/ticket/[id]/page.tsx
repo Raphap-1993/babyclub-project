@@ -6,7 +6,10 @@ import Link from "next/link";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { getEntryCutoffDisplay } from "shared/entryLimit";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { isReservationOwner } from "./reservationOwnership";
+import {
+  isReservationOwner,
+  resolveTicketReservationWorkspaceContext,
+} from "shared/ticketReservationWorkspace";
 import { LegalFooterLinks } from "../../legal/LegalFooterLinks";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -46,6 +49,11 @@ type TicketView = {
   table_name?: string | null;
   product_name?: string | null;
   product_items?: string[] | null;
+};
+
+type TicketWorkspaceContext = {
+  pendingAssistantCount: number;
+  nominationUrl: string | null;
 };
 
 function isMissingReservationCommercialColumnsError(error: any) {
@@ -279,6 +287,31 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
   return [];
 }
 
+async function getTicketWorkspaceContext(
+  ticket: TicketView,
+): Promise<TicketWorkspaceContext> {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return { pendingAssistantCount: 0, nominationUrl: null };
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  return resolveTicketReservationWorkspaceContext({
+    supabase,
+    reservationId: ticket.table_reservation_id,
+    reservationSaleOrigin: ticket.reservation_sale_origin || null,
+    ticketOwner: {
+      full_name: ticket.full_name,
+      email: ticket.email,
+      phone: ticket.phone,
+      document: ticket.document,
+      dni: ticket.dni,
+    },
+  });
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function TicketPage({
@@ -294,6 +327,7 @@ export default async function TicketPage({
     ? `${ticket.promoter.person.first_name} ${ticket.promoter.person.last_name}`.trim()
     : null;
   const extraCodes = await getReservationCodesFor(ticket);
+  const workspaceContext = await getTicketWorkspaceContext(ticket);
   const codeType = (ticket.code.type || "").toLowerCase();
   const isPromoterCode = Boolean(
     ticket.code.promoter_id || ticket.promoter?.code,
@@ -362,6 +396,7 @@ export default async function TicketPage({
             ticket={ticket}
             promoterName={promoterName}
             extraCodes={extraCodes}
+            workspaceContext={workspaceContext}
             warnings={warnings}
             showAdditionalInfo={showAdditionalInfo}
             eventDateLabel={eventDateLabel}
@@ -380,6 +415,7 @@ function VerticalTicket({
   ticket,
   promoterName,
   extraCodes,
+  workspaceContext,
   warnings,
   showAdditionalInfo,
   eventDateLabel,
@@ -389,6 +425,7 @@ function VerticalTicket({
   ticket: TicketView;
   promoterName: string | null;
   extraCodes: string[];
+  workspaceContext: TicketWorkspaceContext;
   warnings: Array<{ title: string; body: string; tone: WarningTone }>;
   showAdditionalInfo: boolean;
   eventDateLabel: string;
@@ -508,6 +545,32 @@ function VerticalTicket({
                     {c}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+          {workspaceContext.nominationUrl && (
+            <div className="sm:col-span-2 rounded-2xl border border-[#e91e63]/20 bg-[#e91e63]/8 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#ff77ad]">
+                Compra en curso
+              </p>
+              <p className="mt-2 text-sm text-white/75">
+                Tienes{" "}
+                <span className="font-semibold text-white">
+                  {workspaceContext.pendingAssistantCount}
+                </span>{" "}
+                asistente
+                {workspaceContext.pendingAssistantCount === 1 ? "" : "s"}{" "}
+                pendiente
+                {workspaceContext.pendingAssistantCount === 1 ? "" : "s"} por
+                completar.
+              </p>
+              <div className="mt-3">
+                <Link
+                  href={workspaceContext.nominationUrl}
+                  className="inline-flex rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition"
+                >
+                  Completar asistentes
+                </Link>
               </div>
             </div>
           )}

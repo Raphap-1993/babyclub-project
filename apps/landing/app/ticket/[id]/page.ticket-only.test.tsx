@@ -105,6 +105,35 @@ describe("TicketPage ticket-only presentation", () => {
           },
           error: null,
         },
+        {
+          data: {
+            id: "res-ticket-1",
+            status: "approved",
+            sale_origin: "ticket",
+            full_name: "Smoke Unit 1",
+            email: null,
+            phone: null,
+            document: "70000001",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              unit_index: 1,
+              status: "issued",
+              ticket_id: "ticket-1",
+            },
+            {
+              unit_index: 2,
+              status: "pending_nomination",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
       ],
     });
     (createClient as any).mockReturnValue(supabase);
@@ -119,5 +148,7 @@ describe("TicketPage ticket-only presentation", () => {
     expect(html).toContain("Smoke Trio");
     expect(html).not.toContain("Reserva de mesa");
     expect(html).not.toContain("QR de mesa / promotor");
+    expect(html).toContain("Completar asistentes");
+    expect(html).toContain("/compra?reservationId=res-ticket-1");
   });
 });

@@ -3,6 +3,7 @@ import { getEmailDomain, normalizeEmailAddress } from "shared/email/address";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { getPublicAppUrl } from "shared/publicUrl";
+import { resolveTicketReservationWorkspaceContext } from "shared/ticketReservationWorkspace";
 import { logProcessEvent } from "../logs/logger";
 
 type Supabase = SupabaseClient<any, "public", any>;
@@ -361,7 +362,7 @@ export async function sendTicketEmail({
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id),event:events(name,starts_at,location)",
+      "id,table_reservation_id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,starts_at,location)",
     )
     .eq("id", ticketId)
     .maybeSingle();
@@ -420,6 +421,40 @@ export async function sendTicketEmail({
         `<div style="margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(233,30,99,0.35);background:linear-gradient(120deg,rgba(233,30,99,0.12),rgba(233,30,99,0.04));color:#ffddea;font-size:13px;line-height:1.4;">${w}</div>`,
     )
     .join("");
+  const workspaceContext = await resolveTicketReservationWorkspaceContext({
+    supabase,
+    reservationId:
+      ((data as any).table_reservation_id as string | null) ||
+      (codeRel?.table_reservation_id as string | null) ||
+      null,
+    reservationSaleOrigin: "ticket",
+    ticketOwner: {
+      full_name: data.full_name,
+      email: data.email,
+      phone: data.phone,
+      document: (data as any).document || (data as any).dni || null,
+      dni: (data as any).dni || null,
+    },
+  });
+  const showWorkspaceCta = Boolean(workspaceContext.nominationUrl);
+  const workspaceCountLabel =
+    workspaceContext.pendingAssistantCount === 1
+      ? "1 asistente pendiente"
+      : `${workspaceContext.pendingAssistantCount} asistentes pendientes`;
+  const workspaceHtml = showWorkspaceCta
+    ? `
+                  <tr>
+                    <td style="padding-top:14px;">
+                      <div style="padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
+                        Aún tienes ${workspaceCountLabel} para completar desde tu workspace de compra.
+                        <div style="margin-top:12px;">
+                          <a href="${workspaceContext.nominationUrl}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;letter-spacing:0.02em;">Completar asistentes</a>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                `
+    : "";
 
   const html = `
   <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
@@ -469,6 +504,7 @@ export async function sendTicketEmail({
                     </td>
                   </tr>
                   ${warningsHtml ? `<tr><td style="padding-top:12px;">${warningsHtml}</td></tr>` : ""}
+                  ${workspaceHtml}
                   <tr>
                     <td align="center" style="padding:20px 0 6px;">
                       <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket</a>
@@ -488,7 +524,10 @@ export async function sendTicketEmail({
 
   const textWarnings =
     warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
-  const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDocumento: ${documentLabel}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWarnings}`;
+  const textWorkspace = showWorkspaceCta
+    ? `\nCompletar asistentes: ${workspaceContext.nominationUrl}\nPendientes: ${workspaceCountLabel}`
+    : "";
+  const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDocumento: ${documentLabel}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWorkspace}${textWarnings}`;
 
   const subject = `BABY - Entrada ${eventRel?.name || "evento"}`;
   let providerId: string | null = null;
