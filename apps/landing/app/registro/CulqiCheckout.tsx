@@ -199,7 +199,12 @@ export default function CulqiCheckout({
 
   useEffect(() => {
     if (!scriptLoaded) return;
-    if (!window.CulqiCheckout) return;
+    if (!window.CulqiCheckout) {
+      setCheckoutError(
+        "No se pudo cargar la pasarela de Culqi. Recarga la página e inténtalo otra vez.",
+      );
+      return;
+    }
 
     const config = buildCulqiCheckoutConfig({
       orderId,
@@ -227,10 +232,24 @@ export default function CulqiCheckout({
     } else {
       setModalOpen(false);
     }
-  }, [amount, autoOpen, currencyCode, customerEmail, orderId, publicKey, title]);
+  }, [
+    amount,
+    autoOpen,
+    currencyCode,
+    customerEmail,
+    orderId,
+    publicKey,
+    scriptLoaded,
+    title,
+  ]);
 
   function open() {
-    if (!culqiRef.current) return;
+    if (!culqiRef.current) {
+      setCheckoutError(
+        "No se pudo inicializar la pasarela de Culqi. Recarga la página e inténtalo otra vez.",
+      );
+      return;
+    }
     setCheckoutError(null);
     setModalOpen(true);
     culqiRef.current.open();
