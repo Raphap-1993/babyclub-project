@@ -28,6 +28,10 @@ import CulqiCheckout from "../registro/CulqiCheckout";
 import { LegalTrustStrip } from "./LegalTrustStrip";
 import { PurchaseModeControls } from "./PurchaseModeControls";
 import {
+  deriveTicketPurchaseConfirmation,
+  type TicketPurchaseConfirmationState,
+} from "./ticketPurchaseConfirmation";
+import {
   getTicketEmptyStateMessage,
   getTicketSubmitLabel,
   resolveInitialTicketEventId,
@@ -181,6 +185,8 @@ function CompraContent({
     total: number;
   } | null>(null);
   const [showTicketConfirmation, setShowTicketConfirmation] = useState(false);
+  const [ticketConfirmationState, setTicketConfirmationState] =
+    useState<TicketPurchaseConfirmationState | null>(null);
   const [showReservationConfirmation, setShowReservationConfirmation] =
     useState(false);
   const [mesaReservationId, setMesaReservationId] = useState<string | null>(
@@ -376,6 +382,8 @@ function CompraContent({
     resetTicketForm();
     setTicketVoucherUrl("");
     setTicketModalError(null);
+    setTicketCopyFeedback("idle");
+    setTicketConfirmationState(null);
     setTicketUploading(false);
     setSelectedTicketTypeCode("");
     setTicketPackageQuantity(1);
@@ -1003,6 +1011,54 @@ function CompraContent({
     }
   };
 
+  const copyTicketPurchaseCode = async () => {
+    if (!ticketReservationId) return;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(ticketReservationId);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = ticketReservationId;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setTicketCopyFeedback("copied");
+      setTimeout(() => setTicketCopyFeedback("idle"), 1800);
+    } catch (_err) {
+      setTicketCopyFeedback("error");
+    }
+  };
+
+  const finalizePaidTicketPurchase = async (reservationId: string) => {
+    const fallback = deriveTicketPurchaseConfirmation({
+      reservationId,
+      units: [],
+    });
+
+    try {
+      const res = await fetch(
+        `/api/ticket-reservations/${encodeURIComponent(reservationId)}/issue`,
+        {
+          method: "POST",
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success !== true || !Array.isArray(data?.units)) {
+        return fallback;
+      }
+
+      return deriveTicketPurchaseConfirmation({
+        reservationId,
+        units: data.units,
+      });
+    } catch (_err) {
+      return fallback;
+    }
+  };
+
   const onSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     await handleOpenTicketSummary(e);
@@ -1071,6 +1127,8 @@ function CompraContent({
   const confirmTicketPurchase = async () => {
     setTicketModalError(null);
     setTicketError(null);
+    setTicketCopyFeedback("idle");
+    setTicketConfirmationState(null);
     if (ticketRequiresEvent && !ticketEventId) {
       setTicketModalError("Selecciona el evento");
       return;
@@ -1159,6 +1217,7 @@ function CompraContent({
         }
       } else {
         setTicketReservationId(data.reservationId || null);
+        setTicketConfirmationState(null);
         setShowTicketSummary(false);
         setShowTicketConfirmation(true);
       }
@@ -1200,6 +1259,26 @@ function CompraContent({
     canUseCulqiForTicket && selectedPaymentMethodTicket === "culqi";
   const reservationDone = !!(successCodes && successCodes.length > 0);
   const totalLabel = formatPrice(totalPrice);
+  const ticketConfirmationView =
+    ticketConfirmationState ||
+    (ticketReservationId
+      ? {
+          buyerTicketId: null,
+          pendingNominationCount: 0,
+          eyebrow: "✓ Solicitud recibida",
+          title: "Tu compra quedó pendiente de validación",
+          description:
+            "Registramos el paquete y el comprador. Revisaremos el comprobante y te confirmaremos por correo cuando la compra quede aprobada.",
+          supportCodeLabel: "Código de compra",
+          supportCodeHint:
+            "Guarda este código para consultar el estado de tu compra.",
+          primaryAction: {
+            label: "Ir a mi compra",
+            href: `/compra?reservationId=${encodeURIComponent(ticketReservationId)}`,
+          },
+          secondaryAction: null,
+        }
+      : null);
   const eventsFromTables: EventOption[] = Array.from(
     new Map(
       tables
@@ -2551,21 +2630,22 @@ function CompraContent({
           <div className="w-full max-w-lg space-y-5 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500/80">
-                ✓ Solicitud recibida
+                {ticketConfirmationView?.eyebrow || "✓ Solicitud recibida"}
               </p>
               <h3 className="text-2xl font-semibold">
-                Tu reserva quedó lista para nominación
+                {ticketConfirmationView?.title ||
+                  "Tu compra quedó pendiente de validación"}
               </h3>
               <p className="text-sm text-white/70">
-                Registramos el paquete y el comprador. El siguiente paso es
-                nominar a cada asistente desde tu workspace de reserva.
+                {ticketConfirmationView?.description ||
+                  "Registramos el paquete y el comprador. Revisaremos el estado de la compra y te confirmaremos por correo los siguientes pasos."}
               </p>
             </div>
 
             {ticketReservationId && (
               <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-4 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-white/80">
-                  Código de reserva
+                  {ticketConfirmationView?.supportCodeLabel || "Código de compra"}
                 </p>
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-black/40 px-4 py-3">
                   <span className="font-mono text-lg font-bold text-white tracking-wider">
@@ -2574,27 +2654,42 @@ function CompraContent({
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard?.writeText(ticketReservationId);
+                      void copyTicketPurchaseCode();
                     }}
                     className="rounded-lg bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 transition"
                   >
-                    Copiar
+                    {ticketCopyFeedback === "copied"
+                      ? "Copiado"
+                      : ticketCopyFeedback === "error"
+                        ? "No se pudo copiar"
+                        : "Copiar"}
                   </button>
                 </div>
                 <p className="text-xs text-white/60">
-                  Guarda este código para consultar el estado y completar la
-                  nominación.
+                  {ticketConfirmationView?.supportCodeHint ||
+                    "Guarda este código para consultar el estado de tu compra."}
                 </p>
               </div>
             )}
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              {ticketReservationId && (
+              {ticketConfirmationView?.secondaryAction && (
                 <Link
-                    href={`/compra?reservationId=${encodeURIComponent(ticketReservationId)}`}
-                  className="rounded-full px-5 py-2.5 text-center text-sm font-semibold btn-smoke transition"
+                  href={ticketConfirmationView.secondaryAction.href}
+                  className="rounded-full px-5 py-2.5 text-center text-sm font-semibold btn-smoke-outline transition"
                 >
-                  Ir a nominar asistentes
+                  {ticketConfirmationView.secondaryAction.label}
+                </Link>
+              )}
+              {ticketConfirmationView?.primaryAction && (
+                <Link
+                  href={ticketConfirmationView.primaryAction.href}
+                  className="rounded-full px-5 py-2.5 text-center text-sm font-semibold btn-smoke transition"
+                  onClick={() => {
+                    setShowTicketConfirmation(false);
+                  }}
+                >
+                  {ticketConfirmationView.primaryAction.label}
                 </Link>
               )}
               <button
@@ -2692,16 +2787,29 @@ function CompraContent({
               }
               autoOpen={!culqiPendingMessage}
               onSuccess={() => {
+                const currentFlowType = culqiFlowType;
+                const currentTicketReservationId = ticketReservationId;
                 setCulqiOrderId(null);
                 setCulqiPaymentId(null);
                 setCulqiAmount(null);
                 setCulqiCurrencyCode("PEN");
                 setCulqiCustomerEmail(null);
                 setCulqiPendingMessage(null);
-                if (culqiFlowType === "mesa") {
+                if (currentFlowType === "mesa") {
                   setShowReservationConfirmation(true);
                 } else {
-                  setShowTicketConfirmation(true);
+                  if (!currentTicketReservationId) {
+                    setTicketConfirmationState(null);
+                    setShowTicketConfirmation(true);
+                  } else {
+                    void finalizePaidTicketPurchase(
+                      currentTicketReservationId,
+                    ).then((confirmation) => {
+                      setTicketCopyFeedback("idle");
+                      setTicketConfirmationState(confirmation);
+                      setShowTicketConfirmation(true);
+                    });
+                  }
                 }
                 setCulqiFlowType(null);
               }}
