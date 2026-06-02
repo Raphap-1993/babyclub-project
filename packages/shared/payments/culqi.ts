@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
+  CreateGatewayChargeInput,
+  CreateGatewayChargeResult,
   CreateGatewayOrderInput,
   CreateGatewayRefundInput,
   ParsedGatewayWebhook,
@@ -11,6 +13,7 @@ import { buildWebhookEventKey, buildReceiptNumber } from "./utils";
 
 export type CulqiPaymentStatus = PaymentStatus;
 export type CulqiCreateOrderInput = CreateGatewayOrderInput;
+export type CulqiCreateChargeInput = CreateGatewayChargeInput;
 
 type CulqiApiErrorShape = {
   merchant_message?: string;
@@ -71,6 +74,74 @@ export async function createCulqiOrder(input: CulqiCreateOrderInput) {
   return data;
 }
 
+export function buildCulqiChargePayload(input: CulqiCreateChargeInput) {
+  const payload: Record<string, unknown> = {
+    amount: input.amount,
+    currency_code: input.currencyCode || "PEN",
+    email: input.email,
+    source_id: input.sourceId,
+  };
+
+  if (input.description?.trim()) {
+    payload.description = input.description.trim();
+  }
+  if (Number.isInteger(input.installments) && Number(input.installments) > 0) {
+    payload.installments = input.installments;
+  }
+  if (input.metadata && Object.keys(input.metadata).length > 0) {
+    payload.metadata = input.metadata;
+  }
+  if (input.antifraudDetails) {
+    const antifraudDetails = {
+      address: input.antifraudDetails.address || undefined,
+      address_city: input.antifraudDetails.addressCity || undefined,
+      country_code: input.antifraudDetails.countryCode || undefined,
+      first_name: input.antifraudDetails.firstName || undefined,
+      last_name: input.antifraudDetails.lastName || undefined,
+      phone_number: input.antifraudDetails.phoneNumber || undefined,
+    };
+    if (Object.values(antifraudDetails).some(Boolean)) {
+      payload.antifraud_details = antifraudDetails;
+    }
+  }
+
+  return payload;
+}
+
+export async function createCulqiCharge(
+  input: CulqiCreateChargeInput,
+): Promise<CreateGatewayChargeResult> {
+  const { secretKey, apiBaseUrl } = getCulqiConfig();
+  const res = await fetch(`${apiBaseUrl}/charges`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(buildCulqiChargePayload(input)),
+    cache: "no-store",
+  });
+  const data = await safeJson(res);
+  if (!res.ok) {
+    const errorData = (data || {}) as CulqiApiErrorShape;
+    throw new Error(
+      errorData.merchant_message ||
+        errorData.user_message ||
+        `Culqi charge error (${res.status})`,
+    );
+  }
+
+  const chargeId = typeof (data as any)?.id === "string" ? (data as any).id : "";
+  if (!chargeId) {
+    throw new PaymentServiceError(
+      "Respuesta invalida de Culqi (sin charge id)",
+      502,
+    );
+  }
+
+  return { chargeId, raw: data };
+}
+
 export async function createCulqiRefund(input: {
   chargeId: string;
   amount: number;
@@ -117,6 +188,14 @@ export function normalizeCulqiStatus(
 ): CulqiPaymentStatus {
   const raw = `${rawValue || ""}`.toLowerCase();
   if (raw.includes("paid")) return "paid";
+  if (
+    raw.includes("exitosa") ||
+    raw.includes("successful") ||
+    raw.includes("autoriz") ||
+    raw.includes("captur")
+  ) {
+    return "paid";
+  }
   if (raw.includes("refund")) return "refunded";
   if (raw.includes("fail") || raw.includes("declin")) return "failed";
   if (raw.includes("expir")) return "expired";
@@ -236,6 +315,9 @@ export const culqiGateway: PaymentGateway = {
       );
     }
     return { orderId, raw };
+  },
+  async createCharge(input: CreateGatewayChargeInput) {
+    return createCulqiCharge(input);
   },
   async createRefund(input: CreateGatewayRefundInput) {
     const raw = await createCulqiRefund(input);

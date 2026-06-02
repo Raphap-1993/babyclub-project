@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseMock } from "../../../tests/utils/supabaseMock";
 import { PaymentServiceError } from "./errors";
 import {
+  createPaymentCharge,
   createPaymentOrder,
   processPaymentWebhook,
   refundPayment,
@@ -168,6 +169,133 @@ describe("payment services", () => {
       amount: 4200,
       order_id: "ord_ticket_snapshot",
     });
+  });
+
+  it("crea un cargo con token Culqi y marca la reserva como pagada", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "chr_test_123",
+          object: "charge",
+          state: "Exitosa",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { supabase, calls } = createSupabaseMock({
+      "payments.select": [
+        {
+          data: {
+            id: "pay_1",
+            provider: "culqi",
+            status: "pending",
+            amount: 4200,
+            currency_code: "PEN",
+            customer_email: "ana@test.com",
+            customer_name: "Ana Torres",
+            customer_phone: "999999999",
+            reservation_id: "res_1",
+            ticket_id: null,
+            order_id: "ord_1",
+            charge_id: null,
+            receipt_number: null,
+            event_id: "event_1",
+            metadata: { order_number: "BC-ORDER-1" },
+          },
+          error: null,
+        },
+      ],
+    });
+
+    const response = await createPaymentCharge({
+      supabase: supabase as any,
+      providerName: "culqi",
+      body: {
+        payment_id: "pay_1",
+        token_id: "tkn_test_123",
+        email: "ana@test.com",
+      },
+    });
+
+    expect(response.success).toBe(true);
+    expect(response.chargeId).toBe("chr_test_123");
+    expect(response.status).toBe("paid");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.culqi.com/v2/charges",
+      expect.objectContaining({
+        body: expect.stringContaining('"source_id":"tkn_test_123"'),
+      }),
+    );
+
+    expect(
+      calls.filter((call) => call.table === "payments" && call.op === "update"),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            status: "paid",
+            charge_id: "chr_test_123",
+          }),
+        }),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            receipt_number: expect.stringMatching(/^BC-/),
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("reutiliza un cargo ya pagado sin volver a llamar a Culqi", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { supabase } = createSupabaseMock({
+      "payments.select": [
+        {
+          data: {
+            id: "pay_1",
+            provider: "culqi",
+            status: "paid",
+            amount: 4200,
+            currency_code: "PEN",
+            customer_email: "ana@test.com",
+            customer_name: "Ana Torres",
+            customer_phone: "999999999",
+            reservation_id: "res_1",
+            ticket_id: null,
+            order_id: "ord_1",
+            charge_id: "chr_existing",
+            receipt_number: "BC-20260601-TEST1234",
+            event_id: "event_1",
+            metadata: {},
+          },
+          error: null,
+        },
+      ],
+    });
+
+    const response = await createPaymentCharge({
+      supabase: supabase as any,
+      providerName: "culqi",
+      body: {
+        payment_id: "pay_1",
+        token_id: "tkn_test_123",
+      },
+    });
+
+    expect(response).toMatchObject({
+      success: true,
+      existing: true,
+      chargeId: "chr_existing",
+      status: "paid",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rechaza refund si el pago pertenece a otro proveedor", async () => {

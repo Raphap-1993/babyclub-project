@@ -238,6 +238,11 @@ function RegistroContent() {
   // Culqi checkout state
   const [culqiOrderId, setCulqiOrderId] = useState<string | null>(null);
   const [culqiPaymentId, setCulqiPaymentId] = useState<string | null>(null);
+  const [culqiAmount, setCulqiAmount] = useState<number | null>(null);
+  const [culqiCurrencyCode, setCulqiCurrencyCode] = useState<string>("PEN");
+  const [culqiCustomerEmail, setCulqiCustomerEmail] = useState<string | null>(
+    null,
+  );
   const [culqiPendingMessage, setCulqiPendingMessage] = useState<string | null>(
     null,
   );
@@ -2217,11 +2222,18 @@ function RegistroContent() {
               orderId={culqiOrderId!}
               paymentId={culqiPaymentId!}
               publicKey={culqiPublicKey}
+              amount={culqiAmount ?? 0}
+              currencyCode={culqiCurrencyCode}
+              customerEmail={culqiCustomerEmail}
+              title={culqiTicketId ? "Entrada BabyClub" : "Reserva BabyClub"}
               autoOpen={!culqiPendingMessage}
               onSuccess={() => {
                 const ticketId = culqiTicketId;
                 setCulqiOrderId(null);
                 setCulqiPaymentId(null);
+                setCulqiAmount(null);
+                setCulqiCurrencyCode("PEN");
+                setCulqiCustomerEmail(null);
                 setCulqiPendingMessage(null);
                 setCulqiTicketId(null);
                 if (ticketId) {
@@ -2232,11 +2244,13 @@ function RegistroContent() {
                   setStep(1);
                 }
               }}
-              onClose={() => {
+              onClose={({ awaitingPayment }) => {
                 setCulqiPendingMessage(
-                  culqiTicketId
-                    ? "Tu entrada está pendiente de pago. Completa el pago para activar tu QR."
-                    : "Tu reserva está pendiente de pago. Completa el pago para confirmar.",
+                  awaitingPayment
+                    ? culqiTicketId
+                      ? "Tu entrada está pendiente de pago. Completa el pago para activar tu QR."
+                      : "Tu reserva está pendiente de pago. Completa el pago para confirmar."
+                    : null,
                 );
               }}
             />
@@ -2245,7 +2259,11 @@ function RegistroContent() {
               onClick={() => {
                 setCulqiOrderId(null);
                 setCulqiPaymentId(null);
+                setCulqiAmount(null);
+                setCulqiCurrencyCode("PEN");
+                setCulqiCustomerEmail(null);
                 setCulqiPendingMessage(null);
+                setCulqiTicketId(null);
               }}
               className="w-full rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
             >
@@ -2429,6 +2447,12 @@ function RegistroContent() {
       setReservationError(msg);
       return;
     }
+    if (useCulqi && !reservation.email.trim()) {
+      const msg = "Ingresa un email para continuar con el pago online.";
+      setModalError(msg);
+      setReservationError(msg);
+      return;
+    }
     if (products.length > 0 && !selectedProduct) {
       const msg = "Elige un pack para tu mesa";
       setModalError(msg);
@@ -2484,6 +2508,9 @@ function RegistroContent() {
         } else {
           setCulqiOrderId(orderData.orderId);
           setCulqiPaymentId(orderData.paymentId);
+          setCulqiAmount(orderData.amount);
+          setCulqiCurrencyCode(orderData.currencyCode || "PEN");
+          setCulqiCustomerEmail(reservation.email || null);
           setCulqiPendingMessage(null);
           setShowPaymentModal(false);
           // CulqiCheckout mounts and auto-opens — no additional action needed here
@@ -2685,6 +2712,9 @@ function RegistroContent() {
         setCulqiTicketId(data.ticketId);
         setCulqiOrderId(orderData.orderId);
         setCulqiPaymentId(orderData.paymentId);
+        setCulqiAmount(orderData.amount);
+        setCulqiCurrencyCode(orderData.currencyCode || "PEN");
+        setCulqiCustomerEmail(form.email || null);
         setCulqiPendingMessage(null);
         return; // CulqiCheckout mounts and auto-opens
       }
@@ -2829,8 +2859,10 @@ function PaymentMethodSelector({
           </span>
           <span className="min-w-0 space-y-1">
             <span className="block text-sm font-semibold">Tarjeta</span>
-            <span className="block text-[11px] font-semibold uppercase tracking-wide text-white/45">
-              DISPONIBLE PRONTO
+            <span className="block text-xs font-medium text-white/60">
+              {culqiAvailable
+                ? "Pago online seguro con tarjeta vía Culqi."
+                : "Disponible pronto."}
             </span>
           </span>
         </button>

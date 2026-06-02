@@ -2,28 +2,66 @@
 
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
+import {
+  buildCulqiCheckoutConfig,
+  extractCulqiTokenId,
+  extractCulqiTokenInstallments,
+  getCulqiErrorMessage,
+  shouldPollAfterCulqiClose,
+  type CulqiCloseEvent,
+} from "../../lib/culqiCheckout";
 
 declare global {
   interface Window {
-    Culqi?: new (config: { publicKey: string }) => CulqiInstance;
+    CulqiCheckout?: new (
+      publicKey: string,
+      config: Record<string, unknown>,
+    ) => CulqiInstance;
   }
 }
 
+type CulqiToken = {
+  id?: string;
+  type?: string;
+  email?: string;
+  metadata?: {
+    installments?: number;
+  };
+};
+
+type CulqiError = {
+  user_message?: string;
+  merchant_message?: string;
+  message?: string;
+};
+
 interface CulqiInstance {
-  open: (opts: { order: string }) => void;
-  options: (opts: { onClose?: () => void }) => void;
+  open: () => void;
+  close: () => void;
+  token: CulqiToken | null;
+  order: { id?: string } | null;
+  error: CulqiError | null;
+  closeEvent: CulqiCloseEvent | null;
+  culqi: () => void;
+  closeCheckout: () => void;
 }
 
 export type CulqiCheckoutProps = {
   orderId: string;
   paymentId: string;
   publicKey: string;
+  amount: number;
+  currencyCode: string;
+  customerEmail?: string | null;
+  title?: string;
   onSuccess: (orderId: string) => void;
-  onClose: () => void;
-  /** Default true — opens the Culqi modal automatically on mount */
+  onClose: (state: { awaitingPayment: boolean }) => void;
   autoOpen?: boolean;
 };
 
+const CULQI_RSA_ID = process.env.NEXT_PUBLIC_CULQI_RSA_ID ?? "";
+const CULQI_RSA_PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_CULQI_RSA_PUBLIC_KEY ?? "";
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 5;
 
@@ -31,58 +69,29 @@ export default function CulqiCheckout({
   orderId,
   paymentId,
   publicKey,
+  amount,
+  currencyCode,
+  customerEmail,
+  title = "BabyClub",
   onSuccess,
   onClose,
   autoOpen = true,
 }: CulqiCheckoutProps) {
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [processingCharge, setProcessingCharge] = useState(false);
   const culqiRef = useRef<CulqiInstance | null>(null);
-  // Track whether we have already kicked off a poll cycle so we don't double-fire
   const pollingRef = useRef(false);
 
-  // Initialise the Culqi SDK and (optionally) open the modal automatically
-  useEffect(() => {
-    if (!scriptLoaded) return;
-    if (!window.Culqi) return;
-
-    const instance = new window.Culqi({ publicKey });
-    culqiRef.current = instance;
-
-    instance.options({
-      onClose: () => {
-        setModalOpen(false);
-        if (!pollingRef.current) {
-          pollingRef.current = true;
-          pollPaymentStatus();
-        }
-      },
-    });
-
-    if (autoOpen) {
-      setModalOpen(true);
-      instance.open({ order: orderId });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptLoaded]);
-
-  /** Manually open the Culqi modal (for external callers) */
-  function open() {
-    if (!culqiRef.current) return;
-    setModalOpen(true);
-    culqiRef.current.open({ order: orderId });
-  }
-
-  /**
-   * Poll GET /api/payments/receipt?payment_id={paymentId} up to MAX_POLL_ATTEMPTS
-   * times (every POLL_INTERVAL_MS ms). Calls onSuccess if status is 'paid',
-   * otherwise calls onClose.
-   */
   async function pollPaymentStatus() {
+    if (pollingRef.current) return;
+    pollingRef.current = true;
+
     for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
       try {
         const res = await fetch(
-          `/api/payments/receipt?payment_id=${encodeURIComponent(paymentId)}`
+          `/api/payments/receipt?payment_id=${encodeURIComponent(paymentId)}`,
         );
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -94,7 +103,7 @@ export default function CulqiCheckout({
           }
         }
       } catch {
-        // network error — keep retrying
+        // keep retrying
       }
 
       if (attempt < MAX_POLL_ATTEMPTS) {
@@ -102,20 +111,139 @@ export default function CulqiCheckout({
       }
     }
 
-    // Exhausted all attempts without a 'paid' status
     pollingRef.current = false;
-    onClose();
+    onClose({ awaitingPayment: true });
+  }
+
+  async function handleToken(token: CulqiToken | null) {
+    const tokenId = extractCulqiTokenId(token);
+    if (!tokenId) {
+      setCheckoutError("Culqi no devolvió un token válido para procesar el pago.");
+      return;
+    }
+
+    setProcessingCharge(true);
+    setCheckoutError(null);
+    setModalOpen(false);
+
+    try {
+      const res = await fetch("/api/payments/culqi/charge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          payment_id: paymentId,
+          token_id: tokenId,
+          email: token?.email || customerEmail || undefined,
+          installments: extractCulqiTokenInstallments(token),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success !== true) {
+        setCheckoutError(
+          typeof data?.error === "string"
+            ? data.error
+            : "No se pudo procesar el cargo en Culqi.",
+        );
+        return;
+      }
+
+      if (data?.status === "paid") {
+        onSuccess(orderId);
+        return;
+      }
+
+      await pollPaymentStatus();
+    } catch (error: any) {
+      setCheckoutError(error?.message || "No se pudo procesar el cargo en Culqi.");
+    } finally {
+      setProcessingCharge(false);
+    }
+  }
+
+  async function handleCulqiAction() {
+    const instance = culqiRef.current;
+    if (!instance) return;
+
+    if (instance.token) {
+      instance.close();
+      await handleToken(instance.token);
+      return;
+    }
+
+    if (instance.order) {
+      instance.close();
+      setCheckoutError(null);
+      setModalOpen(false);
+      await pollPaymentStatus();
+      return;
+    }
+
+    if (instance.error) {
+      setModalOpen(false);
+      setCheckoutError(getCulqiErrorMessage(instance.error));
+    }
+  }
+
+  function handleCheckoutClose() {
+    const instance = culqiRef.current;
+    const awaitingPayment = shouldPollAfterCulqiClose(instance?.closeEvent);
+    setModalOpen(false);
+
+    if (awaitingPayment) {
+      void pollPaymentStatus();
+      return;
+    }
+
+    onClose({ awaitingPayment: false });
+  }
+
+  useEffect(() => {
+    if (!scriptLoaded) return;
+    if (!window.CulqiCheckout) return;
+
+    const config = buildCulqiCheckoutConfig({
+      orderId,
+      amount,
+      currencyCode,
+      customerEmail,
+      title,
+      rsaId: CULQI_RSA_ID,
+      rsaPublicKey: CULQI_RSA_PUBLIC_KEY,
+    });
+
+    const instance = new window.CulqiCheckout(publicKey, config);
+    instance.culqi = () => {
+      void handleCulqiAction();
+    };
+    instance.closeCheckout = () => {
+      handleCheckoutClose();
+    };
+    culqiRef.current = instance;
+
+    if (autoOpen) {
+      setCheckoutError(null);
+      setModalOpen(true);
+      instance.open();
+    } else {
+      setModalOpen(false);
+    }
+  }, [amount, autoOpen, currencyCode, customerEmail, orderId, publicKey, title]);
+
+  function open() {
+    if (!culqiRef.current) return;
+    setCheckoutError(null);
+    setModalOpen(true);
+    culqiRef.current.open();
   }
 
   return (
     <>
       <Script
-        src="https://checkout.culqi.com/js/v4"
+        src="https://js.culqi.com/checkout-js"
         strategy="afterInteractive"
         onLoad={() => setScriptLoaded(true)}
       />
 
-      {/* Loading state — shown while Culqi.js hasn't finished loading */}
       {!scriptLoaded && (
         <div className="flex flex-col items-center gap-3 py-6">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-[#e91e63]" />
@@ -123,20 +251,27 @@ export default function CulqiCheckout({
         </div>
       )}
 
-      {/* Processing state — shown while the Culqi modal is open */}
-      {scriptLoaded && modalOpen && (
+      {scriptLoaded && (modalOpen || processingCharge) && (
         <div className="flex flex-col items-center gap-3 py-6">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-[#e91e63]" />
-          <p className="text-sm font-semibold text-white">Procesando pago...</p>
+          <p className="text-sm font-semibold text-white">
+            {processingCharge ? "Procesando cargo..." : "Procesando pago..."}
+          </p>
           <p className="text-xs text-white/60">
-            Completa el pago en la ventana de Culqi.
+            {processingCharge
+              ? "Estamos confirmando tu pago con Culqi."
+              : "Completa el pago en la ventana de Culqi."}
           </p>
         </div>
       )}
 
-      {/* Ready state — script loaded but modal is closed; offer manual re-open */}
-      {scriptLoaded && !modalOpen && (
+      {scriptLoaded && !modalOpen && !processingCharge && (
         <div className="flex flex-col items-center gap-3 py-4">
+          {checkoutError && (
+            <div className="w-full rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-100">
+              {checkoutError}
+            </div>
+          )}
           <p className="text-xs text-white/60">
             Si el modal no se abrió automáticamente, haz click abajo.
           </p>

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildCulqiChargePayload,
   buildReceiptNumber,
   buildWebhookEventKey,
   culqiGateway,
@@ -41,6 +42,7 @@ describe("culqi payment helpers", () => {
 
   it("normaliza estados de pago", () => {
     expect(normalizeCulqiStatus("paid")).toBe("paid");
+    expect(normalizeCulqiStatus("Exitosa")).toBe("paid");
     expect(normalizeCulqiStatus("refunded")).toBe("refunded");
     expect(normalizeCulqiStatus("declined")).toBe("failed");
     expect(normalizeCulqiStatus("expired")).toBe("expired");
@@ -86,6 +88,39 @@ describe("culqi payment helpers", () => {
       new Date("2026-02-07T12:00:00.000Z"),
     );
     expect(value).toMatch(/^BC-20260207-/);
+  });
+
+  it("arma payload de cargo con antifraude e installments opcionales", () => {
+    const payload = buildCulqiChargePayload({
+      amount: 2500,
+      currencyCode: "PEN",
+      email: "ana@test.com",
+      sourceId: "tkn_test_123",
+      description: "Pago BabyClub",
+      installments: 3,
+      metadata: { payment_id: "pay_1" },
+      antifraudDetails: {
+        firstName: "Ana",
+        lastName: "Torres",
+        countryCode: "PE",
+        phoneNumber: "999999999",
+      },
+    });
+
+    expect(payload).toMatchObject({
+      amount: 2500,
+      currency_code: "PEN",
+      email: "ana@test.com",
+      source_id: "tkn_test_123",
+      installments: 3,
+      metadata: { payment_id: "pay_1" },
+      antifraud_details: {
+        first_name: "Ana",
+        last_name: "Torres",
+        country_code: "PE",
+        phone_number: "999999999",
+      },
+    });
   });
 
   it("expone gateway Culqi con parseo normalizado de webhook", () => {

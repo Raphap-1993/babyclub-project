@@ -203,6 +203,14 @@ function CompraContent({
   const [ticketLegalAccepted, setTicketLegalAccepted] = useState(false);
   const [culqiOrderId, setCulqiOrderId] = useState<string | null>(null);
   const [culqiPaymentId, setCulqiPaymentId] = useState<string | null>(null);
+  const [culqiAmount, setCulqiAmount] = useState<number | null>(null);
+  const [culqiCurrencyCode, setCulqiCurrencyCode] = useState<string>("PEN");
+  const [culqiCustomerEmail, setCulqiCustomerEmail] = useState<string | null>(
+    null,
+  );
+  const [culqiPendingMessage, setCulqiPendingMessage] = useState<string | null>(
+    null,
+  );
   const [culqiFlowType, setCulqiFlowType] = useState<"mesa" | "ticket" | null>(
     null,
   );
@@ -871,6 +879,10 @@ function CompraContent({
       setModalError("Sube tu comprobante de pago para continuar.");
       return;
     }
+    if (useCulqi && !form.email.trim()) {
+      setModalError("Ingresa un email para continuar con el pago online.");
+      return;
+    }
     if (
       !selected ||
       !validateDocument(form.doc_type as DocumentType, form.document) ||
@@ -930,6 +942,10 @@ function CompraContent({
           setMesaReservationId(data.reservationId);
           setCulqiOrderId(orderData.orderId);
           setCulqiPaymentId(orderData.paymentId);
+          setCulqiAmount(orderData.amount);
+          setCulqiCurrencyCode(orderData.currencyCode || "PEN");
+          setCulqiCustomerEmail(form.email || null);
+          setCulqiPendingMessage(null);
           setCulqiFlowType("mesa");
           setShowSummary(false);
         }
@@ -1082,6 +1098,10 @@ function CompraContent({
       setTicketModalError("Sube tu comprobante de pago para continuar.");
       return;
     }
+    if (useCulqi && !ticketForm.email.trim()) {
+      setTicketModalError("Ingresa un email para continuar con el pago online.");
+      return;
+    }
     setTicketLoading(true);
     try {
       const payload: Record<string, unknown> = {
@@ -1130,6 +1150,10 @@ function CompraContent({
           setTicketReservationId(data.reservationId);
           setCulqiOrderId(orderData.orderId);
           setCulqiPaymentId(orderData.paymentId);
+          setCulqiAmount(orderData.amount);
+          setCulqiCurrencyCode(orderData.currencyCode || "PEN");
+          setCulqiCustomerEmail(ticketForm.email || null);
+          setCulqiPendingMessage(null);
           setCulqiFlowType("ticket");
           setShowTicketSummary(false);
         }
@@ -2645,26 +2669,69 @@ function CompraContent({
         </div>
       )}
       {culqiOrderId && culqiPaymentId && culqiEnabled && (
-        <CulqiCheckout
-          publicKey={culqiPublicKey}
-          orderId={culqiOrderId}
-          paymentId={culqiPaymentId}
-          onSuccess={() => {
-            setCulqiOrderId(null);
-            setCulqiPaymentId(null);
-            if (culqiFlowType === "mesa") {
-              setShowReservationConfirmation(true);
-            } else {
-              setShowTicketConfirmation(true);
-            }
-            setCulqiFlowType(null);
-          }}
-          onClose={() => {
-            setCulqiOrderId(null);
-            setCulqiPaymentId(null);
-            setCulqiFlowType(null);
-          }}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6">
+          <div className="w-full max-w-sm space-y-4 rounded-3xl border border-white/15 bg-gradient-to-b from-[#111111] to-[#050505] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.6)] text-white">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+              Pago online
+            </p>
+            <h3 className="text-xl font-semibold">Completa tu pago</h3>
+            {culqiPendingMessage && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                {culqiPendingMessage}
+              </div>
+            )}
+            <CulqiCheckout
+              publicKey={culqiPublicKey}
+              orderId={culqiOrderId}
+              paymentId={culqiPaymentId}
+              amount={culqiAmount ?? 0}
+              currencyCode={culqiCurrencyCode}
+              customerEmail={culqiCustomerEmail}
+              title={
+                culqiFlowType === "mesa" ? "Reserva BabyClub" : "Entrada BabyClub"
+              }
+              autoOpen={!culqiPendingMessage}
+              onSuccess={() => {
+                setCulqiOrderId(null);
+                setCulqiPaymentId(null);
+                setCulqiAmount(null);
+                setCulqiCurrencyCode("PEN");
+                setCulqiCustomerEmail(null);
+                setCulqiPendingMessage(null);
+                if (culqiFlowType === "mesa") {
+                  setShowReservationConfirmation(true);
+                } else {
+                  setShowTicketConfirmation(true);
+                }
+                setCulqiFlowType(null);
+              }}
+              onClose={({ awaitingPayment }) => {
+                setCulqiPendingMessage(
+                  awaitingPayment
+                    ? culqiFlowType === "mesa"
+                      ? "Tu reserva está pendiente de pago. Completa el pago para confirmarla."
+                      : "Tu entrada está pendiente de pago. Completa el pago para activar tu QR."
+                    : null,
+                );
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setCulqiOrderId(null);
+                setCulqiPaymentId(null);
+                setCulqiAmount(null);
+                setCulqiCurrencyCode("PEN");
+                setCulqiCustomerEmail(null);
+                setCulqiPendingMessage(null);
+                setCulqiFlowType(null);
+              }}
+              className="w-full rounded-full px-4 py-2 text-xs font-semibold btn-smoke-outline transition"
+            >
+              Cancelar y volver
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );
@@ -2835,8 +2902,10 @@ function PaymentMethodSelector({
           </span>
           <span className="min-w-0 space-y-1">
             <span className="block text-sm font-semibold">Tarjeta</span>
-            <span className="block text-[11px] font-semibold uppercase tracking-wide text-white/45">
-              DISPONIBLE PRONTO
+            <span className="block text-xs font-medium text-white/60">
+              {culqiAvailable
+                ? "Pago online seguro con tarjeta vía Culqi."
+                : "Disponible pronto."}
             </span>
           </span>
         </button>

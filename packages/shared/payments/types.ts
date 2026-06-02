@@ -32,6 +32,29 @@ export type CreateGatewayOrderResult = {
   raw: unknown;
 };
 
+export type CreateGatewayChargeInput = {
+  amount: number;
+  currencyCode?: string;
+  email: string;
+  sourceId: string;
+  description?: string;
+  installments?: number | null;
+  metadata?: Record<string, unknown>;
+  antifraudDetails?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    address?: string | null;
+    addressCity?: string | null;
+    countryCode?: string | null;
+    phoneNumber?: string | null;
+  };
+};
+
+export type CreateGatewayChargeResult = {
+  chargeId: string;
+  raw: unknown;
+};
+
 export type CreateGatewayRefundInput = {
   chargeId: string;
   amount: number;
@@ -72,6 +95,9 @@ export type PaymentGateway = {
   createOrder(
     input: CreateGatewayOrderInput,
   ): Promise<CreateGatewayOrderResult>;
+  createCharge(
+    input: CreateGatewayChargeInput,
+  ): Promise<CreateGatewayChargeResult>;
   createRefund(
     input: CreateGatewayRefundInput,
   ): Promise<CreateGatewayRefundResult>;

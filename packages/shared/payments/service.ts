@@ -1,3 +1,4 @@
+import { normalizeCulqiStatus } from "./culqi";
 import type { PaymentSupabaseClient } from "./supabase";
 import { PaymentServiceError } from "./errors";
 import {
@@ -22,6 +23,12 @@ type ProcessPaymentWebhookInput = {
   };
 };
 
+type CreatePaymentChargeInput = {
+  supabase: PaymentSupabaseClient;
+  providerName: string;
+  body: any;
+};
+
 type RefundPaymentInput = {
   supabase: PaymentSupabaseClient;
   providerName: string;
@@ -39,6 +46,139 @@ type PaymentReceiptInput = {
 
 function readMetadataString(metadata: Record<string, unknown>, key: string) {
   return typeof metadata[key] === "string" ? (metadata[key] as string) : null;
+}
+
+function readPositiveInteger(value: unknown) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function ensurePaymentReceipt(
+  supabase: PaymentSupabaseClient,
+  paymentId: string | null,
+  seed: string | null,
+) {
+  if (!paymentId) return;
+  const receiptNumber = buildReceiptNumber(seed || paymentId);
+  await supabase
+    .from("payments")
+    .update({
+      receipt_number: receiptNumber,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", paymentId)
+    .is("receipt_number", null);
+}
+
+async function syncBusinessPaymentStatus(input: {
+  supabase: PaymentSupabaseClient;
+  reservationId: string | null;
+  ticketId: string | null;
+  status:
+    | "pending"
+    | "paid"
+    | "failed"
+    | "refunded"
+    | "expired"
+    | "canceled";
+}) {
+  const { supabase, reservationId, ticketId, status } = input;
+  const now = new Date().toISOString();
+
+  if (status === "paid" && reservationId) {
+    const updateReservation = await supabase
+      .from("table_reservations")
+      .update({
+        status: "approved",
+        updated_at: now,
+      })
+      .eq("id", reservationId);
+
+    if (updateReservation.error) {
+      throw new Error(updateReservation.error.message);
+    }
+  }
+
+  if (status === "paid" && ticketId) {
+    const updateTicket = await supabase
+      .from("tickets")
+      .update({
+        payment_status: "paid",
+        is_active: true,
+        updated_at: now,
+      })
+      .eq("id", ticketId);
+
+    if (updateTicket.error) {
+      throw new Error(updateTicket.error.message);
+    }
+  }
+
+  if (
+    (status === "failed" || status === "expired" || status === "canceled") &&
+    ticketId
+  ) {
+    await supabase
+      .from("tickets")
+      .update({
+        payment_status: "failed",
+        updated_at: now,
+      })
+      .eq("id", ticketId);
+  }
+}
+
+async function patchPaymentStatus(input: {
+  supabase: PaymentSupabaseClient;
+  paymentId: string;
+  orderId: string | null;
+  reservationId: string | null;
+  ticketId: string | null;
+  status:
+    | "pending"
+    | "paid"
+    | "failed"
+    | "refunded"
+    | "expired"
+    | "canceled";
+  patch: Record<string, unknown>;
+  existingReceiptNumber?: string | null;
+}) {
+  const { supabase, paymentId, orderId, reservationId, ticketId, status, patch } =
+    input;
+  const now = new Date().toISOString();
+  const paymentPatch: Record<string, unknown> = {
+    ...patch,
+    status,
+    updated_at: now,
+  };
+
+  if (status === "paid" && !paymentPatch.paid_at) {
+    paymentPatch.paid_at = now;
+  }
+  if (status === "refunded" && !paymentPatch.refunded_at) {
+    paymentPatch.refunded_at = now;
+  }
+
+  const updateRes = await supabase
+    .from("payments")
+    .update(paymentPatch)
+    .eq("id", paymentId);
+
+  if (updateRes.error) {
+    throw new Error(updateRes.error.message);
+  }
+
+  await syncBusinessPaymentStatus({
+    supabase,
+    reservationId,
+    ticketId,
+    status,
+  });
+
+  if (status === "paid" && !input.existingReceiptNumber) {
+    await ensurePaymentReceipt(supabase, paymentId, orderId || paymentId);
+  }
 }
 
 async function resolvePaymentSubject(
@@ -285,6 +425,141 @@ export async function createPaymentOrder({
   };
 }
 
+export async function createPaymentCharge({
+  supabase,
+  providerName,
+  body,
+}: CreatePaymentChargeInput) {
+  const gateway = requireEnabledPaymentGateway(providerName);
+  const paymentId =
+    typeof body?.payment_id === "string" ? body.payment_id.trim() : "";
+  const tokenId = typeof body?.token_id === "string" ? body.token_id.trim() : "";
+  const emailBody = typeof body?.email === "string" ? body.email.trim() : "";
+  const installments = readPositiveInteger(body?.installments);
+
+  if (!paymentId) {
+    throw new PaymentServiceError("payment_id es requerido", 400);
+  }
+  if (!tokenId) {
+    throw new PaymentServiceError("token_id es requerido", 400);
+  }
+
+  const { data: payment, error: paymentError } = await supabase
+    .from("payments")
+    .select(
+      "id,provider,status,amount,currency_code,customer_email,customer_name,customer_phone,reservation_id,ticket_id,order_id,charge_id,receipt_number,event_id,metadata",
+    )
+    .eq("id", paymentId)
+    .limit(1)
+    .maybeSingle();
+
+  if (paymentError) {
+    throw new PaymentServiceError(paymentError.message, 500);
+  }
+  if (!payment) {
+    throw new PaymentServiceError("Pago no encontrado", 404);
+  }
+  if (payment.provider !== gateway.provider) {
+    throw new PaymentServiceError(
+      `El pago pertenece a ${payment.provider} y no a ${gateway.provider}`,
+      409,
+      "payment_provider_mismatch",
+    );
+  }
+  if (payment.status === "paid" && payment.charge_id) {
+    return {
+      success: true,
+      existing: true,
+      provider: gateway.provider,
+      paymentId: payment.id,
+      orderId: payment.order_id,
+      chargeId: payment.charge_id,
+      status: payment.status,
+    };
+  }
+  if (payment.status === "refunded") {
+    throw new PaymentServiceError(
+      "El pago ya fue devuelto y no puede volver a cobrarse",
+      409,
+    );
+  }
+
+  const email = emailBody || payment.customer_email || "no-email@babyclub.local";
+  const metadata =
+    payment.metadata && typeof payment.metadata === "object" ? payment.metadata : {};
+  const orderNumber = readMetadataString(
+    metadata as Record<string, unknown>,
+    "order_number",
+  );
+  const description =
+    orderNumber || payment.order_id
+      ? `Pago BabyClub ${orderNumber || payment.order_id}`
+      : "Pago BabyClub";
+  const names = splitCustomerName(payment.customer_name || "");
+
+  let chargeResult: Awaited<ReturnType<typeof gateway.createCharge>>;
+  try {
+    chargeResult = await gateway.createCharge({
+      amount: payment.amount,
+      currencyCode: payment.currency_code || "PEN",
+      email,
+      sourceId: tokenId,
+      description,
+      installments,
+      metadata: {
+        ...(metadata as Record<string, unknown>),
+        payment_id: payment.id,
+        reservation_id: payment.reservation_id,
+        ticket_id: payment.ticket_id,
+        order_id: payment.order_id,
+        event_id: payment.event_id,
+      },
+      antifraudDetails: {
+        firstName: names.firstName,
+        lastName: names.lastName,
+        countryCode: "PE",
+        phoneNumber: payment.customer_phone || null,
+      },
+    });
+  } catch (error: any) {
+    throw new PaymentServiceError(
+      error?.message || `No se pudo crear cargo en ${gateway.provider}`,
+      error instanceof PaymentServiceError ? error.status : 502,
+      error instanceof PaymentServiceError ? error.code : undefined,
+    );
+  }
+
+  const status = normalizeCulqiStatus(
+    (chargeResult.raw as any)?.state ||
+      (chargeResult.raw as any)?.response_code ||
+      "paid",
+  );
+
+  await patchPaymentStatus({
+    supabase,
+    paymentId: payment.id,
+    orderId: payment.order_id || null,
+    reservationId: payment.reservation_id || null,
+    ticketId: payment.ticket_id || null,
+    status,
+    existingReceiptNumber: payment.receipt_number || null,
+    patch: {
+      charge_id: chargeResult.chargeId,
+      customer_email: email,
+      provider_payload: chargeResult.raw,
+    },
+  });
+
+  return {
+    success: true,
+    provider: gateway.provider,
+    paymentId: payment.id,
+    orderId: payment.order_id,
+    chargeId: chargeResult.chargeId,
+    status,
+  };
+}
+
 export async function processPaymentWebhook({
   supabase,
   providerName,
@@ -336,7 +611,8 @@ export async function processPaymentWebhook({
         .limit(1)
         .maybeSingle();
 
-      let paymentId: string | null = payment?.id || null;
+      const existingPaymentId = payment?.id || null;
+      let paymentId: string | null = existingPaymentId;
 
       if (!paymentId) {
         const orphanInsert = await supabase
@@ -366,8 +642,15 @@ export async function processPaymentWebhook({
 
         paymentId = orphanInsert.data?.id || null;
       } else {
-        const patch: Record<string, unknown> = {
+        await patchPaymentStatus({
+          supabase,
+          paymentId,
+          orderId: parsed.orderId,
+          reservationId: payment?.reservation_id || null,
+          ticketId: payment?.ticket_id || null,
           status: parsed.status,
+          existingReceiptNumber: payment?.receipt_number || null,
+          patch: {
           charge_id: parsed.chargeId || null,
           amount: parsed.amount ?? 0,
           currency_code: parsed.currencyCode || "PEN",
@@ -376,20 +659,8 @@ export async function processPaymentWebhook({
           customer_phone: parsed.customerPhone,
           metadata: parsed.metadata,
           provider_payload: parsed.raw,
-          updated_at: new Date().toISOString(),
-        };
-
-        if (parsed.status === "paid") patch.paid_at = new Date().toISOString();
-        if (parsed.status === "refunded")
-          patch.refunded_at = new Date().toISOString();
-
-        const updateRes = await supabase
-          .from("payments")
-          .update(patch)
-          .eq("id", paymentId);
-        if (updateRes.error) {
-          throw new Error(updateRes.error.message);
-        }
+          },
+        });
       }
 
       const reservationId =
@@ -397,61 +668,17 @@ export async function processPaymentWebhook({
         readMetadataString(parsed.metadata, "reservation_id");
       const ticketId =
         payment?.ticket_id || readMetadataString(parsed.metadata, "ticket_id");
-
-      if (parsed.status === "paid" && reservationId) {
-        const updateReservation = await supabase
-          .from("table_reservations")
-          .update({
-            status: "approved",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", reservationId);
-
-        if (updateReservation.error) {
-          throw new Error(updateReservation.error.message);
-        }
-      }
-
-      if (parsed.status === "paid" && ticketId) {
-        const updateTicket = await supabase
-          .from("tickets")
-          .update({
-            payment_status: "paid",
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", ticketId);
-
-        if (updateTicket.error) {
-          throw new Error(updateTicket.error.message);
-        }
-      }
-
-      if (
-        (parsed.status === "failed" ||
-          parsed.status === "expired" ||
-          parsed.status === "canceled") &&
-        ticketId
-      ) {
-        await supabase
-          .from("tickets")
-          .update({
-            payment_status: "failed",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", ticketId);
+      if (!existingPaymentId && paymentId && (reservationId || ticketId)) {
+        await syncBusinessPaymentStatus({
+          supabase,
+          reservationId: reservationId || null,
+          ticketId: ticketId || null,
+          status: parsed.status,
+        });
       }
 
       if (parsed.status === "paid" && paymentId && !payment?.receipt_number) {
-        const receiptNumber = buildReceiptNumber(parsed.orderId);
-        await supabase
-          .from("payments")
-          .update({
-            receipt_number: receiptNumber,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", paymentId)
-          .is("receipt_number", null);
+        await ensurePaymentReceipt(supabase, paymentId, parsed.orderId);
       }
     }
 
