@@ -181,9 +181,6 @@ function CompraContent({
   } | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showTicketSummary, setShowTicketSummary] = useState(false);
-  const [ticketConflictWarning, setTicketConflictWarning] = useState<{
-    total: number;
-  } | null>(null);
   const [showTicketConfirmation, setShowTicketConfirmation] = useState(false);
   const [ticketConfirmationState, setTicketConfirmationState] =
     useState<TicketPurchaseConfirmationState | null>(null);
@@ -823,7 +820,6 @@ function CompraContent({
     setSuccessCodes(null);
     setCopyFeedback("idle");
     setReservationSubmitted(false);
-    setTicketConflictWarning(null);
 
     if (mesaEventOptions.length > 0 && !selectedEventId) {
       setError("Selecciona el evento para esta reserva");
@@ -850,22 +846,29 @@ function CompraContent({
       return;
     }
 
-    // Verificar si el cliente ya tiene entradas compradas para este evento
+    // Verificar si el comprador ya tiene un QR activo para este evento.
     const eventIdForCheck =
       selectedEventId || tables.find((t) => t.id === selected)?.event_id || "";
     if (eventIdForCheck && form.document) {
       try {
+        const params = new URLSearchParams({
+          event_id: eventIdForCheck,
+          doc_type: String(form.doc_type || "dni"),
+          document: form.document.trim(),
+          full_name: mesaFullName,
+          email: form.email || "",
+          phone: form.phone || "",
+        });
         const checkRes = await fetch(
-          `/api/check-ticket-reservation?event_id=${encodeURIComponent(eventIdForCheck)}&document=${encodeURIComponent(form.document.trim().toLowerCase())}`,
+          `/api/check-ticket-reservation?${params.toString()}`,
         );
-        const checkData = await checkRes.json();
-        if (
-          checkData.success &&
-          checkData.has_ticket_reservations &&
-          checkData.total_tickets > 0
-        ) {
-          setTicketConflictWarning({ total: checkData.total_tickets });
-          return; // Mostrar el warning en lugar de continuar
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkData?.success && checkData?.has_active_ticket) {
+          setError(
+            checkData?.conflict_message ||
+              "Esta persona ya tiene un QR activo para este evento.",
+          );
+          return;
         }
       } catch (_) {
         // Si el check falla, continuar igual (no bloquear)
@@ -1953,40 +1956,6 @@ function CompraContent({
                     <p className="text-xs font-semibold text-[#ff9a9a]">
                       {error}
                     </p>
-                  )}
-
-                  {ticketConflictWarning && (
-                    <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-                      <p className="text-sm font-semibold text-amber-300">
-                        Ya tienes {ticketConflictWarning.total} entrada
-                        {ticketConflictWarning.total !== 1 ? "s" : ""} compradas
-                        para este evento
-                      </p>
-                      <p className="text-xs text-amber-200/70">
-                        Si reservas una mesa, puede que estés pagando dos veces
-                        por las mismas entradas. ¿Quieres continuar de todas
-                        formas?
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTicketConflictWarning(null);
-                            setShowSummary(true);
-                          }}
-                          className="flex-1 rounded-full border border-amber-500/40 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/30"
-                        >
-                          Continuar igual
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTicketConflictWarning(null)}
-                          className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
                   )}
                 </div>
 

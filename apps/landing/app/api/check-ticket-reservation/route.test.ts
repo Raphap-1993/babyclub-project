@@ -62,4 +62,50 @@ describe("GET /api/check-ticket-reservation", () => {
       "ya tiene un QR activo para este evento",
     );
   });
+
+  it("mantiene el historial de reservas sin marcar conflicto activo cuando ya no hay QR vigente", async () => {
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: [
+            {
+              id: "reservation-1",
+              friendly_code: "HIST001",
+              ticket_quantity: 2,
+              status: "approved",
+              created_at: "2026-05-01T10:00:00.000Z",
+            },
+            {
+              id: "reservation-2",
+              friendly_code: "HIST002",
+              ticket_quantity: 1,
+              status: "confirmed",
+              created_at: "2026-05-02T10:00:00.000Z",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [{ data: [], error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { GET } = await import("./route");
+    const req = {
+      nextUrl: new URL(
+        "http://localhost/api/check-ticket-reservation?event_id=event-1&doc_type=dni&document=12345678&full_name=Ana%20Perez&email=ana%40example.com&phone=999999999",
+      ),
+    };
+
+    const res = await GET(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.has_ticket_reservations).toBe(true);
+    expect(payload.total_tickets).toBe(3);
+    expect(payload.has_active_ticket).toBe(false);
+    expect(payload.conflict).toBeNull();
+    expect(payload.conflict_message).toBeNull();
+  });
 });

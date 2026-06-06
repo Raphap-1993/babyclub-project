@@ -15,6 +15,10 @@ import {
   evaluateEventSales,
   isMissingEventSalesColumnsError,
 } from "shared/eventSales";
+import {
+  buildEventTicketConflictMessage,
+  findActiveEventTicketConflict,
+} from "shared/eventTicketIdentity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -264,6 +268,34 @@ export async function POST(req: NextRequest) {
           sale_status: saleDecision.sale_status,
           sale_block_reason: saleDecision.block_reason,
           sale_public_message: saleDecision.public_message,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  if (effectiveEventId) {
+    const existingConflict = await findActiveEventTicketConflict(
+      supabase as any,
+      {
+        eventId: effectiveEventId,
+        fullName: full_name,
+        email: email || null,
+        phone: phone || null,
+        docType,
+        document,
+        dni: docType === "dni" ? document : null,
+      },
+    );
+
+    if (existingConflict?.ticketId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: buildEventTicketConflictMessage(existingConflict.reason),
+          code: "duplicate_event_ticket",
+          match_reason: existingConflict.reason,
+          ticketId: existingConflict.ticketId,
         },
         { status: 409 },
       );
