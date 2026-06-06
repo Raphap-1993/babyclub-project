@@ -11,6 +11,7 @@ import {
 const ORIGINAL_ENV = {
   ENABLE_CULQI_PAYMENTS: process.env.ENABLE_CULQI_PAYMENTS,
   CULQI_SECRET_KEY: process.env.CULQI_SECRET_KEY,
+  DISABLE_CULQI_CHECKOUT: process.env.DISABLE_CULQI_CHECKOUT,
 };
 
 function restoreEnv(name: keyof typeof ORIGINAL_ENV) {
@@ -26,11 +27,13 @@ describe("culqi payment helpers", () => {
   afterEach(() => {
     restoreEnv("ENABLE_CULQI_PAYMENTS");
     restoreEnv("CULQI_SECRET_KEY");
+    restoreEnv("DISABLE_CULQI_CHECKOUT");
   });
 
   it("solo habilita el gateway cuando flag y secret key estan configurados", () => {
     delete process.env.ENABLE_CULQI_PAYMENTS;
     delete process.env.CULQI_SECRET_KEY;
+    delete process.env.DISABLE_CULQI_CHECKOUT;
     expect(culqiGateway.isEnabled()).toBe(false);
 
     process.env.ENABLE_CULQI_PAYMENTS = "true";
@@ -38,6 +41,14 @@ describe("culqi payment helpers", () => {
 
     process.env.CULQI_SECRET_KEY = "sk_test_ready";
     expect(culqiGateway.isEnabled()).toBe(true);
+  });
+
+  it("mantiene Culqi deshabilitado cuando el kill switch esta activo", () => {
+    process.env.ENABLE_CULQI_PAYMENTS = "true";
+    process.env.CULQI_SECRET_KEY = "sk_test_ready";
+    process.env.DISABLE_CULQI_CHECKOUT = "true";
+
+    expect(culqiGateway.isEnabled()).toBe(false);
   });
 
   it("normaliza estados de pago", () => {

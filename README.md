@@ -63,11 +63,18 @@ pnpm db:check:backoffice
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `ENABLE_CULQI_PAYMENTS` (`true|false`)
+- `DISABLE_CULQI_CHECKOUT` (`true|false`) fuerza modo manual aunque Culqi tenga keys
 
 Para el release actual sin pagos online:
 
 ```bash
 ENABLE_CULQI_PAYMENTS=false
+```
+
+Para forzar checkout manual aun con credenciales Culqi cargadas:
+
+```bash
+DISABLE_CULQI_CHECKOUT=true
 ```
 
 ## Lanzamiento de evento (sin pagos online)

@@ -17,8 +17,30 @@ describe("payment services", () => {
   afterEach(() => {
     delete process.env.ENABLE_CULQI_PAYMENTS;
     delete process.env.CULQI_SECRET_KEY;
+    delete process.env.DISABLE_CULQI_CHECKOUT;
     delete process.env.CULQI_WEBHOOK_SECRET;
     vi.unstubAllGlobals();
+  });
+
+  it("rechaza crear orden Culqi cuando el kill switch esta activo", async () => {
+    process.env.DISABLE_CULQI_CHECKOUT = "true";
+    const { supabase } = createSupabaseMock({});
+
+    await expect(
+      createPaymentOrder({
+        supabase: supabase as any,
+        providerName: "culqi",
+        body: {
+          reservation_id: "res_1",
+          amount: 2500,
+          idempotency_key: "idem_disabled_1",
+        },
+      }),
+    ).rejects.toMatchObject<Partial<PaymentServiceError>>({
+      message: "payments_module_disabled",
+      status: 503,
+      code: "payments_module_disabled",
+    });
   });
 
   it("reutiliza la orden existente por idempotency key y proveedor", async () => {

@@ -2807,8 +2807,6 @@ function PaymentMethodSelector({
   const activeClass =
     "border-[#e91e63]/70 bg-[#e91e63]/15 text-white shadow-[0_12px_36px_rgba(233,30,99,0.18)]";
   const idleClass = "border-white/10 bg-[#0b0b0b] text-white hover:bg-white/5";
-  const disabledClass =
-    "cursor-not-allowed border-white/10 bg-white/[0.03] text-white/45";
 
   return (
     <section className="space-y-2 rounded-2xl border border-white/10 bg-[#0a0a0a] p-3">
@@ -2839,33 +2837,24 @@ function PaymentMethodSelector({
           </span>
         </button>
 
-        <button
-          type="button"
-          aria-pressed={value === "culqi"}
-          onClick={() => {
-            if (culqiAvailable) onChange("culqi");
-          }}
-          disabled={!culqiAvailable}
-          className={`${cardBase} ${
-            !culqiAvailable
-              ? disabledClass
-              : value === "culqi"
-                ? activeClass
-                : idleClass
-          }`}
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
-            <CreditCard className="h-4 w-4" />
-          </span>
-          <span className="min-w-0 space-y-1">
-            <span className="block text-sm font-semibold">Tarjeta</span>
-            <span className="block text-xs font-medium text-white/60">
-              {culqiAvailable
-                ? "Pago online seguro con tarjeta vía Culqi."
-                : "Disponible pronto."}
+        {culqiAvailable ? (
+          <button
+            type="button"
+            aria-pressed={value === "culqi"}
+            onClick={() => onChange("culqi")}
+            className={`${cardBase} ${value === "culqi" ? activeClass : idleClass}`}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
+              <CreditCard className="h-4 w-4" />
             </span>
-          </span>
-        </button>
+            <span className="min-w-0 space-y-1">
+              <span className="block text-sm font-semibold">Tarjeta</span>
+              <span className="block text-xs font-medium text-white/60">
+                Pago online seguro con tarjeta vía Culqi.
+              </span>
+            </span>
+          </button>
+        ) : null}
       </div>
     </section>
   );
