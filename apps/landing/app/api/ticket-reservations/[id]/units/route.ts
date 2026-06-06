@@ -124,26 +124,11 @@ function buildEffectiveUnitIdentityState(
 
   return normalizeComparableUnitState(
     {
-      full_name:
-        typeof unit?.full_name === "string" && unit.full_name.trim()
-          ? unit.full_name
-          : (reservation as any)?.full_name || "",
-      doc_type:
-        typeof unit?.doc_type === "string" && unit.doc_type.trim()
-          ? unit.doc_type
-          : (reservation as any)?.doc_type || reservationDocType,
-      document:
-        typeof unit?.document === "string" && unit.document.trim()
-          ? unit.document
-          : (reservation as any)?.document || "",
-      email:
-        typeof unit?.email === "string" && unit.email.trim()
-          ? unit.email
-          : (reservation as any)?.email || "",
-      phone:
-        typeof unit?.phone === "string" && unit.phone.trim()
-          ? unit.phone
-          : (reservation as any)?.phone || "",
+      full_name: (reservation as any)?.full_name || "",
+      doc_type: (reservation as any)?.doc_type || reservationDocType,
+      document: (reservation as any)?.document || "",
+      email: (reservation as any)?.email || "",
+      phone: (reservation as any)?.phone || "",
     },
     reservationDocType,
   );
