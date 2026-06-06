@@ -91,7 +91,8 @@ export type ParsedGatewayWebhook = {
 
 export type PaymentGateway = {
   provider: PaymentProvider;
-  isEnabled(): boolean;
+  isOperationallyEnabled(): boolean;
+  isCheckoutEnabled(): boolean;
   createOrder(
     input: CreateGatewayOrderInput,
   ): Promise<CreateGatewayOrderResult>;

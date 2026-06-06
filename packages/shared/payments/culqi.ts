@@ -36,6 +36,13 @@ function isCulqiCheckoutDisabled() {
   return process.env.DISABLE_CULQI_CHECKOUT?.trim().toLowerCase() === "true";
 }
 
+function isCulqiProviderEnabled() {
+  return (
+    process.env.ENABLE_CULQI_PAYMENTS?.toLowerCase() === "true" &&
+    Boolean(process.env.CULQI_SECRET_KEY?.trim())
+  );
+}
+
 export function buildCulqiOrderPayload(input: CulqiCreateOrderInput) {
   return {
     amount: input.amount,
@@ -303,15 +310,11 @@ function parseCulqiWebhook(
 
 export const culqiGateway: PaymentGateway = {
   provider: "culqi",
-  isEnabled() {
-    if (isCulqiCheckoutDisabled()) {
-      return false;
-    }
-
-    return (
-      process.env.ENABLE_CULQI_PAYMENTS?.toLowerCase() === "true" &&
-      Boolean(process.env.CULQI_SECRET_KEY?.trim())
-    );
+  isOperationallyEnabled() {
+    return isCulqiProviderEnabled();
+  },
+  isCheckoutEnabled() {
+    return isCulqiProviderEnabled() && !isCulqiCheckoutDisabled();
   },
   async createOrder(input: CreateGatewayOrderInput) {
     const raw = await createCulqiOrder(input);

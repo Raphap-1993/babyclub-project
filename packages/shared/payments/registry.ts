@@ -30,7 +30,19 @@ export function getPaymentGateway(providerName: string) {
 
 export function requireEnabledPaymentGateway(providerName: string) {
   const gateway = getPaymentGateway(providerName);
-  if (!gateway.isEnabled()) {
+  if (!gateway.isOperationallyEnabled()) {
+    throw new PaymentServiceError(
+      "payments_module_disabled",
+      503,
+      "payments_module_disabled",
+    );
+  }
+  return gateway;
+}
+
+export function requireCheckoutEnabledPaymentGateway(providerName: string) {
+  const gateway = getPaymentGateway(providerName);
+  if (!gateway.isCheckoutEnabled()) {
     throw new PaymentServiceError(
       "payments_module_disabled",
       503,
@@ -42,6 +54,6 @@ export function requireEnabledPaymentGateway(providerName: string) {
 
 export function hasEnabledPaymentGateway() {
   return Object.values(paymentGatewayRegistry).some((gateway) =>
-    gateway.isEnabled(),
+    gateway.isOperationallyEnabled(),
   );
 }

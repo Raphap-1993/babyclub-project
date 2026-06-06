@@ -3,6 +3,7 @@ import type { PaymentSupabaseClient } from "./supabase";
 import { PaymentServiceError } from "./errors";
 import {
   hasEnabledPaymentGateway,
+  requireCheckoutEnabledPaymentGateway,
   requireEnabledPaymentGateway,
 } from "./registry";
 import { buildReceiptNumber, splitCustomerName } from "./utils";
@@ -279,7 +280,7 @@ export async function createPaymentOrder({
   body,
   idempotencyKey,
 }: CreatePaymentOrderInput) {
-  const gateway = requireEnabledPaymentGateway(providerName);
+  const gateway = requireCheckoutEnabledPaymentGateway(providerName);
   const reservationId =
     typeof body?.reservation_id === "string" ? body.reservation_id.trim() : "";
   const ticketId =
@@ -430,7 +431,7 @@ export async function createPaymentCharge({
   providerName,
   body,
 }: CreatePaymentChargeInput) {
-  const gateway = requireEnabledPaymentGateway(providerName);
+  const gateway = requireCheckoutEnabledPaymentGateway(providerName);
   const paymentId =
     typeof body?.payment_id === "string" ? body.payment_id.trim() : "";
   const tokenId = typeof body?.token_id === "string" ? body.token_id.trim() : "";

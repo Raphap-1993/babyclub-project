@@ -4,6 +4,7 @@ import { PaymentServiceError } from "./errors";
 import {
   createPaymentCharge,
   createPaymentOrder,
+  getPaymentReceipt,
   processPaymentWebhook,
   refundPayment,
 } from "./service";
@@ -273,6 +274,26 @@ describe("payment services", () => {
     );
   });
 
+  it("rechaza crear cargo Culqi cuando el kill switch esta activo", async () => {
+    process.env.DISABLE_CULQI_CHECKOUT = "true";
+    const { supabase } = createSupabaseMock({});
+
+    await expect(
+      createPaymentCharge({
+        supabase: supabase as any,
+        providerName: "culqi",
+        body: {
+          payment_id: "pay_1",
+          token_id: "tkn_test_123",
+        },
+      }),
+    ).rejects.toMatchObject<Partial<PaymentServiceError>>({
+      message: "payments_module_disabled",
+      status: 503,
+      code: "payments_module_disabled",
+    });
+  });
+
   it("reutiliza un cargo ya pagado sin volver a llamar a Culqi", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -350,5 +371,182 @@ describe("payment services", () => {
       status: 409,
       code: "payment_provider_mismatch",
     });
+  });
+
+  it("procesa webhook Culqi aunque el kill switch de checkout este activo", async () => {
+    process.env.DISABLE_CULQI_CHECKOUT = "true";
+
+    const { supabase, calls } = createSupabaseMock({
+      "payment_webhook_events.insert": [
+        {
+          data: { id: "evt_row_1" },
+          error: null,
+        },
+      ],
+      "payments.select": [
+        {
+          data: {
+            id: "pay_1",
+            reservation_id: null,
+            ticket_id: null,
+            receipt_number: "BC-20260606-EXISTING1",
+          },
+          error: null,
+        },
+      ],
+      "payments.update": [{ data: null, error: null }],
+      "payment_webhook_events.update": [
+        { data: null, error: null },
+      ],
+    });
+
+    const response = await processPaymentWebhook({
+      supabase: supabase as any,
+      providerName: "culqi",
+      rawBody: JSON.stringify({
+        id: "evt_live_1",
+        event_name: "order.status.changed",
+        data: {
+          object: {
+            id: "ord_live_123",
+            status: "paid",
+            amount: 2500,
+            currency_code: "PEN",
+            client_details: {
+              first_name: "Ana",
+              last_name: "Torres",
+              email: "ana@demo.com",
+              phone_number: "999999999",
+            },
+            metadata: { reservation_id: "res_1" },
+          },
+        },
+      }),
+      headers: {
+        get() {
+          return null;
+        },
+      },
+    });
+
+    expect(response).toMatchObject({
+      success: true,
+      provider: "culqi",
+      orderId: "ord_live_123",
+      status: "paid",
+    });
+    expect(
+      calls.filter((call) => call.table === "payment_webhook_events"),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ op: "insert" }),
+        expect.objectContaining({ op: "update" }),
+      ]),
+    );
+  });
+
+  it("obtiene recibo existente aunque el kill switch de checkout este activo", async () => {
+    process.env.DISABLE_CULQI_CHECKOUT = "true";
+
+    const { supabase } = createSupabaseMock({
+      "payments.select": [
+        {
+          data: {
+            id: "pay_1",
+            provider: "culqi",
+            status: "paid",
+            amount: 4200,
+            currency_code: "PEN",
+            customer_name: "Ana Torres",
+            customer_email: "ana@test.com",
+            customer_phone: "999999999",
+            receipt_number: "BC-20260606-REC0001",
+            paid_at: "2026-06-06T12:00:00.000Z",
+            created_at: "2026-06-06T11:50:00.000Z",
+            reservation_id: null,
+            event_id: null,
+          },
+          error: null,
+        },
+      ],
+    });
+
+    const response = await getPaymentReceipt({
+      supabase: supabase as any,
+      paymentId: "pay_1",
+      providerName: "culqi",
+    });
+
+    expect(response).toMatchObject({
+      success: true,
+      receipt: {
+        payment_id: "pay_1",
+        provider: "culqi",
+        receipt_number: "BC-20260606-REC0001",
+        status: "paid",
+      },
+    });
+  });
+
+  it("permite refund Culqi aunque el kill switch de checkout este activo", async () => {
+    process.env.DISABLE_CULQI_CHECKOUT = "true";
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "rfnd_test_1",
+          object: "refund",
+          amount: 2500,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { supabase, calls } = createSupabaseMock({
+      "payments.select": [
+        {
+          data: {
+            id: "pay_1",
+            provider: "culqi",
+            charge_id: "chr_test_123",
+            amount: 2500,
+            status: "paid",
+            reservation_id: null,
+            order_id: "ord_1",
+          },
+          error: null,
+        },
+      ],
+      "payments.update": [{ data: null, error: null }],
+    });
+
+    const response = await refundPayment({
+      supabase: supabase as any,
+      providerName: "culqi",
+      paymentId: "pay_1",
+      amount: null,
+      reason: "requested_by_client",
+    });
+
+    expect(response).toMatchObject({
+      success: true,
+      provider: "culqi",
+      paymentId: "pay_1",
+      orderId: "ord_1",
+      status: "refunded",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.culqi.com/v2/refunds",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(
+      calls.filter((call) => call.table === "payments" && call.op === "update"),
+    ).toHaveLength(1);
   });
 });

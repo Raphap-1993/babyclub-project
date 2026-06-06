@@ -34,21 +34,25 @@ describe("culqi payment helpers", () => {
     delete process.env.ENABLE_CULQI_PAYMENTS;
     delete process.env.CULQI_SECRET_KEY;
     delete process.env.DISABLE_CULQI_CHECKOUT;
-    expect(culqiGateway.isEnabled()).toBe(false);
+    expect(culqiGateway.isOperationallyEnabled()).toBe(false);
+    expect(culqiGateway.isCheckoutEnabled()).toBe(false);
 
     process.env.ENABLE_CULQI_PAYMENTS = "true";
-    expect(culqiGateway.isEnabled()).toBe(false);
+    expect(culqiGateway.isOperationallyEnabled()).toBe(false);
+    expect(culqiGateway.isCheckoutEnabled()).toBe(false);
 
     process.env.CULQI_SECRET_KEY = "sk_test_ready";
-    expect(culqiGateway.isEnabled()).toBe(true);
+    expect(culqiGateway.isOperationallyEnabled()).toBe(true);
+    expect(culqiGateway.isCheckoutEnabled()).toBe(true);
   });
 
-  it("mantiene Culqi deshabilitado cuando el kill switch esta activo", () => {
+  it("mantiene checkout Culqi deshabilitado cuando el kill switch esta activo sin apagar el provider", () => {
     process.env.ENABLE_CULQI_PAYMENTS = "true";
     process.env.CULQI_SECRET_KEY = "sk_test_ready";
     process.env.DISABLE_CULQI_CHECKOUT = "true";
 
-    expect(culqiGateway.isEnabled()).toBe(false);
+    expect(culqiGateway.isOperationallyEnabled()).toBe(true);
+    expect(culqiGateway.isCheckoutEnabled()).toBe(false);
   });
 
   it("normaliza estados de pago", () => {
