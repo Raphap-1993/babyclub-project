@@ -8,10 +8,7 @@ import { CreditCard, Smartphone } from "lucide-react";
 import NominationClient from "./reserva/[id]/NominationClient";
 import { getNominationReservationId } from "./nominationRouting";
 import TableMap from "../registro/TableMap";
-import {
-  buildMapSlotsFromTables,
-  hasLayoutPosition,
-} from "../registro/tableSlotUtils";
+import { buildMapSlotsFromTables } from "../registro/tableSlotUtils";
 import {
   DOCUMENT_TYPES,
   validateDocument,
@@ -37,6 +34,7 @@ import {
   resolveInitialTicketEventId,
   shouldShowTicketTypeEmptyState,
 } from "./purchaseState";
+import { resolveMesaSelectionAfterReload } from "./mesaSelection";
 
 const CULQI_ENABLED =
   process.env.NEXT_PUBLIC_CULQI_ENABLED?.toLowerCase() === "true";
@@ -157,6 +155,8 @@ function CompraContent({
   const formRef = useRef(form);
   const ticketFormRef = useRef(ticketForm);
   const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const selectedMesaRef = useRef(selected);
+  const selectedMesaProductRef = useRef(selectedProduct);
   const [mode, setMode] = useState<"mesa" | "ticket">(
     tabFromUrl === "mesa" ? "mesa" : "ticket",
   );
@@ -304,6 +304,14 @@ function CompraContent({
     ticketFormRef.current = ticketForm;
   }, [ticketForm]);
 
+  useEffect(() => {
+    selectedMesaRef.current = selected;
+  }, [selected]);
+
+  useEffect(() => {
+    selectedMesaProductRef.current = selectedProduct;
+  }, [selectedProduct]);
+
   const buildFullName = (
     nombre: string,
     apellidoPaterno: string,
@@ -421,24 +429,14 @@ function CompraContent({
       .then((data) => {
         const tables = data?.tables || [];
         setTables(tables);
-
-        // Seleccionar primera mesa disponible
-        const hasBackofficeLayout = tables.some(hasLayoutPosition);
-        const firstAvailable =
-          tables.find(
-            (t: any) =>
-              !t.is_reserved &&
-              (hasBackofficeLayout ? hasLayoutPosition(t) : true),
-          ) ||
-          tables.find((t: any) => !t.is_reserved) ||
-          tables[0];
-        if (firstAvailable) {
-          setSelected(firstAvailable.id);
-          const firstProduct = firstAvailable.products?.find(
-            (p: any) => p.is_active !== false,
-          );
-          setSelectedProduct(firstProduct?.id || "");
-        }
+        const nextSelection = resolveMesaSelectionAfterReload({
+          tables,
+          currentSelectedTableId: selectedMesaRef.current,
+          currentSelectedProductId: selectedMesaProductRef.current,
+          selectedEventId,
+        });
+        setSelected(nextSelection.selectedTableId);
+        setSelectedProduct(nextSelection.selectedProductId);
       })
       .catch(() => setTables([]));
   }, [organizerId, selectedEventId]);
