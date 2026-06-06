@@ -403,8 +403,8 @@ function CompraContent({
     eventOptions.find((ev) => ev.organizer_id)?.organizer_id ||
     configuredOrganizerId;
 
-  // Cargar mesas filtradas por organizador solamente (NO por evento)
-  // Las mesas pueden no tener event_id asignado y estar disponibles para todos los eventos del organizador
+  // Cargar mesas del organizador y, si hay evento seleccionado, refrescar solo el overlay
+  // comercial/operativo de ese evento sin recortar la lista visible.
   useEffect(() => {
     if (!organizerId) {
       setTables([]);

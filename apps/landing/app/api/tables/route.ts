@@ -186,33 +186,27 @@ export async function GET(req: NextRequest) {
     }
 
     const availabilityRows = availabilityResult.data || [];
-    if (availabilityRows.length > 0) {
-      const availabilityByTable = new Map(
-        availabilityRows
-          .filter((row: any) => row?.table_id && row?.is_available !== false)
-          .map((row: any) => [row.table_id, row])
-      );
+    const availabilityByTable = new Map(
+      availabilityRows
+        .filter((row: any) => row?.table_id)
+        .map((row: any) => [row.table_id, row])
+    );
 
-      tables = tables
-        .filter((table: any) => availabilityByTable.has(table.id))
-        .map((table: any) => {
-          const availability = availabilityByTable.get(table.id);
-          return {
-            ...table,
-            price:
-              availability?.custom_price != null
-                ? availability.custom_price
-                : table.price,
-            min_consumption:
-              availability?.custom_min_consumption != null
-                ? availability.custom_min_consumption
-                : table.min_consumption,
-          };
-        });
-    } else {
-      // Fallback legacy cuando aún depende de tables.event_id.
-      tables = tables.filter((table: any) => !table.event_id || table.event_id === eventId);
-    }
+    tables = tables.map((table: any) => {
+      const availability = availabilityByTable.get(table.id);
+      return {
+        ...table,
+        event_is_available: availability ? availability.is_available !== false : true,
+        price:
+          availability?.custom_price != null
+            ? availability.custom_price
+            : table.price,
+        min_consumption:
+          availability?.custom_min_consumption != null
+            ? availability.custom_min_consumption
+            : table.min_consumption,
+      };
+    });
   }
 
   const tableIds = tables.map((table: any) => table.id).filter(Boolean);
@@ -264,7 +258,7 @@ export async function GET(req: NextRequest) {
         if (orderA !== orderB) return orderA - orderB;
         return String(a?.name || "").localeCompare(String(b?.name || ""), "es", { sensitivity: "base" });
       }),
-    is_reserved: reservedTableIds.has(table.id),
+    is_reserved: reservedTableIds.has(table.id) || table.event_is_available === false,
   }));
 
   return NextResponse.json({ tables: normalized });
