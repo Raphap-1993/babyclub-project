@@ -345,6 +345,185 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     expect(String(payload.error || "")).toContain("comprador");
   });
 
+  it("rechaza nominar una unidad con el mismo documento del comprador", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+            full_name: "Comprador Principal",
+            email: "buyer@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "11112222",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+            {
+              id: "unit-2",
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: "",
+              doc_type: null,
+              document: "",
+              email: "",
+              phone: "",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-2",
+              full_name: "Luis Perez",
+              doc_type: "dni",
+              document: "11112222",
+              email: "luis@test.com",
+              phone: "988888888",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("documento");
+    expect(
+      calls.find(
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "update",
+      ),
+    ).toBeFalsy();
+  });
+
+  it("rechaza nominar una unidad con la misma identidad de otra unidad de la reserva", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+            doc_type: "dni",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              status: "pending_nomination",
+              full_name: "Comprador Principal",
+              doc_type: "dni",
+              document: "11112222",
+              email: "buyer@test.com",
+              phone: "999999999",
+              ticket_id: null,
+            },
+            {
+              id: "unit-2",
+              unit_index: 2,
+              status: "nominated",
+              full_name: "Ana Torres",
+              doc_type: "dni",
+              document: "12345678",
+              email: "ana@test.com",
+              phone: "977777777",
+              ticket_id: null,
+            },
+            {
+              id: "unit-3",
+              unit_index: 3,
+              status: "pending_nomination",
+              full_name: "",
+              doc_type: null,
+              document: "",
+              email: "",
+              phone: "",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-3",
+              full_name: "Ana Torres",
+              doc_type: "ce",
+              document: "ABC123456",
+              email: "ana@test.com",
+              phone: "966666666",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("unidad 2");
+    expect(
+      calls.find(
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "update",
+      ),
+    ).toBeFalsy();
+  });
+
   it("rechaza nominaciones con identidad mínima inválida", async () => {
     const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [

@@ -7,6 +7,7 @@ import {
   type DocumentType,
 } from "shared/document";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { buildEventTicketIdentityKeys } from "shared/eventTicketIdentity";
 import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -108,6 +109,57 @@ function friendlyNominationUpdateError(message: string, unitLabel: string) {
   return message;
 }
 
+function buildEffectiveUnitIdentityState(
+  unit: any,
+  reservation: any,
+  reservationDocType: DocumentType,
+  pendingUpdate?: ReturnType<typeof normalizeComparableUnitState>,
+) {
+  if (pendingUpdate) return pendingUpdate;
+
+  const isBuyerUnit = Number(unit?.unit_index || 0) === 1;
+  if (!isBuyerUnit) {
+    return normalizeComparableUnitState(unit, reservationDocType);
+  }
+
+  return normalizeComparableUnitState(
+    {
+      full_name:
+        typeof unit?.full_name === "string" && unit.full_name.trim()
+          ? unit.full_name
+          : (reservation as any)?.full_name || "",
+      doc_type:
+        typeof unit?.doc_type === "string" && unit.doc_type.trim()
+          ? unit.doc_type
+          : (reservation as any)?.doc_type || reservationDocType,
+      document:
+        typeof unit?.document === "string" && unit.document.trim()
+          ? unit.document
+          : (reservation as any)?.document || "",
+      email:
+        typeof unit?.email === "string" && unit.email.trim()
+          ? unit.email
+          : (reservation as any)?.email || "",
+      phone:
+        typeof unit?.phone === "string" && unit.phone.trim()
+          ? unit.phone
+          : (reservation as any)?.phone || "",
+    },
+    reservationDocType,
+  );
+}
+
+function buildDuplicateIdentityError(
+  previousLabel: string,
+  currentLabel: string,
+  identityKey: string,
+) {
+  if (identityKey.startsWith("document:")) {
+    return `No puedes reutilizar el mismo documento dentro de esta reserva. Revisa ${previousLabel} y ${currentLabel}.`;
+  }
+  return `No puedes nominar a la misma persona dos veces dentro de esta reserva. Revisa ${previousLabel} y ${currentLabel}.`;
+}
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -171,6 +223,17 @@ export async function PUT(
       ? ((reservation.data as any).doc_type as DocumentType)
       : "dni";
   const reissueTimestamp = new Date().toISOString();
+  const pendingUpdates = new Map<
+    string,
+    {
+      unitId: string;
+      unitLabel: string;
+      existingUnit: any;
+      normalizedInput: ReturnType<typeof normalizeComparableUnitState>;
+      isIssuedUnit: boolean;
+      nominationChanged: boolean;
+    }
+  >();
 
   for (const raw of inputs) {
     const unitId = typeof raw?.id === "string" ? raw.id.trim() : "";
@@ -203,6 +266,54 @@ export async function PUT(
     const isIssuedUnit = String(existingUnit.status || "").toLowerCase() === "issued";
     const nominationChanged = !sameNominationState(existingUnit, normalizedInput);
 
+    pendingUpdates.set(unitId, {
+      unitId,
+      unitLabel,
+      existingUnit,
+      normalizedInput,
+      isIssuedUnit,
+      nominationChanged,
+    });
+  }
+
+  const seenIdentityKeys = new Map<string, string>();
+  for (const unit of units.data) {
+    const unitLabel = `unidad ${Number(unit?.unit_index || 0) || "?"}`;
+    const effectiveState = buildEffectiveUnitIdentityState(
+      unit,
+      reservation.data,
+      reservationDocType,
+      pendingUpdates.get(String(unit?.id || ""))?.normalizedInput,
+    );
+
+    for (const key of buildEventTicketIdentityKeys({
+      fullName: effectiveState.fullName,
+      email: effectiveState.email || null,
+      phone: effectiveState.phone || null,
+      docType: effectiveState.docType,
+      document: effectiveState.document,
+      dni:
+        effectiveState.docType === "dni" ? effectiveState.document : null,
+    })) {
+      const previousLabel = seenIdentityKeys.get(key);
+      if (previousLabel && previousLabel !== unitLabel) {
+        return jsonError(
+          buildDuplicateIdentityError(previousLabel, unitLabel, key),
+          409,
+        );
+      }
+      seenIdentityKeys.set(key, unitLabel);
+    }
+  }
+
+  for (const {
+    unitId,
+    unitLabel,
+    existingUnit,
+    normalizedInput,
+    isIssuedUnit,
+    nominationChanged,
+  } of pendingUpdates.values()) {
     if (isIssuedUnit && !nominationChanged) {
       continue;
     }
