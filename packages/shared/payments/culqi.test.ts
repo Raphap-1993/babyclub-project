@@ -12,15 +12,21 @@ const ORIGINAL_ENV = {
   ENABLE_CULQI_PAYMENTS: process.env.ENABLE_CULQI_PAYMENTS,
   CULQI_SECRET_KEY: process.env.CULQI_SECRET_KEY,
   DISABLE_CULQI_CHECKOUT: process.env.DISABLE_CULQI_CHECKOUT,
+  NODE_ENV: process.env.NODE_ENV,
 };
 
 function restoreEnv(name: keyof typeof ORIGINAL_ENV) {
   const value = ORIGINAL_ENV[name];
+  const env = process.env as Record<string, string | undefined>;
   if (value === undefined) {
-    delete process.env[name];
+    delete env[name];
   } else {
-    process.env[name] = value;
+    env[name] = value;
   }
+}
+
+function setNodeEnv(value: string) {
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
 }
 
 describe("culqi payment helpers", () => {
@@ -28,6 +34,7 @@ describe("culqi payment helpers", () => {
     restoreEnv("ENABLE_CULQI_PAYMENTS");
     restoreEnv("CULQI_SECRET_KEY");
     restoreEnv("DISABLE_CULQI_CHECKOUT");
+    restoreEnv("NODE_ENV");
   });
 
   it("solo habilita el gateway cuando flag y secret key estan configurados", () => {
@@ -53,6 +60,19 @@ describe("culqi payment helpers", () => {
 
     expect(culqiGateway.isOperationallyEnabled()).toBe(true);
     expect(culqiGateway.isCheckoutEnabled()).toBe(false);
+  });
+
+  it("apaga checkout Culqi por defecto en production hasta tener override explicito", () => {
+    setNodeEnv("production");
+    process.env.ENABLE_CULQI_PAYMENTS = "true";
+    process.env.CULQI_SECRET_KEY = "sk_test_ready";
+    delete process.env.DISABLE_CULQI_CHECKOUT;
+
+    expect(culqiGateway.isOperationallyEnabled()).toBe(true);
+    expect(culqiGateway.isCheckoutEnabled()).toBe(false);
+
+    process.env.DISABLE_CULQI_CHECKOUT = "false";
+    expect(culqiGateway.isCheckoutEnabled()).toBe(true);
   });
 
   it("normaliza estados de pago", () => {

@@ -33,7 +33,10 @@ export function getCulqiConfig() {
 }
 
 function isCulqiCheckoutDisabled() {
-  return process.env.DISABLE_CULQI_CHECKOUT?.trim().toLowerCase() === "true";
+  const override = process.env.DISABLE_CULQI_CHECKOUT?.trim().toLowerCase();
+  if (override === "true") return true;
+  if (override === "false") return false;
+  return process.env.NODE_ENV === "production";
 }
 
 function isCulqiProviderEnabled() {

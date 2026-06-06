@@ -6,15 +6,21 @@ const ORIGINAL_ENV = {
   CULQI_SECRET_KEY: process.env.CULQI_SECRET_KEY,
   NEXT_PUBLIC_CULQI_PUBLIC_KEY: process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY,
   DISABLE_CULQI_CHECKOUT: process.env.DISABLE_CULQI_CHECKOUT,
+  NODE_ENV: process.env.NODE_ENV,
 };
 
 function restoreEnv(name: keyof typeof ORIGINAL_ENV) {
   const value = ORIGINAL_ENV[name];
+  const env = process.env as Record<string, string | undefined>;
   if (value === undefined) {
-    delete process.env[name];
+    delete env[name];
   } else {
-    process.env[name] = value;
+    env[name] = value;
   }
+}
+
+function setNodeEnv(value: string) {
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
 }
 
 describe("GET /api/payments/status", () => {
@@ -23,6 +29,7 @@ describe("GET /api/payments/status", () => {
     restoreEnv("CULQI_SECRET_KEY");
     restoreEnv("NEXT_PUBLIC_CULQI_PUBLIC_KEY");
     restoreEnv("DISABLE_CULQI_CHECKOUT");
+    restoreEnv("NODE_ENV");
   });
 
   it("mantiene Culqi deshabilitado cuando falta la secret key", async () => {
@@ -60,6 +67,23 @@ describe("GET /api/payments/status", () => {
     process.env.CULQI_SECRET_KEY = "sk_test_ready";
     process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY = "pk_test_ready";
     process.env.DISABLE_CULQI_CHECKOUT = "true";
+
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(payload.providers.culqi).toMatchObject({
+      enabled: false,
+      publicKey: "",
+      publicKeyConfigured: true,
+    });
+  });
+
+  it("mantiene Culqi oculto por defecto en production hasta tener override explicito", async () => {
+    setNodeEnv("production");
+    process.env.ENABLE_CULQI_PAYMENTS = "true";
+    process.env.CULQI_SECRET_KEY = "sk_test_ready";
+    process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY = "pk_test_ready";
+    delete process.env.DISABLE_CULQI_CHECKOUT;
 
     const response = await GET();
     const payload = await response.json();
