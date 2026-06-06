@@ -35,9 +35,35 @@ export async function archiveTable(req: NextRequest) {
   }
 
   const archivePayload = buildArchivePayload(guard.context?.staffId);
-  const { error } = await supabase.from("tables").update(archivePayload).eq("id", id);
+  const { data, error } = await supabase
+    .from("tables")
+    .update(archivePayload)
+    .eq("id", id)
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+  if (!data?.id) {
+    return NextResponse.json(
+      { success: false, error: "Mesa no encontrada o ya archivada" },
+      { status: 404 }
+    );
+  }
+
+  const availabilityPayload = {
+    deleted_at: archivePayload.deleted_at,
+    updated_at: archivePayload.deleted_at,
+    is_available: false,
+  };
+  const { error: availabilityError } = await supabase
+    .from("table_availability")
+    .update(availabilityPayload)
+    .eq("table_id", id)
+    .is("deleted_at", null);
+  if (availabilityError) {
+    return NextResponse.json({ success: false, error: availabilityError.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, archived: true });

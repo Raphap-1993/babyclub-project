@@ -29,6 +29,9 @@ export default function OrganizerTablesClient({
   organizer: Organizer;
   tables: Table[];
 }) {
+  const getErrorMessage = (err: unknown, fallback: string) =>
+    err instanceof Error ? err.message : fallback;
+
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -69,13 +72,16 @@ export default function OrganizerTablesClient({
         }),
       });
 
-      if (!res.ok) throw new Error(await res.text());
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || "No se pudo crear la mesa");
+      }
 
       setFormData({ name: "", ticket_count: 4, price: 0, min_consumption: 0, notes: "" });
       router.refresh();
     } catch (err) {
       setMessageType("error");
-      setMessage(`Error: ${err}`);
+      setMessage(getErrorMessage(err, "No se pudo crear la mesa"));
     } finally {
       setCreating(false);
     }
@@ -91,11 +97,14 @@ export default function OrganizerTablesClient({
         body: JSON.stringify({ id: tableId }),
       });
 
-      if (!res.ok) throw new Error(await res.text());
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || "No se pudo archivar la mesa");
+      }
       router.refresh();
     } catch (err) {
       setMessageType("error");
-      setMessage(`Error: ${err}`);
+      setMessage(getErrorMessage(err, "No se pudo archivar la mesa"));
     }
   };
 
@@ -149,7 +158,7 @@ export default function OrganizerTablesClient({
       router.refresh();
     } catch (err) {
       setMessageType("error");
-      setMessage(`Error: ${err}`);
+      setMessage(getErrorMessage(err, "No se pudo actualizar la mesa"));
     } finally {
       setSavingEdit(false);
     }
