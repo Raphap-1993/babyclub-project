@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  PURCHASE_STEPS,
   getTicketEmptyStateMessage,
   shouldShowTicketTypeEmptyState,
   getTicketSubmitLabel,
+  getNextPurchaseStep,
+  getPreviousPurchaseStep,
+  normalizePurchaseStep,
   resolveInitialTicketEventId,
 } from "./purchaseState";
 
@@ -31,6 +35,30 @@ describe("resolveInitialTicketEventId", () => {
     ]);
 
     expect(result).toBe("event-only");
+  });
+});
+
+describe("checkout step helpers", () => {
+  it("defines the public checkout as four focused steps", () => {
+    expect(PURCHASE_STEPS).toEqual([
+      { id: 1, label: "Entradas" },
+      { id: 2, label: "Datos" },
+      { id: 3, label: "Resumen" },
+      { id: 4, label: "Pago" },
+    ]);
+  });
+
+  it("normalizes invalid steps into the supported range", () => {
+    expect(normalizePurchaseStep(0)).toBe(1);
+    expect(normalizePurchaseStep(3)).toBe(3);
+    expect(normalizePurchaseStep(9)).toBe(4);
+  });
+
+  it("moves forward and backward without leaving the checkout range", () => {
+    expect(getNextPurchaseStep(1)).toBe(2);
+    expect(getNextPurchaseStep(4)).toBe(4);
+    expect(getPreviousPurchaseStep(4)).toBe(3);
+    expect(getPreviousPurchaseStep(1)).toBe(1);
   });
 });
 

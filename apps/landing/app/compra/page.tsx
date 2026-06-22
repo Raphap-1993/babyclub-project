@@ -24,13 +24,17 @@ import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
 import { LegalTrustStrip } from "./LegalTrustStrip";
 import { PurchaseModeControls } from "./PurchaseModeControls";
+import { PurchaseStepper } from "./PurchaseStepper";
 import {
   deriveTicketPurchaseConfirmation,
   type TicketPurchaseConfirmationState,
 } from "./ticketPurchaseConfirmation";
 import {
+  PURCHASE_STEPS,
+  getNextPurchaseStep,
+  getPreviousPurchaseStep,
   getTicketEmptyStateMessage,
-  getTicketSubmitLabel,
+  type PurchaseStepId,
   resolveInitialTicketEventId,
   shouldShowTicketTypeEmptyState,
 } from "./purchaseState";
@@ -110,9 +114,7 @@ function CompraRouter() {
       promoterLinkCodeIdFromUrl={
         searchParams.get("promoter_link_code_id") || null
       }
-      promoterLinkCodeFromUrl={
-        searchParams.get("promoter_link_code") || null
-      }
+      promoterLinkCodeFromUrl={searchParams.get("promoter_link_code") || null}
       tabFromUrl={searchParams.get("tab")}
     />
   );
@@ -160,6 +162,8 @@ function CompraContent({
   const [mode, setMode] = useState<"mesa" | "ticket">(
     tabFromUrl === "mesa" ? "mesa" : "ticket",
   );
+  const [ticketStep, setTicketStep] = useState<PurchaseStepId>(1);
+  const [mesaStep, setMesaStep] = useState<PurchaseStepId>(1);
   const [uploading, setUploading] = useState(false);
   const [ticketUploading, setTicketUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -918,6 +922,12 @@ function CompraContent({
       setError(mesaSaleBlock.message);
       return;
     }
+    if (!mesaLegalAccepted) {
+      const message = "Acepta los términos y políticas para continuar.";
+      setModalError(message);
+      setError(message);
+      return;
+    }
 
     setLoading(true);
     const tableInfo = tables.find((t) => t.id === selected);
@@ -1158,6 +1168,12 @@ function CompraContent({
       setTicketError("Selecciona un tipo de entrada disponible.");
       return;
     }
+    if (!ticketLegalAccepted) {
+      const message = "Acepta los términos y políticas para continuar.";
+      setTicketModalError(message);
+      setTicketError(message);
+      return;
+    }
     const useCulqi = culqiEnabled && selectedPaymentMethodTicket === "culqi";
     if (!useCulqi && !ticketVoucherUrl) {
       setTicketModalError("Sube tu comprobante de pago para continuar.");
@@ -1165,7 +1181,9 @@ function CompraContent({
       return;
     }
     if (useCulqi && !ticketForm.email.trim()) {
-      setTicketModalError("Ingresa un email para continuar con el pago online.");
+      setTicketModalError(
+        "Ingresa un email para continuar con el pago online.",
+      );
       setTicketError("Ingresa un email para continuar con el pago online.");
       return;
     }
@@ -1340,16 +1358,220 @@ function CompraContent({
   }, [ticketEventOptions]);
 
   useEffect(() => {
-    if (!canUseCulqiForMesa && selectedPaymentMethod === "culqi") {
+    if (mode === "mesa" && !selectedEventId && mesaEventOptions.length === 1) {
+      setSelectedEventId(mesaEventOptions[0]?.id || "");
+    }
+  }, [mesaEventOptions, mode, selectedEventId]);
+
+  useEffect(() => {
+    if (canUseCulqiForMesa && selectedPaymentMethod !== "culqi") {
+      setSelectedPaymentMethod("culqi");
+    } else if (!canUseCulqiForMesa && selectedPaymentMethod === "culqi") {
       setSelectedPaymentMethod("yape");
     }
   }, [canUseCulqiForMesa, selectedPaymentMethod]);
 
   useEffect(() => {
-    if (!canUseCulqiForTicket && selectedPaymentMethodTicket === "culqi") {
+    if (canUseCulqiForTicket && selectedPaymentMethodTicket !== "culqi") {
+      setSelectedPaymentMethodTicket("culqi");
+    } else if (
+      !canUseCulqiForTicket &&
+      selectedPaymentMethodTicket === "culqi"
+    ) {
       setSelectedPaymentMethodTicket("yape");
     }
   }, [canUseCulqiForTicket, selectedPaymentMethodTicket]);
+
+  const activeStep = mode === "ticket" ? ticketStep : mesaStep;
+  const setActiveStep = (step: PurchaseStepId) => {
+    if (mode === "ticket") {
+      setTicketStep(step);
+    } else {
+      setMesaStep(step);
+    }
+  };
+  const handleModeChange = (nextMode: "mesa" | "ticket") => {
+    setMode(nextMode);
+    setTicketStep(1);
+    setMesaStep(1);
+    setError(null);
+    setTicketError(null);
+    setModalError(null);
+    setTicketModalError(null);
+  };
+
+  const checkActiveTicketConflict = async ({
+    eventId,
+    docType,
+    document,
+    fullName,
+    email,
+    phone,
+  }: {
+    eventId: string;
+    docType: string;
+    document: string;
+    fullName: string;
+    email: string;
+    phone: string;
+  }) => {
+    if (!eventId || !document) return null;
+
+    try {
+      const params = new URLSearchParams({
+        event_id: eventId,
+        doc_type: docType || "dni",
+        document: document.trim(),
+        full_name: fullName,
+        email,
+        phone,
+      });
+      const checkRes = await fetch(
+        `/api/check-ticket-reservation?${params.toString()}`,
+      );
+      const checkData = await checkRes.json().catch(() => ({}));
+      if (checkData?.success && checkData?.has_active_ticket) {
+        return (
+          checkData?.conflict_message ||
+          "Esta persona ya tiene un QR activo para este evento."
+        );
+      }
+    } catch (_err) {
+      // No bloquear por fallo del pre-check; el API final igual corta el caso.
+    }
+
+    return null;
+  };
+
+  const validateTicketSelectionStep = () => {
+    if (ticketRequiresEvent && !ticketEventId) {
+      setTicketError("Selecciona el evento");
+      return false;
+    }
+    if (ticketSaleBlock) {
+      setTicketError(ticketSaleBlock.message);
+      return false;
+    }
+    if (!selectedTicketType) {
+      setTicketError("Selecciona un tipo de entrada disponible.");
+      return false;
+    }
+    setTicketError(null);
+    return true;
+  };
+
+  const validateMesaSelectionStep = () => {
+    const mesaEventId = selectedEventId || tableInfo?.event_id || "";
+    if (mesaEventOptions.length > 0 && !mesaEventId) {
+      setError("Selecciona el evento para esta reserva");
+      return false;
+    }
+    if (mesaSaleBlock) {
+      setError(mesaSaleBlock.message);
+      return false;
+    }
+    if (!selected) {
+      setError("Selecciona una mesa disponible");
+      return false;
+    }
+    if (!selectedProduct) {
+      setError("Selecciona un pack de consumo");
+      return false;
+    }
+    setError(null);
+    return true;
+  };
+
+  const validateTicketBuyerStep = async () => {
+    if (
+      !validateDocument(
+        ticketForm.doc_type as DocumentType,
+        ticketForm.document,
+      ) ||
+      !ticketNameComplete
+    ) {
+      setTicketError("Ingresa documento, nombres y apellidos");
+      return false;
+    }
+
+    const conflict = await checkActiveTicketConflict({
+      eventId: ticketEventId,
+      docType: String(ticketForm.doc_type || "dni"),
+      document: ticketForm.document,
+      fullName: ticketFullName,
+      email: ticketForm.email || "",
+      phone: ticketForm.phone || "",
+    });
+    if (conflict) {
+      setTicketError(conflict);
+      return false;
+    }
+
+    setTicketError(null);
+    return true;
+  };
+
+  const validateMesaBuyerStep = async () => {
+    if (
+      !validateDocument(form.doc_type as DocumentType, form.document) ||
+      !mesaNameComplete
+    ) {
+      setError("Ingresa documento, nombres y apellidos");
+      return false;
+    }
+
+    const eventIdForCheck =
+      selectedEventId || tables.find((t) => t.id === selected)?.event_id || "";
+    const conflict = await checkActiveTicketConflict({
+      eventId: eventIdForCheck,
+      docType: String(form.doc_type || "dni"),
+      document: form.document,
+      fullName: mesaFullName,
+      email: form.email || "",
+      phone: form.phone || "",
+    });
+    if (conflict) {
+      setError(conflict);
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
+
+  const goNextTicket = async () => {
+    if (ticketStep === 1 && !validateTicketSelectionStep()) return;
+    if (ticketStep === 2 && !(await validateTicketBuyerStep())) return;
+    setTicketStep(getNextPurchaseStep(ticketStep));
+  };
+
+  const goNextMesa = async () => {
+    if (mesaStep === 1 && !validateMesaSelectionStep()) return;
+    if (mesaStep === 2 && !(await validateMesaBuyerStep())) return;
+    setMesaStep(getNextPurchaseStep(mesaStep));
+  };
+
+  const goPreviousStep = () => {
+    setActiveStep(getPreviousPurchaseStep(activeStep));
+  };
+
+  const handleTicketWizardSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (ticketStep < 4) {
+      await goNextTicket();
+      return;
+    }
+    await confirmTicketPurchase();
+  };
+
+  const handleMesaWizardSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (mesaStep < 4) {
+      await goNextMesa();
+      return;
+    }
+    await confirmReservation();
+  };
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-black px-3 py-4 text-white sm:px-6 lg:px-8 lg:py-6">
@@ -1375,7 +1597,7 @@ function CompraContent({
 
         <PurchaseModeControls
           mode={mode}
-          onModeChange={setMode}
+          onModeChange={handleModeChange}
           ticketEventId={ticketEventId}
           onTicketEventChange={setTicketEventId}
           ticketEventOptions={ticketEventOptions}
@@ -1387,210 +1609,431 @@ function CompraContent({
           resolveEventSaleBlock={(eventId) => resolveSaleBlock(eventId)}
         />
 
+        <PurchaseStepper
+          currentStep={activeStep}
+          steps={PURCHASE_STEPS}
+          onStepSelect={(step) => {
+            if (step < activeStep) setActiveStep(step);
+          }}
+        />
+
         {mode === "ticket" && (
           <form
-            onSubmit={onSubmitTicket}
+            onSubmit={handleTicketWizardSubmit}
             className="space-y-4 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4"
           >
-            <div className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-2">
-                {ticketTypeOptions.length > 0 ? (
-                  ticketTypeOptions.map((option) => {
-                    const selected = option.code === selectedTicketType?.code;
-                    return (
-                      <label
-                        key={option.code}
-                        className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                          selected
-                            ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
-                            : "border-white/10 bg-[#0a0a0a] text-white"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="ticketType"
-                          checked={selected}
-                          onChange={() =>
-                            setSelectedTicketTypeCode(option.code)
-                          }
-                          className="mt-1 h-4 w-4 shrink-0 accent-[#e91e63]"
-                        />
-                        <span className="flex min-w-0 flex-1 flex-col gap-1">
-                          <span className="flex flex-wrap items-baseline justify-between gap-2">
-                            <span>{option.label}</span>
-                            <span className="text-[#e91e63]">
-                              S/ {option.price}
+            {ticketStep === 1 && (
+              <>
+                <div className="space-y-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {ticketTypeOptions.length > 0 ? (
+                      ticketTypeOptions.map((option) => {
+                        const selected =
+                          option.code === selectedTicketType?.code;
+                        return (
+                          <label
+                            key={option.code}
+                            className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                              selected
+                                ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                                : "border-white/10 bg-[#0a0a0a] text-white"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="ticketType"
+                              checked={selected}
+                              onChange={() =>
+                                setSelectedTicketTypeCode(option.code)
+                              }
+                              className="mt-1 h-4 w-4 shrink-0 accent-[#e91e63]"
+                            />
+                            <span className="flex min-w-0 flex-1 flex-col gap-1">
+                              <span className="flex flex-wrap items-baseline justify-between gap-2">
+                                <span>{option.label}</span>
+                                <span className="text-[#e91e63]">
+                                  S/ {option.price}
+                                </span>
+                              </span>
+                              <span className="text-xs font-normal text-white/55">
+                                {option.ticketQuantity} QR por paquete
+                              </span>
+                              {option.description ? (
+                                <span className="text-xs font-normal text-white/70">
+                                  {option.description}
+                                </span>
+                              ) : null}
                             </span>
-                          </span>
-                          <span className="text-xs font-normal text-white/55">
-                            {option.ticketQuantity} QR por paquete
-                          </span>
-                          {option.description ? (
-                            <span className="text-xs font-normal text-white/70">
-                              {option.description}
-                            </span>
-                          ) : null}
-                        </span>
-                      </label>
-                    );
-                  })
-                ) : showTicketTypeEmptyState ? (
-                  <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white/60 md:col-span-2">
-                    {ticketEmptyStateMessage}
+                          </label>
+                        );
+                      })
+                    ) : showTicketTypeEmptyState ? (
+                      <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white/60 md:col-span-2">
+                        {ticketEmptyStateMessage}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-[220px,1fr]">
-              <label className="block space-y-2 text-sm font-semibold text-white">
-                Cantidad de paquetes
-                <select
-                  value={ticketPackageQuantity}
-                  onChange={(e) =>
-                    setTicketPackageQuantity(Number(e.target.value) || 1)
-                  }
-                  className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
-                >
-                  {Array.from({ length: 10 }, (_, index) => index + 1).map(
-                    (quantity) => (
-                      <option key={quantity} value={quantity}>
-                        {quantity}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                  Resumen del paquete
-                </p>
-                <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      {ticketSaleLabel}
-                    </p>
-                    <p className="mt-1 text-xs text-white/60">
-                      {ticketPackageQuantity} paquete
-                      {ticketPackageQuantity === 1 ? "" : "s"} ·{" "}
-                      {ticketTotalUnits || 0} QR en total
-                    </p>
-                  </div>
-                  <p className="text-2xl font-semibold text-[#e91e63]">
-                    S/ {ticketTotalPrice}
-                  </p>
                 </div>
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
-              <label className="block space-y-2 text-sm font-semibold text-white">
-                Tipo de documento
-                <select
-                  value={ticketForm.doc_type as DocumentType}
-                  onChange={(e) =>
+                <div className="grid gap-3 md:grid-cols-[220px,1fr]">
+                  <label className="block space-y-2 text-sm font-semibold text-white">
+                    Cantidad de paquetes
+                    <select
+                      value={ticketPackageQuantity}
+                      onChange={(e) =>
+                        setTicketPackageQuantity(Number(e.target.value) || 1)
+                      }
+                      className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                    >
+                      {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                        (quantity) => (
+                          <option key={quantity} value={quantity}>
+                            {quantity}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
+                      Resumen del paquete
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {ticketSaleLabel}
+                        </p>
+                        <p className="mt-1 text-xs text-white/60">
+                          {ticketPackageQuantity} paquete
+                          {ticketPackageQuantity === 1 ? "" : "s"} ·{" "}
+                          {ticketTotalUnits || 0} QR en total
+                        </p>
+                      </div>
+                      <p className="text-2xl font-semibold text-[#e91e63]">
+                        S/ {ticketTotalPrice}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            {ticketStep === 2 && (
+              <>
+                <div className="grid gap-3 md:grid-cols-[0.55fr,1fr,1.45fr]">
+                  <label className="block space-y-2 text-sm font-semibold text-white">
+                    Tipo de documento
+                    <select
+                      value={ticketForm.doc_type as DocumentType}
+                      onChange={(e) =>
+                        setTicketForm((p) => ({
+                          ...p,
+                          doc_type: e.target.value as DocumentType,
+                          document: "",
+                        }))
+                      }
+                      className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                    >
+                      {DOCUMENT_TYPES.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Field
+                    label="Número de documento"
+                    value={ticketForm.document}
+                    onChange={(v) =>
+                      setTicketForm((p) => ({ ...p, document: v }))
+                    }
+                    inputMode={
+                      ticketForm.doc_type === "dni" ||
+                      ticketForm.doc_type === "ruc"
+                        ? "numeric"
+                        : "text"
+                    }
+                    digitOnly={
+                      ticketForm.doc_type === "dni" ||
+                      ticketForm.doc_type === "ruc"
+                    }
+                    maxLength={
+                      ticketForm.doc_type === "dni"
+                        ? 8
+                        : ticketForm.doc_type === "ruc"
+                          ? 11
+                          : 12
+                    }
+                    required
+                    error={dniErrorTicket}
+                    allowClear
+                    onClear={resetTicketForm}
+                  />
+                  <Field
+                    label="Nombres"
+                    value={ticketForm.nombre}
+                    onChange={(v) =>
+                      setTicketForm((p) => ({ ...p, nombre: v }))
+                    }
+                    required
+                  />
+                </div>
+                <Field
+                  label="Apellidos"
+                  value={ticketApellidosInput}
+                  onChange={(v) => {
+                    const parts = splitSurnameInput(v);
+                    setTicketApellidosInput(v);
                     setTicketForm((p) => ({
                       ...p,
-                      doc_type: e.target.value as DocumentType,
-                      document: "",
-                    }))
+                      ...parts,
+                    }));
+                  }}
+                  onBlur={() =>
+                    setTicketApellidosInput(
+                      joinSurnameInput(
+                        ticketForm.apellido_paterno,
+                        ticketForm.apellido_materno,
+                      ),
+                    )
                   }
-                  className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
-                >
-                  {DOCUMENT_TYPES.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Field
-                label="Número de documento"
-                value={ticketForm.document}
-                onChange={(v) => setTicketForm((p) => ({ ...p, document: v }))}
-                inputMode={
-                  ticketForm.doc_type === "dni" || ticketForm.doc_type === "ruc"
-                    ? "numeric"
-                    : "text"
-                }
-                digitOnly={
-                  ticketForm.doc_type === "dni" || ticketForm.doc_type === "ruc"
-                }
-                maxLength={
-                  ticketForm.doc_type === "dni"
-                    ? 8
-                    : ticketForm.doc_type === "ruc"
-                      ? 11
-                      : 12
-                }
-                required
-                error={dniErrorTicket}
-                allowClear
-                onClear={resetTicketForm}
-              />
-              <Field
-                label="Nombres"
-                value={ticketForm.nombre}
-                onChange={(v) => setTicketForm((p) => ({ ...p, nombre: v }))}
-                required
-              />
-            </div>
-            <Field
-              label="Apellidos"
-              value={ticketApellidosInput}
-              onChange={(v) => {
-                const parts = splitSurnameInput(v);
-                setTicketApellidosInput(v);
-                setTicketForm((p) => ({
-                  ...p,
-                  ...parts,
-                }));
-              }}
-              onBlur={() =>
-                setTicketApellidosInput(
-                  joinSurnameInput(
-                    ticketForm.apellido_paterno,
-                    ticketForm.apellido_materno,
-                  ),
-                )
-              }
-              placeholder="Apellido paterno y materno"
-              required
-            />
-            <div className="grid gap-3 md:grid-cols-[1.3fr,0.7fr]">
-              <Field
-                label="Email"
-                value={ticketForm.email}
-                onChange={(v) => setTicketForm((p) => ({ ...p, email: v }))}
-                type="email"
-              />
-              <Field
-                label="Teléfono"
-                value={ticketForm.phone}
-                onChange={(v) => setTicketForm((p) => ({ ...p, phone: v }))}
-                placeholder="+51 999 999 999"
-              />
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
-              La nominación de asistentes se hace después del pago desde tu
-              workspace de reserva. Aquí solo registras al comprador y el tipo
-              de paquete.
-            </div>
-            <PaymentMethodSelector
-              title="Método de pago"
-              value={selectedPaymentMethodTicket}
-              onChange={setSelectedPaymentMethodTicket}
-              culqiAvailable={canUseCulqiForTicket}
-              amountLabel={
-                ticketTotalPrice > 0 ? `S/ ${ticketTotalPrice}` : null
-              }
-            />
-            <LegalTrustStrip />
-            <LegalAcceptance
-              checked={ticketLegalAccepted}
-              onChange={setTicketLegalAccepted}
-            />
-            {ticketError && (
+                  placeholder="Apellido paterno y materno"
+                  required
+                />
+                <div className="grid gap-3 md:grid-cols-[1.3fr,0.7fr]">
+                  <Field
+                    label="Email"
+                    value={ticketForm.email}
+                    onChange={(v) => setTicketForm((p) => ({ ...p, email: v }))}
+                    type="email"
+                  />
+                  <Field
+                    label="Teléfono"
+                    value={ticketForm.phone}
+                    onChange={(v) => setTicketForm((p) => ({ ...p, phone: v }))}
+                    placeholder="+51 999 999 999"
+                  />
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
+                  La nominación de asistentes se hace después del pago desde tu
+                  workspace de reserva. Aquí solo registras al comprador y el
+                  tipo de paquete.
+                </div>
+              </>
+            )}
+            {ticketStep === 3 && (
+              <div className="space-y-3">
+                <LegalSummaryNotice />
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
+                  <div className="flex items-center justify-between text-white">
+                    <span className="font-semibold">Documento</span>
+                    <span className="font-semibold text-white">
+                      {ticketForm.document || "—"} ({ticketForm.doc_type})
+                    </span>
+                  </div>
+                  {ticketRequiresEvent && (
+                    <div className="flex items-center justify-between">
+                      <span>Evento</span>
+                      <span className="font-semibold text-white">
+                        {ticketSelectedEvent?.name || "—"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span>Tipo de entrada</span>
+                    <span className="font-semibold text-white">
+                      {ticketSaleLabel}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Paquetes</span>
+                    <span className="font-semibold text-white">
+                      {ticketPackageQuantity}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>QR totales</span>
+                    <span className="font-semibold text-white">
+                      {ticketTotalUnits || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Comprador</span>
+                    <span className="font-semibold text-white">
+                      {ticketFullName || "—"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1 text-xs text-white/60">
+                    <span>Email: {ticketForm.email || "—"}</span>
+                    <span>Teléfono: {ticketForm.phone || "—"}</span>
+                    <span>
+                      La nominación de cada QR se completa después desde el
+                      workspace de la reserva.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {ticketStep === 4 && (
+              <>
+                <PaymentMethodSelector
+                  title="Método de pago"
+                  value={selectedPaymentMethodTicket}
+                  onChange={setSelectedPaymentMethodTicket}
+                  culqiAvailable={canUseCulqiForTicket}
+                  amountLabel={
+                    ticketTotalPrice > 0 ? `S/ ${ticketTotalPrice}` : null
+                  }
+                />
+                {!isTicketCulqiSelected && (
+                  <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+                          Paga con Yape/Plin
+                        </p>
+                        <p className="text-2xl font-semibold leading-tight text-white">
+                          {yapeNumber}
+                        </p>
+                        <p className="text-xs text-white/60">
+                          Titular: {yapeHolder}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={copyYapeNumberTicket}
+                        className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
+                      >
+                        {ticketCopyFeedback === "copied"
+                          ? "Copiado"
+                          : ticketCopyFeedback === "error"
+                            ? "No se pudo copiar"
+                            : "Copiar número"}
+                        <span className="text-[#f2f2f2]/70">
+                          (para abrir Yape)
+                        </span>
+                      </button>
+                    </div>
+                    <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                      Envía S/ {ticketTotalPrice} al número indicado y adjunta
+                      el comprobante abajo.
+                    </div>
+                  </div>
+                )}
+                {!isTicketCulqiSelected && (
+                  <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+                    <label className="text-sm font-semibold text-white">
+                      Comprobante de pago
+                    </label>
+                    <div
+                      onDragOver={handleTicketDragOver}
+                      onDragLeave={handleTicketDragLeave}
+                      onDrop={handleTicketDrop}
+                      className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
+                        ticketIsDragging
+                          ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                          : ticketUploading
+                            ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
+                            : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
+                      }`}
+                    >
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/jpg"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) await handleTicketFileUpload(file);
+                        }}
+                        disabled={ticketUploading}
+                        className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                        id="ticket-voucher-upload-inline"
+                      />
+                      <label
+                        htmlFor="ticket-voucher-upload-inline"
+                        className={`flex flex-col items-center justify-center gap-3 px-6 py-8 ${
+                          ticketUploading
+                            ? "cursor-not-allowed"
+                            : "cursor-pointer"
+                        }`}
+                      >
+                        {ticketUploading ? (
+                          <>
+                            <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                            <p className="text-sm font-semibold text-white">
+                              Subiendo comprobante...
+                            </p>
+                          </>
+                        ) : ticketVoucherUrl ? (
+                          <>
+                            <svg
+                              className="h-12 w-12 text-emerald-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                            <p className="text-sm font-semibold text-emerald-400">
+                              Comprobante subido
+                            </p>
+                            <p className="text-xs text-white/60">
+                              Haz clic o arrastra para reemplazar
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="h-12 w-12 text-white/40"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                              />
+                            </svg>
+                            <div className="text-center">
+                              <p className="text-sm font-semibold text-white">
+                                {ticketIsDragging
+                                  ? "Suelta la imagen aquí"
+                                  : "Arrastra tu comprobante o haz clic"}
+                              </p>
+                              <p className="mt-1 text-xs text-white/60">
+                                JPG, PNG, WEBP • Máx 5MB
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                    {ticketVoucherUrl && (
+                      <a
+                        href={ticketVoucherUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                      >
+                        Ver comprobante subido
+                      </a>
+                    )}
+                  </div>
+                )}
+                <LegalTrustStrip />
+                <LegalAcceptance
+                  checked={ticketLegalAccepted}
+                  onChange={setTicketLegalAccepted}
+                />
+              </>
+            )}
+            {(ticketError || ticketModalError) && (
               <p className="text-xs font-semibold text-[#ff9a9a]">
-                {ticketError}
+                {ticketError || ticketModalError}
               </p>
             )}
             {ticketReservationId && (
@@ -1607,368 +2050,604 @@ function CompraContent({
                 </Link>
               </div>
             )}
-            <button
-              type="submit"
-              disabled={
-                ticketLoading || Boolean(ticketSaleBlock) || !selectedTicketType
-              }
-              className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
-            >
-              {getTicketSubmitLabel({
-                loading: ticketLoading,
-                ticketSaleBlocked: Boolean(ticketSaleBlock),
-                ticketRequiresEvent,
-                hasTicketEvents: ticketEventOptions.length > 0,
-                ticketEventId,
-                hasSelectedTicketType: Boolean(selectedTicketType),
-              })}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const currentForm = formRef.current;
-                const currentTicketForm = ticketFormRef.current;
-                const nextForm = {
-                  ...currentForm,
-                  doc_type: currentForm.doc_type || currentTicketForm.doc_type,
-                  document: currentForm.document || currentTicketForm.document,
-                  nombre: currentForm.nombre || currentTicketForm.nombre,
-                  apellido_paterno:
-                    currentForm.apellido_paterno ||
-                    currentTicketForm.apellido_paterno,
-                  apellido_materno:
-                    currentForm.apellido_materno ||
-                    currentTicketForm.apellido_materno,
-                  email: currentForm.email || currentTicketForm.email,
-                  phone: currentForm.phone || currentTicketForm.phone,
-                };
-                setForm(nextForm);
-                setFormApellidosInput(
-                  joinSurnameInput(
-                    nextForm.apellido_paterno,
-                    nextForm.apellido_materno,
-                  ),
-                );
-                setMode("mesa");
-              }}
-              className="relative w-full overflow-hidden rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
-            >
-              Quiero reservar mesa (opcional)
-            </button>
+            <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-col-reverse gap-2 border-t border-white/10 bg-[#050505]/95 p-4 backdrop-blur sm:flex-row sm:justify-end">
+              {ticketStep > 1 && (
+                <button
+                  type="button"
+                  onClick={goPreviousStep}
+                  className="rounded-full px-4 py-3 text-center text-sm font-semibold btn-smoke-outline transition"
+                >
+                  Volver
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={
+                  ticketLoading ||
+                  ticketUploading ||
+                  Boolean(ticketSaleBlock) ||
+                  !selectedTicketType
+                }
+                className="flex items-center justify-center rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
+              >
+                {ticketStep < 4
+                  ? "Continuar"
+                  : ticketLoading
+                    ? "Enviando..."
+                    : isTicketCulqiSelected
+                      ? "Continuar al pago"
+                      : "Enviar solicitud"}
+              </button>
+            </div>
+            {ticketStep === 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const currentForm = formRef.current;
+                  const currentTicketForm = ticketFormRef.current;
+                  const nextForm = {
+                    ...currentForm,
+                    doc_type:
+                      currentForm.doc_type || currentTicketForm.doc_type,
+                    document:
+                      currentForm.document || currentTicketForm.document,
+                    nombre: currentForm.nombre || currentTicketForm.nombre,
+                    apellido_paterno:
+                      currentForm.apellido_paterno ||
+                      currentTicketForm.apellido_paterno,
+                    apellido_materno:
+                      currentForm.apellido_materno ||
+                      currentTicketForm.apellido_materno,
+                    email: currentForm.email || currentTicketForm.email,
+                    phone: currentForm.phone || currentTicketForm.phone,
+                  };
+                  setForm(nextForm);
+                  setFormApellidosInput(
+                    joinSurnameInput(
+                      nextForm.apellido_paterno,
+                      nextForm.apellido_materno,
+                    ),
+                  );
+                  handleModeChange("mesa");
+                }}
+                className="relative w-full overflow-hidden rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition"
+              >
+                Quiero reservar mesa (opcional)
+              </button>
+            )}
           </form>
         )}
 
         {mode === "mesa" && (
-          <form onSubmit={handleOpenSummary} className="space-y-3">
+          <form onSubmit={handleMesaWizardSubmit} className="space-y-3">
             <div className="mx-auto grid w-full max-w-4xl min-w-0 grid-cols-1 gap-3">
-              <section className="order-1 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c0c] text-xs text-white/70">
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-white">Plano de mesas</p>
-                    <p className="truncate text-[11px] text-white/45">
-                      Elige una mesa en el mapa o desde el panel.
+              {mesaStep === 1 && (
+                <section className="order-1 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c0c] text-xs text-white/70">
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white">Plano de mesas</p>
+                      <p className="truncate text-[11px] text-white/45">
+                        Elige una mesa en el mapa o desde el panel.
+                      </p>
+                    </div>
+                    <div className="hidden shrink-0 items-center gap-2 text-[9px] uppercase tracking-[0.1em] text-white/45 sm:flex">
+                      <span className="flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full border border-white/30 bg-white/10" />
+                        Libre
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full border border-[#e91e63] bg-[#e91e63]" />
+                        Seleccionada
+                      </span>
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1 p-2 sm:p-3">
+                    <div className="h-[67svh] min-h-[500px] max-h-[620px] w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:h-[min(58svh,560px)] sm:min-h-[320px] sm:max-h-none">
+                      <TableMap
+                        slots={tableSlots}
+                        selectedTableId={selected}
+                        onSelect={(id) => {
+                          setSelected(id);
+                          const next = tables.find((t) => t.id === id);
+                          const firstProd = next?.products?.find(
+                            (p) => p.is_active !== false,
+                          );
+                          setSelectedProduct(firstProd?.id || "");
+                        }}
+                        layoutUrl={layoutUrl || undefined}
+                        viewBoxOverride={layoutCanvas}
+                        imageNaturalSize={layoutImageSize}
+                        enableZoom={false}
+                        loading={tables.length === 0}
+                        labelMode="number"
+                        minSlotSizePx={0}
+                        minSlotScreenPx={14}
+                        focusOnSlots
+                        focusOnSlotsOnMobile
+                      />
+                    </div>
+                  </div>
+                  {tableSlots.length === 0 && (
+                    <p className="shrink-0 border-t border-white/10 px-3 py-2 text-[11px] text-white/50">
+                      No hay mesas posicionadas en el croquis del organizador.
                     </p>
-                  </div>
-                  <div className="hidden shrink-0 items-center gap-2 text-[9px] uppercase tracking-[0.1em] text-white/45 sm:flex">
-                    <span className="flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full border border-white/30 bg-white/10" />
-                      Libre
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full border border-[#e91e63] bg-[#e91e63]" />
-                      Seleccionada
-                    </span>
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 p-2 sm:p-3">
-                  <div className="h-[67svh] min-h-[500px] max-h-[620px] w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:h-[min(58svh,560px)] sm:min-h-[320px] sm:max-h-none">
-                    <TableMap
-                      slots={tableSlots}
-                      selectedTableId={selected}
-                      onSelect={(id) => {
-                        setSelected(id);
-                        const next = tables.find((t) => t.id === id);
-                        const firstProd = next?.products?.find(
-                          (p) => p.is_active !== false,
-                        );
-                        setSelectedProduct(firstProd?.id || "");
-                      }}
-                      layoutUrl={layoutUrl || undefined}
-                      viewBoxOverride={layoutCanvas}
-                      imageNaturalSize={layoutImageSize}
-                      enableZoom={false}
-                      loading={tables.length === 0}
-                      labelMode="number"
-                      minSlotSizePx={0}
-                      minSlotScreenPx={14}
-                      focusOnSlots
-                      focusOnSlotsOnMobile
-                    />
-                  </div>
-                </div>
-                {tableSlots.length === 0 && (
-                  <p className="shrink-0 border-t border-white/10 px-3 py-2 text-[11px] text-white/50">
-                    No hay mesas posicionadas en el croquis del organizador.
-                  </p>
-                )}
-              </section>
+                  )}
+                </section>
+              )}
 
               <aside className="order-2 min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a]">
-                <div className="shrink-0 border-b border-white/10 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
-                    Mesas
-                  </p>
-                  {selected && tableInfo ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl border border-[#e91e63]/50 bg-[#e91e63]/10 px-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ff77ad]">
-                          Mesa seleccionada
-                        </p>
-                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <p className="truncate text-xl font-bold text-white">
-                            {tableInfo.name}
-                          </p>
-                          {totalLabel && (
-                            <p className="text-sm font-semibold text-[#ff77ad]">
-                              {totalLabel}
+                {mesaStep === 1 && (
+                  <>
+                    <div className="shrink-0 border-b border-white/10 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                        Mesas
+                      </p>
+                      {selected && tableInfo ? (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#e91e63]/50 bg-[#e91e63]/10 px-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ff77ad]">
+                              Mesa seleccionada
                             </p>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelected("");
-                          setSelectedProduct("");
-                        }}
-                        className="shrink-0 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white"
-                      >
-                        Cambiar
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid max-h-[122px] grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4">
-                      {tables.map((t) => {
-                        const eventRel = Array.isArray((t as any)?.event)
-                          ? (t as any)?.event?.[0]
-                          : (t as any)?.event;
-                        const evId = t.event_id || eventRel?.id || "";
-                        const isReserved = !!t.is_reserved;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => {
-                              if (isReserved) return;
-                              setSelected(t.id);
-                              const firstProd = t.products?.find(
-                                (p) => p.is_active !== false,
-                              );
-                              setSelectedProduct(firstProd?.id || "");
-                              if (evId) setSelectedEventId(evId);
-                            }}
-                            disabled={isReserved}
-                            className={`h-9 min-w-0 rounded-full px-2 text-xs font-semibold ${
-                              isReserved
-                                ? "cursor-not-allowed border border-white/10 bg-white/5 text-white/40"
-                                : "border border-[#f2f2f2]/40 text-[#f2f2f2] transition hover:border-[#e91e63] hover:text-white"
-                            }`}
-                          >
-                            <span className="block truncate">{t.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3 p-3">
-                  <section className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
-                    <p className="mb-2 text-sm font-semibold text-white">
-                      Packs de consumo
-                    </p>
-                    {activeProducts.length > 0 ? (
-                      <div className="grid gap-2">
-                        {activeProducts.map((p) => (
-                          <button
-                            type="button"
-                            key={p.id}
-                            onClick={() => setSelectedProduct(p.id)}
-                            className={`rounded-xl border p-3 text-left ${
-                              selectedProduct === p.id
-                                ? "border-[#e91e63] bg-[#e91e63]/10 text-white"
-                                : "border-[#f2f2f2]/30 bg-black/40 text-[#f2f2f2]"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-white">
-                                  {p.name}
-                                </div>
-                                {p.tickets_included != null && (
-                                  <div>
-                                    Incluye {p.tickets_included} tickets
-                                  </div>
-                                )}
-                              </div>
-                              {p.price != null && (
-                                <div className="shrink-0 text-sm font-semibold text-[#e91e63]">
-                                  S/ {p.price}
-                                </div>
+                            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                              <p className="truncate text-xl font-bold text-white">
+                                {tableInfo.name}
+                              </p>
+                              {totalLabel && (
+                                <p className="text-sm font-semibold text-[#ff77ad]">
+                                  {totalLabel}
+                                </p>
                               )}
                             </div>
-                            {p.items && p.items.length > 0 && (
-                              <ul className="mt-2 space-y-1">
-                                {p.items.map((item, idx) => (
-                                  <li key={idx}>• {item}</li>
-                                ))}
-                              </ul>
-                            )}
-                            {p.description && (
-                              <div className="mt-2 text-white/60">
-                                {p.description}
-                              </div>
-                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelected("");
+                              setSelectedProduct("");
+                            }}
+                            className="shrink-0 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white"
+                          >
+                            Cambiar
                           </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-white/60">
-                        Selecciona una mesa para ver sus packs disponibles.
-                      </p>
-                    )}
-                  </section>
+                        </div>
+                      ) : (
+                        <div className="grid max-h-[122px] grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4">
+                          {tables.map((t) => {
+                            const eventRel = Array.isArray((t as any)?.event)
+                              ? (t as any)?.event?.[0]
+                              : (t as any)?.event;
+                            const evId = t.event_id || eventRel?.id || "";
+                            const isReserved = !!t.is_reserved;
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isReserved) return;
+                                  setSelected(t.id);
+                                  const firstProd = t.products?.find(
+                                    (p) => p.is_active !== false,
+                                  );
+                                  setSelectedProduct(firstProd?.id || "");
+                                  if (evId) setSelectedEventId(evId);
+                                }}
+                                disabled={isReserved}
+                                className={`h-9 min-w-0 rounded-full px-2 text-xs font-semibold ${
+                                  isReserved
+                                    ? "cursor-not-allowed border border-white/10 bg-white/5 text-white/40"
+                                    : "border border-[#f2f2f2]/40 text-[#f2f2f2] transition hover:border-[#e91e63] hover:text-white"
+                                }`}
+                              >
+                                <span className="block truncate">{t.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-[120px_1fr] lg:grid-cols-[120px_1fr]">
-                    <label className="block space-y-2 text-sm font-semibold text-white">
-                      Tipo doc
-                      <select
-                        value={form.doc_type as DocumentType}
-                        onChange={(e) =>
-                          setForm((p) => ({
-                            ...p,
-                            doc_type: e.target.value as DocumentType,
-                            document: "",
-                          }))
+                    <div className="space-y-3 p-3">
+                      <section className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
+                        <p className="mb-2 text-sm font-semibold text-white">
+                          Packs de consumo
+                        </p>
+                        {activeProducts.length > 0 ? (
+                          <div className="grid gap-2">
+                            {activeProducts.map((p) => (
+                              <button
+                                type="button"
+                                key={p.id}
+                                onClick={() => setSelectedProduct(p.id)}
+                                className={`rounded-xl border p-3 text-left ${
+                                  selectedProduct === p.id
+                                    ? "border-[#e91e63] bg-[#e91e63]/10 text-white"
+                                    : "border-[#f2f2f2]/30 bg-black/40 text-[#f2f2f2]"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-white">
+                                      {p.name}
+                                    </div>
+                                    {p.tickets_included != null && (
+                                      <div>
+                                        Incluye {p.tickets_included} tickets
+                                      </div>
+                                    )}
+                                  </div>
+                                  {p.price != null && (
+                                    <div className="shrink-0 text-sm font-semibold text-[#e91e63]">
+                                      S/ {p.price}
+                                    </div>
+                                  )}
+                                </div>
+                                {p.items && p.items.length > 0 && (
+                                  <ul className="mt-2 space-y-1">
+                                    {p.items.map((item, idx) => (
+                                      <li key={idx}>• {item}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                                {p.description && (
+                                  <div className="mt-2 text-white/60">
+                                    {p.description}
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-white/60">
+                            Selecciona una mesa para ver sus packs disponibles.
+                          </p>
+                        )}
+                      </section>
+                    </div>
+                  </>
+                )}
+
+                {mesaStep === 2 && (
+                  <div className="space-y-3 p-3">
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-[120px_1fr] lg:grid-cols-[120px_1fr]">
+                      <label className="block space-y-2 text-sm font-semibold text-white">
+                        Tipo doc
+                        <select
+                          value={form.doc_type as DocumentType}
+                          onChange={(e) =>
+                            setForm((p) => ({
+                              ...p,
+                              doc_type: e.target.value as DocumentType,
+                              document: "",
+                            }))
+                          }
+                          className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
+                        >
+                          {DOCUMENT_TYPES.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <Field
+                        label="Número de documento"
+                        value={form.document}
+                        onChange={(v) =>
+                          setForm((p) => ({ ...p, document: v }))
                         }
-                        className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white focus:border-white focus:outline-none"
-                      >
-                        {DOCUMENT_TYPES.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        inputMode={
+                          form.doc_type === "dni" || form.doc_type === "ruc"
+                            ? "numeric"
+                            : "text"
+                        }
+                        digitOnly={
+                          form.doc_type === "dni" || form.doc_type === "ruc"
+                        }
+                        maxLength={
+                          form.doc_type === "dni"
+                            ? 8
+                            : form.doc_type === "ruc"
+                              ? 11
+                              : 12
+                        }
+                        required
+                        error={dniErrorMesa}
+                        allowClear
+                        onClear={resetMesaForm}
+                      />
+                    </div>
+
                     <Field
-                      label="Número de documento"
-                      value={form.document}
-                      onChange={(v) => setForm((p) => ({ ...p, document: v }))}
-                      inputMode={
-                        form.doc_type === "dni" || form.doc_type === "ruc"
-                          ? "numeric"
-                          : "text"
-                      }
-                      digitOnly={
-                        form.doc_type === "dni" || form.doc_type === "ruc"
-                      }
-                      maxLength={
-                        form.doc_type === "dni"
-                          ? 8
-                          : form.doc_type === "ruc"
-                            ? 11
-                            : 12
-                      }
+                      label="Nombres"
+                      value={form.nombre}
+                      onChange={(v) => setForm((p) => ({ ...p, nombre: v }))}
                       required
-                      error={dniErrorMesa}
-                      allowClear
-                      onClear={resetMesaForm}
                     />
-                  </div>
 
-                  <Field
-                    label="Nombres"
-                    value={form.nombre}
-                    onChange={(v) => setForm((p) => ({ ...p, nombre: v }))}
-                    required
-                  />
-
-                  <Field
-                    label="Apellidos (paterno y materno)"
-                    value={formApellidosInput}
-                    onChange={(v) => {
-                      const parts = splitSurnameInput(v);
-                      setFormApellidosInput(v);
-                      setForm((p) => ({
-                        ...p,
-                        ...parts,
-                      }));
-                    }}
-                    onBlur={() =>
-                      setFormApellidosInput(
-                        joinSurnameInput(
-                          form.apellido_paterno,
-                          form.apellido_materno,
-                        ),
-                      )
-                    }
-                    placeholder="Ej: García López"
-                    required
-                  />
-
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-2">
                     <Field
-                      label="Email"
-                      value={form.email}
-                      onChange={(v) => setForm((p) => ({ ...p, email: v }))}
-                      type="email"
+                      label="Apellidos (paterno y materno)"
+                      value={formApellidosInput}
+                      onChange={(v) => {
+                        const parts = splitSurnameInput(v);
+                        setFormApellidosInput(v);
+                        setForm((p) => ({
+                          ...p,
+                          ...parts,
+                        }));
+                      }}
+                      onBlur={() =>
+                        setFormApellidosInput(
+                          joinSurnameInput(
+                            form.apellido_paterno,
+                            form.apellido_materno,
+                          ),
+                        )
+                      }
+                      placeholder="Ej: García López"
+                      required
                     />
-                    <Field
-                      label="Teléfono"
-                      value={form.phone}
-                      onChange={(v) => setForm((p) => ({ ...p, phone: v }))}
-                      placeholder="+51 999 999 999"
+
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-2">
+                      <Field
+                        label="Email"
+                        value={form.email}
+                        onChange={(v) => setForm((p) => ({ ...p, email: v }))}
+                        type="email"
+                      />
+                      <Field
+                        label="Teléfono"
+                        value={form.phone}
+                        onChange={(v) => setForm((p) => ({ ...p, phone: v }))}
+                        placeholder="+51 999 999 999"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {mesaStep === 3 && (
+                  <div className="space-y-3 p-3">
+                    <LegalSummaryNotice />
+                    <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
+                      <div className="flex items-center justify-between text-white">
+                        <span className="font-semibold">Mesa</span>
+                        <span className="font-semibold">
+                          {tableInfo?.name || "Por definir"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-white">
+                        <span>Documento</span>
+                        <span className="font-semibold text-white">
+                          {form.document || "—"} ({form.doc_type})
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Pack seleccionado</span>
+                        <span className="font-semibold text-white">
+                          {selectedProductInfo?.name || "Sin pack"}
+                        </span>
+                      </div>
+                      {totalLabel && (
+                        <div className="flex items-center justify-between text-white">
+                          <span className="text-white/80">Total a pagar</span>
+                          <span className="text-lg font-semibold text-[#e91e63]">
+                            {totalLabel}
+                          </span>
+                        </div>
+                      )}
+                      {selectedProductInfo?.items &&
+                        selectedProductInfo.items.length > 0 && (
+                          <div className="pt-2 text-xs text-white/60">
+                            Incluye:
+                            <ul className="mt-1 space-y-1">
+                              {selectedProductInfo.items.map((item, idx) => (
+                                <li key={idx}>• {item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+
+                {mesaStep === 4 && (
+                  <div className="space-y-3 p-3">
+                    <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70">
+                      {isMesaCulqiSelected
+                        ? "Verás el recuento y luego continuarás al pago online."
+                        : "Subirás el comprobante y verás el recuento antes de enviar la reserva."}
+                    </div>
+                    <PaymentMethodSelector
+                      title="Método de pago"
+                      value={selectedPaymentMethod}
+                      onChange={setSelectedPaymentMethod}
+                      culqiAvailable={canUseCulqiForMesa}
+                      amountLabel={totalLabel}
+                      compact
                     />
-                  </div>
+                    <LegalTrustStrip />
+                    <LegalAcceptance
+                      checked={mesaLegalAccepted}
+                      onChange={setMesaLegalAccepted}
+                    />
+                    {!isMesaCulqiSelected && (
+                      <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+                              Paga con Yape/Plin
+                            </p>
+                            <p className="text-2xl font-semibold leading-tight text-white">
+                              {yapeNumber}
+                            </p>
+                            <p className="text-xs text-white/60">
+                              Titular: {yapeHolder}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={copyYapeNumber}
+                            className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold btn-smoke-outline transition"
+                          >
+                            {copyFeedback === "copied"
+                              ? "Copiado"
+                              : copyFeedback === "error"
+                                ? "No se pudo copiar"
+                                : "Copiar número"}
+                            <span className="text-[#f2f2f2]/70">
+                              (para abrir Yape)
+                            </span>
+                          </button>
+                        </div>
+                        {totalLabel && (
+                          <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                            Envía{" "}
+                            <span className="font-semibold text-white">
+                              {totalLabel}
+                            </span>{" "}
+                            al número indicado y adjunta el comprobante abajo.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!isMesaCulqiSelected && (
+                      <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
+                        <label className="text-sm font-semibold text-white">
+                          Comprobante de pago
+                        </label>
 
-                  <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70">
-                    {isMesaCulqiSelected
-                      ? "Verás el recuento y luego continuarás al pago online."
-                      : "Subirás el comprobante y verás el recuento antes de enviar la reserva."}
-                  </div>
-                  <PaymentMethodSelector
-                    title="Método de pago"
-                    value={selectedPaymentMethod}
-                    onChange={setSelectedPaymentMethod}
-                    culqiAvailable={canUseCulqiForMesa}
-                    amountLabel={totalLabel}
-                    compact
-                  />
-                  <LegalTrustStrip />
-                  <LegalAcceptance
-                    checked={mesaLegalAccepted}
-                    onChange={setMesaLegalAccepted}
-                  />
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
+                            isDragging
+                              ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                              : uploading || reservationDone
+                                ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
+                                : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
+                          }`}
+                        >
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/jpg"
+                            onChange={onFileChange}
+                            disabled={uploading || reservationDone}
+                            className="absolute inset-0 z-10 cursor-pointer opacity-0"
+                            id="voucher-upload-inline"
+                          />
+                          <label
+                            htmlFor="voucher-upload-inline"
+                            className={`flex flex-col items-center justify-center gap-3 px-6 py-8 ${
+                              uploading || reservationDone
+                                ? "cursor-not-allowed"
+                                : "cursor-pointer"
+                            }`}
+                          >
+                            {uploading ? (
+                              <>
+                                <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                                <p className="text-sm font-semibold text-white">
+                                  Subiendo comprobante...
+                                </p>
+                              </>
+                            ) : form.voucher_url ? (
+                              <>
+                                <svg
+                                  className="h-12 w-12 text-emerald-400"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M5 13l4 4L19 7"
+                                  />
+                                </svg>
+                                <p className="text-sm font-semibold text-emerald-400">
+                                  Comprobante subido
+                                </p>
+                                <p className="text-xs text-white/60">
+                                  Haz clic o arrastra para reemplazar
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <svg
+                                  className="h-12 w-12 text-white/40"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                  />
+                                </svg>
+                                <div className="text-center">
+                                  <p className="text-sm font-semibold text-white">
+                                    {isDragging
+                                      ? "Suelta la imagen aquí"
+                                      : "Arrastra tu comprobante o haz clic"}
+                                  </p>
+                                  <p className="mt-1 text-xs text-white/60">
+                                    JPG, PNG, WEBP • Máx 5MB
+                                  </p>
+                                </div>
+                              </>
+                            )}
+                          </label>
+                        </div>
 
-                  {error && (
-                    <p className="text-xs font-semibold text-[#ff9a9a]">
-                      {error}
-                    </p>
-                  )}
-                </div>
+                        {form.voucher_url && (
+                          <a
+                            href={form.voucher_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                          >
+                            Ver comprobante subido
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {error && (
+                  <p className="text-xs font-semibold text-[#ff9a9a]">
+                    {error}
+                  </p>
+                )}
 
                 <div className="border-t border-white/10 bg-[#050505]/95 p-3">
                   <button
                     type="submit"
-                    disabled={loading || Boolean(mesaSaleBlock)}
+                    disabled={loading || uploading || Boolean(mesaSaleBlock)}
                     className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
                   >
-                    {loading
-                      ? "Procesando..."
-                      : mesaSaleBlock
-                        ? "Reserva bloqueada"
-                        : "Revisar pago y enviar"}
+                    {mesaStep < 4
+                      ? "Continuar"
+                      : loading
+                        ? "Procesando..."
+                        : mesaSaleBlock
+                          ? "Reserva bloqueada"
+                          : isMesaCulqiSelected
+                            ? "Continuar al pago"
+                            : "Enviar reserva"}
                   </button>
+                  {mesaStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={goPreviousStep}
+                      className="mt-2 w-full rounded-full px-4 py-3 text-center text-sm font-semibold btn-smoke-outline transition"
+                    >
+                      Volver
+                    </button>
+                  )}
                 </div>
               </aside>
             </div>
@@ -2731,7 +3410,9 @@ function CompraContent({
               currencyCode={culqiCurrencyCode}
               customerEmail={culqiCustomerEmail}
               title={
-                culqiFlowType === "mesa" ? "Reserva BabyClub" : "Entrada BabyClub"
+                culqiFlowType === "mesa"
+                  ? "Reserva BabyClub"
+                  : "Entrada BabyClub"
               }
               autoOpen={!culqiPendingMessage}
               onSuccess={() => {

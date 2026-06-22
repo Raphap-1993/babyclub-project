@@ -3,6 +3,34 @@ type PurchaseEventOption = {
   name?: string | null;
 };
 
+export type PurchaseStepId = 1 | 2 | 3 | 4;
+
+export type PurchaseStep = {
+  id: PurchaseStepId;
+  label: string;
+};
+
+export const PURCHASE_STEPS: PurchaseStep[] = [
+  { id: 1, label: "Entradas" },
+  { id: 2, label: "Datos" },
+  { id: 3, label: "Resumen" },
+  { id: 4, label: "Pago" },
+];
+
+export function normalizePurchaseStep(step: number): PurchaseStepId {
+  if (step <= 1) return 1;
+  if (step >= 4) return 4;
+  return step as PurchaseStepId;
+}
+
+export function getNextPurchaseStep(step: number): PurchaseStepId {
+  return normalizePurchaseStep(normalizePurchaseStep(step) + 1);
+}
+
+export function getPreviousPurchaseStep(step: number): PurchaseStepId {
+  return normalizePurchaseStep(normalizePurchaseStep(step) - 1);
+}
+
 export function getTicketEmptyStateMessage({
   hasTicketEvents,
   ticketEventId,

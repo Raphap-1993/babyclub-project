@@ -2,6 +2,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PurchaseModeControls } from "./PurchaseModeControls";
+import { PurchaseStepper } from "./PurchaseStepper";
 
 describe("PurchaseModeControls", () => {
   it("prioritizes the ticket event selector without rendering the legal trust strip", () => {
@@ -102,5 +103,46 @@ describe("PurchaseModeControls", () => {
     expect(html).toContain("Evento");
     expect(html).toContain("No hay eventos con entradas disponibles ahora.");
     expect(html).not.toContain("<select");
+  });
+});
+
+describe("PurchaseStepper", () => {
+  it("renders four checkout steps with the active one announced", () => {
+    const html = renderToStaticMarkup(
+      <PurchaseStepper
+        currentStep={2}
+        steps={[
+          { id: 1, label: "Entradas" },
+          { id: 2, label: "Datos" },
+          { id: 3, label: "Resumen" },
+          { id: 4, label: "Pago" },
+        ]}
+      />,
+    );
+
+    expect(html).toContain("Entradas");
+    expect(html).toContain("Datos");
+    expect(html).toContain("Resumen");
+    expect(html).toContain("Pago");
+    expect(html).toContain('aria-current="step"');
+    expect(html).toContain("Paso 2 de 4");
+  });
+
+  it("marks completed steps and keeps future steps inactive", () => {
+    const html = renderToStaticMarkup(
+      <PurchaseStepper
+        currentStep={3}
+        steps={[
+          { id: 1, label: "Entradas" },
+          { id: 2, label: "Datos" },
+          { id: 3, label: "Resumen" },
+          { id: 4, label: "Pago" },
+        ]}
+      />,
+    );
+
+    expect(html).toContain('data-state="complete"');
+    expect(html).toContain('data-state="active"');
+    expect(html).toContain('data-state="upcoming"');
   });
 });
