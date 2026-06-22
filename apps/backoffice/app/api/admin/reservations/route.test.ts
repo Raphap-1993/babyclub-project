@@ -114,7 +114,7 @@ describe("POST /api/admin/reservations", () => {
     expect(String(payload.error || "")).toContain("producto");
   });
 
-  it("bloquea la reserva manual si la mesa no está habilitada para el evento", async () => {
+  it("bloquea la reserva manual si la mesa está marcada como no disponible para el evento", async () => {
     (requireStaffRole as any).mockResolvedValue({ ok: true, context: { role: "admin" } });
 
     const { supabase } = createSupabaseMock({
@@ -139,7 +139,7 @@ describe("POST /api/admin/reservations", () => {
       ],
       "table_availability.select": [
         {
-          data: [{ table_id: "table-2", is_available: true }],
+          data: [{ table_id: "table-1", is_available: false }],
           error: null,
         },
       ],

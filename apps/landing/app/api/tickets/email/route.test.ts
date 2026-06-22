@@ -54,7 +54,7 @@ describe("POST /api/tickets/email", () => {
     process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3001";
   });
 
-  it("retorna error cuando el proveedor responde error payload", async () => {
+  it("retorna mensaje estable cuando el proveedor responde error payload", async () => {
     const { supabase } = buildTicketEmailSupabase();
     (createClient as any).mockReturnValue(supabase);
     (sendEmail as any).mockResolvedValue({
@@ -74,7 +74,8 @@ describe("POST /api/tickets/email", () => {
 
     expect(res.status).toBe(500);
     expect(payload.success).toBe(false);
-    expect(String(payload.error || "")).toContain("blocked by provider");
+    expect(String(payload.error || "")).not.toContain("blocked by provider");
+    expect(String(payload.error || "")).toContain("ticket sigue disponible");
   });
 
   it("normaliza el dominio del correo antes de enviarlo", async () => {

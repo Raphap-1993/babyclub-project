@@ -52,6 +52,7 @@ describe("GET /api/admin/tables", () => {
             { id: "table-1", name: "Mesa 1", ticket_count: 6, event_id: null, is_active: true },
             { id: "table-2", name: "Mesa 2", ticket_count: 6, event_id: null, is_active: true },
             { id: "table-3", name: "Mesa 3", ticket_count: 6, event_id: null, is_active: true },
+            { id: "table-4", name: "Mesa 4", ticket_count: 6, event_id: null, is_active: true },
           ],
           error: null,
         },
@@ -68,8 +69,7 @@ describe("GET /api/admin/tables", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(payload.tables).toHaveLength(1);
-    expect(payload.tables[0].id).toBe("table-2");
+    expect(payload.tables.map((table: any) => table.id)).toEqual(["table-2", "table-4"]);
 
     const reservationCall = calls.find((call) => call.table === "table_reservations" && call.op === "select");
     const statusFilter = reservationCall?.filters?.find(

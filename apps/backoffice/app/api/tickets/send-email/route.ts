@@ -5,6 +5,7 @@ import {
   isValidEmailAddress,
   normalizeEmailAddress,
 } from "shared/email/address";
+import { getTicketEmailDeliveryErrorMessage } from "shared/email/ticketEmailError";
 import { sendTicketEmail } from "../../reservations/email";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, error: err?.message || "No se pudo enviar el correo del ticket" },
+      { success: false, error: getTicketEmailDeliveryErrorMessage() },
       { status: 500 }
     );
   }

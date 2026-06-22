@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { applyEventTableAvailability } from "shared/tableAvailability";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -78,19 +79,10 @@ export async function GET(req: NextRequest) {
     }
 
     const availabilityRows = availabilityRes.data || [];
-    const eventHasScopedAvailability = availabilityRows.length > 0;
-    const availableTableIds = new Set(
-      availabilityRows
-        .filter((row: any) => row?.table_id && row?.is_available !== false)
-        .map((row: any) => row.table_id)
-    );
-
-    const candidateTables = (tablesRes.data || []).filter((table: any) => {
-      if (eventHasScopedAvailability) {
-        return availableTableIds.has(table.id);
-      }
-      return !table.event_id || table.event_id === event_id;
-    });
+    const candidateTables =
+      availabilityRows.length > 0
+        ? applyEventTableAvailability(tablesRes.data || [], availabilityRows, event_id)
+        : (tablesRes.data || []).filter((table: any) => !table.event_id || table.event_id === event_id);
 
     const reservedTableIds = new Set(
       (reservationsRes.data || [])

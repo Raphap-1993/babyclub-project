@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { loadActiveTicketRefs } from "./ticketVisibility";
+import { filterVisibleAdminTicketRows } from "./ticketListModel";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -94,36 +95,10 @@ async function getTickets(params: {
   const { activeTicketIds, trackedReservationIds } =
     await loadActiveTicketRefs(supabase);
 
-  const visibleTickets: any[] = [];
-  for (const row of data as any[]) {
-    const codeRel = Array.isArray((row as any).code)
-      ? (row as any).code?.[0]
-      : (row as any).code;
-    const reservationId =
-      (row as any).table_reservation_id || codeRel?.table_reservation_id || null;
-    if (
-      reservationId &&
-      trackedReservationIds.has(String(reservationId)) &&
-      !activeTicketIds.has(String(row.id))
-    ) {
-      continue;
-    }
-    visibleTickets.push(row);
-  }
-
-  const dedupedTickets: any[] = [];
-  const seenKeys = new Set<string>();
-  for (const row of visibleTickets) {
-    const codeRel = Array.isArray((row as any).code)
-      ? (row as any).code?.[0]
-      : (row as any).code;
-    const dedupeKey = String(codeRel?.id || row.code_id || row.id || "").trim();
-    if (!dedupeKey || seenKeys.has(dedupeKey)) {
-      continue;
-    }
-    seenKeys.add(dedupeKey);
-    dedupedTickets.push(row);
-  }
+  const visibleTickets = filterVisibleAdminTicketRows(data as any[], {
+    activeTicketIds,
+    trackedReservationIds,
+  });
 
   const eventIds = Array.from(
     new Set((data as any[]).map((t) => t.event_id).filter(Boolean)),
@@ -248,7 +223,7 @@ async function getTickets(params: {
     });
   });
 
-  const normalized: TicketRow[] = dedupedTickets.map((t) => {
+  const normalized: TicketRow[] = visibleTickets.map((t) => {
     const codeRel = Array.isArray((t as any).code)
       ? (t as any).code?.[0]
       : (t as any).code;

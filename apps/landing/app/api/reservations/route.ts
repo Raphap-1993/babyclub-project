@@ -10,6 +10,8 @@ import {
   normalizeOptionalEmailAddress,
 } from "shared/email/address";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { findTableAvailability, isTableAvailableForEvent } from "shared/tableAvailability";
+import { resolveReservationEventId } from "shared/reservationEvent";
 import {
   ensureEventSalesDefaults,
   evaluateEventSales,
@@ -204,7 +206,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ticketCount = Math.max(table.ticket_count || 1, 1);
-  let effectiveEventId = table.event_id || event_id_body || null;
+  let effectiveEventId = resolveReservationEventId(table.event_id, event_id_body);
 
   // Si no hay event_id en la mesa, intentar resolverlo desde el código del registro
   if (!effectiveEventId && codeValue) {
@@ -358,10 +360,10 @@ export async function POST(req: NextRequest) {
     }
     const rows = availabilityRows || [];
     if (rows.length > 0) {
-      const tableAvailability = rows.find(
-        (row: any) => row?.table_id === table_id,
-      );
-      if (!tableAvailability || tableAvailability.is_available === false) {
+      const tableAvailability = findTableAvailability(table_id, rows);
+      const legacyEventMismatch =
+        table.event_id && table.event_id !== effectiveEventId && !tableAvailability;
+      if (legacyEventMismatch || !isTableAvailableForEvent(table_id, rows)) {
         return NextResponse.json(
           {
             success: false,

@@ -15,6 +15,8 @@ import { normalizeDocument, validateDocument, type DocumentType } from "shared/d
 import { logProcessEvent } from "../../logs/logger";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { findTableAvailability, isTableAvailableForEvent } from "shared/tableAvailability";
+import { resolveReservationEventId } from "shared/reservationEvent";
 import { EventTicketConflictError } from "shared/eventTicketIdentity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -74,10 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Mesa inactiva" }, { status: 400 });
   }
 
-  if (table.event_id && eventId && table.event_id !== eventId) {
-    return NextResponse.json({ success: false, error: "La mesa pertenece a otro evento" }, { status: 400 });
-  }
-  eventId = eventId || table.event_id || null;
+  eventId = resolveReservationEventId(table.event_id, eventId);
   const requiredQrCount = Math.max(table.ticket_count || 1, 1);
 
   // Fetch event data with event_prefix
@@ -137,8 +136,10 @@ export async function POST(req: NextRequest) {
 
     const rows = availabilityRows || [];
     if (rows.length > 0) {
-      const tableAvailability = rows.find((row: any) => row?.table_id === table_id);
-      if (!tableAvailability || tableAvailability.is_available === false) {
+      const tableAvailability = findTableAvailability(table_id, rows);
+      const legacyEventMismatch =
+        table.event_id && table.event_id !== eventId && !tableAvailability;
+      if (legacyEventMismatch || !isTableAvailableForEvent(table_id, rows)) {
         return NextResponse.json(
           { success: false, error: "La mesa no está disponible para este evento" },
           { status: 409 }

@@ -387,7 +387,7 @@ describe("POST /api/reservations", () => {
     ).toBeFalsy();
   });
 
-  it("bloquea la reserva si el evento usa disponibilidad y la mesa no está habilitada", async () => {
+  it("bloquea la reserva si la mesa está marcada como no disponible para el evento", async () => {
     const { supabase } = createSupabaseMock({
       "tables.select": [
         {
@@ -422,7 +422,7 @@ describe("POST /api/reservations", () => {
       "table_reservations.select": [{ data: null, error: null }],
       "table_availability.select": [
         {
-          data: [{ table_id: "table-2", is_available: true }],
+          data: [{ table_id: "table-1", is_available: false }],
           error: null,
         },
       ],

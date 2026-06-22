@@ -5,6 +5,7 @@ import {
   normalizeEmailAddress,
 } from "shared/email/address";
 import { parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
+import { getTicketEmailDeliveryErrorMessage } from "shared/email/ticketEmailError";
 import { sendTicketEmail } from "../../../../../backoffice/app/api/reservations/email";
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -75,8 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          err?.message || "No se pudo enviar el correo. Intenta nuevamente.",
+        error: getTicketEmailDeliveryErrorMessage(),
       },
       { status: 500 },
     );
