@@ -5,14 +5,20 @@ import {
   rateLimit,
   rateLimitHeaders,
 } from "shared/security/rateLimit";
+import {
+  VOUCHER_ALLOWED_BUCKET_MIME_TYPES,
+  VOUCHER_ALLOWED_FILE_TYPES_LABEL,
+  VOUCHER_FILE_MAX_SIZE_BYTES,
+  getVoucherFileExtension,
+  inferVoucherMimeType,
+  isAllowedVoucherFile,
+} from "shared/voucherFilePolicy";
 
 export const runtime = "nodejs";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = "event-assets";
-const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-const allowedBucketTypes = [...allowedTypes, "application/pdf"];
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_VOUCHER_PER_MIN = parseRateLimitEnv(
   process.env.RATE_LIMIT_UPLOADS_VOUCHER_PER_MIN,
@@ -35,7 +41,7 @@ async function ensureEventAssetsBucket(supabase: any) {
   const { error: createError } = await supabase.storage.createBucket(bucket, {
     public: true,
     fileSizeLimit: 50 * 1024 * 1024,
-    allowedMimeTypes: allowedBucketTypes,
+    allowedMimeTypes: [...VOUCHER_ALLOWED_BUCKET_MIME_TYPES],
   });
 
   if (
@@ -81,18 +87,28 @@ export async function POST(req: Request) {
     );
   }
 
-  const contentType = file.type || "application/octet-stream";
-  if (!allowedTypes.includes(contentType)) {
+  if (!isAllowedVoucherFile(file)) {
     return NextResponse.json(
-      { success: false, error: "Tipo de archivo no permitido" },
+      {
+        success: false,
+        error: `Tipo de archivo no permitido. Usa ${VOUCHER_ALLOWED_FILE_TYPES_LABEL}.`,
+      },
       { status: 400 },
     );
   }
 
+  if (file.size > VOUCHER_FILE_MAX_SIZE_BYTES) {
+    return NextResponse.json(
+      { success: false, error: "La imagen no debe superar 5MB" },
+      { status: 400 },
+    );
+  }
+
+  const contentType = inferVoucherMimeType(file);
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const ext = file.name?.split(".").pop() || "png";
+  const ext = getVoucherFileExtension(file) || "png";
   const path = `vouchers/${tableName}-${Date.now()}.${ext}`;
 
   try {

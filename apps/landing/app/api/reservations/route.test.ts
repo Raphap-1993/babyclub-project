@@ -112,6 +112,85 @@ describe("POST /api/reservations", () => {
     );
   });
 
+  it("no expone el error crudo cuando la BD mantiene el limite antiguo de person_index", async () => {
+    const { supabase } = createSupabaseMock({
+      "tables.select": [
+        {
+          data: {
+            id: "table-18",
+            event_id: "event-1",
+            ticket_count: 18,
+            is_active: true,
+            event: { id: "event-1", name: "Evento" },
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
+      "table_products.select": [
+        {
+          data: [{ id: "prod-18", table_id: "table-18", is_active: true }],
+          error: null,
+        },
+      ],
+      "table_reservations.select": [{ data: null, error: null }],
+      "table_availability.select": [{ data: [], error: null }],
+      "tickets.select": [{ data: [], error: null }],
+      "table_reservations.insert": [{ data: { id: "res-18" }, error: null }],
+      "codes.insert": [
+        {
+          data: null,
+          error: {
+            code: "23514",
+            message:
+              'new row for relation "codes" violates check constraint "codes_person_index_check"',
+          },
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table_id: "table-18",
+        doc_type: "dni",
+        document: "12345678",
+        full_name: "Ana Perez",
+        email: "ana@example.com",
+        phone: "+51999999999",
+        voucher_url: "https://example.com/voucher.heic",
+        product_id: "prod-18",
+        event_id: "event-1",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(payload.success).toBe(false);
+    expect(payload.code).toBe("codes_person_index_constraint");
+    expect(String(payload.error || "")).toContain("No se pudieron generar");
+    expect(String(payload.error || "")).not.toContain(
+      "codes_person_index_check",
+    );
+  });
+
   it("bloquea una nueva solicitud cuando la mesa ya tiene reserva aprobada", async () => {
     const { supabase } = createSupabaseMock({
       "tables.select": [

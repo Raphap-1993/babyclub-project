@@ -32,11 +32,20 @@ const ACTIVE_RESERVATION_STATUSES = [
 ];
 
 function isCodesTypeCheckError(error: any): boolean {
+  return isCodesCheckConstraintError(error, "codes_type_check");
+}
+
+function isCodesPersonIndexCheckError(error: any): boolean {
+  return isCodesCheckConstraintError(error, "codes_person_index_check");
+}
+
+function isCodesCheckConstraintError(error: any, constraintName: string): boolean {
   if (!error) return false;
   const message = String(error?.message || "");
   const details = String(error?.details || "");
   return (
-    error?.code === "23514" && /codes_type_check/i.test(`${message} ${details}`)
+    error?.code === "23514" &&
+    new RegExp(constraintName, "i").test(`${message} ${details}`)
   );
 }
 
@@ -515,6 +524,17 @@ export async function POST(req: NextRequest) {
             success: false,
             error:
               "No se pudo generar los códigos de reserva. Actualiza migraciones de BD.",
+          },
+          { status: 500 },
+        );
+      }
+      if (isCodesPersonIndexCheckError(codeError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: "codes_person_index_constraint",
+            error:
+              "No se pudieron generar los QR de la mesa porque la base de datos mantiene un límite antiguo. Aplica la migración de códigos e intenta nuevamente.",
           },
           { status: 500 },
         );

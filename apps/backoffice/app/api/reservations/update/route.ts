@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createTicketForReservation } from "../utils";
+import { createReservationCodes, createTicketForReservation } from "../utils";
 import { sendApprovalEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,total_ticket_units,package_quantity,ticket_type_label,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location))",
+      "id,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,total_ticket_units,package_quantity,ticket_type_label,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location,event_prefix),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location,event_prefix))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -377,23 +377,25 @@ export async function POST(req: NextRequest) {
         .map((row: any) => String(row.code || "").trim())
         .filter(Boolean);
 
-      const reusableCodes = uniqueStrings([
+      let reusableCodes = uniqueStrings([
         ...reservationCodesFromRows,
         ...codesList,
       ]);
+      if (reusableCodes.length === 0 && ticketQuantity > 0) {
+        const generatedCodes = await createReservationCodes(supabase, {
+          eventId,
+          eventPrefix: eventRel?.event_prefix || eventDirectRel?.event_prefix || "BC",
+          tableName,
+          reservationId: id,
+          quantity: ticketQuantity,
+        });
+        reusableCodes = uniqueStrings(generatedCodes.codes || []);
+        trace.push(`reservationCodesGenerated:${reusableCodes.length}`);
+      }
       const reservationAttendees = readReservationAttendees(
         (reservation as any).attendees,
       );
-      const fallbackAttendee = {
-        fullName: resolvedFullName,
-        email: resolvedEmail,
-        phone: resolvedPhone,
-        docType: resolvedDocType as DocumentType,
-        document: resolvedDocument,
-      };
-      const plannedAttendees = Array.from({ length: ticketQuantity }, (_, index) =>
-        reservationAttendees[index] || fallbackAttendee,
-      );
+      const plannedAttendees = reservationAttendees.slice(0, ticketQuantity);
       const seenIdentityKeys = new Map<string, string>();
       for (let i = 0; i < plannedAttendees.length; i++) {
         const attendee = plannedAttendees[i];
@@ -451,7 +453,7 @@ export async function POST(req: NextRequest) {
         }
       }
       const ticketResults: Array<{ ticketId: string; code: string }> = [];
-      for (let i = 0; i < ticketQuantity; i++) {
+      for (let i = 0; i < plannedAttendees.length; i++) {
         const reuseCodes = reusableCodes[i] ? [reusableCodes[i]] : [];
         const attendee = plannedAttendees[i];
         const result = await createTicketForReservation(supabase, {
@@ -480,7 +482,7 @@ export async function POST(req: NextRequest) {
         ...reusableCodes,
         ...ticketCodes,
       ]);
-      if (ticketIds.length === 0) {
+      if (plannedAttendees.length > 0 && ticketIds.length === 0) {
         return NextResponse.json(
           {
             success: false,
@@ -490,7 +492,9 @@ export async function POST(req: NextRequest) {
           { status: 500 },
         );
       }
-      trace.push(`ticketId:${ticketIds[0]}`);
+      if (ticketIds.length > 0) {
+        trace.push(`ticketId:${ticketIds[0]}`);
+      }
 
       const approvalUpdatePayload: Record<string, any> = { ...updateData };
       if (mergedCodes.length > 0) {

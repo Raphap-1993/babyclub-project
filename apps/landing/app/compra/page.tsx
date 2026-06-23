@@ -15,6 +15,12 @@ import {
   type DocumentType,
 } from "shared/document";
 import {
+  VOUCHER_ACCEPT_ATTRIBUTE,
+  VOUCHER_ALLOWED_FILE_TYPES_LABEL,
+  VOUCHER_FILE_MAX_SIZE_BYTES,
+  isAllowedVoucherFile,
+} from "shared/voucherFilePolicy";
+import {
   normalizeTicketTypesFromEvent,
   type TicketTypeOption,
 } from "shared/ticketTypes";
@@ -518,16 +524,14 @@ function CompraContent({
   };
 
   const handleFileUpload = async (file: File) => {
-    // Validar tipo y tamaño
-    const validTypes = ["image/png", "image/jpeg", "image/webp", "image/jpg"];
-    const maxSize = 5 * 1024 * 1024; // 5MB
-
-    if (!validTypes.includes(file.type)) {
-      setModalError("Solo se permiten imágenes JPG, PNG o WEBP");
+    if (!isAllowedVoucherFile(file)) {
+      setModalError(
+        `Solo se permiten imágenes ${VOUCHER_ALLOWED_FILE_TYPES_LABEL}`,
+      );
       return;
     }
 
-    if (file.size > maxSize) {
+    if (file.size > VOUCHER_FILE_MAX_SIZE_BYTES) {
       setModalError("La imagen no debe superar 5MB");
       return;
     }
@@ -580,16 +584,14 @@ function CompraContent({
   };
 
   const handleTicketFileUpload = async (file: File) => {
-    // Validar tipo y tamaño
-    const validTypes = ["image/png", "image/jpeg", "image/webp", "image/jpg"];
-    const maxSize = 5 * 1024 * 1024; // 5MB
-
-    if (!validTypes.includes(file.type)) {
-      setTicketModalError("Solo se permiten imágenes JPG, PNG o WEBP");
+    if (!isAllowedVoucherFile(file)) {
+      setTicketModalError(
+        `Solo se permiten imágenes ${VOUCHER_ALLOWED_FILE_TYPES_LABEL}`,
+      );
       return;
     }
 
-    if (file.size > maxSize) {
+    if (file.size > VOUCHER_FILE_MAX_SIZE_BYTES) {
       setTicketModalError("La imagen no debe superar 5MB");
       return;
     }
@@ -1937,7 +1939,7 @@ function CompraContent({
                     >
                       <input
                         type="file"
-                        accept="image/png,image/jpeg,image/webp,image/jpg"
+                        accept={VOUCHER_ACCEPT_ATTRIBUTE}
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) await handleTicketFileUpload(file);
@@ -2005,7 +2007,7 @@ function CompraContent({
                                   : "Arrastra tu comprobante o haz clic"}
                               </p>
                               <p className="mt-1 text-xs text-white/60">
-                                JPG, PNG, WEBP • Máx 5MB
+                                {VOUCHER_ALLOWED_FILE_TYPES_LABEL} • Máx 5MB
                               </p>
                             </div>
                           </>
@@ -2529,7 +2531,7 @@ function CompraContent({
                         >
                           <input
                             type="file"
-                            accept="image/png,image/jpeg,image/webp,image/jpg"
+                            accept={VOUCHER_ACCEPT_ATTRIBUTE}
                             onChange={onFileChange}
                             disabled={uploading || reservationDone}
                             className="absolute inset-0 z-10 cursor-pointer opacity-0"
@@ -2594,7 +2596,7 @@ function CompraContent({
                                       : "Arrastra tu comprobante o haz clic"}
                                   </p>
                                   <p className="mt-1 text-xs text-white/60">
-                                    JPG, PNG, WEBP • Máx 5MB
+                                    {VOUCHER_ALLOWED_FILE_TYPES_LABEL} • Máx 5MB
                                   </p>
                                 </div>
                               </>
@@ -2802,7 +2804,7 @@ function CompraContent({
                 >
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                    accept={VOUCHER_ACCEPT_ATTRIBUTE}
                     onChange={onFileChange}
                     disabled={uploading || reservationDone}
                     className="absolute inset-0 z-10 cursor-pointer opacity-0"
@@ -2867,7 +2869,7 @@ function CompraContent({
                               : "Arrastra tu comprobante o haz clic"}
                           </p>
                           <p className="mt-1 text-xs text-white/60">
-                            JPG, PNG, WEBP • Máx 5MB
+                            {VOUCHER_ALLOWED_FILE_TYPES_LABEL} • Máx 5MB
                           </p>
                         </div>
                       </>
@@ -3130,7 +3132,7 @@ function CompraContent({
                 >
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                    accept={VOUCHER_ACCEPT_ATTRIBUTE}
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) await handleTicketFileUpload(file);
@@ -3196,7 +3198,7 @@ function CompraContent({
                               : "Arrastra tu comprobante o haz clic"}
                           </p>
                           <p className="mt-1 text-xs text-white/60">
-                            JPG, PNG, WEBP • Máx 5MB
+                            {VOUCHER_ALLOWED_FILE_TYPES_LABEL} • Máx 5MB
                           </p>
                         </div>
                       </>

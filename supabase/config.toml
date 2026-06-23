@@ -121,7 +121,7 @@ file_size_limit = "50MiB"
 [storage.buckets.event-assets]
 public = true
 file_size_limit = "50MiB"
-allowed_mime_types = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]
+allowed_mime_types = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif", "image/avif", "application/pdf"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

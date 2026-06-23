@@ -18,6 +18,12 @@ import {
   type DocumentType,
 } from "shared/document";
 import {
+  VOUCHER_ACCEPT_ATTRIBUTE,
+  VOUCHER_ALLOWED_FILE_TYPES_LABEL,
+  VOUCHER_FILE_MAX_SIZE_BYTES,
+  isAllowedVoucherFile,
+} from "shared/voucherFilePolicy";
+import {
   Tabs,
   TabsList,
   TabsTrigger,
@@ -2061,7 +2067,7 @@ function RegistroContent() {
                           "bg-[#e91e63]/5",
                         );
                         const file = e.dataTransfer.files[0];
-                        if (file && file.type.startsWith("image/")) {
+                        if (file && isAllowedVoucherFile(file)) {
                           const fakeEvent = {
                             target: { files: [file] },
                           } as any;
@@ -2150,14 +2156,14 @@ function RegistroContent() {
                       )}
                       <input
                         type="file"
-                        accept="image/png,image/jpeg,image/webp"
+                        accept={VOUCHER_ACCEPT_ATTRIBUTE}
                         onChange={onVoucherChange}
                         disabled={uploadingVoucher || reservationLoading}
                         className="absolute inset-0 cursor-pointer opacity-0"
                       />
                     </div>
                     <p className="text-xs text-white/60 text-center">
-                      Formatos: JPG, PNG, WEBP • Máximo 5MB
+                      Formatos: {VOUCHER_ALLOWED_FILE_TYPES_LABEL} • Máximo 5MB
                     </p>
                   </div>
 
@@ -2361,18 +2367,14 @@ function RegistroContent() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar tipo y tamaño
-    const validTypes = ["image/png", "image/jpeg", "image/webp", "image/jpg"];
-    const maxSize = 5 * 1024 * 1024; // 5MB
-
-    if (!validTypes.includes(file.type)) {
-      const msg = "Solo se permiten imágenes JPG, PNG o WEBP";
+    if (!isAllowedVoucherFile(file)) {
+      const msg = `Solo se permiten imágenes ${VOUCHER_ALLOWED_FILE_TYPES_LABEL}`;
       setModalError(msg);
       setReservationError(msg);
       return;
     }
 
-    if (file.size > maxSize) {
+    if (file.size > VOUCHER_FILE_MAX_SIZE_BYTES) {
       const msg = "La imagen no debe superar 5MB";
       setModalError(msg);
       setReservationError(msg);

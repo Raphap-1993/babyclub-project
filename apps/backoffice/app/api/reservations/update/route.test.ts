@@ -9,6 +9,7 @@ vi.mock("shared/auth/requireStaff", () => ({
 }));
 vi.mock("../utils", () => ({
   createTicketForReservation: vi.fn(),
+  createReservationCodes: vi.fn(),
 }));
 vi.mock("../email", () => ({
   sendApprovalEmail: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock("../email", () => ({
 
 const { createClient } = await import("@supabase/supabase-js");
 const { requireStaffRole } = await import("shared/auth/requireStaff");
-const { createTicketForReservation } = await import("../utils");
+const { createTicketForReservation, createReservationCodes } = await import("../utils");
 const { sendApprovalEmail } = await import("../email");
 
 describe("POST /api/reservations/update", () => {
@@ -249,7 +250,7 @@ describe("POST /api/reservations/update", () => {
     expect((sendApprovalEmail as any).mock.calls[0][0].callToAction).toBeNull();
   });
 
-  it("rechaza una aprobación de mesa si repite la misma identidad en varios asistentes del mismo evento", async () => {
+  it("aprueba una reserva de mesa sin asistentes nominados sin duplicar la identidad del comprador", async () => {
     process.env.RESEND_API_KEY = "test-resend-key";
     const { supabase } = createSupabaseMock({
       "table_reservations.select": [
@@ -264,10 +265,107 @@ describe("POST /api/reservations/update", () => {
             phone: "999999999",
             doc_type: "dni",
             document: "12345678",
-            codes: ["CODE-1", "CODE-2"],
+            codes: [],
             ticket_quantity: 2,
             total_ticket_units: 2,
             attendees: [],
+            event_id: "event-dup-1",
+            promoter_id: null,
+            event: {
+              id: "event-dup-1",
+              name: "Baby Club",
+              starts_at: "2099-02-01T04:00:00.000Z",
+              location: "Lima",
+            },
+            table: {
+              id: "table-dup-1",
+              name: "Mesa Duplicada",
+              event_id: "event-dup-1",
+              ticket_count: 2,
+              event: {
+                id: "event-dup-1",
+                name: "Baby Club",
+                starts_at: "2099-02-01T04:00:00.000Z",
+                location: "Lima",
+              },
+            },
+          },
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: [
+            
+          ],
+          error: null,
+        },
+      ],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createReservationCodes as any).mockResolvedValue({
+      codes: ["CODE-1", "CODE-2"],
+      codeIds: ["code-1", "code-2"],
+    });
+    (sendApprovalEmail as any).mockResolvedValue(undefined);
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/reservations/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "res-table-dup-1", status: "approved" }),
+      }) as any,
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(createTicketForReservation).not.toHaveBeenCalled();
+    expect(createReservationCodes).toHaveBeenCalledTimes(1);
+    expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
+    expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
+      codes: ["CODE-1", "CODE-2"],
+      ticketIds: [],
+      callToAction: null,
+    });
+  });
+
+  it("rechaza una aprobación de mesa si repite la misma identidad en asistentes nominados", async () => {
+    process.env.RESEND_API_KEY = "test-resend-key";
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-table-dup-2",
+            sale_origin: "table",
+            table_id: "table-dup-1",
+            product_id: "product-dup-1",
+            full_name: "Mesa Duplicada",
+            email: "mesa-dup@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "12345678",
+            codes: ["CODE-1", "CODE-2"],
+            ticket_quantity: 2,
+            total_ticket_units: 2,
+            attendees: [
+              {
+                full_name: "Invitado Duplicado",
+                doc_type: "dni",
+                document: "70000001",
+                email: "uno@test.com",
+                phone: "900000001",
+              },
+              {
+                full_name: "Invitado Duplicado",
+                doc_type: "dni",
+                document: "70000001",
+                email: "dos@test.com",
+                phone: "900000002",
+              },
+            ],
             event_id: "event-dup-1",
             promoter_id: null,
             event: {
@@ -309,7 +407,7 @@ describe("POST /api/reservations/update", () => {
       new Request("http://localhost/api/reservations/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: "res-table-dup-1", status: "approved" }),
+        body: JSON.stringify({ id: "res-table-dup-2", status: "approved" }),
       }) as any,
     );
     const payload = await res.json();
