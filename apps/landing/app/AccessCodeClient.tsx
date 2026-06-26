@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { LegalFooterLinks } from "./legal/LegalFooterLinks";
 import { extractAccessCodeInput } from "./accessCodeInput";
 import {
@@ -12,13 +12,13 @@ import {
 
 export default function AccessCodeClient({
   initialLogoUrl,
+  initialMode,
 }: {
   initialLogoUrl: string | null;
+  initialMode: EntryMode;
 }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const mode: EntryMode =
-    searchParams.get("mode") === "nomination" ? "nomination" : "access";
+  const mode = initialMode;
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ export default function AccessCodeClient({
     setError(null);
     setShowErrorModal(false);
     setErrorMessage("");
-  }, [mode]);
+  }, [initialMode]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
