@@ -1,13 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LegalFooterLinks } from "./legal/LegalFooterLinks";
 import { extractAccessCodeInput } from "./accessCodeInput";
-
-type EntryMode = "access" | "nomination";
-const NOMINATION_HASH = "#nominacion";
 
 export default function AccessCodeClient({
   initialLogoUrl,
@@ -15,55 +11,18 @@ export default function AccessCodeClient({
   initialLogoUrl: string | null;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<EntryMode>("access");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const syncModeWithHash = () => {
-      setMode(window.location.hash === NOMINATION_HASH ? "nomination" : "access");
-      setError(null);
-    };
-
-    syncModeWithHash();
-    window.addEventListener("hashchange", syncModeWithHash);
-    return () => window.removeEventListener("hashchange", syncModeWithHash);
-  }, []);
-
-  const switchMode = (nextMode: EntryMode) => {
-    setMode(nextMode);
-    setError(null);
-
-    if (typeof window === "undefined") return;
-
-    const nextUrl =
-      nextMode === "nomination"
-        ? `${window.location.pathname}${window.location.search}${NOMINATION_HASH}`
-        : `${window.location.pathname}${window.location.search}`;
-
-    window.history.replaceState(null, "", nextUrl);
-  };
-
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     const normalizedCode = extractAccessCodeInput(code);
     if (!normalizedCode) {
-      setError(
-        mode === "nomination"
-          ? "Pega el código o link que te compartieron."
-          : "Ingresa un código",
-      );
-      return;
-    }
-
-    if (mode === "nomination") {
-      router.push(`/registro?code=${encodeURIComponent(normalizedCode)}`);
+      setError("Ingresa un código o link");
       return;
     }
 
@@ -112,58 +71,13 @@ export default function AccessCodeClient({
           <div className="text-6xl font-bold tracking-[0.4em]">BABY</div>
         )}
 
-        <div className="rounded-2xl border border-white/10 bg-[#0d0d0d] p-1">
-          <div className="grid grid-cols-2 gap-1">
-            <button
-              type="button"
-              onClick={() => switchMode("access")}
-              className={`rounded-[14px] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                mode === "access"
-                  ? "bg-white text-black"
-                  : "text-white/65 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              Entrar
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode("nomination")}
-              className={`rounded-[14px] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                mode === "nomination"
-                  ? "bg-white text-black"
-                  : "text-white/65 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              Completar nominación
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-white">
-            {mode === "nomination"
-              ? "¿Te compartieron un código o link? Pégalo aquí para terminar tu registro y generar tu QR."
-              : "Ingresa tu código de acceso para continuar."}
-          </p>
-          {mode === "nomination" ? (
-            <p className="text-xs leading-relaxed text-white/55">
-              Funciona con el código que te pasó el comprador desde su correo o
-              con un link completo.
-            </p>
-          ) : null}
-        </div>
-
         <form onSubmit={onSubmit} className="space-y-4">
           <input
             type="text"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none"
-            placeholder={
-              mode === "nomination"
-                ? "Pega tu código o link"
-                : "Código de acceso"
-            }
+            placeholder="Código o link"
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
@@ -174,43 +88,12 @@ export default function AccessCodeClient({
             disabled={loading}
             className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition hover:scale-[1.01] disabled:opacity-70"
           >
-            {loading
-              ? mode === "nomination"
-                ? "Abriendo..."
-                : "Validando..."
-              : mode === "nomination"
-                ? "Completar nominación"
-                : "Entrar"}
+            {loading ? "Entrando..." : "Entrar"}
           </button>
           {error && (
             <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>
           )}
         </form>
-
-        <div className="space-y-2 text-center text-sm text-white/70">
-          {mode === "nomination" ? (
-            <>
-              ¿Ya tienes tu acceso listo?{" "}
-              <button
-                type="button"
-                onClick={() => switchMode("access")}
-                className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
-              >
-                Entrar con mi código
-              </button>
-            </>
-          ) : (
-            <div>
-              ¿Sin código?{" "}
-              <Link
-                href="/compra"
-                className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
-              >
-                Comprar Entrada
-              </Link>
-            </div>
-          )}
-        </div>
       </div>
 
       <footer className="absolute bottom-6 max-w-[min(92vw,720px)] px-4">
