@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LegalFooterLinks } from "./legal/LegalFooterLinks";
+import { AccessModeToggle } from "./AccessModeToggle";
 import { extractAccessCodeInput } from "./accessCodeInput";
 import {
   getAccessCodeViewState,
@@ -65,7 +66,7 @@ export default function AccessCodeClient({
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-black px-6 py-10 text-white">
-      <div id="nominacion" className="w-full max-w-md space-y-6 text-center">
+      <div id="nominacion" className="w-full max-w-md space-y-5 text-center">
         {initialLogoUrl ? (
           <div className="flex justify-center">
             <img
@@ -82,6 +83,8 @@ export default function AccessCodeClient({
         ) : (
           <div className="text-6xl font-bold tracking-[0.4em]">BABY</div>
         )}
+
+        <AccessModeToggle mode={mode} onModeChange={setMode} />
 
         <form onSubmit={onSubmit} className="space-y-4">
           <input
