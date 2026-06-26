@@ -383,7 +383,7 @@ export default async function TicketPage({
           <div className="flex items-center gap-3">
             <TicketDownloader ticketId={ticket.id} />
             <Link
-              href={`/codigo?code=${encodeURIComponent(ticket.code.code)}`}
+              href={`/registro?code=${encodeURIComponent(ticket.code.code)}`}
               className="rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
             >
               Usar mi código

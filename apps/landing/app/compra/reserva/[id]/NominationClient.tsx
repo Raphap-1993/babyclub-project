@@ -302,7 +302,7 @@ function getUnitStatusClasses(status: UnitStatus) {
 function buildClaimHref(unit: ReservationUnit) {
   if (unit.claim_url) return unit.claim_url;
   if (unit.claim_code) {
-    return `/codigo?code=${encodeURIComponent(unit.claim_code)}`;
+    return `/registro?code=${encodeURIComponent(unit.claim_code)}`;
   }
   return null;
 }

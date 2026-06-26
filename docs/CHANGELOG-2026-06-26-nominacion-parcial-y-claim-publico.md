@@ -12,9 +12,8 @@ publico para que cada invitado pueda reclamar su QR con un codigo individual.
 - El comprador puede emitir primero su propia unidad y luego avanzar unidad por
   unidad.
 - Cada unidad individual expone un `claim_code` y un `claim_url`.
-- La web publica agrega una entrada amigable por codigo en `/codigo`.
-- El claim por codigo reutiliza el codigo reservado de esa unidad y sincroniza
-  `ticket_reservation_units`.
+- El claim publico reutiliza el codigo reservado de esa unidad por
+  `/registro?code=...` y sincroniza `ticket_reservation_units`.
 
 ## Cambios funcionales
 
@@ -52,10 +51,12 @@ publico para que cada invitado pueda reclamar su QR con un codigo individual.
 
 - `apps/landing/app/compra/reserva/[id]/NominationClient.tsx`
   - muestra links/codigos por unidad y permite avanzar por partes.
-- `apps/landing/app/codigo/page.tsx`
-  - nueva pantalla publica para ingresar el codigo y continuar el registro.
 - `apps/landing/app/ticket/[id]/page.tsx`
   - conserva el flujo ticket-only alineado con la emision por unidad.
+- `apps/landing/app/AccessCodeClient.tsx`
+  - agrega en el home una entrada friendly de `Completar nominación`;
+  - acepta codigo plano o link completo y redirige al claim publico por
+    `/registro?code=...` sin abrir una ruta nueva dedicada.
 
 ## Archivos clave
 
