@@ -370,6 +370,227 @@ describe("POST /api/tickets", () => {
     expect(ticketInsertCall?.payload?.table_reservation_id).toBe("res-2");
   });
 
+  it("retorna el ticket existente cuando el código apunta a una unidad de reserva ya emitida", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-unit-issued",
+            code: "UNIT-ISSUED-1",
+            event_id: "event-1",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 1,
+            uses: 1,
+            expires_at: null,
+            table_reservation_id: "res-issued-1",
+            person_index: 2,
+            type: "table",
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-issued-1",
+            event_id: "event-1",
+            table_id: "table-issued-1",
+            product_id: "prod-issued-1",
+            status: "approved",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: {
+            id: "unit-issued-2",
+            reservation_id: "res-issued-1",
+            event_id: "event-1",
+            unit_index: 2,
+            status: "issued",
+            ticket_id: "ticket-issued-2",
+          },
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-issued-2",
+            qr_token: "qr-issued-2",
+            payment_status: "paid",
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "UNIT-ISSUED-1",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Ana",
+        apellido_paterno: "Perez",
+        apellido_materno: "Lopez",
+        email: "ana@example.com",
+        telefono: "+51999999999",
+        birthdate: "1999-01-01",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.existing).toBe(true);
+    expect(payload.ticketId).toBe("ticket-issued-2");
+    expect(payload.qr).toBe("qr-issued-2");
+    expect(
+      calls.find((call) => call.table === "tickets" && call.op === "insert"),
+    ).toBeFalsy();
+    expect(
+      calls.find((call) => call.table === "persons" && call.op === "insert"),
+    ).toBeFalsy();
+  });
+
+  it("emite y sincroniza solo la unidad asociada al código de reserva", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-unit-new",
+            code: "UNIT-NEW-3",
+            event_id: "event-1",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 1,
+            uses: 0,
+            expires_at: null,
+            table_reservation_id: "res-unit-3",
+            person_index: 3,
+            type: "table",
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-unit-3",
+            event_id: "event-1",
+            table_id: "table-3",
+            product_id: "prod-3",
+            status: "approved",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: {
+            id: "unit-3",
+            reservation_id: "res-unit-3",
+            event_id: "event-1",
+            unit_index: 3,
+            status: "pending_nomination",
+            ticket_id: null,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        { data: null, error: null },
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
+      "persons.select": [{ data: null, error: null }],
+      "persons.insert": [{ data: { id: "person-unit-3" }, error: null }],
+      "tickets.select": [
+        { data: null, error: null },
+        { data: [], error: null },
+      ],
+      "tickets.insert": [{ data: { id: "ticket-unit-3" }, error: null }],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "codes.update": [{ data: null, error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "UNIT-NEW-3",
+        doc_type: "dni",
+        document: "87654321",
+        nombre: "Lorena",
+        apellido_paterno: "Pelaez",
+        apellido_materno: "Bardales",
+        email: "lorena@example.com",
+        telefono: "+51968284152",
+        birthdate: "1998-02-10",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+    const ticketInsertCall = calls.find(
+      (call) => call.table === "tickets" && call.op === "insert",
+    );
+    const unitUpdateCall = calls.find(
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "update",
+    );
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.ticketId).toBe("ticket-unit-3");
+    expect(ticketInsertCall?.payload?.table_id).toBe("table-3");
+    expect(ticketInsertCall?.payload?.product_id).toBe("prod-3");
+    expect(ticketInsertCall?.payload?.table_reservation_id).toBe("res-unit-3");
+    expect(unitUpdateCall?.payload).toEqual(
+      expect.objectContaining({
+        status: "issued",
+        ticket_id: "ticket-unit-3",
+        full_name: "Lorena Pelaez Bardales",
+        doc_type: "dni",
+        document: "87654321",
+        email: "lorena@example.com",
+        phone: "+51968284152",
+      }),
+    );
+    expect(unitUpdateCall?.filters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "eq",
+          args: ["id", "unit-3"],
+        }),
+        expect.objectContaining({
+          type: "eq",
+          args: ["reservation_id", "res-unit-3"],
+        }),
+      ]),
+    );
+  });
+
   it("bloquea generación cuando el evento está sold out", async () => {
     const { supabase } = createSupabaseMock({
       "codes.select": [

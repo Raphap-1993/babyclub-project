@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { createTicketForReservation } from "../../../../../../backoffice/app/api/reservations/utils";
-import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
+import { createTicketForReservation } from "../../../../../../../../backoffice/app/api/reservations/utils";
+import { sendTicketEmail } from "../../../../../../../../backoffice/app/api/reservations/email";
 import {
   ReservationIssueError,
   issueReservationUnits,
-} from "../../lib/issueReservationUnits";
+} from "../../../../lib/issueReservationUnits";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -37,12 +37,12 @@ async function loadReservation(supabase: any, reservationId: string) {
 
 export async function POST(
   _req: NextRequest,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string; unitId: string }> },
 ) {
   const supabase = getSupabase();
   if (!supabase) return jsonError("Supabase config missing", 500);
 
-  const { id } = await context.params;
+  const { id, unitId } = await context.params;
   const reservation = await loadReservation(supabase, id);
   if (reservation.error) return jsonError(reservation.error.message, 500);
   if (!reservation.data) return jsonError("Reserva no encontrada", 404);
@@ -66,6 +66,7 @@ export async function POST(
       supabase,
       reservation: reservation.data,
       reservationId: id,
+      targetUnitId: unitId,
       createTicketForReservationFn: createTicketForReservation,
       sendTicketEmailFn: sendTicketEmail,
     });
@@ -74,6 +75,6 @@ export async function POST(
     if (err instanceof ReservationIssueError) {
       return jsonError(err.message, err.status);
     }
-    return jsonError(err?.message || "No se pudieron emitir los QRs", 500);
+    return jsonError(err?.message || "No se pudo emitir el QR de la unidad", 500);
   }
 }

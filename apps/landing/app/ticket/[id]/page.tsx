@@ -378,15 +378,15 @@ export default async function TicketPage({
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
               BABY
             </p>
-            <h1 className="text-3xl font-semibold">Entrada generada</h1>
+            <h1 className="text-3xl font-semibold">Tu QR ya está listo</h1>
           </div>
           <div className="flex items-center gap-3">
             <TicketDownloader ticketId={ticket.id} />
             <Link
-              href={`/registro?code=${encodeURIComponent(ticket.code.code)}`}
+              href={`/codigo?code=${encodeURIComponent(ticket.code.code)}`}
               className="rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
             >
-              Volver al registro
+              Usar mi código
             </Link>
           </div>
         </div>
@@ -551,7 +551,7 @@ function VerticalTicket({
           {workspaceContext.nominationUrl && (
             <div className="sm:col-span-2 rounded-2xl border border-[#e91e63]/20 bg-[#e91e63]/8 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#ff77ad]">
-                Compra en curso
+                Asistentes pendientes
               </p>
               <p className="mt-2 text-sm text-white/75">
                 Tienes{" "}
@@ -562,14 +562,15 @@ function VerticalTicket({
                 {workspaceContext.pendingAssistantCount === 1 ? "" : "s"}{" "}
                 pendiente
                 {workspaceContext.pendingAssistantCount === 1 ? "" : "s"} por
-                completar.
+                completar. Completar asistentes o compartir sus códigos queda
+                en tus manos cuando quieras.
               </p>
               <div className="mt-3">
                 <Link
                   href={workspaceContext.nominationUrl}
                   className="inline-flex rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition"
                 >
-                  Completar asistentes
+                  Gestionar grupo
                 </Link>
               </div>
             </div>

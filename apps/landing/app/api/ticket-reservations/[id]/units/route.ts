@@ -7,15 +7,20 @@ import {
   type DocumentType,
 } from "shared/document";
 import { applyNotDeleted } from "shared/db/softDelete";
-import { buildEventTicketIdentityKeys } from "shared/eventTicketIdentity";
+import {
+  buildEventTicketConflictMessage,
+  buildEventTicketIdentityKeys,
+  findActiveEventTicketConflict,
+} from "shared/eventTicketIdentity";
 import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
+import { ensureReservationUnitClaimCodes } from "../../lib/reservationUnitCodes";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const RESERVATION_SELECT =
-  "id,event_id,promoter_id,sale_origin,status,ticket_type_label,package_quantity,total_ticket_units,full_name,email,phone,doc_type,document,event:events(name,starts_at,location)";
+  "id,event_id,promoter_id,sale_origin,status,ticket_type_label,package_quantity,total_ticket_units,codes,full_name,email,phone,doc_type,document,event:events(name,starts_at,location,event_prefix)";
 const UNIT_SELECT =
   "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id,nominated_at,issued_at,used_at,cancelled_at";
 
@@ -149,7 +154,7 @@ function buildDuplicateIdentityError(
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   const supabase = getSupabase();
@@ -166,10 +171,22 @@ export async function GET(
   const units = await loadUnits(supabase, id);
   if (units.error) return jsonError(units.error.message, 500);
 
+  let unitsWithClaimCodes;
+  try {
+    unitsWithClaimCodes = await ensureReservationUnitClaimCodes({
+      supabase,
+      reservation: reservation.data as any,
+      units: units.data,
+      requestUrl: req.url,
+    });
+  } catch (err: any) {
+    return jsonError(err?.message || "No se pudieron preparar los códigos", 500);
+  }
+
   return NextResponse.json({
     success: true,
     reservation: reservation.data,
-    units: units.data,
+    units: unitsWithClaimCodes,
   });
 }
 
@@ -307,6 +324,32 @@ export async function PUT(
     }
 
     if (isIssuedUnit && existingUnit.ticket_id && nominationChanged) {
+      const eventConflict = await findActiveEventTicketConflict(
+        supabase as any,
+        {
+          eventId: String((reservation.data as any).event_id || ""),
+          fullName: normalizedInput.fullName,
+          email: normalizedInput.email || null,
+          phone: normalizedInput.phone || null,
+          docType: normalizedInput.docType,
+          document: normalizedInput.document,
+          dni:
+            normalizedInput.docType === "dni"
+              ? normalizedInput.document
+              : null,
+        },
+      );
+      if (
+        eventConflict?.ticketId &&
+        String(eventConflict.ticketId).trim() !==
+          String(existingUnit.ticket_id || "").trim()
+      ) {
+        return jsonError(
+          buildEventTicketConflictMessage(eventConflict.reason),
+          409,
+        );
+      }
+
       const effectiveEmail =
         normalizedInput.email || (reservation.data as any).email || "";
       const newQrToken = randomUUID();
@@ -390,10 +433,22 @@ export async function PUT(
   const reloadedUnits = await loadUnits(supabase, id);
   if (reloadedUnits.error) return jsonError(reloadedUnits.error.message, 500);
 
+  let unitsWithClaimCodes;
+  try {
+    unitsWithClaimCodes = await ensureReservationUnitClaimCodes({
+      supabase,
+      reservation: reservation.data as any,
+      units: reloadedUnits.data,
+      requestUrl: req.url,
+    });
+  } catch (err: any) {
+    return jsonError(err?.message || "No se pudieron preparar los códigos", 500);
+  }
+
   return NextResponse.json({
     success: true,
     updatedCount: inputs.length,
     reservation: reservation.data,
-    units: reloadedUnits.data,
+    units: unitsWithClaimCodes,
   });
 }

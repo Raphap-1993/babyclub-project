@@ -5,7 +5,10 @@ import {
   EventTicketConflictError,
   findActiveEventTicketConflict,
 } from "shared/eventTicketIdentity";
-import { generateReservationCodes } from "shared/friendlyCodes";
+import {
+  generateFriendlyCode,
+  generateReservationCodes,
+} from "shared/friendlyCodes";
 
 type Supabase = SupabaseClient<any, "public", any>;
 
@@ -287,25 +290,42 @@ export async function createReservationCodes(
     tableName,
     reservationId,
     quantity,
+    codeType = "table",
+    personIndexes,
   }: {
     eventId: string;
     eventPrefix: string;
     tableName: string;
     reservationId: string;
     quantity: number;
+    codeType?: "table" | "courtesy";
+    personIndexes?: number[];
   }
 ): Promise<{ codes: string[]; codeIds: string[] }> {
-  if (quantity <= 0) return { codes: [], codeIds: [] };
+  const indexes = Array.isArray(personIndexes) && personIndexes.length > 0
+    ? Array.from(
+        new Set(
+          personIndexes.filter(
+            (value) => Number.isInteger(value) && value > 0,
+          ),
+        ),
+      ).sort((a, b) => a - b)
+    : Array.from({ length: quantity }, (_, index) => index + 1);
+  if (indexes.length <= 0) return { codes: [], codeIds: [] };
 
-  // Generate friendly codes
-  const friendlyCodes = generateReservationCodes(eventPrefix, tableName, quantity);
+  const friendlyCodes =
+    Array.isArray(personIndexes) && personIndexes.length > 0
+      ? indexes.map((personIndex) =>
+          generateFriendlyCode(eventPrefix, tableName, personIndex),
+        )
+      : generateReservationCodes(eventPrefix, tableName, quantity);
 
   const buildPayload = (typeValue: "table" | "courtesy") =>
     friendlyCodes.map((code, index) => ({
       code,
       event_id: eventId,
       table_reservation_id: reservationId,
-      person_index: index + 1,
+      person_index: indexes[index],
       type: typeValue,
       is_active: true,
       max_uses: 1,
@@ -314,11 +334,11 @@ export async function createReservationCodes(
 
   let { data, error } = await supabase
     .from("codes")
-    .insert(buildPayload("table"))
+    .insert(buildPayload(codeType))
     .select("id,code");
 
   // Compatibilidad con BDs que aún no aceptan type='table'
-  if (error && isCodesTypeCheckError(error)) {
+  if (error && codeType === "table" && isCodesTypeCheckError(error)) {
     ({ data, error } = await supabase.from("codes").insert(buildPayload("courtesy")).select("id,code"));
   }
 

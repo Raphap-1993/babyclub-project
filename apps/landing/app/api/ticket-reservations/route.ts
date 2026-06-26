@@ -25,6 +25,7 @@ import {
   buildEventTicketIdentityKeys,
   findActiveEventTicketConflict,
 } from "shared/eventTicketIdentity";
+import { createReservationCodes } from "../../../../backoffice/app/api/reservations/utils";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -425,7 +426,7 @@ export async function POST(req: NextRequest) {
     supabase
       .from("events")
       .select(
-        "id,is_active,closed_at,sale_status,sale_public_message,early_bird_enabled,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2,ticket_types:event_ticket_types(id,code,label,description,sale_phase,ticket_quantity,price,currency_code,is_active,sort_order)",
+        "id,is_active,closed_at,sale_status,sale_public_message,event_prefix,early_bird_enabled,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2,ticket_types:event_ticket_types(id,code,label,description,sale_phase,ticket_quantity,price,currency_code,is_active,sort_order)",
       )
       .eq("id", event_id),
   );
@@ -648,6 +649,49 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: err?.message || "No se pudieron preparar las unidades",
+      },
+      { status: 500 },
+    );
+  }
+
+  try {
+    const { codes } = await createReservationCodes(supabase as any, {
+      eventId: event_id,
+      eventPrefix:
+        String((eventRow as any)?.event_prefix || "").trim() ||
+        String(selectedTicketType.code || "").trim() ||
+        "BC",
+      tableName:
+        `T${
+          String(reservation.id || "")
+            .slice(-6)
+            .replace(/[^a-zA-Z0-9]+/g, "")
+            .toUpperCase() || "ENTRY"
+        }`,
+      reservationId: reservation.id,
+      quantity: totalTicketUnits,
+      codeType: "courtesy",
+    });
+
+    const { error: reservationCodesError } = await supabase
+      .from("table_reservations")
+      .update({
+        codes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", reservation.id);
+
+    if (reservationCodesError) {
+      return NextResponse.json(
+        { success: false, error: reservationCodesError.message },
+        { status: 500 },
+      );
+    }
+  } catch (err: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: err?.message || "No se pudieron preparar los códigos por unidad",
       },
       { status: 500 },
     );

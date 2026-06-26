@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetRateLimitStore } from "shared/security/rateLimit";
 import { createSupabaseMock } from "../../../../../../tests/utils/supabaseMock";
 
 vi.mock("@supabase/supabase-js", () => ({
@@ -11,11 +12,17 @@ describe("GET /api/codes/info", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    resetRateLimitStore();
     process.env.SUPABASE_URL = "http://localhost:54321";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
   });
 
-  it("retorna registered_person cuando el código tiene un único ticket activo", async () => {
+  afterEach(() => {
+    resetRateLimitStore();
+    delete process.env.RATE_LIMIT_CODES_INFO_PER_MIN;
+  });
+
+  it("retorna solo metadata mínima cuando el código legacy ya tiene un ticket activo", async () => {
     const { supabase } = createSupabaseMock({
       "codes.select": [
         {
@@ -50,21 +57,7 @@ describe("GET /api/codes/info", () => {
               id: "ticket-1",
               event_id: "event-1",
               status: "active",
-              doc_type: "dni",
-              document: "72158650",
-              dni: "72158650",
-              full_name: "Gabriela Noelia Pablo Perez",
-              email: "gabriela.pablo.p@gmail.com",
-              phone: "932532541",
-              person: {
-                first_name: "Gabriela",
-                last_name: "Noelia Pablo Perez",
-                email: "gabriela.pablo.p@gmail.com",
-                phone: "932532541",
-                doc_type: "dni",
-                document: "72158650",
-                dni: "72158650",
-              },
+              qr_token: "qr-1",
             },
           ],
           error: null,
@@ -77,6 +70,7 @@ describe("GET /api/codes/info", () => {
 
     const req = {
       nextUrl: new URL("http://localhost/api/codes/info?code=LOVEIS7897"),
+      headers: new Headers({ "x-forwarded-for": "1.1.1.1" }),
     } as any;
     const res = await GET(req);
     const payload = await res.json();
@@ -85,8 +79,10 @@ describe("GET /api/codes/info", () => {
     expect(payload.code_id).toBe("code-1");
     expect(payload.code).toBe("LOVEIS7897");
     expect(payload.registered_person?.ticket_id).toBe("ticket-1");
-    expect(payload.registered_person?.document).toBe("72158650");
-    expect(payload.registered_person?.first_name).toBe("Gabriela");
+    expect(payload.registered_person?.ticket_event_id).toBe("event-1");
+    expect(payload.registered_person?.document).toBeUndefined();
+    expect(payload.registered_person?.first_name).toBeUndefined();
+    expect(payload.registered_person?.email).toBeUndefined();
   });
 
   it("si hay duplicados históricos para un código, toma el ticket más reciente como titular visible", async () => {
@@ -123,42 +119,12 @@ describe("GET /api/codes/info", () => {
             {
               id: "ticket-reciente",
               event_id: "event-1",
-              doc_type: "dni",
-              document: "99999999",
-              dni: "99999999",
-              full_name: "Persona Reciente",
-              email: "reciente@example.com",
-              phone: "900000001",
               is_active: true,
-              person: {
-                first_name: "Persona",
-                last_name: "Reciente",
-                email: "reciente@example.com",
-                phone: "900000001",
-                doc_type: "dni",
-                document: "99999999",
-                dni: "99999999",
-              },
             },
             {
               id: "ticket-antiguo",
               event_id: "event-1",
-              doc_type: "dni",
-              document: "11111111",
-              dni: "11111111",
-              full_name: "Persona Antigua",
-              email: "antigua@example.com",
-              phone: "900000002",
               is_active: true,
-              person: {
-                first_name: "Persona",
-                last_name: "Antigua",
-                email: "antigua@example.com",
-                phone: "900000002",
-                doc_type: "dni",
-                document: "11111111",
-                dni: "11111111",
-              },
             },
           ],
           error: null,
@@ -171,6 +137,7 @@ describe("GET /api/codes/info", () => {
 
     const req = {
       nextUrl: new URL("http://localhost/api/codes/info?code=MULTI1234"),
+      headers: new Headers({ "x-forwarded-for": "2.2.2.2" }),
     } as any;
     const res = await GET(req);
     const payload = await res.json();
@@ -178,7 +145,8 @@ describe("GET /api/codes/info", () => {
     expect(res.status).toBe(200);
     expect(payload.code).toBe("MULTI1234");
     expect(payload.registered_person?.ticket_id).toBe("ticket-reciente");
-    expect(payload.registered_person?.document).toBe("99999999");
+    expect(payload.registered_person?.ticket_event_id).toBe("event-1");
+    expect(payload.registered_person?.document).toBeUndefined();
   });
 
   it("incluye tickets legacy sin columna is_active para autocompletar datos del titular", async () => {
@@ -222,21 +190,6 @@ describe("GET /api/codes/info", () => {
             {
               id: "ticket-legacy",
               event_id: "event-1",
-              doc_type: "dni",
-              document: "12345678",
-              dni: "12345678",
-              full_name: "Ana Perez",
-              email: "ana@example.com",
-              phone: "999888777",
-              person: {
-                first_name: "Ana",
-                last_name: "Perez",
-                email: "ana@example.com",
-                phone: "999888777",
-                doc_type: "dni",
-                document: "12345678",
-                dni: "12345678",
-              },
             },
           ],
           error: null,
@@ -249,13 +202,15 @@ describe("GET /api/codes/info", () => {
 
     const req = {
       nextUrl: new URL("http://localhost/api/codes/info?code=LEGACY001"),
+      headers: new Headers({ "x-forwarded-for": "3.3.3.3" }),
     } as any;
     const res = await GET(req);
     const payload = await res.json();
 
     expect(res.status).toBe(200);
     expect(payload.registered_person?.ticket_id).toBe("ticket-legacy");
-    expect(payload.registered_person?.document).toBe("12345678");
+    expect(payload.registered_person?.ticket_event_id).toBe("event-1");
+    expect(payload.registered_person?.document).toBeUndefined();
 
     const ticketsCall = calls.find(
       (call) => call.table === "tickets" && call.op === "select",
@@ -292,11 +247,149 @@ describe("GET /api/codes/info", () => {
 
     const req = {
       nextUrl: new URL("http://localhost/api/codes/info?code=FREE-LOCKED"),
+      headers: new Headers({ "x-forwarded-for": "4.4.4.4" }),
     } as any;
     const res = await GET(req);
     const payload = await res.json();
 
     expect(res.status).toBe(409);
     expect(payload.code).toBe("free_qr_disabled");
+  });
+
+  it("retorna el ticket emitido de la unidad de reserva vinculada al código", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-unit-1",
+            code: "TABLE-UNIT-1",
+            type: "table",
+            promoter_id: null,
+            event_id: "event-unit-1",
+            is_active: true,
+            expires_at: null,
+            table_reservation_id: "reservation-1",
+            person_index: 2,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-unit-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "sold_out",
+            sale_public_message: "Entradas agotadas",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: {
+            id: "unit-2",
+            reservation_id: "reservation-1",
+            unit_index: 2,
+            status: "issued",
+            ticket_id: "ticket-unit-2",
+          },
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-unit-2",
+            event_id: "event-unit-1",
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL("http://localhost/api/codes/info?code=TABLE-UNIT-1"),
+      headers: new Headers({ "x-forwarded-for": "8.8.8.8" }),
+    } as any;
+    const res = await GET(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.registered_person).toEqual({
+      ticket_id: "ticket-unit-2",
+      ticket_event_id: "event-unit-1",
+    });
+    expect(
+      calls.find(
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "select",
+      )?.filters,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "eq",
+          args: ["reservation_id", "reservation-1"],
+        }),
+        expect.objectContaining({
+          type: "eq",
+          args: ["unit_index", 2],
+        }),
+      ]),
+    );
+  });
+
+  it("retorna 429 al exceder el rate limit público", async () => {
+    process.env.RATE_LIMIT_CODES_INFO_PER_MIN = "1";
+
+    const { supabase } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-rate-limit",
+            code: "LIMIT-1",
+            type: "general",
+            promoter_id: null,
+            event_id: "event-1",
+            is_active: true,
+            expires_at: null,
+          },
+          error: null,
+        },
+      ],
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+          },
+          error: null,
+        },
+      ],
+      "tickets.select": [{ data: [], error: null }],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { GET } = await import("./route");
+
+    const req = {
+      nextUrl: new URL("http://localhost/api/codes/info?code=LIMIT-1"),
+      headers: new Headers({ "x-forwarded-for": "7.7.7.7" }),
+    } as any;
+
+    const first = await GET(req);
+    expect(first.status).toBe(200);
+
+    const second = await GET(req);
+    const payload = await second.json();
+    expect(second.status).toBe(429);
+    expect(payload.error).toBe("rate_limited");
   });
 });

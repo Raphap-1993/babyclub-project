@@ -11,6 +11,11 @@ import {
   isFreeQrCodeType,
   isFreeQrReleaseEnabled,
 } from "shared/freeQrGate";
+import {
+  parseRateLimitEnv,
+  rateLimit,
+  rateLimitHeaders,
+} from "shared/security/rateLimit";
 
 type TicketSalePhase = "early_bird" | "all_night";
 
@@ -32,8 +37,123 @@ function resolveActiveTicketSalePhase(): TicketSalePhase {
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_CODES_INFO_PER_MIN = parseRateLimitEnv(
+  process.env.RATE_LIMIT_CODES_INFO_PER_MIN,
+  20,
+);
+
+async function findRegisteredTicketByCode(
+  supabase: any,
+  codeRow: {
+    id?: string | null;
+    event_id?: string | null;
+    table_reservation_id?: string | null;
+    person_index?: number | null;
+  },
+) {
+  const reservationId =
+    typeof codeRow.table_reservation_id === "string"
+      ? codeRow.table_reservation_id
+      : null;
+  const unitIndex = Number(codeRow.person_index || 0);
+
+  if (reservationId && unitIndex >= 1) {
+    const { data: unitRow, error: unitError } = await applyNotDeleted(
+      supabase
+        .from("ticket_reservation_units")
+        .select("id,reservation_id,unit_index,status,ticket_id")
+        .eq("reservation_id", reservationId)
+        .eq("unit_index", unitIndex),
+    ).maybeSingle();
+
+    if (unitError) {
+      throw new Error(unitError.message || "No se pudo consultar la unidad");
+    }
+
+    const ticketId =
+      typeof (unitRow as any)?.ticket_id === "string"
+        ? (unitRow as any).ticket_id
+        : null;
+    if (ticketId) {
+      const { data: ticketRow, error: ticketError } = await applyNotDeleted(
+        supabase.from("tickets").select("id,event_id").eq("id", ticketId),
+      ).maybeSingle();
+
+      if (ticketError) {
+        throw new Error(
+          ticketError.message || "No se pudo consultar el ticket emitido",
+        );
+      }
+
+      return {
+        ticket_id: typeof (ticketRow as any)?.id === "string" ? (ticketRow as any).id : ticketId,
+        ticket_event_id:
+          typeof (ticketRow as any)?.event_id === "string"
+            ? (ticketRow as any).event_id
+            : (typeof codeRow.event_id === "string" ? codeRow.event_id : null),
+      };
+    }
+  }
+
+  if (!codeRow.id) return null;
+
+  const ticketsQuery = applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,event_id,is_active")
+      .eq("code_id", codeRow.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  );
+  let { data: ticketsData, error: ticketsError } = await ticketsQuery;
+
+  if (
+    ticketsError &&
+    (String(ticketsError.message || "").includes("tickets.is_active") ||
+      String(ticketsError.details || "").includes("tickets.is_active"))
+  ) {
+    const legacyTicketsQuery = applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select("id,event_id")
+        .eq("code_id", codeRow.id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    );
+    const legacyResult = await legacyTicketsQuery;
+    ticketsData = legacyResult.data;
+    ticketsError = legacyResult.error;
+  }
+
+  if (ticketsError) {
+    throw new Error(ticketsError.message || "No se pudo consultar tickets");
+  }
+
+  const ticketRow = Array.isArray(ticketsData) ? ticketsData[0] : null;
+  if (!ticketRow?.id) return null;
+
+  return {
+    ticket_id: typeof ticketRow.id === "string" ? ticketRow.id : null,
+    ticket_event_id:
+      typeof ticketRow.event_id === "string" ? ticketRow.event_id : null,
+  };
+}
 
 export async function GET(req: NextRequest) {
+  const limiter = rateLimit(req, {
+    keyPrefix: "landing:codes-info",
+    limit: RATE_LIMIT_CODES_INFO_PER_MIN,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+  });
+  if (!limiter.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: limiter.resetMs },
+      { status: 429, headers: rateLimitHeaders(limiter) },
+    );
+  }
+
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
       { error: "Missing Supabase config" },
@@ -53,7 +173,7 @@ export async function GET(req: NextRequest) {
     supabase
       .from("codes")
       .select(
-        "id,code,type,promoter_id,event_id,is_active,expires_at,uses,max_uses",
+        "id,code,type,promoter_id,event_id,is_active,expires_at,uses,max_uses,table_reservation_id,person_index",
       )
       .eq("code", code),
   );
@@ -91,12 +211,6 @@ export async function GET(req: NextRequest) {
   let ticket_price: number | null = null;
   let ticket_sale_phase: TicketSalePhase | null = null;
   let registered_person: {
-    first_name: string | null;
-    last_name: string | null;
-    email: string | null;
-    phone: string | null;
-    doc_type: string | null;
-    document: string | null;
     ticket_id: string | null;
     ticket_event_id: string | null;
   } | null = null;
@@ -145,70 +259,13 @@ export async function GET(req: NextRequest) {
   }
 
   if (data.id && data.type !== "promoter_link") {
-    const ticketsQuery = applyNotDeleted(
-      supabase
-        .from("tickets")
-        .select(
-          "id,event_id,doc_type,document,dni,full_name,email,phone,is_active,person:persons(first_name,last_name,email,phone,doc_type,document,dni)",
-        )
-        .eq("code_id", data.id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(5),
-    );
-    let { data: ticketsData, error: ticketsError } = await ticketsQuery;
-
-    if (
-      ticketsError &&
-      (String(ticketsError.message || "").includes("tickets.is_active") ||
-        String(ticketsError.details || "").includes("tickets.is_active"))
-    ) {
-      const legacyTicketsQuery = applyNotDeleted(
-        supabase
-          .from("tickets")
-          .select(
-            "id,event_id,doc_type,document,dni,full_name,email,phone,person:persons(first_name,last_name,email,phone,doc_type,document,dni)",
-          )
-          .eq("code_id", data.id)
-          .order("created_at", { ascending: false })
-          .limit(5),
+    try {
+      registered_person = await findRegisteredTicketByCode(supabase, data);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error?.message || "No se pudo consultar el ticket emitido" },
+        { status: 500 },
       );
-      const legacyResult = await legacyTicketsQuery;
-      ticketsData = legacyResult.data;
-      ticketsError = legacyResult.error;
-    }
-
-    // If duplicated historical tickets exist for one code, use the latest active one
-    // so the code remains operationally linked to a single visible owner in /registro.
-    if (!ticketsError && Array.isArray(ticketsData) && ticketsData.length > 0) {
-      const ticketRow: any = ticketsData[0];
-      const personRel = Array.isArray(ticketRow?.person)
-        ? ticketRow.person[0]
-        : ticketRow?.person;
-      const fullName = String(ticketRow?.full_name || "").trim();
-      const nameParts = fullName.split(/\s+/).filter(Boolean);
-      const fallbackFirstName = nameParts.length > 0 ? nameParts[0] : null;
-      const fallbackLastName =
-        nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
-
-      registered_person = {
-        first_name: personRel?.first_name ?? fallbackFirstName,
-        last_name: personRel?.last_name ?? fallbackLastName,
-        email: ticketRow?.email ?? personRel?.email ?? null,
-        phone: ticketRow?.phone ?? personRel?.phone ?? null,
-        doc_type:
-          ticketRow?.doc_type ??
-          personRel?.doc_type ??
-          (ticketRow?.document || ticketRow?.dni ? "dni" : null),
-        document:
-          ticketRow?.document ??
-          ticketRow?.dni ??
-          personRel?.document ??
-          personRel?.dni ??
-          null,
-        ticket_id: ticketRow?.id ?? null,
-        ticket_event_id: ticketRow?.event_id ?? null,
-      };
     }
   }
 

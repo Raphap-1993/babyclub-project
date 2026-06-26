@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { deriveTicketPurchaseConfirmation } from "./ticketPurchaseConfirmation";
 
 describe("deriveTicketPurchaseConfirmation", () => {
-  it("prioritizes the buyer ticket and leaves workspace as follow-up when attendees remain pending", () => {
+  it("prioritizes the buyer QR and leaves group management as a follow-up when attendees remain pending", () => {
     const result = deriveTicketPurchaseConfirmation({
       reservationId: "res-ticket-1",
       units: [
@@ -15,21 +15,21 @@ describe("deriveTicketPurchaseConfirmation", () => {
       buyerTicketId: "ticket-buyer-1",
       pendingNominationCount: 1,
       eyebrow: "✓ Compra confirmada",
-      title: "Tu entrada ya fue emitida",
+      title: "Tu QR ya está listo",
       primaryAction: {
-        label: "Ver mi ticket",
+        label: "Abrir mi QR",
         href: "/ticket/ticket-buyer-1",
       },
       secondaryAction: {
-        label: "Completar asistentes",
+        label: "Gestionar grupo",
         href: "/compra?reservationId=res-ticket-1",
       },
     });
-    expect(result.description).toContain("ticket del comprador");
-    expect(result.description).toContain("Completa la nominación");
+    expect(result.description).toContain("Abre tu QR");
+    expect(result.description).toContain("asistente pendiente");
   });
 
-  it("removes the workspace CTA when no attendee units remain pending", () => {
+  it("keeps only the buyer QR CTA when no attendee units remain pending", () => {
     const result = deriveTicketPurchaseConfirmation({
       reservationId: "res-ticket-2",
       units: [
@@ -41,16 +41,17 @@ describe("deriveTicketPurchaseConfirmation", () => {
     expect(result).toMatchObject({
       buyerTicketId: "ticket-buyer-2",
       pendingNominationCount: 0,
+      title: "Tu QR ya está listo",
       primaryAction: {
-        label: "Ver mi ticket",
+        label: "Abrir mi QR",
         href: "/ticket/ticket-buyer-2",
       },
       secondaryAction: null,
     });
-    expect(result.description).not.toContain("Completa la nominación");
+    expect(result.description).toContain("usar tu código");
   });
 
-  it("falls back to the workspace when the buyer ticket could not be resolved", () => {
+  it("falls back to group management when the buyer QR could not be resolved yet", () => {
     const result = deriveTicketPurchaseConfirmation({
       reservationId: "res-ticket-3",
       units: [
@@ -65,11 +66,11 @@ describe("deriveTicketPurchaseConfirmation", () => {
       eyebrow: "✓ Compra registrada",
       title: "Tu compra quedó guardada",
       primaryAction: {
-        label: "Ir a mi compra",
+        label: "Gestionar grupo",
         href: "/compra?reservationId=res-ticket-3",
       },
       secondaryAction: null,
     });
-    expect(result.description).toContain("No pudimos emitir el ticket");
+    expect(result.description).toContain("usar tus códigos");
   });
 });

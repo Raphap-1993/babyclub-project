@@ -6,8 +6,12 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 vi.mock(
   "../../../../../../backoffice/app/api/reservations/utils",
-  () => ({
-  }),
+  async () => {
+    const actual = await vi.importActual<
+      typeof import("../../../../../../backoffice/app/api/reservations/utils")
+    >("../../../../../../backoffice/app/api/reservations/utils");
+    return actual;
+  },
 );
 vi.mock(
   "../../../../../../backoffice/app/api/reservations/email",
@@ -201,6 +205,123 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
       "unit-1",
       "unit-2",
     ]);
+  });
+
+  it("expone claim_code y claim_url por unidad y completa faltantes de forma idempotente", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-claims",
+            event_id: "event-claims-1",
+            sale_origin: "ticket",
+            status: "approved",
+            ticket_quantity: 2,
+            package_quantity: 1,
+            total_ticket_units: 2,
+            ticket_type_label: "2 QR ALL NIGHT",
+            codes: ["LEGACY-1"],
+            event: {
+              name: "Baby Lima",
+              starts_at: "2026-05-31T23:00:00.000Z",
+              location: "Centro de Convenciones",
+              event_prefix: "BABY",
+            },
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "issued",
+              full_name: "Ana Torres",
+              doc_type: "dni",
+              document: "12345678",
+              email: "ana@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-1",
+            },
+            {
+              id: "unit-2",
+              unit_index: 2,
+              package_index: 1,
+              person_index: 2,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: [{ id: "code-1", code: "LEGACY-1", person_index: 1 }],
+          error: null,
+        },
+      ],
+      "codes.insert": [
+        {
+          data: [{ id: "code-2", code: "BC-BABY-TCLAIMS-002" }],
+          error: null,
+        },
+      ],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { GET } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-claims/units",
+      { method: "GET" },
+    );
+
+    const res = await GET(req as any, {
+      params: Promise.resolve({ id: "res-ticket-claims" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.units).toEqual([
+      expect.objectContaining({
+        id: "unit-1",
+        claim_code: "LEGACY-1",
+        claim_url: "https://babyclubaccess.com/registro?code=LEGACY-1",
+      }),
+      expect.objectContaining({
+        id: "unit-2",
+        claim_code: "BC-BABY-TCLAIMS-002",
+        claim_url:
+          "https://babyclubaccess.com/registro?code=BC-BABY-TCLAIMS-002",
+      }),
+    ]);
+
+    const codesInsert = calls.find(
+      (call) => call.table === "codes" && call.op === "insert",
+    );
+    expect(codesInsert?.payload).toEqual([
+      expect.objectContaining({
+        table_reservation_id: "res-ticket-claims",
+        person_index: 2,
+      }),
+    ]);
+
+    const reservationUpdate = calls.find(
+      (call) => call.table === "table_reservations" && call.op === "update",
+    );
+    expect(reservationUpdate?.payload).toMatchObject({
+      codes: ["LEGACY-1", "BC-BABY-TCLAIMS-002"],
+    });
   });
 
   it("nomina solo los asistentes restantes sin tocar la unidad 1", async () => {
@@ -1020,6 +1141,103 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     expect(ticketUpdate?.payload?.updated_at).toBeUndefined();
     expect(
       calls.find((call) => call.table === "tickets" && call.op === "insert"),
+    ).toBeFalsy();
+  });
+
+  it("vuelve a validar unicidad por evento antes de reemitir una unidad ya emitida", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-1",
+            sale_origin: "ticket",
+            status: "approved",
+            event_id: "event-1",
+            full_name: "Comprador",
+            email: "buyer@test.com",
+            phone: "999999999",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-2",
+              unit_index: 2,
+              status: "issued",
+              full_name: "Nombre Viejo",
+              doc_type: "dni",
+              document: "12345678",
+              email: "old@test.com",
+              phone: "999999999",
+              ticket_id: "old-ticket",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: [
+            {
+              id: "ticket-other",
+              person_id: "person-other",
+              table_reservation_id: "res-other",
+              qr_token: "qr-other",
+              full_name: "Nombre Nuevo",
+              email: "new@test.com",
+              phone: "988888888",
+              doc_type: "dni",
+              document: "87654321",
+              dni: "87654321",
+              code: { code: "OTHER-CODE", type: "courtesy" },
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { PUT } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-1/units",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          units: [
+            {
+              id: "unit-2",
+              full_name: "Nombre Nuevo",
+              doc_type: "dni",
+              document: "87654321",
+              email: "new@test.com",
+              phone: "988888888",
+            },
+          ],
+        }),
+      },
+    );
+
+    const res = await PUT(req as any, {
+      params: Promise.resolve({ id: "res-ticket-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("QR activo");
+    expect(
+      calls.find((call) => call.table === "tickets" && call.op === "update"),
+    ).toBeFalsy();
+    expect(
+      calls.find(
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "update",
+      ),
     ).toBeFalsy();
   });
 

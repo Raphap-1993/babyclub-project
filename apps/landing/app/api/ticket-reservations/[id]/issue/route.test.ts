@@ -6,13 +6,14 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 vi.mock("../../../../../../backoffice/app/api/reservations/utils", () => ({
   createTicketForReservation: vi.fn(),
+  createReservationCodes: vi.fn(),
 }));
 vi.mock("../../../../../../backoffice/app/api/reservations/email", () => ({
   sendTicketEmail: vi.fn(),
 }));
 
 const { createClient } = await import("@supabase/supabase-js");
-const { createTicketForReservation } = await import(
+const { createReservationCodes, createTicketForReservation } = await import(
   "../../../../../../backoffice/app/api/reservations/utils"
 );
 const { sendTicketEmail } = await import(
@@ -23,6 +24,7 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    (createReservationCodes as any).mockReset();
     process.env.SUPABASE_URL = "http://localhost:54321";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
   });
@@ -95,13 +97,23 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
           error: null,
         },
       ],
+      "codes.select": [
+        {
+          data: [
+            { id: "code-1", code: "legacy-code", person_index: 1 },
+            { id: "code-2", code: "CODE-UNIT-2", person_index: 2 },
+            { id: "code-3", code: "CODE-UNIT-3", person_index: 3 },
+          ],
+          error: null,
+        },
+      ],
       "ticket_reservation_units.update": [{ data: null, error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
     (createClient as any).mockReturnValue(supabase);
     (createTicketForReservation as any).mockResolvedValue({
       ticketId: "ticket-new-1",
-      code: "CODE-NEW-1",
+      code: "legacy-code",
     });
     (sendTicketEmail as any).mockResolvedValue(undefined);
 
@@ -136,6 +148,7 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
         document: "11112222",
         tableReservationId: "res-ticket-1",
         codeType: "courtesy",
+        reuseCodes: ["legacy-code"],
       }),
     );
     expect(sendTicketEmail).toHaveBeenCalledWith({
@@ -164,7 +177,8 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
     );
     expect(reservationUpdate?.payload.codes).toEqual([
       "legacy-code",
-      "CODE-NEW-1",
+      "CODE-UNIT-2",
+      "CODE-UNIT-3",
     ]);
   });
 
@@ -255,6 +269,12 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
               ticket_id: "ticket-no-contact",
             },
           ],
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: [{ id: "code-2", code: "CODE-NO-CONTACT", person_index: 2 }],
           error: null,
         },
       ],
@@ -384,6 +404,15 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
           error: null,
         },
       ],
+      "codes.select": [
+        {
+          data: [
+            { id: "code-1", code: "TABLE-CODE-1", person_index: 1 },
+            { id: "code-2", code: "TABLE-CODE-2", person_index: 2 },
+          ],
+          error: null,
+        },
+      ],
       "ticket_reservation_units.update": [{ data: null, error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
@@ -476,6 +505,12 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
           error: null,
         },
       ],
+      "codes.select": [
+        {
+          data: [{ id: "code-2", code: "CODE-MISSING-DOC", person_index: 2 }],
+          error: null,
+        },
+      ],
     });
     (createClient as any).mockReturnValue(supabase);
 
@@ -554,6 +589,12 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
               ticket_id: "ticket-new-4",
             },
           ],
+          error: null,
+        },
+      ],
+      "codes.select": [
+        {
+          data: [{ id: "code-1", code: "CODE-NEW-4", person_index: 1 }],
           error: null,
         },
       ],

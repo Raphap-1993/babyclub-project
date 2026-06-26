@@ -3,7 +3,7 @@ import { createSupabaseMock } from "../../../../../tests/utils/supabaseMock";
 import {
   EventTicketConflictError,
 } from "shared/eventTicketIdentity";
-import { createTicketForReservation } from "./utils";
+import { createReservationCodes, createTicketForReservation } from "./utils";
 
 describe("createTicketForReservation", () => {
   it("bloquea un segundo QR del mismo evento cuando coincide nombre+correo aunque el documento cambie", async () => {
@@ -49,5 +49,51 @@ describe("createTicketForReservation", () => {
         codeType: "courtesy",
       }),
     ).rejects.toBeInstanceOf(EventTicketConflictError);
+  });
+});
+
+describe("createReservationCodes", () => {
+  it("permite sembrar índices de unidad faltantes sin recrear toda la reserva", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "codes.insert": [
+        {
+          data: [
+            { id: "code-2", code: "BC-BABY-7-002" },
+            { id: "code-4", code: "BC-BABY-7-004" },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    const result = await (createReservationCodes as any)(supabase as any, {
+      eventId: "event-1",
+      eventPrefix: "BABY",
+      tableName: "Mesa 7",
+      reservationId: "res-1",
+      quantity: 4,
+      personIndexes: [2, 4],
+    });
+
+    expect(result).toEqual({
+      codes: ["BC-BABY-7-002", "BC-BABY-7-004"],
+      codeIds: ["code-2", "code-4"],
+    });
+
+    const insertCall = calls.find(
+      (call) => call.table === "codes" && call.op === "insert",
+    );
+    expect(insertCall?.payload).toEqual([
+      expect.objectContaining({
+        code: "BC-BABY-7-002",
+        table_reservation_id: "res-1",
+        person_index: 2,
+      }),
+      expect.objectContaining({
+        code: "BC-BABY-7-004",
+        table_reservation_id: "res-1",
+        person_index: 4,
+      }),
+    ]);
   });
 });

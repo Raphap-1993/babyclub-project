@@ -19,6 +19,87 @@ import {
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+type ReservationUnitContext = {
+  id: string;
+  reservation_id: string;
+  event_id: string | null;
+  unit_index: number;
+  status: string | null;
+  ticket_id: string | null;
+};
+
+function normalizePositiveInteger(value: unknown) {
+  const parsed =
+    typeof value === "number" ? value : Number.parseInt(String(value || ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function loadReservationUnit(
+  supabase: any,
+  reservationId: string,
+  unitIndex: number,
+) {
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("ticket_reservation_units")
+      .select("id,reservation_id,event_id,unit_index,status,ticket_id")
+      .eq("reservation_id", reservationId)
+      .eq("unit_index", unitIndex),
+  ).maybeSingle();
+
+  return {
+    data: data
+      ? {
+          id: String((data as any).id),
+          reservation_id: String((data as any).reservation_id || reservationId),
+          event_id:
+            typeof (data as any).event_id === "string"
+              ? (data as any).event_id
+              : null,
+          unit_index: Number((data as any).unit_index || unitIndex),
+          status:
+            typeof (data as any).status === "string"
+              ? (data as any).status
+              : null,
+          ticket_id:
+            typeof (data as any).ticket_id === "string"
+              ? (data as any).ticket_id
+              : null,
+        }
+      : null,
+    error,
+  };
+}
+
+async function loadTicketById(supabase: any, ticketId: string) {
+  const { data, error } = await applyNotDeleted(
+    supabase
+      .from("tickets")
+      .select("id,qr_token,person_id,payment_status,event_id")
+      .eq("id", ticketId),
+  ).maybeSingle();
+  return { data, error };
+}
+
+async function syncReservationUnitIssued(
+  supabase: any,
+  reservationUnit: ReservationUnitContext,
+  reservationId: string,
+  patch: Record<string, any>,
+) {
+  const { error } = await supabase
+    .from("ticket_reservation_units")
+    .update({
+      ...patch,
+      status: "issued",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", reservationUnit.id)
+    .eq("reservation_id", reservationId);
+
+  return { error };
+}
+
 export async function POST(req: NextRequest) {
   console.log("[/api/tickets] Inicio de petición");
   
@@ -78,7 +159,7 @@ export async function POST(req: NextRequest) {
   const codeQuery = applyNotDeleted(
     supabase
       .from("codes")
-      .select("id,code,event_id,promoter_id,is_active,max_uses,uses,expires_at,table_reservation_id,type")
+      .select("id,code,event_id,promoter_id,is_active,max_uses,uses,expires_at,table_reservation_id,person_index,type")
       .eq("code", codeValue)
   );
   const { data: codeRow, error: codeError } = await codeQuery.maybeSingle();
@@ -102,35 +183,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Código inactivo" }, { status: 400 });
   }
 
-  // Fase A — Aforo real del evento
-  // Verifica TODOS los tickets del evento antes de crear uno nuevo,
-  // sin importar qué código, reserva o cortesía los generó.
-  if (codeRow.event_id) {
-    const { data: eventCapRow } = await supabase
-      .from("events")
-      .select("capacity")
-      .eq("id", codeRow.event_id)
-      .maybeSingle();
-
-    if (eventCapRow?.capacity) {
-      const { data: countData } = await supabase.rpc("count_event_tickets", {
-        p_event_id: codeRow.event_id,
-      });
-      const totalTickets = Number(countData ?? 0);
-      if (totalTickets >= eventCapRow.capacity) {
-        return NextResponse.json(
-          { success: false, error: "Aforo del evento completo" },
-          { status: 400 }
-        );
-      }
-    }
-  }
-
-  const now = Date.now();
-  if (codeRow.expires_at && new Date(codeRow.expires_at).getTime() < now) {
-    return NextResponse.json({ success: false, error: "Código expirado" }, { status: 400 });
-  }
-
   let reservationContext: {
     id: string;
     table_id: string | null;
@@ -138,6 +190,10 @@ export async function POST(req: NextRequest) {
     event_id: string | null;
     status: string | null;
   } | null = null;
+  let reservationUnit: ReservationUnitContext | null = null;
+  const reservationUnitIndex = normalizePositiveInteger(
+    (codeRow as any).person_index,
+  );
 
   if ((codeRow as any).table_reservation_id) {
     const reservationQuery = applyNotDeleted(
@@ -171,6 +227,77 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    if (reservationUnitIndex) {
+      const { data: unitRow, error: unitError } = await loadReservationUnit(
+        supabase,
+        reservationContext.id,
+        reservationUnitIndex,
+      );
+      if (unitError) {
+        return NextResponse.json(
+          { success: false, error: unitError.message },
+          { status: 500 },
+        );
+      }
+      if (!unitRow) {
+        return NextResponse.json(
+          { success: false, error: "Código de reserva sin unidad válida" },
+          { status: 404 },
+        );
+      }
+      reservationUnit = unitRow;
+
+      if (reservationUnit.ticket_id) {
+        const { data: existingUnitTicket, error: existingUnitTicketError } =
+          await loadTicketById(supabase, reservationUnit.ticket_id);
+        if (existingUnitTicketError) {
+          return NextResponse.json(
+            { success: false, error: existingUnitTicketError.message },
+            { status: 500 },
+          );
+        }
+        if (existingUnitTicket?.id && existingUnitTicket.qr_token) {
+          const isPending = existingUnitTicket.payment_status === "pending";
+          return NextResponse.json({
+            success: true,
+            existing: true,
+            ticketId: existingUnitTicket.id,
+            qr: existingUnitTicket.qr_token,
+            needsPayment: isPending,
+          });
+        }
+      }
+    }
+  }
+
+  // Fase A — Aforo real del evento
+  // Verifica TODOS los tickets del evento antes de crear uno nuevo,
+  // sin importar qué código, reserva o cortesía los generó.
+  if (codeRow.event_id) {
+    const { data: eventCapRow } = await supabase
+      .from("events")
+      .select("capacity")
+      .eq("id", codeRow.event_id)
+      .maybeSingle();
+
+    if (eventCapRow?.capacity) {
+      const { data: countData } = await supabase.rpc("count_event_tickets", {
+        p_event_id: codeRow.event_id,
+      });
+      const totalTickets = Number(countData ?? 0);
+      if (totalTickets >= eventCapRow.capacity) {
+        return NextResponse.json(
+          { success: false, error: "Aforo del evento completo" },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
+  const now = Date.now();
+  if (codeRow.expires_at && new Date(codeRow.expires_at).getTime() < now) {
+    return NextResponse.json({ success: false, error: "Código expirado" }, { status: 400 });
   }
 
   const eventId = codeRow.event_id || reservationContext?.event_id || "";
@@ -280,7 +407,7 @@ export async function POST(req: NextRequest) {
   const existingCodeTicketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,qr_token,person_id,payment_status")
+      .select("id,qr_token,person_id,payment_status,event_id")
       .eq("code_id", codeRow.id)
       .eq("is_active", true)
   );
@@ -291,6 +418,40 @@ export async function POST(req: NextRequest) {
 
   if (existingCodeError && existingCodeError.code !== "PGRST116") {
     return NextResponse.json({ success: false, error: existingCodeError.message }, { status: 500 });
+  }
+
+  if (reservationUnit && existingCodeTicket?.id && existingCodeTicket.qr_token) {
+    if (!reservationUnit.ticket_id || reservationUnit.ticket_id !== existingCodeTicket.id) {
+      const syncExisting = await syncReservationUnitIssued(
+        supabase,
+        reservationUnit,
+        reservationContext?.id || reservationUnit.reservation_id,
+        {
+          ticket_id: existingCodeTicket.id,
+          issued_at: new Date().toISOString(),
+          full_name,
+          doc_type: docType,
+          document: normalizedDocument || null,
+          email: email || null,
+          phone: phone || null,
+        },
+      );
+      if (syncExisting.error) {
+        return NextResponse.json(
+          { success: false, error: syncExisting.error.message },
+          { status: 500 },
+        );
+      }
+    }
+
+    const isPending = (existingCodeTicket as any).payment_status === "pending";
+    return NextResponse.json({
+      success: true,
+      existing: true,
+      ticketId: existingCodeTicket.id,
+      qr: existingCodeTicket.qr_token,
+      needsPayment: isPending,
+    });
   }
 
   if (existingCodeTicket?.id && existingCodeTicket.qr_token) {
@@ -392,6 +553,29 @@ export async function POST(req: NextRequest) {
   if (ticketError) {
     console.error("[/api/tickets] Error al insertar ticket:", ticketError);
     return NextResponse.json({ success: false, error: ticketError.message }, { status: 500 });
+  }
+
+  if (reservationUnit) {
+    const syncResult = await syncReservationUnitIssued(
+      supabase,
+      reservationUnit,
+      reservationContext?.id || reservationUnit.reservation_id,
+      {
+        ticket_id: ticketData?.id || null,
+        issued_at: new Date().toISOString(),
+        full_name,
+        doc_type: docType,
+        document: normalizedDocument || null,
+        email: email || null,
+        phone: phone || null,
+      },
+    );
+    if (syncResult.error) {
+      return NextResponse.json(
+        { success: false, error: syncResult.error.message },
+        { status: 500 },
+      );
+    }
   }
 
   let emailSent = false;

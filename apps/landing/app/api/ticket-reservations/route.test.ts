@@ -21,6 +21,7 @@ describe("POST /api/ticket-reservations", () => {
         {
           data: {
             id: "event-1",
+            event_prefix: "BABY",
             is_active: true,
             closed_at: null,
             sale_status: "on_sale",
@@ -56,6 +57,20 @@ describe("POST /api/ticket-reservations", () => {
           error: null,
         },
       ],
+      "codes.insert": [
+        {
+          data: [
+            { id: "code-1", code: "BC-BABY-2-QR-001" },
+            { id: "code-2", code: "BC-BABY-2-QR-002" },
+            { id: "code-3", code: "BC-BABY-2-QR-003" },
+            { id: "code-4", code: "BC-BABY-2-QR-004" },
+            { id: "code-5", code: "BC-BABY-2-QR-005" },
+            { id: "code-6", code: "BC-BABY-2-QR-006" },
+          ],
+          error: null,
+        },
+      ],
+      "table_reservations.update": [{ data: null, error: null }],
     });
     (createClient as any).mockReturnValue(supabase);
 
@@ -142,6 +157,143 @@ describe("POST /api/ticket-reservations", () => {
       person_index: 2,
       unit_index: 6,
       status: "pending_nomination",
+    });
+
+    const codesInsertCall = calls.find(
+      (call) => call.table === "codes" && call.op === "insert",
+    );
+    expect(codesInsertCall?.payload).toHaveLength(6);
+    expect(codesInsertCall?.payload[0]).toMatchObject({
+      event_id: "event-1",
+      table_reservation_id: "res-ticket-1",
+      person_index: 1,
+      type: "courtesy",
+      is_active: true,
+      max_uses: 1,
+    });
+    expect(codesInsertCall?.payload[5]).toMatchObject({
+      table_reservation_id: "res-ticket-1",
+      person_index: 6,
+      type: "courtesy",
+    });
+
+    const reservationUpdateCall = calls.find(
+      (call) => call.table === "table_reservations" && call.op === "update",
+    );
+    expect(reservationUpdateCall?.payload).toMatchObject({
+      codes: [
+        "BC-BABY-2-QR-001",
+        "BC-BABY-2-QR-002",
+        "BC-BABY-2-QR-003",
+        "BC-BABY-2-QR-004",
+        "BC-BABY-2-QR-005",
+        "BC-BABY-2-QR-006",
+      ],
+    });
+  });
+
+  it("siembra códigos por unidad para compras públicas ticket-only", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            event_prefix: "BABY",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+            early_bird_enabled: true,
+            ticket_types: [
+              {
+                id: "type-all-night-2",
+                code: "all_night_2",
+                label: "2 QR ALL NIGHT",
+                sale_phase: "all_night",
+                ticket_quantity: 2,
+                price: 42,
+                currency_code: "PEN",
+                is_active: true,
+                sort_order: 20,
+              },
+            ],
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.insert": [
+        {
+          data: { id: "res-ticket-codes" },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.insert": [
+        {
+          data: null,
+          error: null,
+        },
+      ],
+      "codes.insert": [
+        {
+          data: [
+            { id: "code-1", code: "BC-BABY-TCODES-001" },
+            { id: "code-2", code: "BC-BABY-TCODES-002" },
+          ],
+          error: null,
+        },
+      ],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = new Request("http://localhost/api/ticket-reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_id: "event-1",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Ana",
+        apellido_paterno: "Torres",
+        apellido_materno: "Rios",
+        email: "ana@test.com",
+        telefono: "999999999",
+        payment_method: "culqi",
+        ticket_type_code: "all_night_2",
+      }),
+    });
+
+    const res = await POST(req as any);
+
+    expect(res.status).toBe(200);
+
+    const codesInsert = calls.find(
+      (call) => call.table === "codes" && call.op === "insert",
+    );
+    expect(codesInsert?.payload).toHaveLength(2);
+    expect(codesInsert?.payload).toEqual([
+      expect.objectContaining({
+        event_id: "event-1",
+        table_reservation_id: "res-ticket-codes",
+        person_index: 1,
+        is_active: true,
+        max_uses: 1,
+      }),
+      expect.objectContaining({
+        event_id: "event-1",
+        table_reservation_id: "res-ticket-codes",
+        person_index: 2,
+        is_active: true,
+        max_uses: 1,
+      }),
+    ]);
+
+    const reservationUpdate = calls.find(
+      (call) => call.table === "table_reservations" && call.op === "update",
+    );
+    expect(reservationUpdate?.payload).toMatchObject({
+      codes: ["BC-BABY-TCODES-001", "BC-BABY-TCODES-002"],
     });
   });
 

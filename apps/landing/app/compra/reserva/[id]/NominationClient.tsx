@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CheckCircle2, LoaderCircle, Save, Search } from "lucide-react";
+import {
+  ExternalLink,
+  Link2,
+  LoaderCircle,
+  QrCode,
+  Save,
+  Search,
+  Ticket,
+  Users,
+} from "lucide-react";
 import {
   DOCUMENT_TYPES,
   validateDocument,
@@ -60,6 +69,15 @@ type ReservationUnit = {
   phone: string;
   ticket_id: string | null;
   ticket_url: string | null;
+  claim_code: string | null;
+  claim_url: string | null;
+};
+
+type ActionState = "saving" | "issuing" | null;
+
+type FeedbackState = {
+  title: string;
+  message: string;
 };
 
 const ISSUE_READY_STATUSES = new Set<ReservationStatus>([
@@ -184,32 +202,6 @@ function normalizeReservationSummary(
   };
 }
 
-function mergeReservationSummary(
-  current: ReservationSummary | null,
-  payload: any,
-  reservationId: string,
-) {
-  const next = normalizeReservationSummary(payload, reservationId);
-  if (!current) return next;
-
-  return {
-    ...current,
-    id: next.id || current.id,
-    status: next.status !== "unknown" ? next.status : current.status,
-    event_name: next.event_name ?? current.event_name,
-    event_starts_at: next.event_starts_at ?? current.event_starts_at,
-    event_location: next.event_location ?? current.event_location,
-    ticket_type_label: next.ticket_type_label ?? current.ticket_type_label,
-    package_quantity: next.package_quantity ?? current.package_quantity,
-    total_ticket_units: next.total_ticket_units ?? current.total_ticket_units,
-    buyer_full_name: next.buyer_full_name ?? current.buyer_full_name,
-    buyer_email: next.buyer_email ?? current.buyer_email,
-    buyer_phone: next.buyer_phone ?? current.buyer_phone,
-    amount: next.amount ?? current.amount,
-    currency_code: next.currency_code ?? current.currency_code,
-  };
-}
-
 function normalizeUnit(raw: any, index: number): ReservationUnit | null {
   const id = readText(raw?.id) || `unit-${index + 1}`;
   const ticketId = readText(raw?.ticket_id);
@@ -231,6 +223,8 @@ function normalizeUnit(raw: any, index: number): ReservationUnit | null {
     phone: readText(raw?.phone) ?? "",
     ticket_id: ticketId,
     ticket_url: explicitTicketUrl || (ticketId ? `/ticket/${ticketId}` : null),
+    claim_code: readText(raw?.claim_code),
+    claim_url: readText(raw?.claim_url),
   };
 }
 
@@ -275,32 +269,48 @@ function lookupButtonLabel(docType: DocumentType) {
   return docType === "dni" ? "Buscar DNI" : "Buscar documento";
 }
 
-function buildNominationProgress(
-  reservation: ReservationSummary | null,
-  units: ReservationUnit[],
-) {
-  const editableUnits = getAssistantUnits(units).filter(
-    (unit) => !isTerminalUnit(unit),
-  );
-  const invalidUnits = editableUnits.filter((unit) => !isUnitNominationValid(unit));
-  const pendingNominationCount = editableUnits.filter(
-    (unit) => unit.status === "pending_nomination",
-  ).length;
-  const nominatedReadyCount = editableUnits.filter(
-    (unit) => unit.status === "nominated" && !unit.ticket_id,
-  ).length;
+function getUnitStatusLabel(status: UnitStatus) {
+  switch (status) {
+    case "issued":
+      return "QR listo";
+    case "used":
+      return "Ya usado";
+    case "cancelled":
+      return "Cancelado";
+    case "nominated":
+      return "Listo para emitir";
+    default:
+      return "Pendiente";
+  }
+}
 
-  return {
-    editableUnits,
-    invalidUnits,
-    readyToAutoIssue: Boolean(
-      reservation &&
-        ISSUE_READY_STATUSES.has(reservation.status) &&
-        invalidUnits.length === 0 &&
-        pendingNominationCount === 0 &&
-        nominatedReadyCount > 0,
-    ),
-  };
+function getUnitStatusClasses(status: UnitStatus) {
+  switch (status) {
+    case "issued":
+      return "border-emerald-400/35 bg-emerald-400/10 text-emerald-50";
+    case "used":
+      return "border-cyan-400/35 bg-cyan-400/10 text-cyan-50";
+    case "cancelled":
+      return "border-red-400/35 bg-red-400/10 text-red-50";
+    case "nominated":
+      return "border-amber-400/35 bg-amber-400/10 text-amber-50";
+    default:
+      return "border-white/10 bg-white/5 text-white/70";
+  }
+}
+
+function buildClaimHref(unit: ReservationUnit) {
+  if (unit.claim_url) return unit.claim_url;
+  if (unit.claim_code) {
+    return `/codigo?code=${encodeURIComponent(unit.claim_code)}`;
+  }
+  return null;
+}
+
+function buildCopyableHref(href: string) {
+  if (/^https?:\/\//i.test(href)) return href;
+  if (typeof window === "undefined") return href;
+  return new URL(href, window.location.origin).toString();
 }
 
 function UnitField({
@@ -330,21 +340,32 @@ export default function NominationClient({
   );
   const [units, setUnits] = useState<ReservationUnit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saveStep, setSaveStep] = useState<"saving" | "issuing" | null>(null);
-  const [attemptedSave, setAttemptedSave] = useState(false);
   const [lookupLoadingByUnitId, setLookupLoadingByUnitId] = useState<
     Record<string, boolean>
   >({});
   const [lookupErrorByUnitId, setLookupErrorByUnitId] = useState<
     Record<string, string | null>
   >({});
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [actionByUnitId, setActionByUnitId] = useState<
+    Record<string, ActionState>
+  >({});
+  const [attemptedUnitIds, setAttemptedUnitIds] = useState<
+    Record<string, boolean>
+  >({});
+  const [revealedCodeByUnitId, setRevealedCodeByUnitId] = useState<
+    Record<string, boolean>
+  >({});
+  const [copyFeedbackByUnitId, setCopyFeedbackByUnitId] = useState<
+    Record<string, "idle" | "copied" | "error">
+  >({});
+  const [error, setError] = useState<FeedbackState | null>(null);
+  const [success, setSuccess] = useState<FeedbackState | null>(null);
 
-  const loadUnits = async () => {
-    setLoading(true);
-    setError(null);
+  const loadUnits = async ({ foreground = true } = {}) => {
+    if (foreground) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       const res = await fetch(
@@ -356,16 +377,21 @@ export default function NominationClient({
       const payload = await res.json().catch(() => ({}));
       if (!res.ok || !payload?.success) {
         throw new Error(
-          payload?.error || "No se pudo cargar la reserva para nominación.",
+          payload?.error || "No se pudo abrir esta compra en este momento.",
         );
       }
 
       setReservation(normalizeReservationSummary(payload, reservationId));
       setUnits(extractUnits(payload));
     } catch (err: any) {
-      setError(err?.message || "Error al cargar la reserva.");
+      setError({
+        title: "No pudimos abrir esta compra",
+        message: err?.message || "Inténtalo de nuevo en un momento.",
+      });
     } finally {
-      setLoading(false);
+      if (foreground) {
+        setLoading(false);
+      }
     }
   };
 
@@ -376,22 +402,16 @@ export default function NominationClient({
 
   const buyerUnit = useMemo(() => getBuyerUnit(units), [units]);
   const buyerDisplayName = getBuyerDisplayName(reservation, buyerUnit);
-  const progress = useMemo(
-    () => buildNominationProgress(reservation, units),
-    [reservation, units],
+  const assistantUnits = useMemo(
+    () => getAssistantUnits(units).filter((unit) => !isTerminalUnit(unit)),
+    [units],
   );
-  const editableUnits = progress.editableUnits;
-  const invalidUnits = progress.invalidUnits;
-  const assistantUnits = editableUnits;
-  const primaryButtonLabel = useMemo(() => {
-    if (saveStep === "issuing") return "Emitiendo QR...";
-    if (saveStep === "saving") return "Guardando...";
-    if (progress.readyToAutoIssue) return "Guardar y emitir QR";
-    if (assistantUnits.some((unit) => unit.status === "issued")) {
-      return "Guardar cambios";
-    }
-    return "Guardar nominaciones";
-  }, [assistantUnits, progress.readyToAutoIssue, saveStep]);
+  const pendingAssistantCount = assistantUnits.filter(
+    (unit) => unit.status === "pending_nomination",
+  ).length;
+  const issueReady = Boolean(
+    reservation && ISSUE_READY_STATUSES.has(reservation.status),
+  );
 
   function clearLookupError(unitId: string) {
     setLookupErrorByUnitId((current) =>
@@ -404,8 +424,20 @@ export default function NominationClient({
     );
   }
 
+  function clearCopyFeedback(unitId: string) {
+    setCopyFeedbackByUnitId((current) =>
+      current[unitId] && current[unitId] !== "idle"
+        ? {
+            ...current,
+            [unitId]: "idle",
+          }
+        : current,
+    );
+  }
+
   function updateUnit(unitId: string, patch: Partial<ReservationUnit>) {
     clearLookupError(unitId);
+    clearCopyFeedback(unitId);
     setUnits((current) =>
       current.map((unit) =>
         unit.id === unitId
@@ -418,9 +450,22 @@ export default function NominationClient({
     );
   }
 
+  function markUnitAttempted(unitId: string) {
+    setAttemptedUnitIds((current) => ({
+      ...current,
+      [unitId]: true,
+    }));
+  }
+
+  function setUnitAction(unitId: string, action: ActionState) {
+    setActionByUnitId((current) => ({
+      ...current,
+      [unitId]: action,
+    }));
+  }
+
   async function handleLookupDocument(unit: ReservationUnit) {
     setError(null);
-    setSuccess(null);
     clearLookupError(unit.id);
     setLookupLoadingByUnitId((current) => ({
       ...current,
@@ -459,25 +504,27 @@ export default function NominationClient({
     }
   }
 
-  async function handleSave() {
-    setAttemptedSave(true);
+  async function saveUnit(
+    unit: ReservationUnit,
+    { issueAfterSave = false }: { issueAfterSave?: boolean } = {},
+  ) {
+    markUnitAttempted(unit.id);
     setError(null);
     setSuccess(null);
+    clearCopyFeedback(unit.id);
 
-    const firstInvalid = invalidUnits[0];
-    if (firstInvalid) {
-      setError(
-        `Completa el asistente ${firstInvalid.unit_index}: ${unitValidationMessage(firstInvalid)}`,
-      );
-      return;
-    }
-    if (editableUnits.length === 0) {
-      setSuccess("No hay asistentes pendientes por completar.");
+    const validationMessage = unitValidationMessage(unit);
+    if (validationMessage) {
+      setError({
+        title: "Completa este asistente",
+        message: `Asistente ${unit.unit_index}: ${validationMessage}`,
+      });
       return;
     }
 
-    setSaving(true);
-    setSaveStep("saving");
+    setUnitAction(unit.id, issueAfterSave ? "issuing" : "saving");
+
+    let saved = false;
 
     try {
       const saveRes = await fetch(
@@ -487,144 +534,543 @@ export default function NominationClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reservation_id: reservationId,
-            units: editableUnits.map((unit) => ({
-              id: unit.id,
-              package_index: unit.package_index,
-              person_index: unit.person_index,
-              unit_index: unit.unit_index,
-              full_name: unit.full_name.trim(),
-              doc_type: unit.doc_type || "dni",
-              document: unit.document.trim(),
-              email: unit.email.trim() || null,
-              phone: unit.phone.trim() || null,
-            })),
+            units: [
+              {
+                id: unit.id,
+                package_index: unit.package_index,
+                person_index: unit.person_index,
+                unit_index: unit.unit_index,
+                full_name: unit.full_name.trim(),
+                doc_type: unit.doc_type || "dni",
+                document: unit.document.trim(),
+                email: unit.email.trim() || null,
+                phone: unit.phone.trim() || null,
+              },
+            ],
           }),
         },
       );
       const savePayload = await saveRes.json().catch(() => ({}));
       if (!saveRes.ok || !savePayload?.success) {
         throw new Error(
-          savePayload?.error || "No se pudieron guardar las nominaciones.",
+          savePayload?.error ||
+            "No se pudieron guardar los datos de este asistente.",
         );
       }
 
-      const savedUnits = extractUnits(savePayload);
-      const nextUnits =
-        savedUnits.length > 0
-          ? savedUnits
-          : units.map((unit) =>
-              isTerminalUnit(unit)
-                ? unit
-                : { ...unit, status: "nominated" as UnitStatus },
-            );
-      const nextReservation = mergeReservationSummary(
-        reservation,
-        savePayload,
-        reservationId,
+      saved = true;
+
+      if (!issueAfterSave) {
+        await loadUnits({ foreground: false });
+        setSuccess({
+          title: "Datos guardados",
+          message:
+            "Guardamos este asistente. Cuando quieras, puedes emitir su QR o compartir su código.",
+        });
+        return;
+      }
+
+      if (!issueReady) {
+        await loadUnits({ foreground: false });
+        setSuccess({
+          title: "Datos guardados",
+          message:
+            "Guardamos este asistente. Su QR se podrá emitir cuando la compra quede aprobada.",
+        });
+        return;
+      }
+
+      const issueRes = await fetch(
+        `/api/ticket-reservations/${encodeURIComponent(
+          reservationId,
+        )}/units/${encodeURIComponent(unit.id)}/issue`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
       );
-
-      setReservation(nextReservation);
-      setUnits(nextUnits);
-
-      if (buildNominationProgress(nextReservation, nextUnits).readyToAutoIssue) {
-        setSaveStep("issuing");
-
-        const issueRes = await fetch(
-          `/api/ticket-reservations/${encodeURIComponent(reservationId)}/issue`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          },
+      const issuePayload = await issueRes.json().catch(() => ({}));
+      if (!issueRes.ok || !issuePayload?.success) {
+        throw new Error(
+          issuePayload?.error
+            ? `Guardamos los datos, pero todavía no pudimos emitir el QR. ${issuePayload.error}`
+            : "Guardamos los datos, pero todavía no pudimos emitir el QR.",
         );
-        const issuePayload = await issueRes.json().catch(() => ({}));
-        if (!issueRes.ok || !issuePayload?.success) {
-          throw new Error(
-            issuePayload?.error
-              ? `Se guardaron las nominaciones, pero no se pudieron emitir los QR. ${issuePayload.error}`
-              : "Se guardaron las nominaciones, pero no se pudieron emitir los QR.",
-          );
-        }
-
-        const issuedUnits = extractUnits(issuePayload);
-        setReservation((current) =>
-          mergeReservationSummary(current, issuePayload, reservationId),
-        );
-        if (issuedUnits.length > 0) {
-          setUnits(issuedUnits);
-        }
-        setSuccess("Nominaciones guardadas. Los QR ya quedaron emitidos.");
-      } else if (
-        nextReservation &&
-        !ISSUE_READY_STATUSES.has(nextReservation.status)
-      ) {
-        setSuccess(
-          "Nominaciones guardadas. Los QR se emitirán cuando la reserva quede aprobada.",
-        );
-      } else {
-        setSuccess("Nominaciones guardadas.");
       }
+
+      await loadUnits({ foreground: false });
+      setSuccess({
+        title: "QR listo",
+        message:
+          "El QR de este asistente ya quedó listo. Puedes abrirlo o compartir su código.",
+      });
     } catch (err: any) {
-      setError(err?.message || "Error al guardar nominaciones.");
+      setError({
+        title:
+          saved && issueAfterSave
+            ? "No pudimos emitir este QR"
+            : issueAfterSave
+              ? "No pudimos preparar este QR"
+              : "No pudimos guardar este asistente",
+        message: err?.message || "Inténtalo de nuevo en un momento.",
+      });
     } finally {
-      setSaving(false);
-      setSaveStep(null);
+      setUnitAction(unit.id, null);
     }
+  }
+
+  async function handleCopyLink(unit: ReservationUnit) {
+    const href = buildClaimHref(unit);
+    setError(null);
+    setSuccess(null);
+
+    if (!href) {
+      setCopyFeedbackByUnitId((current) => ({
+        ...current,
+        [unit.id]: "error",
+      }));
+      setError({
+        title: "Link aún no disponible",
+        message:
+          "Todavía no tenemos un link para este asistente. Guarda sus datos y vuelve a intentar.",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(buildCopyableHref(href));
+      setCopyFeedbackByUnitId((current) => ({
+        ...current,
+        [unit.id]: "copied",
+      }));
+    } catch {
+      setCopyFeedbackByUnitId((current) => ({
+        ...current,
+        [unit.id]: "error",
+      }));
+      setError({
+        title: "No pudimos copiar el link",
+        message:
+          "Copia el código manualmente o vuelve a intentar en unos segundos.",
+      });
+    }
+  }
+
+  function toggleCode(unitId: string) {
+    setRevealedCodeByUnitId((current) => ({
+      ...current,
+      [unitId]: !current[unitId],
+    }));
   }
 
   return (
     <main className="min-h-screen bg-black px-3 py-4 text-white sm:px-5 sm:py-6">
-      <div className="mx-auto w-full max-w-4xl rounded-[28px] border border-white/10 bg-[#070707] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-6">
+      <div className="mx-auto w-full max-w-5xl rounded-[28px] border border-white/10 bg-[#070707] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-6">
         {loading ? (
           <section className="flex min-h-[320px] items-center justify-center">
             <div className="flex items-center gap-3 text-sm text-white/70">
               <LoaderCircle className="h-5 w-5 animate-spin" />
-              Cargando nominaciones...
+              Cargando tu compra...
             </div>
           </section>
         ) : (
           <div className="space-y-5">
             <header className="space-y-2 border-b border-white/10 pb-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/40">
-                Completar asistentes
+                Gestionar grupo
               </p>
               <h1 className="text-2xl font-semibold sm:text-3xl">
-                {reservation?.event_name || "Reserva"}
+                {reservation?.event_name || "Compra"}
               </h1>
               <div className="space-y-1 text-sm text-white/60 sm:flex sm:flex-wrap sm:items-center sm:gap-4 sm:space-y-0">
                 <span>{formatDate(reservation?.event_starts_at || null)}</span>
                 {reservation?.event_location ? (
                   <span>{reservation.event_location}</span>
                 ) : null}
+                {reservation?.ticket_type_label ? (
+                  <span>{reservation.ticket_type_label}</span>
+                ) : null}
               </div>
             </header>
 
-            <section className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            {success ? (
+              <div className="rounded-3xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-emerald-50">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200/80">
+                  {success.title}
+                </p>
+                <p className="mt-2 text-sm leading-relaxed">{success.message}</p>
+              </div>
+            ) : null}
+
+            <section className="grid gap-3 lg:grid-cols-[1.1fr,0.9fr]">
+              <article className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                      Mi QR
+                    </p>
+                    <h2 className="mt-1 text-xl font-semibold">
+                      {buyerDisplayName}
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-white/65">
+                      {buyerUnit?.ticket_id
+                        ? "Tu entrada principal ya está lista. Ábrela cuando quieras y deja el resto del grupo para después."
+                        : "Tu QR principal todavía no aparece aquí. Mientras tanto, puedes avanzar asistente por asistente y compartir sus códigos."}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-white/70">
+                    <Ticket className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {buyerUnit?.ticket_id ? (
+                    <Link
+                      href={buyerUnit.ticket_url || `/ticket/${buyerUnit.ticket_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke transition"
+                    >
+                      <QrCode className="h-4 w-4" />
+                      Abrir mi QR
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/60">
+                      Tu QR aparecerá aquí cuando quede emitido.
+                    </span>
+                  )}
+                </div>
+              </article>
+
+              <article className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                      Asistentes pendientes
+                    </p>
+                    <h2 className="mt-1 text-3xl font-semibold">
+                      {pendingAssistantCount}
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-white/65">
+                      Guarda cada asistente por separado, emite su QR cuando
+                      esté listo y comparte su código sin depender del resto del
+                      grupo.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-white/70">
+                    <Users className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70">
+                  {issueReady
+                    ? "La compra ya está aprobada. Puedes emitir un QR por asistente cuando quieras."
+                    : "La compra aún no está aprobada. Guarda los datos y el QR se emitirá apenas cambie el estado."}
+                </div>
+              </article>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                    Gestionar grupo
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold">
+                    Comparte o termina cada asistente a tu ritmo
+                  </h2>
+                </div>
+              </div>
+
+              {assistantUnits.length === 0 ? (
+                <div className="rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-white/65">
+                  No tienes asistentes pendientes por completar.
+                </div>
+              ) : (
+                assistantUnits.map((unit) => {
+                  const validationMessage = unitValidationMessage(unit);
+                  const showValidation =
+                    attemptedUnitIds[unit.id] &&
+                    validationMessage &&
+                    !isTerminalUnit(unit);
+                  const lookupError = lookupErrorByUnitId[unit.id];
+                  const lookupLoading = Boolean(lookupLoadingByUnitId[unit.id]);
+                  const action = actionByUnitId[unit.id];
+                  const busy = Boolean(action) || lookupLoading;
+                  const claimHref = buildClaimHref(unit);
+                  const revealCode = Boolean(revealedCodeByUnitId[unit.id]);
+                  const copyFeedback = copyFeedbackByUnitId[unit.id] || "idle";
+
+                  return (
+                    <article
+                      key={unit.id}
+                      className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold">
+                              Asistente {unit.unit_index}
+                            </h3>
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getUnitStatusClasses(
+                                unit.status,
+                              )}`}
+                            >
+                              {getUnitStatusLabel(unit.status)}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm leading-relaxed text-white/60">
+                            {unit.ticket_id
+                              ? "Si cambias estos datos, guarda primero y luego emite el QR otra vez para reflejar la actualización."
+                              : "Puedes guardar a este asistente ahora y emitir su QR cuando lo necesites."}
+                          </p>
+                        </div>
+
+                        {unit.ticket_id ? (
+                          <Link
+                            href={unit.ticket_url || `/ticket/${unit.ticket_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Abrir mi QR
+                          </Link>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <UnitField label="Tipo de documento">
+                          <select
+                            value={unit.doc_type}
+                            onChange={(event) =>
+                              updateUnit(unit.id, {
+                                doc_type: event.target.value as DocumentType,
+                                document: "",
+                              })
+                            }
+                            disabled={busy}
+                            className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                          >
+                            {DOCUMENT_TYPES.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </UnitField>
+
+                        <UnitField label="Documento">
+                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr),auto]">
+                            <input
+                              value={unit.document}
+                              onChange={(event) =>
+                                updateUnit(unit.id, {
+                                  document: event.target.value,
+                                })
+                              }
+                              disabled={busy}
+                              inputMode={
+                                unit.doc_type === "dni" ||
+                                unit.doc_type === "ruc"
+                                  ? "numeric"
+                                  : "text"
+                              }
+                              maxLength={
+                                unit.doc_type === "dni"
+                                  ? 8
+                                  : unit.doc_type === "ruc"
+                                    ? 11
+                                    : 12
+                              }
+                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleLookupDocument(unit)}
+                              disabled={busy}
+                              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
+                            >
+                              {lookupLoading ? (
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Search className="h-4 w-4" />
+                              )}
+                              {lookupButtonLabel(unit.doc_type)}
+                            </button>
+                          </div>
+                        </UnitField>
+                      </div>
+
+                      <div className="mt-3 grid gap-3">
+                        <UnitField label="Nombre completo">
+                          <input
+                            value={unit.full_name}
+                            onChange={(event) =>
+                              updateUnit(unit.id, {
+                                full_name: event.target.value,
+                              })
+                            }
+                            disabled={busy}
+                            className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                          />
+                        </UnitField>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <UnitField label="Email">
+                            <input
+                              value={unit.email}
+                              onChange={(event) =>
+                                updateUnit(unit.id, {
+                                  email: event.target.value,
+                                })
+                              }
+                              disabled={busy}
+                              type="email"
+                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                            />
+                          </UnitField>
+                          <UnitField label="Teléfono">
+                            <input
+                              value={unit.phone}
+                              onChange={(event) =>
+                                updateUnit(unit.id, {
+                                  phone: event.target.value,
+                                })
+                              }
+                              disabled={busy}
+                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
+                            />
+                          </UnitField>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void saveUnit(unit)}
+                          disabled={busy}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
+                        >
+                          {action === "saving" ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                          Guardar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void saveUnit(unit, { issueAfterSave: true })
+                          }
+                          disabled={busy}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke transition disabled:opacity-60"
+                        >
+                          {action === "issuing" ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <QrCode className="h-4 w-4" />
+                          )}
+                          Emitir QR
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleCode(unit.id)}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+                        >
+                          <Ticket className="h-4 w-4" />
+                          {revealCode ? "Ocultar código" : "Mostrar código"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyLink(unit)}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+                        >
+                          <Link2 className="h-4 w-4" />
+                          Copiar link
+                        </button>
+                      </div>
+
+                      {revealCode ? (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                            Código del asistente
+                          </p>
+                          {unit.claim_code ? (
+                            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <code className="rounded-xl bg-black/40 px-3 py-2 font-mono text-sm text-white">
+                                {unit.claim_code}
+                              </code>
+                              {claimHref ? (
+                                <Link
+                                  href={claimHref}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-2 text-sm font-semibold text-white/80 transition hover:text-white"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  Usar mi código
+                                </Link>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-sm leading-relaxed text-white/60">
+                              Este código todavía no está disponible. Guarda los
+                              datos y vuelve a intentar en unos segundos.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+
+                      {lookupError ? (
+                        <p className="mt-3 text-xs font-semibold text-amber-100">
+                          {lookupError}
+                        </p>
+                      ) : null}
+                      {showValidation ? (
+                        <p className="mt-3 text-xs font-semibold text-[#ff9a9a]">
+                          {validationMessage}
+                        </p>
+                      ) : null}
+                      {copyFeedback === "copied" ? (
+                        <p className="mt-3 text-xs font-semibold text-emerald-200">
+                          Link copiado.
+                        </p>
+                      ) : null}
+                      {copyFeedback === "error" ? (
+                        <p className="mt-3 text-xs font-semibold text-[#ff9a9a]">
+                          No pudimos copiar el link.
+                        </p>
+                      ) : null}
+                    </article>
+                  );
+                })
+              )}
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
-                    Comprador
+                    Titular de la compra
                   </p>
                   <h2 className="mt-1 text-lg font-semibold">
                     {buyerDisplayName}
                   </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-white/60">
+                    Este bloque queda como referencia. La acción principal del
+                    primer viewport está arriba: tu QR y la gestión del grupo.
+                  </p>
                 </div>
-
-                {buyerUnit?.ticket_id ? (
-                  <Link
-                    href={
-                      buyerUnit.ticket_url || `/ticket/${buyerUnit.ticket_id}`
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
-                  >
-                    Ver ticket
-                  </Link>
-                ) : null}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <UnitField label="Nombre completo">
                   <input
                     value={
@@ -650,225 +1096,9 @@ export default function NominationClient({
                 </UnitField>
               </div>
             </section>
-
-            <section className="space-y-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
-                  Nominaciones
-                </p>
-              </div>
-
-              {assistantUnits.length === 0 ? (
-                <div className="rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-white/65">
-                  No hay asistentes pendientes por completar.
-                </div>
-              ) : (
-                assistantUnits.map((unit) => {
-                  const validationMessage = unitValidationMessage(unit);
-                  const showValidation =
-                    attemptedSave &&
-                    validationMessage &&
-                    !isTerminalUnit(unit);
-                  const lookupError = lookupErrorByUnitId[unit.id];
-                  const lookupLoading = Boolean(lookupLoadingByUnitId[unit.id]);
-
-                  return (
-                    <article
-                      key={unit.id}
-                      className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold">
-                            Asistente {unit.unit_index}
-                          </h3>
-                          {unit.status === "issued" ? (
-                            <p className="mt-1 text-xs text-white/55">
-                              Si cambias estos datos y guardas, el QR se
-                              reemitirá.
-                            </p>
-                          ) : null}
-                        </div>
-
-                        {unit.ticket_id ? (
-                          <Link
-                            href={unit.ticket_url || `/ticket/${unit.ticket_id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
-                          >
-                            Ver ticket
-                          </Link>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <UnitField label="Tipo de documento">
-                          <select
-                            value={unit.doc_type}
-                            onChange={(event) =>
-                              updateUnit(unit.id, {
-                                doc_type: event.target.value as DocumentType,
-                                document: "",
-                              })
-                            }
-                            disabled={saving}
-                            className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
-                          >
-                            {DOCUMENT_TYPES.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </UnitField>
-
-                        <UnitField label="Documento">
-                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr),auto]">
-                            <input
-                              value={unit.document}
-                              onChange={(event) =>
-                                updateUnit(unit.id, {
-                                  document: event.target.value,
-                                })
-                              }
-                              disabled={saving}
-                              inputMode={
-                                unit.doc_type === "dni" ||
-                                unit.doc_type === "ruc"
-                                  ? "numeric"
-                                  : "text"
-                              }
-                              maxLength={
-                                unit.doc_type === "dni"
-                                  ? 8
-                                  : unit.doc_type === "ruc"
-                                    ? 11
-                                    : 12
-                              }
-                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void handleLookupDocument(unit)}
-                              disabled={saving || lookupLoading}
-                              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold btn-smoke-outline transition disabled:opacity-60"
-                            >
-                              {lookupLoading ? (
-                                <LoaderCircle className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Search className="h-4 w-4" />
-                              )}
-                              {lookupButtonLabel(unit.doc_type)}
-                            </button>
-                          </div>
-                        </UnitField>
-                      </div>
-
-                      <div className="mt-3 grid gap-3">
-                        <UnitField label="Nombre completo">
-                          <input
-                            value={unit.full_name}
-                            onChange={(event) =>
-                              updateUnit(unit.id, {
-                                full_name: event.target.value,
-                              })
-                            }
-                            disabled={saving}
-                            className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
-                          />
-                        </UnitField>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <UnitField label="Email">
-                            <input
-                              value={unit.email}
-                              onChange={(event) =>
-                                updateUnit(unit.id, {
-                                  email: event.target.value,
-                                })
-                              }
-                              disabled={saving}
-                              type="email"
-                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
-                            />
-                          </UnitField>
-                          <UnitField label="Teléfono">
-                            <input
-                              value={unit.phone}
-                              onChange={(event) =>
-                                updateUnit(unit.id, {
-                                  phone: event.target.value,
-                                })
-                              }
-                              disabled={saving}
-                              className="w-full rounded-2xl border border-white/10 bg-[#111111] px-4 py-3 text-sm text-white focus:border-white focus:outline-none disabled:opacity-60"
-                            />
-                          </UnitField>
-                        </div>
-                      </div>
-
-                      {lookupError ? (
-                        <p className="mt-3 text-xs font-semibold text-amber-100">
-                          {lookupError}
-                        </p>
-                      ) : null}
-                      {showValidation ? (
-                        <p className="mt-3 text-xs font-semibold text-[#ff9a9a]">
-                          {validationMessage}
-                        </p>
-                      ) : null}
-                    </article>
-                  );
-                })
-              )}
-            </section>
-
-            {editableUnits.length > 0 ? (
-              <div className="sticky bottom-3 z-10 -mx-1 border-t border-white/10 bg-[#070707]/95 px-1 pt-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:backdrop-blur-none">
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={saving}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold btn-smoke transition disabled:opacity-60"
-                >
-                  {saveStep ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {primaryButtonLabel}
-                </button>
-              </div>
-            ) : null}
           </div>
         )}
       </div>
-
-      {success ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6">
-          <div className="w-full max-w-md space-y-4 rounded-3xl border border-emerald-500/25 bg-gradient-to-b from-[#111111] to-[#050505] p-6 text-white shadow-[0_30px_90px_rgba(16,185,129,0.22)]">
-            <div className="space-y-2 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10">
-                <CheckCircle2 className="h-7 w-7 text-emerald-300" />
-              </div>
-              <h3 className="text-xl font-semibold text-white">
-                Nominaciones guardadas
-              </h3>
-              <p className="text-sm leading-relaxed text-emerald-100/90">
-                {success}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSuccess(null)}
-              className="w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold btn-smoke transition"
-            >
-              Entendido
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {error ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6">
@@ -890,10 +1120,10 @@ export default function NominationClient({
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-white">
-                Ocurrió un problema
+                {error.title}
               </h3>
               <p className="text-sm leading-relaxed text-red-100/90">
-                {error}
+                {error.message}
               </p>
             </div>
             <button
