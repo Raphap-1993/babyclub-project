@@ -250,9 +250,9 @@ describe("POST /api/reservations/update", () => {
     expect((sendApprovalEmail as any).mock.calls[0][0].callToAction).toBeNull();
   });
 
-  it("aprueba una reserva de mesa sin asistentes nominados sin duplicar la identidad del comprador", async () => {
+  it("aprueba una reserva de mesa sin asistentes nominados preparando buyer-first nomination", async () => {
     process.env.RESEND_API_KEY = "test-resend-key";
-    const { supabase } = createSupabaseMock({
+    const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [
         {
           data: {
@@ -301,12 +301,94 @@ describe("POST /api/reservations/update", () => {
           error: null,
         },
       ],
+      "ticket_reservation_units.select": [
+        {
+          data: [],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-table-dup-1",
+              event_id: "event-dup-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+            {
+              id: "unit-2",
+              reservation_id: "res-table-dup-1",
+              event_id: "event-dup-1",
+              package_index: 1,
+              person_index: 2,
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-table-dup-1",
+              event_id: "event-dup-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "issued",
+              full_name: "Mesa Duplicada",
+              doc_type: "dni",
+              document: "12345678",
+              email: "mesa-dup@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-buyer-1",
+            },
+            {
+              id: "unit-2",
+              reservation_id: "res-table-dup-1",
+              event_id: "event-dup-1",
+              package_index: 1,
+              person_index: 2,
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.insert": [{ data: [{ id: "unit-1" }, { id: "unit-2" }], error: null }],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
     (createClient as any).mockReturnValue(supabase);
     (createReservationCodes as any).mockResolvedValue({
       codes: ["CODE-1", "CODE-2"],
       codeIds: ["code-1", "code-2"],
+    });
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-buyer-1",
+      code: "CODE-1",
     });
     (sendApprovalEmail as any).mockResolvedValue(undefined);
 
@@ -322,14 +404,44 @@ describe("POST /api/reservations/update", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(createTicketForReservation).not.toHaveBeenCalled();
+    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
+    expect(createTicketForReservation).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({
+        eventId: "event-dup-1",
+        tableName: "Mesa Duplicada",
+        fullName: "Mesa Duplicada",
+        email: "mesa-dup@test.com",
+        phone: "999999999",
+        docType: "dni",
+        document: "12345678",
+        codeType: "table",
+        reuseCodes: ["CODE-1"],
+        tableId: "table-dup-1",
+        productId: "product-dup-1",
+        tableReservationId: "res-table-dup-1",
+      }),
+    );
     expect(createReservationCodes).toHaveBeenCalledTimes(1);
     expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
     expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
       codes: ["CODE-1", "CODE-2"],
-      ticketIds: [],
-      callToAction: null,
+      ticketIds: ["ticket-buyer-1"],
+      callToAction: {
+        label: "Completar asistentes",
+        url: "https://babyclubaccess.com/compra?reservationId=res-table-dup-1",
+      },
     });
+    expect(
+      calls.some(
+        (call) => call.table === "ticket_reservation_units" && call.op === "insert",
+      ),
+    ).toBe(true);
+    expect(
+      calls.some(
+        (call) => call.table === "ticket_reservation_units" && call.op === "update",
+      ),
+    ).toBe(true);
   });
 
   it("rechaza una aprobación de mesa si repite la misma identidad en asistentes nominados", async () => {

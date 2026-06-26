@@ -45,6 +45,11 @@ type EnsureTicketOnlyBuyerIssuedInput = {
   reservationId: string;
   eventId: string | null;
   ticketQuantity: number;
+  tableName?: string | null;
+  codeType?: "courtesy" | "table";
+  tableId?: string | null;
+  productId?: string | null;
+  reusableCodes?: string[];
 };
 
 export async function ensureTicketOnlyBuyerIssued({
@@ -53,6 +58,11 @@ export async function ensureTicketOnlyBuyerIssued({
   reservationId,
   eventId,
   ticketQuantity,
+  tableName,
+  codeType = "courtesy",
+  tableId = null,
+  productId = null,
+  reusableCodes = [],
 }: EnsureTicketOnlyBuyerIssuedInput): Promise<{
   units: TicketOnlyUnit[];
   unitsPrepared: boolean;
@@ -151,10 +161,14 @@ export async function ensureTicketOnlyBuyerIssued({
       "Reserva sin evento asignado; no se pudo emitir el QR del comprador.",
     );
   }
+  const buyerReuseCodes =
+    reusableCodes.length > 0 && reusableCodes[0]
+      ? [String(reusableCodes[0]).trim()]
+      : [];
 
   const result = await createTicketForReservation(supabase, {
     eventId: effectiveEventId,
-    tableName: reservation.ticket_type_label || "Entrada",
+    tableName: tableName || reservation.ticket_type_label || "Entrada",
     fullName: buyerName,
     email: buyerEmail || null,
     phone: buyerPhone || null,
@@ -162,10 +176,10 @@ export async function ensureTicketOnlyBuyerIssued({
     docType: buyerDocType,
     document: normalizedDocument,
     promoterId: reservation.promoter_id || null,
-    reuseCodes: [],
-    codeType: "courtesy",
-    tableId: null,
-    productId: null,
+    reuseCodes: buyerReuseCodes,
+    codeType,
+    tableId,
+    productId,
     tableReservationId: reservationId,
   });
 

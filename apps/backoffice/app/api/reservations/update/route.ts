@@ -4,7 +4,6 @@ import { createReservationCodes, createTicketForReservation } from "../utils";
 import { sendApprovalEmail, sendCancellationEmail } from "../email";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
-import { buildReservationUnits } from "shared/ticketReservationUnits";
 import {
   buildEventTicketIdentityKeys,
   findActiveEventTicketConflict,
@@ -395,6 +394,100 @@ export async function POST(req: NextRequest) {
       const reservationAttendees = readReservationAttendees(
         (reservation as any).attendees,
       );
+      if (isTableReservation && reservationAttendees.length === 0) {
+        let tableNominationState;
+        try {
+          tableNominationState = await ensureTicketOnlyBuyerIssued({
+            supabase,
+            reservation: reservation as any,
+            reservationId: id,
+            eventId,
+            ticketQuantity,
+            tableName,
+            codeType: "table",
+            tableId: (reservation as any).table_id || tableRel?.id || null,
+            productId: (reservation as any).product_id || null,
+            reusableCodes,
+          });
+        } catch (err: any) {
+          emailError =
+            err?.message || "No se pudo preparar la nominación de la mesa";
+          trace.push(`approvalFlowError:${emailError}`);
+          return NextResponse.json(
+            { success: false, error: emailError, trace },
+            { status: 500 },
+          );
+        }
+
+        const issuedTicketIds = uniqueStrings(
+          tableNominationState.units
+            .filter(
+              (unit: any) =>
+                unit && String(unit.status || "").toLowerCase() === "issued",
+            )
+            .map((unit: any) => unit.ticket_id),
+        );
+        const mergedCodes = uniqueStrings([
+          ...codesList,
+          ...reusableCodes,
+          ...(tableNominationState.buyerCode
+            ? [tableNominationState.buyerCode]
+            : []),
+        ]);
+
+        const approvalUpdatePayload: Record<string, any> = {
+          ...updateData,
+          updated_at: new Date().toISOString(),
+        };
+        if (mergedCodes.length > 0) {
+          approvalUpdatePayload.codes = mergedCodes;
+        }
+
+        const { error: approvalUpdateError } = await supabase
+          .from("table_reservations")
+          .update(approvalUpdatePayload)
+          .eq("id", id);
+        if (approvalUpdateError) {
+          return NextResponse.json(
+            { success: false, error: approvalUpdateError.message, trace },
+            { status: 500 },
+          );
+        }
+
+        if (tableNominationState.unitsPrepared) {
+          trace.push(`ticketUnitsPrepared:${ticketQuantity}`);
+        }
+
+        try {
+          await sendApprovalEmail({
+            supabase,
+            id,
+            full_name: resolvedFullName,
+            email: resolvedEmail,
+            phone: resolvedPhone || null,
+            codes: mergedCodes,
+            ticketIds:
+              issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
+            tableName,
+            event: eventRel || eventDirectRel || null,
+            resourceLabel: "Mesa",
+            callToAction: {
+              label: "Completar asistentes",
+              url: nominationUrl,
+            },
+          });
+          emailSent = true;
+          trace.push(
+            `approvalEmailSent:tickets=${issuedTicketIds.length},codes=${mergedCodes.length}`,
+          );
+        } catch (err: any) {
+          emailError =
+            err?.message || "No se pudo enviar el correo de aprobación";
+          trace.push(`approvalEmailError:${emailError}`);
+        }
+
+        return NextResponse.json({ success: true, emailSent, emailError, trace });
+      }
       const plannedAttendees = reservationAttendees.slice(0, ticketQuantity);
       const seenIdentityKeys = new Map<string, string>();
       for (let i = 0; i < plannedAttendees.length; i++) {

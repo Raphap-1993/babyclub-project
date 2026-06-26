@@ -121,6 +121,88 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     ]);
   });
 
+  it("permite cargar el workspace público para reservas de mesa con unidades preparadas", async () => {
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-table-1",
+            sale_origin: "table",
+            status: "approved",
+            ticket_quantity: 2,
+            package_quantity: 1,
+            total_ticket_units: 2,
+            ticket_type_label: null,
+            full_name: "Mesa Comprador",
+            email: "mesa@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "12345678",
+            event: {
+              name: "Baby Lima",
+              starts_at: "2026-05-31T23:00:00.000Z",
+              location: "Centro de Convenciones",
+            },
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "issued",
+              full_name: "Mesa Comprador",
+              doc_type: "dni",
+              document: "12345678",
+              email: "mesa@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-1",
+            },
+            {
+              id: "unit-2",
+              unit_index: 2,
+              package_index: 1,
+              person_index: 2,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { GET } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-table-1/units",
+      { method: "GET" },
+    );
+
+    const res = await GET(req as any, {
+      params: Promise.resolve({ id: "res-table-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.reservation.sale_origin).toBe("table");
+    expect(payload.units.map((unit: any) => unit.id)).toEqual([
+      "unit-1",
+      "unit-2",
+    ]);
+  });
+
   it("nomina solo los asistentes restantes sin tocar la unidad 1", async () => {
     const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [

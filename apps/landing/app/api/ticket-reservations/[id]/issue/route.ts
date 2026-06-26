@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
+import { resolveFirstValidEmailAddress } from "shared/email/address";
 import {
   buildEventTicketIdentityKeys,
   findActiveEventTicketConflict,
@@ -14,7 +15,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const APPROVED_STATUSES = new Set(["approved", "confirmed", "paid"]);
 const RESERVATION_SELECT =
-  "id,event_id,sale_origin,status,promoter_id,full_name,email,phone,doc_type,document,ticket_type_label,codes";
+  "id,event_id,table_id,product_id,sale_origin,status,promoter_id,full_name,email,phone,doc_type,document,ticket_type_label,codes,table:tables(name)";
 const UNIT_SELECT =
   "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id";
 
@@ -84,8 +85,9 @@ export async function POST(
   const reservation = await loadReservation(supabase, id);
   if (reservation.error) return jsonError(reservation.error.message, 500);
   if (!reservation.data) return jsonError("Reserva no encontrada", 404);
-  if ((reservation.data as any).sale_origin !== "ticket") {
-    return jsonError("La reserva no pertenece al flujo ticket-only", 400);
+  const saleOrigin = String((reservation.data as any).sale_origin || "").trim().toLowerCase();
+  if (saleOrigin !== "ticket" && saleOrigin !== "table") {
+    return jsonError("La reserva no pertenece al flujo de nominación", 400);
   }
   if (
     !APPROVED_STATUSES.has(
@@ -127,6 +129,19 @@ export async function POST(
     });
   }
 
+  const isTableReservation = saleOrigin === "table";
+  const tableRel = Array.isArray((reservation.data as any).table)
+    ? (reservation.data as any).table?.[0]
+    : (reservation.data as any).table;
+  const reservationCodes = Array.isArray((reservation.data as any).codes)
+    ? (reservation.data as any).codes
+        .map((code: any) => String(code || "").trim())
+        .filter(Boolean)
+    : [];
+  const resolvedTableName = isTableReservation
+    ? String(tableRel?.name || (reservation.data as any).ticket_type_label || "Mesa").trim() || "Mesa"
+    : String((reservation.data as any).ticket_type_label || "Entrada").trim() || "Entrada";
+
   const seenIdentityKeys = new Map<string, string>();
   for (const unit of issuableUnits as any[]) {
     const isBuyerUnit = Number(unit.unit_index || 0) === 1;
@@ -144,6 +159,10 @@ export async function POST(
       String(unit.email || "").trim() ||
       (isBuyerUnit ? buyerEmail : "") ||
       null;
+    const effectiveEmail = resolveFirstValidEmailAddress(
+      email,
+      String((reservation.data as any).email || ""),
+    );
     const phone =
       String(unit.phone || "").trim() ||
       (isBuyerUnit ? buyerPhone : "") ||
@@ -212,6 +231,10 @@ export async function POST(
       String(unit.email || "").trim() ||
       (isBuyerUnit ? buyerEmail : "") ||
       null;
+    const effectiveEmail = resolveFirstValidEmailAddress(
+      email,
+      String((reservation.data as any).email || ""),
+    );
     const phone =
       String(unit.phone || "").trim() ||
       (isBuyerUnit ? buyerPhone : "") ||
@@ -229,18 +252,25 @@ export async function POST(
     if (validationError) return jsonError(validationError, 400);
     const result = await createTicketForReservation(supabase, {
       eventId: (reservation.data as any).event_id,
-      tableName: (reservation.data as any).ticket_type_label || "Entrada",
+      tableName: resolvedTableName,
       fullName,
-      email,
+      email: effectiveEmail || null,
       phone,
       dni: docType === "dni" ? document : null,
       docType,
       document,
       promoterId: (reservation.data as any).promoter_id || null,
-      reuseCodes: [],
-      codeType: "courtesy",
-      tableId: null,
-      productId: null,
+      reuseCodes:
+        isTableReservation && reservationCodes[Number(unit.unit_index || 0) - 1]
+          ? [reservationCodes[Number(unit.unit_index || 0) - 1]]
+          : [],
+      codeType: isTableReservation ? "table" : "courtesy",
+      tableId: isTableReservation
+        ? ((reservation.data as any).table_id || null)
+        : null,
+      productId: isTableReservation
+        ? ((reservation.data as any).product_id || null)
+        : null,
       tableReservationId: id,
     });
 
@@ -274,11 +304,11 @@ export async function POST(
 
     if (updateError) return jsonError(updateError.message, 500);
 
-    if (email) {
+    if (effectiveEmail) {
       await sendTicketEmail({
         supabase,
         ticketId: result.ticketId,
-        toEmail: email,
+        toEmail: effectiveEmail,
       });
     }
   }

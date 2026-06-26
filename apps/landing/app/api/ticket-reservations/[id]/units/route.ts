@@ -48,7 +48,10 @@ async function loadReservation(supabase: any, reservationId: string) {
 
   if (error) return { error };
   if (!data) return { notFound: true };
-  if ((data as any).sale_origin !== "ticket") return { wrongType: true, data };
+  const saleOrigin = String((data as any).sale_origin || "").trim().toLowerCase();
+  if (saleOrigin !== "ticket" && saleOrigin !== "table") {
+    return { wrongType: true, data };
+  }
   return { data };
 }
 
@@ -156,7 +159,7 @@ export async function GET(
   const reservation = await loadReservation(supabase, id);
   if (reservation.notFound) return jsonError("Reserva no encontrada", 404);
   if (reservation.wrongType) {
-    return jsonError("La reserva no pertenece al flujo ticket-only", 400);
+    return jsonError("La reserva no pertenece al flujo de nominación", 400);
   }
   if (reservation.error) return jsonError(reservation.error.message, 500);
 
@@ -193,7 +196,7 @@ export async function PUT(
   const reservation = await loadReservation(supabase, id);
   if (reservation.notFound) return jsonError("Reserva no encontrada", 404);
   if (reservation.wrongType) {
-    return jsonError("La reserva no pertenece al flujo ticket-only", 400);
+    return jsonError("La reserva no pertenece al flujo de nominación", 400);
   }
   if (reservation.error) return jsonError(reservation.error.message, 500);
 

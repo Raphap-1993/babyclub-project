@@ -202,7 +202,7 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
     expect(createTicketForReservation).not.toHaveBeenCalled();
   });
 
-  it("no copia contacto del comprador cuando la unidad nominada no trae email ni teléfono", async () => {
+  it("usa el correo del comprador cuando la unidad nominada no trae email ni teléfono", async () => {
     const { supabase } = createSupabaseMock({
       "table_reservations.select": [
         {
@@ -283,12 +283,157 @@ describe("POST /api/ticket-reservations/[id]/issue", () => {
       supabase,
       expect.objectContaining({
         fullName: "Invitado Sin Contacto",
-        email: null,
+        email: "buyer@test.com",
         phone: null,
         document: "70000001",
       }),
     );
-    expect(sendTicketEmail).not.toHaveBeenCalled();
+    expect(sendTicketEmail).toHaveBeenCalledWith({
+      supabase,
+      ticketId: "ticket-no-contact",
+      toEmail: "buyer@test.com",
+    });
+  });
+
+  it("emite una unidad de mesa reutilizando su código reservado y enviando al asistente", async () => {
+    const { supabase } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-table-1",
+            sale_origin: "table",
+            status: "approved",
+            event_id: "event-1",
+            table_id: "table-1",
+            product_id: "product-1",
+            ticket_type_label: null,
+            full_name: "Comprador Mesa",
+            email: "buyer@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "11112222",
+            codes: ["TABLE-CODE-1", "TABLE-CODE-2"],
+            table: {
+              name: "Mesa 17",
+            },
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "issued",
+              full_name: "Comprador Mesa",
+              doc_type: "dni",
+              document: "11112222",
+              email: "buyer@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-buyer-1",
+            },
+            {
+              id: "unit-2",
+              unit_index: 2,
+              package_index: 1,
+              person_index: 2,
+              status: "nominated",
+              full_name: "Invitada Mesa",
+              doc_type: "dni",
+              document: "70000002",
+              email: "guest@test.com",
+              phone: "988888888",
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "issued",
+              full_name: "Comprador Mesa",
+              doc_type: "dni",
+              document: "11112222",
+              email: "buyer@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-buyer-1",
+            },
+            {
+              id: "unit-2",
+              unit_index: 2,
+              package_index: 1,
+              person_index: 2,
+              status: "issued",
+              full_name: "Invitada Mesa",
+              doc_type: "dni",
+              document: "70000002",
+              email: "guest@test.com",
+              phone: "988888888",
+              ticket_id: "ticket-table-2",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-table-2",
+      code: "TABLE-CODE-2",
+    });
+    (sendTicketEmail as any).mockResolvedValue(undefined);
+
+    const { POST } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-table-1/issue",
+      { method: "POST" },
+    );
+
+    const res = await POST(req as any, {
+      params: Promise.resolve({ id: "res-table-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload).toMatchObject({
+      success: true,
+      issuedCount: 1,
+      pendingNominationCount: 0,
+    });
+
+    expect(createTicketForReservation).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({
+        eventId: "event-1",
+        tableName: "Mesa 17",
+        fullName: "Invitada Mesa",
+        email: "guest@test.com",
+        phone: "988888888",
+        docType: "dni",
+        document: "70000002",
+        codeType: "table",
+        reuseCodes: ["TABLE-CODE-2"],
+        tableId: "table-1",
+        productId: "product-1",
+        tableReservationId: "res-table-1",
+      }),
+    );
+    expect(sendTicketEmail).toHaveBeenCalledWith({
+      supabase,
+      ticketId: "ticket-table-2",
+      toEmail: "guest@test.com",
+    });
   });
 
   it("bloquea la emisión con un mensaje legible si falta documento en una unidad nominada", async () => {
