@@ -200,27 +200,15 @@ export default function AccessCodeClient({
               </button>
             </>
           ) : (
-            <>
-              <div>
-                ¿Te compartieron un código o link?{" "}
-                <Link
-                  href="/#nominacion"
-                  onClick={() => switchMode("nomination")}
-                  className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
-                >
-                  Completar nominación
-                </Link>
-              </div>
-              <div>
-                ¿Sin código?{" "}
-                <Link
-                  href="/compra"
-                  className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
-                >
-                  Comprar Entrada
-                </Link>
-              </div>
-            </>
+            <div>
+              ¿Sin código?{" "}
+              <Link
+                href="/compra"
+                className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+              >
+                Comprar Entrada
+              </Link>
+            </div>
           )}
         </div>
       </div>
