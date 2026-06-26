@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { CreditCard, Smartphone } from "lucide-react";
@@ -123,6 +124,7 @@ function RegistroContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const code = searchParams.get("code") || "";
+  const backToHomeHref = code ? "/?mode=nomination#nominacion" : "/";
   const tableLayoutUrl =
     process.env.NEXT_PUBLIC_TABLE_LAYOUT_URL || LOCAL_MAP_ASSET;
   const initialCover = process.env.NEXT_PUBLIC_REGISTRO_COVER_URL || "";
@@ -831,6 +833,17 @@ function RegistroContent() {
             : "max-w-7xl space-y-4 lg:space-y-6"
         }`}
       >
+        {step === 1 && (
+          <div className="mx-auto w-full max-w-md">
+            <Link
+              href={backToHomeHref}
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/45 transition hover:text-white/80"
+            >
+              ← Volver al inicio
+            </Link>
+          </div>
+        )}
+
         {coverUrl && step === 1 && (
           <div className="relative mx-auto w-full overflow-hidden rounded-3xl bg-[#0b0b0b]">
             <div className="relative w-full h-[280px] sm:h-[320px] lg:h-[360px]">

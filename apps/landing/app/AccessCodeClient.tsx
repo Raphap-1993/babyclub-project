@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LegalFooterLinks } from "./legal/LegalFooterLinks";
-import { AccessModeToggle } from "./AccessModeToggle";
 import { extractAccessCodeInput } from "./accessCodeInput";
 import {
   getAccessCodeViewState,
@@ -17,13 +16,21 @@ export default function AccessCodeClient({
   initialLogoUrl: string | null;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<EntryMode>("access");
+  const searchParams = useSearchParams();
+  const mode: EntryMode =
+    searchParams.get("mode") === "nomination" ? "nomination" : "access";
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const viewState = getAccessCodeViewState(mode);
+
+  useEffect(() => {
+    setError(null);
+    setShowErrorModal(false);
+    setErrorMessage("");
+  }, [mode]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -84,8 +91,6 @@ export default function AccessCodeClient({
           <div className="text-6xl font-bold tracking-[0.4em]">BABY</div>
         )}
 
-        <AccessModeToggle mode={mode} onModeChange={setMode} />
-
         <form onSubmit={onSubmit} className="space-y-4">
           <input
             type="text"
@@ -110,27 +115,30 @@ export default function AccessCodeClient({
           )}
         </form>
 
-        <div className="text-center text-sm text-white/70">
-          <div>
-            ¿Te compartieron un código o link?{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setMode("nomination");
-                setError(null);
-              }}
+        <div className="flex flex-col items-center gap-2 text-center text-sm text-white/70">
+          {mode === "nomination" ? (
+            <Link
+              href="/"
               className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
             >
-              Completar nominación
-            </button>
-          </div>
-          ¿Sin código?{" "}
-          <Link
-            href="/compra"
-            className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
-          >
-            Comprar Entrada
-          </Link>
+              Volver al inicio
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/?mode=nomination#nominacion"
+                className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+              >
+                Completar nominación
+              </Link>
+              <Link
+                href="/compra"
+                className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+              >
+                Comprar Entrada
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

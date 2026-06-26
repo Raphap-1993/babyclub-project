@@ -370,7 +370,7 @@ describe("POST /api/tickets", () => {
     expect(ticketInsertCall?.payload?.table_reservation_id).toBe("res-2");
   });
 
-  it("retorna el ticket existente cuando el código apunta a una unidad de reserva ya emitida", async () => {
+  it("retorna el ticket existente cuando la misma persona reutiliza el código de una unidad ya emitida", async () => {
     const { supabase, calls } = createSupabaseMock({
       "codes.select": [
         {
@@ -420,7 +420,11 @@ describe("POST /api/tickets", () => {
           data: {
             id: "ticket-issued-2",
             qr_token: "qr-issued-2",
+            person_id: "person-issued-2",
             payment_status: "paid",
+            doc_type: "dni",
+            document: "12345678",
+            dni: "12345678",
           },
           error: null,
         },
@@ -454,6 +458,100 @@ describe("POST /api/tickets", () => {
     expect(payload.existing).toBe(true);
     expect(payload.ticketId).toBe("ticket-issued-2");
     expect(payload.qr).toBe("qr-issued-2");
+    expect(
+      calls.find((call) => call.table === "tickets" && call.op === "insert"),
+    ).toBeFalsy();
+    expect(
+      calls.find((call) => call.table === "persons" && call.op === "insert"),
+    ).toBeFalsy();
+  });
+
+  it("bloquea una unidad ya emitida si el código se usa con datos de otra persona", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "codes.select": [
+        {
+          data: {
+            id: "code-unit-issued",
+            code: "UNIT-ISSUED-1",
+            event_id: "event-1",
+            promoter_id: null,
+            is_active: true,
+            max_uses: 1,
+            uses: 1,
+            expires_at: null,
+            table_reservation_id: "res-issued-1",
+            person_index: 2,
+            type: "table",
+          },
+          error: null,
+        },
+      ],
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-issued-1",
+            event_id: "event-1",
+            table_id: "table-issued-1",
+            product_id: "prod-issued-1",
+            status: "approved",
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: {
+            id: "unit-issued-2",
+            reservation_id: "res-issued-1",
+            event_id: "event-1",
+            unit_index: 2,
+            status: "issued",
+            ticket_id: "ticket-issued-2",
+          },
+          error: null,
+        },
+      ],
+      "tickets.select": [
+        {
+          data: {
+            id: "ticket-issued-2",
+            qr_token: "qr-issued-2",
+            person_id: "person-issued-2",
+            payment_status: "paid",
+            doc_type: "dni",
+            document: "12345678",
+            dni: "12345678",
+          },
+          error: null,
+        },
+      ],
+    });
+
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: "UNIT-ISSUED-1",
+        doc_type: "dni",
+        document: "87654321",
+        nombre: "Lorena",
+        apellido_paterno: "Pelaez",
+        apellido_materno: "Bardales",
+        email: "lorena@example.com",
+        telefono: "+51968284152",
+        birthdate: "1998-02-10",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(String(payload.error || "")).toContain("otra persona");
     expect(
       calls.find((call) => call.table === "tickets" && call.op === "insert"),
     ).toBeFalsy();

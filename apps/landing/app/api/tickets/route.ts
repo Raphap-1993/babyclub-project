@@ -75,10 +75,36 @@ async function loadTicketById(supabase: any, ticketId: string) {
   const { data, error } = await applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,qr_token,person_id,payment_status,event_id")
+      .select("id,qr_token,person_id,payment_status,event_id,doc_type,document,dni")
       .eq("id", ticketId),
   ).maybeSingle();
   return { data, error };
+}
+
+function resolveExistingTicketHolderIdentity(ticket: any) {
+  const docType =
+    typeof ticket?.doc_type === "string" && ticket.doc_type.trim()
+      ? ticket.doc_type.trim().toLowerCase()
+      : typeof ticket?.dni === "string" && ticket.dni.trim()
+        ? "dni"
+        : null;
+
+  if (!docType) {
+    return { docType: null, document: null };
+  }
+
+  const document =
+    docType === "dni"
+      ? typeof ticket?.dni === "string" && ticket.dni.trim()
+        ? ticket.dni.trim()
+        : typeof ticket?.document === "string" && ticket.document.trim()
+          ? ticket.document.trim()
+          : null
+      : typeof ticket?.document === "string" && ticket.document.trim()
+        ? ticket.document.trim().toLowerCase()
+        : null;
+
+  return { docType, document };
 }
 
 async function syncReservationUnitIssued(
@@ -258,6 +284,25 @@ export async function POST(req: NextRequest) {
           );
         }
         if (existingUnitTicket?.id && existingUnitTicket.qr_token) {
+          const issuedHolder = resolveExistingTicketHolderIdentity(
+            existingUnitTicket,
+          );
+          if (issuedHolder.docType && issuedHolder.document) {
+            const isSameHolder =
+              issuedHolder.docType === docType &&
+              issuedHolder.document === normalizedDocument;
+
+            if (!isSameHolder) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: "Este código ya fue registrado por otra persona",
+                },
+                { status: 409 },
+              );
+            }
+          }
+
           const isPending = existingUnitTicket.payment_status === "pending";
           return NextResponse.json({
             success: true,
