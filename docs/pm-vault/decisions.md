@@ -3,8 +3,8 @@ type: decisions
 project: babyclub-monorepo
 status: active
 owner: Raphael
-updated: 2026-04-25
-last_reviewed: 2026-04-25
+updated: 2026-06-26
+last_reviewed: 2026-06-26
 ---
 
 # Decisions
@@ -69,6 +69,18 @@ last_reviewed: 2026-04-25
 - `table_reservations` guarda snapshot de tipo, etiqueta y monto para compras ticket-only.
 - Culqi usa el monto snapshot de la reserva; el monto enviado por cliente queda como compatibilidad, no como autoridad.
 - Ver [ADR-008](../adr/2026-04-25-008-event-ticket-types-per-event.md).
+
+### DEC-0011 - Listados administrativos de tickets deben paginar en DB, no en memoria
+
+- Cualquier bandeja o export basada en `tickets` debe cargar lotes via `range(...)` hasta agotar resultados visibles.
+- No se permite paginar en memoria sobre un fetch ya truncado por limites de PostgREST/Supabase.
+- La capa de visibilidad funcional sigue centralizada en `apps/backoffice/app/admin/tickets/ticketListModel.ts`.
+
+### DEC-0012 - Aprobar una mesa sin asistentes debe preparar nominación buyer-first
+
+- Si una reserva `table` pasa a `approved` con `attendees=[]`, el backend debe preparar `ticket_reservation_units` y emitir el QR del comprador antes del correo final.
+- El correo de aprobacion de mesa debe incluir CTA a completar asistentes cuando el flujo dependa de nominacion posterior.
+- Esta regla es parte operativa de [ADR-009](../adr/2026-05-27-009-ticket-package-units-and-post-purchase-nomination.md), no una excepcion temporal.
 
 ## Cuando una decision debe subir a ADR
 
