@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LegalFooterLinks } from "./legal/LegalFooterLinks";
 import { extractAccessCodeInput } from "./accessCodeInput";
@@ -22,7 +23,7 @@ export default function AccessCodeClient({
     setError(null);
     const normalizedCode = extractAccessCodeInput(code);
     if (!normalizedCode) {
-      setError("Ingresa un código o link");
+      setError("Ingresa un código");
       return;
     }
 
@@ -77,7 +78,7 @@ export default function AccessCodeClient({
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none"
-            placeholder="Código o link"
+            placeholder="Código de acceso"
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
@@ -88,12 +89,22 @@ export default function AccessCodeClient({
             disabled={loading}
             className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition hover:scale-[1.01] disabled:opacity-70"
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? "Validando..." : "Entrar"}
           </button>
           {error && (
             <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>
           )}
         </form>
+
+        <div className="text-center text-sm text-white/70">
+          ¿Sin código?{" "}
+          <Link
+            href="/compra"
+            className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+          >
+            Comprar Entrada
+          </Link>
+        </div>
       </div>
 
       <footer className="absolute bottom-6 max-w-[min(92vw,720px)] px-4">
