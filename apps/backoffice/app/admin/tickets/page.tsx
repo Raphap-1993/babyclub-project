@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { loadActiveTicketRefs } from "./ticketVisibility";
-import { filterVisibleAdminTicketRows } from "./ticketListModel";
+import { collectVisibleAdminTicketRows } from "./ticketListModel";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -41,71 +41,97 @@ async function getTickets(params: {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  let query = applyNotDeleted(
-    supabase
-      .from("tickets")
-      .select(
-        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,type,promoter_id,table_reservation_id)",
-        { count: "exact" },
-      )
-      .eq("is_active", true)
-      .order("created_at", { ascending: false }),
-  );
-
-  if (params.event_id) {
-    query = query.eq("event_id", params.event_id);
-  }
-  if (params.q) {
-    const term = params.q.trim();
-    if (term) {
-      query = query.or(
-        ["dni", "full_name", "email", "phone"]
-          .map((col) => `${col}.ilike.*${term}*`)
-          .join(","),
-      );
-    }
-  }
+  let codeIdsForPromoter: string[] = [];
   if (params.promoter_id) {
-    // Traemos los IDs de códigos asignados a ese promotor para filtrar también por code_id y evitar parsers raros en Supabase.
-    const { data: codesByPromoter } = await applyNotDeleted(
-      supabase
-        .from("codes")
-        .select("id")
-        .eq("promoter_id", params.promoter_id)
-        .eq("is_active", true),
-    );
-    const codeIdsForPromoter = (codesByPromoter || [])
+    const { data: codesByPromoter, error: promoterCodesError } =
+      await applyNotDeleted(
+        supabase
+          .from("codes")
+          .select("id")
+          .eq("promoter_id", params.promoter_id)
+          .eq("is_active", true),
+      );
+    if (promoterCodesError) {
+      return {
+        tickets: [],
+        total: 0,
+        error: promoterCodesError.message || "No se pudieron cargar tickets",
+      };
+    }
+    codeIdsForPromoter = (codesByPromoter || [])
       .map((c: any) => c.id)
       .filter(Boolean);
-    const promoterFilters = [`promoter_id.eq.${params.promoter_id}`];
-    if (codeIdsForPromoter.length > 0) {
-      promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
-    }
-    query = query.or(promoterFilters.join(","));
   }
 
-  const { data, error } = await query;
-  if (error || !data)
+  const { activeTicketIds, trackedReservationIds } =
+    await loadActiveTicketRefs(supabase);
+
+  let visibleTickets: any[] = [];
+  try {
+    visibleTickets = await collectVisibleAdminTicketRows({
+      refs: {
+        activeTicketIds,
+        trackedReservationIds,
+      },
+      batchSize: 500,
+      loadBatch: async (offset, limit) => {
+        let batchQuery = applyNotDeleted(
+          supabase
+            .from("tickets")
+            .select(
+              "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,type,promoter_id,table_reservation_id)",
+            )
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1),
+        );
+
+        if (params.event_id) {
+          batchQuery = batchQuery.eq("event_id", params.event_id);
+        }
+        if (params.q) {
+          const term = params.q.trim();
+          if (term) {
+            batchQuery = batchQuery.or(
+              ["dni", "full_name", "email", "phone"]
+                .map((col) => `${col}.ilike.*${term}*`)
+                .join(","),
+            );
+          }
+        }
+        if (params.promoter_id) {
+          const promoterFilters = [`promoter_id.eq.${params.promoter_id}`];
+          if (codeIdsForPromoter.length > 0) {
+            promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
+          }
+          batchQuery = batchQuery.or(promoterFilters.join(","));
+        }
+
+        const { data, error } = await batchQuery;
+        if (error) {
+          throw new Error(error.message || "No se pudieron cargar tickets");
+        }
+        return Array.isArray(data) ? data : [];
+      },
+    });
+  } catch (error: any) {
     return {
       tickets: [],
       total: 0,
       error: error?.message || "No se pudieron cargar tickets",
     };
+  }
 
-  const { activeTicketIds, trackedReservationIds } =
-    await loadActiveTicketRefs(supabase);
-
-  const visibleTickets = filterVisibleAdminTicketRows(data as any[], {
-    activeTicketIds,
-    trackedReservationIds,
-  });
+  const pageStart = (params.page - 1) * params.pageSize;
+  const pageEnd = pageStart + params.pageSize;
+  const pagedRawTickets = visibleTickets.slice(pageStart, pageEnd);
 
   const eventIds = Array.from(
-    new Set((data as any[]).map((t) => t.event_id).filter(Boolean)),
+    new Set(pagedRawTickets.map((t) => t.event_id).filter(Boolean)),
   );
   const codeIds = Array.from(
     new Set(
-      (data as any[])
+      pagedRawTickets
         .map((t) => {
           const cRel = Array.isArray((t as any).code)
             ? (t as any).code?.[0]
@@ -117,7 +143,7 @@ async function getTickets(params: {
   );
   const promoterIds = Array.from(
     new Set(
-      (data as any[])
+      pagedRawTickets
         .flatMap((t) => {
           const codeRel = Array.isArray((t as any).code)
             ? (t as any).code?.[0]
@@ -129,7 +155,7 @@ async function getTickets(params: {
   );
   const reservationIds = Array.from(
     new Set(
-      (data as any[])
+      pagedRawTickets
         .map((t) => {
           const codeRel = Array.isArray((t as any).code)
             ? (t as any).code?.[0]
@@ -223,7 +249,7 @@ async function getTickets(params: {
     });
   });
 
-  const normalized: TicketRow[] = visibleTickets.map((t) => {
+  const normalized: TicketRow[] = pagedRawTickets.map((t) => {
     const codeRel = Array.isArray((t as any).code)
       ? (t as any).code?.[0]
       : (t as any).code;
@@ -236,38 +262,27 @@ async function getTickets(params: {
       : null;
 
     return {
-    id: t.id,
-    created_at: t.created_at,
-    code_id: t.code_id ?? codeRel?.id ?? null,
-    dni: t.dni ?? null,
-    full_name: t.full_name ?? null,
-    email: t.email ?? null,
-    phone: t.phone ?? null,
-    event_name: t.event_id ? (eventMap.get(t.event_id) ?? null) : null,
-    code_value: (() => {
-      return (
-        codeRel?.code || codeMeta?.code || null
-      );
-    })(),
-    code_type:
-      typeof codeRel?.type === "string"
-        ? codeRel.type.toLowerCase()
-        : codeMeta?.type || null,
-    promoter_name: (() => {
-      if (!promoterId) return null;
-      return promoterMap.get(promoterId) ?? null;
-    })(),
-    table_name: reservationMeta?.table_name || null,
-    sale_origin: reservationMeta?.sale_origin || null,
-    ticket_type_label: reservationMeta?.ticket_type_label || null,
-  };
+      id: t.id,
+      created_at: t.created_at,
+      code_id: t.code_id ?? codeRel?.id ?? null,
+      dni: t.dni ?? null,
+      full_name: t.full_name ?? null,
+      email: t.email ?? null,
+      phone: t.phone ?? null,
+      event_name: t.event_id ? (eventMap.get(t.event_id) ?? null) : null,
+      code_value: codeRel?.code || codeMeta?.code || null,
+      code_type:
+        typeof codeRel?.type === "string"
+          ? codeRel.type.toLowerCase()
+          : codeMeta?.type || null,
+      promoter_name: promoterId ? (promoterMap.get(promoterId) ?? null) : null,
+      table_name: reservationMeta?.table_name || null,
+      sale_origin: reservationMeta?.sale_origin || null,
+      ticket_type_label: reservationMeta?.ticket_type_label || null,
+    };
   });
 
-  const pageStart = (params.page - 1) * params.pageSize;
-  const pageEnd = pageStart + params.pageSize;
-  const pagedTickets = normalized.slice(pageStart, pageEnd);
-
-  return { tickets: pagedTickets, total: normalized.length };
+  return { tickets: normalized, total: visibleTickets.length };
 }
 
 export const dynamic = "force-dynamic";

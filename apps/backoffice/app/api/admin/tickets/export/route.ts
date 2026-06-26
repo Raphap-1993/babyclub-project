@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { loadActiveTicketRefs } from "../../../../admin/tickets/ticketVisibility";
+import { collectVisibleAdminTicketRows } from "../../../../admin/tickets/ticketListModel";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -42,49 +43,19 @@ export async function GET(req: NextRequest) {
   let eventLabel: string | null = null;
   let promoterLabel: string | null = null;
   let organizerLabel: string | null = null;
+  let organizerEventIdsForFilter: string[] = [];
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  let query = applyNotDeleted(
-    supabase
-      .from("tickets")
-      .select(
-        "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,code:codes(id,code,promoter_id)",
-        {
-          count: "exact",
-        },
-      )
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      // límite para evitar respuestas gigantes y respetar el tope de PostgREST
-      .limit(5000),
-  );
-
-  if (from) {
-    query = query.gte("created_at", `${from}T00:00:00`);
-  }
-  if (to) {
-    query = query.lte("created_at", `${to}T23:59:59`);
-  }
-  if (q) {
-    const term = q.trim();
-    if (term) {
-      query = query.or(
-        ["dni", "full_name", "email", "phone"]
-          .map((col) => `${col}.ilike.*${term}*`)
-          .join(","),
-      );
-    }
-  }
+  let codeIdsForPromoter: string[] = [];
   if (event_id) {
     const eventQuery = applyNotDeleted(
       supabase.from("events").select("id,name").eq("id", event_id),
     );
     const { data: eventRow } = await eventQuery.maybeSingle();
     eventLabel = eventRow?.name || event_id;
-    query = query.eq("event_id", event_id);
   }
   if (promoter_id) {
     const promoterQuery = applyNotDeleted(
@@ -112,14 +83,9 @@ export async function GET(req: NextRequest) {
         .eq("promoter_id", promoter_id)
         .eq("is_active", true),
     );
-    const codeIdsForPromoter = (codesByPromoter || [])
+    codeIdsForPromoter = (codesByPromoter || [])
       .map((c: any) => c.id)
       .filter(Boolean);
-    const promoterFilters = [`promoter_id.eq.${promoter_id}`];
-    if (codeIdsForPromoter.length > 0) {
-      promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
-    }
-    query = query.or(promoterFilters.join(","));
   }
   if (organizer_id) {
     const organizerQuery = applyNotDeleted(
@@ -153,11 +119,72 @@ export async function GET(req: NextRequest) {
         },
       );
     }
-    query = query.in("event_id", organizerEventIds);
+    organizerEventIdsForFilter = organizerEventIds;
   }
 
-  const { data, error } = await query;
-  if (error || !data) {
+  const { activeTicketIds, trackedReservationIds } =
+    await loadActiveTicketRefs(supabase);
+
+  let visibleTickets: any[] = [];
+  try {
+    visibleTickets = await collectVisibleAdminTicketRows({
+      refs: {
+        activeTicketIds,
+        trackedReservationIds,
+      },
+      batchSize: 500,
+      loadBatch: async (offset, limit) => {
+        let batchQuery = applyNotDeleted(
+          supabase
+            .from("tickets")
+            .select(
+              "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,promoter_id,table_reservation_id)",
+            )
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1),
+        );
+
+        if (from) {
+          batchQuery = batchQuery.gte("created_at", `${from}T00:00:00`);
+        }
+        if (to) {
+          batchQuery = batchQuery.lte("created_at", `${to}T23:59:59`);
+        }
+        if (q) {
+          const term = q.trim();
+          if (term) {
+            batchQuery = batchQuery.or(
+              ["dni", "full_name", "email", "phone"]
+                .map((col) => `${col}.ilike.*${term}*`)
+                .join(","),
+            );
+          }
+        }
+        if (event_id) {
+          batchQuery = batchQuery.eq("event_id", event_id);
+        }
+        if (promoter_id) {
+          const promoterFilters = [`promoter_id.eq.${promoter_id}`];
+          if (codeIdsForPromoter.length > 0) {
+            promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
+          }
+          batchQuery = batchQuery.or(promoterFilters.join(","));
+        }
+        if (organizer_id) {
+          const ids = organizerEventIdsForFilter || [];
+          if (ids.length === 0) return [];
+          batchQuery = batchQuery.in("event_id", ids);
+        }
+
+        const { data, error } = await batchQuery;
+        if (error) {
+          throw new Error(error.message || "No se pudieron exportar tickets");
+        }
+        return Array.isArray(data) ? data : [];
+      },
+    });
+  } catch (error: any) {
     return NextResponse.json(
       {
         success: false,
@@ -166,25 +193,6 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
-
-  const { activeTicketIds, trackedReservationIds } =
-    await loadActiveTicketRefs(supabase);
-
-  const visibleTickets = (data as any[]).filter((row) => {
-    const codeRel = Array.isArray((row as any).code)
-      ? (row as any).code?.[0]
-      : (row as any).code;
-    const reservationId =
-      (row as any).table_reservation_id || codeRel?.table_reservation_id || null;
-    if (
-      reservationId &&
-      trackedReservationIds.has(String(reservationId)) &&
-      !activeTicketIds.has(String(row.id))
-    ) {
-      return false;
-    }
-    return true;
-  });
 
   const eventIds = Array.from(
     new Set(visibleTickets.map((t) => t.event_id).filter(Boolean)),
