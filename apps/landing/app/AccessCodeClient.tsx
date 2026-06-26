@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LegalFooterLinks } from "./legal/LegalFooterLinks";
 import { extractAccessCodeInput } from "./accessCodeInput";
-
-type EntryMode = "access" | "nomination";
+import {
+  getAccessCodeViewState,
+  type EntryMode,
+} from "./accessCodeViewState";
 
 export default function AccessCodeClient({
   initialLogoUrl,
@@ -20,13 +22,14 @@ export default function AccessCodeClient({
   const [loading, setLoading] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const viewState = getAccessCodeViewState(mode);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     const normalizedCode = extractAccessCodeInput(code);
     if (!normalizedCode) {
-      setError("Ingresa un código");
+      setError(viewState.emptyError);
       return;
     }
 
@@ -86,7 +89,7 @@ export default function AccessCodeClient({
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="w-full rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none"
-            placeholder="Código de acceso"
+            placeholder={viewState.placeholder}
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
@@ -97,7 +100,7 @@ export default function AccessCodeClient({
             disabled={loading}
             className="w-full rounded-xl px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-attention-red transition hover:scale-[1.01] disabled:opacity-70"
           >
-            {loading ? "Validando..." : "Entrar"}
+            {loading ? viewState.loadingLabel : viewState.submitLabel}
           </button>
           {error && (
             <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>
