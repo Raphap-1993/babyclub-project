@@ -145,11 +145,12 @@ export default function AccessCodeClient({
               ? "¿Te compartieron un código o link? Pégalo aquí para terminar tu registro y generar tu QR."
               : "Ingresa tu código de acceso para continuar."}
           </p>
-          <p className="text-xs leading-relaxed text-white/55">
-            {mode === "nomination"
-              ? "Funciona con el código que te pasó el comprador desde su correo o con un link completo."
-              : "Si te compartieron un código de reserva, puedes completar tu nominación desde aquí. Si no tienes código, compra tu entrada."}
-          </p>
+          {mode === "nomination" ? (
+            <p className="text-xs leading-relaxed text-white/55">
+              Funciona con el código que te pasó el comprador desde su correo o
+              con un link completo.
+            </p>
+          ) : null}
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
