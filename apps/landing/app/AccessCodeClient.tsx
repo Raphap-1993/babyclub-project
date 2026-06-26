@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import { LegalFooterLinks } from "./legal/LegalFooterLinks";
 import { extractAccessCodeInput } from "./accessCodeInput";
 
+type EntryMode = "access" | "nomination";
+
 export default function AccessCodeClient({
   initialLogoUrl,
 }: {
   initialLogoUrl: string | null;
 }) {
   const router = useRouter();
+  const [mode, setMode] = useState<EntryMode>("access");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,6 +27,11 @@ export default function AccessCodeClient({
     const normalizedCode = extractAccessCodeInput(code);
     if (!normalizedCode) {
       setError("Ingresa un código");
+      return;
+    }
+
+    if (mode === "nomination") {
+      router.push(`/registro?code=${encodeURIComponent(normalizedCode)}`);
       return;
     }
 
@@ -97,6 +105,19 @@ export default function AccessCodeClient({
         </form>
 
         <div className="text-center text-sm text-white/70">
+          <div>
+            ¿Te compartieron un código o link?{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setMode("nomination");
+                setError(null);
+              }}
+              className="font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+            >
+              Completar nominación
+            </button>
+          </div>
           ¿Sin código?{" "}
           <Link
             href="/compra"
