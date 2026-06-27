@@ -130,6 +130,24 @@ export async function archiveReservation(req: NextRequest) {
   }
 
   const archivePayload = buildArchivePayload(guard.context?.staffId);
+  const unitsArchivePayload = {
+    status: "cancelled",
+    cancelled_at: archivePayload.deleted_at,
+    deleted_at: archivePayload.deleted_at,
+    updated_at: archivePayload.deleted_at,
+  };
+
+  const archiveUnitsQuery = applyNotDeleted(
+    supabase
+      .from("ticket_reservation_units")
+      .update(unitsArchivePayload)
+      .eq("reservation_id", id)
+  );
+  const { error: archiveUnitsError } = await archiveUnitsQuery;
+  if (archiveUnitsError) {
+    return NextResponse.json({ success: false, error: archiveUnitsError.message }, { status: 500 });
+  }
+
   const archiveQuery = applyNotDeleted(supabase.from("table_reservations").update(archivePayload).eq("id", id));
   const { error: archiveError } = await archiveQuery;
   if (archiveError) {

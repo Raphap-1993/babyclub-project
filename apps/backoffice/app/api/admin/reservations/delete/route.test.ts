@@ -72,6 +72,7 @@ describe("POST /api/admin/reservations/delete", () => {
         },
       ],
       "tickets.update": [{ data: null, error: null }],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
 
@@ -100,9 +101,21 @@ describe("POST /api/admin/reservations/delete", () => {
     const reservationUpdateCall = calls
       .filter((call) => call.table === "table_reservations" && call.op === "update")
       .at(0);
+    const unitsUpdateCall = calls
+      .filter(
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "update"
+      )
+      .at(0);
 
     expect(reservationUpdateCall?.payload?.is_active).toBe(false);
     expect(typeof reservationUpdateCall?.payload?.deleted_at).toBe("string");
+    expect(unitsUpdateCall?.payload).toMatchObject({
+      status: "cancelled",
+      deleted_at: expect.any(String),
+      cancelled_at: expect.any(String),
+      updated_at: expect.any(String),
+    });
 
     const hasIdFilter = reservationUpdateCall?.filters?.some(
       (filter) => filter.type === "eq" && filter.args[0] === "id" && filter.args[1] === "res-1"
@@ -110,8 +123,22 @@ describe("POST /api/admin/reservations/delete", () => {
     const hasNotDeletedFilter = reservationUpdateCall?.filters?.some(
       (filter) => filter.type === "is" && filter.args[0] === "deleted_at" && filter.args[1] === null
     );
+    const hasUnitReservationFilter = unitsUpdateCall?.filters?.some(
+      (filter) =>
+        filter.type === "eq" &&
+        filter.args[0] === "reservation_id" &&
+        filter.args[1] === "res-1"
+    );
+    const hasUnitNotDeletedFilter = unitsUpdateCall?.filters?.some(
+      (filter) =>
+        filter.type === "is" &&
+        filter.args[0] === "deleted_at" &&
+        filter.args[1] === null
+    );
 
     expect(hasIdFilter).toBe(true);
     expect(hasNotDeletedFilter).toBe(true);
+    expect(hasUnitReservationFilter).toBe(true);
+    expect(hasUnitNotDeletedFilter).toBe(true);
   });
 });
