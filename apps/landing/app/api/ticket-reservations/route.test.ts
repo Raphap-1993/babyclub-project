@@ -141,7 +141,8 @@ describe("POST /api/ticket-reservations", () => {
     });
 
     const unitsInsertCall = calls.find(
-      (call) => call.table === "ticket_reservation_units" && call.op === "insert",
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "insert",
     );
     expect(unitsInsertCall?.payload).toHaveLength(6);
     expect(unitsInsertCall?.payload[0]).toMatchObject({
@@ -389,6 +390,80 @@ describe("POST /api/ticket-reservations", () => {
       email: "luis@test.com",
       phone: "988888888",
     });
+  });
+
+  it("bloquea la compra si el paquete esperado ya no coincide con la resolucion actual del servidor", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "events.select": [
+        {
+          data: {
+            id: "event-1",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+            early_bird_enabled: true,
+            ticket_types: [
+              {
+                id: "type-all-night-2",
+                code: "all_night_2",
+                label: "ALL NIGHT DUO",
+                sale_phase: "all_night",
+                ticket_quantity: 3,
+                price: 60,
+                currency_code: "PEN",
+                is_active: true,
+                sort_order: 30,
+              },
+            ],
+          },
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = new Request("http://localhost/api/ticket-reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_id: "event-1",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Ana",
+        apellido_paterno: "Torres",
+        apellido_materno: "Rios",
+        email: "ana@test.com",
+        telefono: "999999999",
+        payment_method: "culqi",
+        ticket_type_code: "all_night_2",
+        package_quantity: 1,
+        expected_ticket_type_id: "type-all-night-2",
+        expected_ticket_quantity: 2,
+        expected_ticket_total_amount: 45,
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.success).toBe(false);
+    expect(payload.code).toBe("ticket_type_changed");
+    expect(String(payload.error || "")).toContain("cambió");
+    expect(payload.actual).toMatchObject({
+      ticket_type_id: "type-all-night-2",
+      ticket_type_code: "all_night_2",
+      ticket_quantity: 3,
+      total_ticket_units: 3,
+      total_amount: 60,
+    });
+    expect(
+      calls.find(
+        (call) => call.table === "table_reservations" && call.op === "insert",
+      ),
+    ).toBeFalsy();
   });
 
   it("rechaza email inválido en la compra principal", async () => {

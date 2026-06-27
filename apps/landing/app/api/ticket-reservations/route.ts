@@ -352,6 +352,27 @@ export async function POST(req: NextRequest) {
     typeof body?.ticket_type_code === "string"
       ? body.ticket_type_code.trim()
       : "";
+  const expectedTicketTypeId =
+    typeof body?.expected_ticket_type_id === "string" &&
+    body.expected_ticket_type_id.trim()
+      ? body.expected_ticket_type_id.trim()
+      : null;
+  const expectedTicketQuantityRaw =
+    typeof body?.expected_ticket_quantity === "number"
+      ? body.expected_ticket_quantity
+      : parseInt(body?.expected_ticket_quantity, 10);
+  const expectedTicketQuantity = Number.isFinite(expectedTicketQuantityRaw)
+    ? Math.floor(expectedTicketQuantityRaw)
+    : null;
+  const expectedTicketTotalAmountRaw =
+    typeof body?.expected_ticket_total_amount === "number"
+      ? body.expected_ticket_total_amount
+      : Number(body?.expected_ticket_total_amount);
+  const expectedTicketTotalAmount = Number.isFinite(
+    expectedTicketTotalAmountRaw,
+  )
+    ? Number(expectedTicketTotalAmountRaw)
+    : null;
   const rawAttendees = Array.isArray(body?.attendees) ? body.attendees : [];
   const pricingPhaseRaw =
     typeof body?.pricing_phase === "string"
@@ -495,6 +516,36 @@ export async function POST(req: NextRequest) {
   const totalTicketUnits = unitsPerPackage * package_quantity;
   const unitPrice = selectedTicketType.price / unitsPerPackage;
   const totalAmount = selectedTicketType.price * package_quantity;
+
+  const selectionDrifted =
+    (expectedTicketTypeId &&
+      selectedTicketType.id &&
+      selectedTicketType.id !== expectedTicketTypeId) ||
+    (expectedTicketQuantity !== null &&
+      selectedTicketType.ticketQuantity !== expectedTicketQuantity) ||
+    (expectedTicketTotalAmount !== null &&
+      Math.abs(totalAmount - expectedTicketTotalAmount) > 0.001);
+
+  if (selectionDrifted) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "El paquete seleccionado cambió antes de completar la compra. Revisa la cantidad de entradas y el total antes de continuar.",
+        code: "ticket_type_changed",
+        actual: {
+          ticket_type_id: selectedTicketType.id || null,
+          ticket_type_code: selectedTicketType.code,
+          ticket_quantity: selectedTicketType.ticketQuantity,
+          package_quantity,
+          total_ticket_units: totalTicketUnits,
+          total_amount: totalAmount,
+        },
+      },
+      { status: 409 },
+    );
+  }
+
   let attendees: ReturnType<typeof buildReservationAttendees> = [];
   const primaryAttendee = {
     doc_type: docType,
@@ -661,13 +712,12 @@ export async function POST(req: NextRequest) {
         String((eventRow as any)?.event_prefix || "").trim() ||
         String(selectedTicketType.code || "").trim() ||
         "BC",
-      tableName:
-        `T${
-          String(reservation.id || "")
-            .slice(-6)
-            .replace(/[^a-zA-Z0-9]+/g, "")
-            .toUpperCase() || "ENTRY"
-        }`,
+      tableName: `T${
+        String(reservation.id || "")
+          .slice(-6)
+          .replace(/[^a-zA-Z0-9]+/g, "")
+          .toUpperCase() || "ENTRY"
+      }`,
       reservationId: reservation.id,
       quantity: totalTicketUnits,
       codeType: "courtesy",

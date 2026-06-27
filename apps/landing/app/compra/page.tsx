@@ -45,6 +45,12 @@ import {
   shouldShowTicketTypeEmptyState,
 } from "./purchaseState";
 import { resolveMesaSelectionAfterReload } from "./mesaSelection";
+import {
+  buildTicketSelectionSnapshot,
+  hasTicketSelectionDrifted,
+  reconcileTicketTypeCode,
+  type TicketSelectionSnapshot,
+} from "./ticketSelection";
 
 const CULQI_ENABLED =
   process.env.NEXT_PUBLIC_CULQI_ENABLED?.toLowerCase() === "true";
@@ -233,6 +239,10 @@ function CompraContent({
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
   const [ticketVoucherUrl, setTicketVoucherUrl] = useState<string>("");
   const [selectedTicketTypeCode, setSelectedTicketTypeCode] = useState("");
+  const [ticketTypeSelectionTouched, setTicketTypeSelectionTouched] =
+    useState(false);
+  const [ticketSelectionSnapshot, setTicketSelectionSnapshot] =
+    useState<TicketSelectionSnapshot | null>(null);
   const [ticketPackageQuantity, setTicketPackageQuantity] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [ticketIsDragging, setTicketIsDragging] = useState(false);
@@ -402,6 +412,8 @@ function CompraContent({
     setTicketModalError(null);
     setTicketCopyFeedback("idle");
     setTicketConfirmationState(null);
+    setTicketTypeSelectionTouched(false);
+    setTicketSelectionSnapshot(null);
     setTicketUploading(false);
     setSelectedTicketTypeCode("");
     setTicketPackageQuantity(1);
@@ -719,36 +731,61 @@ function CompraContent({
   const selectedTicketType =
     ticketTypeOptions.find(
       (option) => option.code === selectedTicketTypeCode,
-    ) ||
-    ticketTypeOptions[0] ||
-    null;
+    ) || null;
 
   useEffect(() => {
-    if (ticketTypeOptions.length === 0) {
-      if (selectedTicketTypeCode) {
-        setSelectedTicketTypeCode("");
+    const nextSelection = reconcileTicketTypeCode(
+      selectedTicketTypeCode,
+      ticketTypeOptions,
+      !ticketTypeSelectionTouched,
+    );
+    const snapshotDrifted =
+      ticketStep > 1 &&
+      hasTicketSelectionDrifted(ticketSelectionSnapshot, selectedTicketType);
+
+    if (nextSelection.nextCode !== selectedTicketTypeCode) {
+      setSelectedTicketTypeCode(nextSelection.nextCode);
+      if (nextSelection.nextCode && !ticketTypeSelectionTouched) {
+        setTicketTypeSelectionTouched(true);
       }
-      return;
     }
 
-    const stillAvailable = ticketTypeOptions.some(
-      (option) => option.code === selectedTicketTypeCode,
-    );
-    if (!stillAvailable) {
-      setSelectedTicketTypeCode(ticketTypeOptions[0]?.code || "");
+    if (nextSelection.invalidated || snapshotDrifted) {
+      setTicketSelectionSnapshot(null);
+      setShowTicketSummary(false);
+      setTicketModalError(null);
+      setTicketError(
+        "El paquete seleccionado cambió. Vuelve a elegir tu entrada antes de continuar.",
+      );
+      if (ticketStep > 1) {
+        setTicketStep(1);
+      }
     }
-  }, [selectedTicketTypeCode, ticketTypeOptions]);
+  }, [
+    selectedTicketTypeCode,
+    selectedTicketType,
+    ticketStep,
+    ticketSelectionSnapshot,
+    ticketTypeOptions,
+    ticketTypeSelectionTouched,
+  ]);
+
+  const ticketSelectionPreview = selectedTicketType
+    ? buildTicketSelectionSnapshot(selectedTicketType, ticketPackageQuantity)
+    : null;
+  const activeTicketSelection =
+    ticketStep > 1
+      ? ticketSelectionSnapshot || ticketSelectionPreview
+      : ticketSelectionPreview;
 
   // header text tweak
   const headerSubtitle = culqiEnabled
     ? "Genera tu entrada o reserva tu mesa pagando online con Culqi."
     : "Genera tu entrada o reserva tu mesa con Yape/Plin; el pago online está en integración.";
-  const ticketPrice =
-    selectedTicketType?.price ?? ticketTypeOptions[0]?.price ?? 0;
-  const ticketTotalUnits =
-    (selectedTicketType?.ticketQuantity ?? 0) * ticketPackageQuantity;
-  const ticketTotalPrice = ticketPrice * ticketPackageQuantity;
-  const ticketSaleLabel = selectedTicketType?.label ?? "Entrada";
+  const ticketPrice = activeTicketSelection?.price ?? 0;
+  const ticketTotalUnits = activeTicketSelection?.totalUnits ?? 0;
+  const ticketTotalPrice = activeTicketSelection?.totalPrice ?? 0;
+  const ticketSaleLabel = activeTicketSelection?.ticketTypeLabel ?? "Entrada";
   const ticketFullName = buildFullName(
     ticketForm.nombre,
     ticketForm.apellido_paterno,
@@ -1165,7 +1202,7 @@ function CompraContent({
       setTicketError(ticketSaleBlock.message);
       return;
     }
-    if (!selectedTicketType) {
+    if (!activeTicketSelection) {
       setTicketModalError("Selecciona un tipo de entrada disponible.");
       setTicketError("Selecciona un tipo de entrada disponible.");
       return;
@@ -1201,8 +1238,12 @@ function CompraContent({
         email: ticketForm.email,
         telefono: ticketForm.phone,
         voucher_url: ticketVoucherUrl || undefined,
-        ticket_type_code: selectedTicketType.code,
-        package_quantity: ticketPackageQuantity,
+        ticket_type_code: activeTicketSelection.ticketTypeCode,
+        package_quantity: activeTicketSelection.packageQuantity,
+        expected_ticket_type_id:
+          activeTicketSelection.ticketTypeId || undefined,
+        expected_ticket_quantity: activeTicketSelection.ticketQuantity,
+        expected_ticket_total_amount: activeTicketSelection.totalPrice,
         payment_method: useCulqi ? "culqi" : "yape",
         promoter_id: promoterIdFromUrl || undefined,
         promoter_link_code_id: promoterLinkCodeIdFromUrl || undefined,
@@ -1544,6 +1585,11 @@ function CompraContent({
   const goNextTicket = async () => {
     if (ticketStep === 1 && !validateTicketSelectionStep()) return;
     if (ticketStep === 2 && !(await validateTicketBuyerStep())) return;
+    if (ticketStep === 1 && selectedTicketType) {
+      setTicketSelectionSnapshot(
+        buildTicketSelectionSnapshot(selectedTicketType, ticketPackageQuantity),
+      );
+    }
     setTicketStep(getNextPurchaseStep(ticketStep));
   };
 
@@ -1601,7 +1647,17 @@ function CompraContent({
           mode={mode}
           onModeChange={handleModeChange}
           ticketEventId={ticketEventId}
-          onTicketEventChange={setTicketEventId}
+          onTicketEventChange={(nextEventId) => {
+            setTicketEventId(nextEventId);
+            setSelectedTicketTypeCode("");
+            setTicketTypeSelectionTouched(false);
+            setTicketSelectionSnapshot(null);
+            setShowTicketSummary(false);
+            setTicketModalError(null);
+            if (ticketStep > 1) {
+              setTicketStep(1);
+            }
+          }}
           ticketEventOptions={ticketEventOptions}
           ticketSaleBlock={ticketSaleBlock}
           selectedEventId={selectedEventId}
@@ -1645,9 +1701,10 @@ function CompraContent({
                               type="radio"
                               name="ticketType"
                               checked={selected}
-                              onChange={() =>
-                                setSelectedTicketTypeCode(option.code)
-                              }
+                              onChange={() => {
+                                setTicketTypeSelectionTouched(true);
+                                setSelectedTicketTypeCode(option.code);
+                              }}
                               className="mt-1 h-4 w-4 shrink-0 accent-[#e91e63]"
                             />
                             <span className="flex min-w-0 flex-1 flex-col gap-1">
