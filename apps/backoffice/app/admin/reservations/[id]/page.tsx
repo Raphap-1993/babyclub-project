@@ -5,7 +5,12 @@ import ReservationActions from "../components/ReservationActions";
 import ReservationResendButton from "../components/ReservationResendButton";
 import ReservationEditor from "../components/ReservationEditor";
 import { formatLimaFromDb } from "shared/limaTime";
-import { AdminHeader, AdminPage, AdminPanel } from "@/components/admin/PageScaffold";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
+import {
+  AdminHeader,
+  AdminPage,
+  AdminPanel,
+} from "@/components/admin/PageScaffold";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,15 +24,34 @@ type Reservation = {
   phone: string | null;
   doc_type?: string | null;
   document?: string | null;
-  name_parts?: { nombres: string; apellido_paterno: string; apellido_materno: string } | null;
+  name_parts?: {
+    nombres: string;
+    apellido_paterno: string;
+    apellido_materno: string;
+  } | null;
   voucher_url: string | null;
   status: string;
   codes: string[] | null;
   ticket_quantity?: number | null;
-  created_by_staff?: { id: string; person?: { first_name?: string | null; last_name?: string | null } | null } | null;
+  total_ticket_units?: number | null;
+  created_by_staff?: {
+    id: string;
+    person?: { first_name?: string | null; last_name?: string | null } | null;
+  } | null;
   created_at: string;
-  table: { name: string; event: { name: string; starts_at: string | null; location: string | null } | null } | null;
-  event_fallback?: { name: string | null; starts_at: string | null; location: string | null } | null;
+  table: {
+    name: string;
+    event: {
+      name: string;
+      starts_at: string | null;
+      location: string | null;
+    } | null;
+  } | null;
+  event_fallback?: {
+    name: string | null;
+    starts_at: string | null;
+    location: string | null;
+  } | null;
 };
 
 type ReservationResult =
@@ -38,29 +62,41 @@ async function getReservation(id: string): Promise<ReservationResult> {
   if (!id || id === "undefined") {
     return { reservation: null, error: "ID de reserva inválido" };
   }
-  if (!supabaseUrl || !supabaseServiceKey) return { reservation: null, error: "Supabase no configurado" };
+  if (!supabaseUrl || !supabaseServiceKey)
+    return { reservation: null, error: "Supabase no configurado" };
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data, error } = await supabase
     .from("table_reservations")
     .select(
-      "id,full_name,email,phone,doc_type,document,voucher_url,status,codes,ticket_quantity,created_at,table:tables(name,event:events(name,starts_at,location)),event:event_id(name,starts_at,location),ticket:tickets(id,full_name,doc_type,document,dni,person:persons(first_name,last_name))"
+      "id,full_name,email,phone,doc_type,document,voucher_url,status,codes,ticket_quantity,total_ticket_units,created_at,table:tables(name,event:events(name,starts_at,location)),event:event_id(name,starts_at,location),ticket:tickets(id,full_name,doc_type,document,dni,person:persons(first_name,last_name))",
     )
     .eq("id", id)
     .maybeSingle();
   if (error || !data) {
-    console.error("[admin/reservations/:id] load error", error?.message || "not found", { id });
-    return { reservation: null, error: error?.message || "Reserva no encontrada" };
+    console.error(
+      "[admin/reservations/:id] load error",
+      error?.message || "not found",
+      { id },
+    );
+    return {
+      reservation: null,
+      error: error?.message || "Reserva no encontrada",
+    };
   }
 
-  const tableRel = Array.isArray((data as any).table) ? (data as any).table?.[0] : (data as any).table;
+  const tableRel = Array.isArray((data as any).table)
+    ? (data as any).table?.[0]
+    : (data as any).table;
   const eventRel = tableRel?.event
     ? Array.isArray(tableRel.event)
       ? tableRel.event[0]
       : tableRel.event
     : null;
-  const ticketRel = Array.isArray((data as any).ticket) ? (data as any).ticket?.[0] : (data as any).ticket;
+  const ticketRel = Array.isArray((data as any).ticket)
+    ? (data as any).ticket?.[0]
+    : (data as any).ticket;
   const ticketPerson = ticketRel?.person
     ? Array.isArray(ticketRel.person)
       ? ticketRel.person[0]
@@ -72,9 +108,12 @@ async function getReservation(id: string): Promise<ReservationResult> {
       : (data as any).event
     : null;
 
-  const resolvedDocType = (data as any).doc_type ?? ticketRel?.doc_type ?? "dni";
-  const resolvedDocument = (data as any).document ?? ticketRel?.document ?? ticketRel?.dni ?? null;
-  const resolvedFullName = (data as any).full_name ?? ticketRel?.full_name ?? "";
+  const resolvedDocType =
+    (data as any).doc_type ?? ticketRel?.doc_type ?? "dni";
+  const resolvedDocument =
+    (data as any).document ?? ticketRel?.document ?? ticketRel?.dni ?? null;
+  const resolvedFullName =
+    (data as any).full_name ?? ticketRel?.full_name ?? "";
 
   let personFirstName = ticketPerson?.first_name ?? "";
   let personLastName = ticketPerson?.last_name ?? "";
@@ -95,8 +134,10 @@ async function getReservation(id: string): Promise<ReservationResult> {
 
   const nameParts = {
     nombres: personFirstName || fromFull.nombres,
-    apellido_paterno: fromLastName?.apellido_paterno || fromFull.apellido_paterno,
-    apellido_materno: fromLastName?.apellido_materno || fromFull.apellido_materno,
+    apellido_paterno:
+      fromLastName?.apellido_paterno || fromFull.apellido_paterno,
+    apellido_materno:
+      fromLastName?.apellido_materno || fromFull.apellido_materno,
   };
 
   const normalized: Reservation = {
@@ -110,7 +151,18 @@ async function getReservation(id: string): Promise<ReservationResult> {
     voucher_url: (data as any).voucher_url ?? null,
     status: (data as any).status ?? "",
     codes: (data as any).codes ?? null,
-    ticket_quantity: typeof (data as any).ticket_quantity === "number" ? (data as any).ticket_quantity : null,
+    ticket_quantity: resolveReservationTicketQuantity({
+      totalTicketUnits: (data as any).total_ticket_units,
+      ticketQuantity: (data as any).ticket_quantity,
+      codesCount: Array.isArray((data as any).codes)
+        ? (data as any).codes.length
+        : 0,
+      minimum: 1,
+    }),
+    total_ticket_units:
+      typeof (data as any).total_ticket_units === "number"
+        ? (data as any).total_ticket_units
+        : null,
     created_by_staff: null,
     created_at: (data as any).created_at ?? "",
     event_fallback: eventDirect
@@ -139,7 +191,11 @@ async function getReservation(id: string): Promise<ReservationResult> {
 
 export const dynamic = "force-dynamic";
 
-export default async function ReservationDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReservationDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const { reservation, error } = await getReservation(id);
   if (!reservation) {
@@ -148,9 +204,15 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
         <AdminHeader
           kicker="Operaciones / Reservas"
           title="Reserva no encontrada"
-          description={error || "La reserva no existe o no está disponible en este entorno."}
+          description={
+            error ||
+            "La reserva no existe o no está disponible en este entorno."
+          }
           actions={
-            <Link href="/admin/reservations" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            <Link
+              href="/admin/reservations"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
               Volver a reservas
             </Link>
           }
@@ -158,7 +220,8 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
       </AdminPage>
     );
   }
-  const eventData = reservation.table?.event || reservation.event_fallback || null;
+  const eventData =
+    reservation.table?.event || reservation.event_fallback || null;
 
   return (
     <AdminPage>
@@ -168,11 +231,21 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
         description="Revisión y operación detallada de una reserva específica."
         actions={
           <>
-            <Link href="/admin/reservations" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            <Link
+              href="/admin/reservations"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
               Volver
             </Link>
-            <ReservationResendButton id={reservation.id} email={reservation.email} status={reservation.status} />
-            <ReservationActions id={reservation.id} status={reservation.status} />
+            <ReservationResendButton
+              id={reservation.id}
+              email={reservation.email}
+              status={reservation.status}
+            />
+            <ReservationActions
+              id={reservation.id}
+              status={reservation.status}
+            />
           </>
         }
       />
@@ -183,13 +256,28 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
             <h2 className="mb-4 text-lg font-semibold">Datos</h2>
             <Info label="Mesa" value={reservation.table?.name || "Entrada"} />
             <Info label="Evento" value={eventData?.name || "—"} />
-            <Info label="Fecha evento" value={safeFormat(eventData?.starts_at)} />
+            <Info
+              label="Fecha evento"
+              value={safeFormat(eventData?.starts_at)}
+            />
             <Info label="Ubicación" value={eventData?.location || "—"} />
             <Info label="Creada" value={formatDate(reservation.created_at)} />
-            <Info label="Entradas" value={`${reservation.ticket_quantity ?? 1}`} />
-            <Info label="Nombres" value={reservation.name_parts?.nombres || "—"} />
-            <Info label="Apellido paterno" value={reservation.name_parts?.apellido_paterno || "—"} />
-            <Info label="Apellido materno" value={reservation.name_parts?.apellido_materno || "—"} />
+            <Info
+              label="Entradas"
+              value={`${reservation.ticket_quantity ?? 1}`}
+            />
+            <Info
+              label="Nombres"
+              value={reservation.name_parts?.nombres || "—"}
+            />
+            <Info
+              label="Apellido paterno"
+              value={reservation.name_parts?.apellido_paterno || "—"}
+            />
+            <Info
+              label="Apellido materno"
+              value={reservation.name_parts?.apellido_materno || "—"}
+            />
             <Info
               label="Documento"
               value={
@@ -199,7 +287,9 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
               }
             />
             <div className="mt-2 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">Voucher</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">
+                Voucher
+              </p>
               {reservation.voucher_url ? (
                 <>
                   <a
@@ -242,7 +332,10 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
           {reservation.codes && reservation.codes.length > 0 ? (
             <div className="space-y-2">
               {reservation.codes.map((c) => (
-                <div key={c} className="rounded-2xl border border-[#292929] bg-[#0a0a0a] px-4 py-3 font-mono text-sm">
+                <div
+                  key={c}
+                  className="rounded-2xl border border-[#292929] bg-[#0a0a0a] px-4 py-3 font-mono text-sm"
+                >
                   {c}
                 </div>
               ))}
@@ -259,7 +352,9 @@ export default async function ReservationDetail({ params }: { params: Promise<{ 
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="mb-2">
-      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50">
+        {label}
+      </p>
       <p className="text-sm font-semibold text-white">{value}</p>
     </div>
   );
@@ -290,9 +385,16 @@ function safeFormat(value?: string | null) {
 
 function splitFullName(fullName: string) {
   const parts = (fullName || "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { nombres: "", apellido_paterno: "", apellido_materno: "" };
-  if (parts.length === 1) return { nombres: parts[0], apellido_paterno: "", apellido_materno: "" };
-  if (parts.length === 2) return { nombres: parts[0], apellido_paterno: parts[1], apellido_materno: "" };
+  if (parts.length === 0)
+    return { nombres: "", apellido_paterno: "", apellido_materno: "" };
+  if (parts.length === 1)
+    return { nombres: parts[0], apellido_paterno: "", apellido_materno: "" };
+  if (parts.length === 2)
+    return {
+      nombres: parts[0],
+      apellido_paterno: parts[1],
+      apellido_materno: "",
+    };
   return {
     nombres: parts.slice(0, -2).join(" "),
     apellido_paterno: parts[parts.length - 2],
@@ -303,7 +405,8 @@ function splitFullName(fullName: string) {
 function splitLastName(lastName: string) {
   const parts = (lastName || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { apellido_paterno: "", apellido_materno: "" };
-  if (parts.length === 1) return { apellido_paterno: parts[0], apellido_materno: "" };
+  if (parts.length === 1)
+    return { apellido_paterno: parts[0], apellido_materno: "" };
   return {
     apellido_paterno: parts.slice(0, -1).join(" "),
     apellido_materno: parts[parts.length - 1],
@@ -322,7 +425,7 @@ async function findPersonByContact(
     document?: string | null;
     email?: string | null;
     phone?: string | null;
-  }
+  },
 ) {
   const ors: string[] = [];
   const normalizedDoc = (document || "").trim().toLowerCase();

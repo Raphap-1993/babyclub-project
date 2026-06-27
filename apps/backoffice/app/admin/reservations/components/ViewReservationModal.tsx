@@ -1,8 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Calendar, MapPin, Ticket, FileText, User, Mail, Phone, CreditCard, Check, Clock, XCircle, Send, UserRound } from "lucide-react";
+import {
+  X,
+  Calendar,
+  MapPin,
+  Ticket,
+  FileText,
+  User,
+  Mail,
+  Phone,
+  CreditCard,
+  Check,
+  Clock,
+  XCircle,
+  Send,
+  UserRound,
+} from "lucide-react";
 import { formatLimaFromDb } from "shared/limaTime";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { authedFetch } from "@/lib/authedFetch";
 import { Button } from "@/components/ui/button";
 
@@ -32,6 +48,7 @@ interface ReservationDetail {
   event_starts_at: string | null;
   event_location: string | null;
   ticket_quantity?: number | null;
+  total_ticket_units?: number | null;
   promoter?: { name: string | null; code: string | null } | null;
   conflicting_ticket_reservations?: ConflictingTicket[];
 }
@@ -43,18 +60,56 @@ interface ViewReservationModalProps {
   onUpdate?: () => void;
 }
 
-const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
-  pending: { label: "Pendiente", icon: Clock, color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
-  approved: { label: "Aprobada", icon: Check, color: "bg-green-500/10 text-green-400 border-green-500/20" },
-  rejected: { label: "Rechazada", icon: XCircle, color: "bg-red-500/10 text-red-400 border-red-500/20" },
-  confirmed: { label: "Confirmada", icon: Check, color: "bg-neutral-500/10 text-neutral-400 border-neutral-500/20" },
+const statusConfig: Record<
+  string,
+  { label: string; icon: any; color: string }
+> = {
+  pending: {
+    label: "Pendiente",
+    icon: Clock,
+    color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  },
+  approved: {
+    label: "Aprobada",
+    icon: Check,
+    color: "bg-green-500/10 text-green-400 border-green-500/20",
+  },
+  rejected: {
+    label: "Rechazada",
+    icon: XCircle,
+    color: "bg-red-500/10 text-red-400 border-red-500/20",
+  },
+  confirmed: {
+    label: "Confirmada",
+    icon: Check,
+    color: "bg-neutral-500/10 text-neutral-400 border-neutral-500/20",
+  },
 };
 
-export default function ViewReservationModal({ reservationId, isOpen, onClose, onUpdate }: ViewReservationModalProps) {
-  const [reservation, setReservation] = useState<ReservationDetail | null>(null);
+function getReservationDisplayQuantity(reservation: ReservationDetail) {
+  return resolveReservationTicketQuantity({
+    totalTicketUnits: reservation.total_ticket_units,
+    ticketQuantity: reservation.ticket_quantity,
+    codesCount: Array.isArray(reservation.codes) ? reservation.codes.length : 0,
+    minimum: 1,
+  });
+}
+
+export default function ViewReservationModal({
+  reservationId,
+  isOpen,
+  onClose,
+  onUpdate,
+}: ViewReservationModalProps) {
+  const [reservation, setReservation] = useState<ReservationDetail | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const reservationDisplayQuantity = reservation
+    ? getReservationDisplayQuantity(reservation)
+    : 0;
 
   useEffect(() => {
     if (!isOpen || !reservationId) return;
@@ -64,9 +119,11 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
       setError(null);
 
       try {
-        const res = await authedFetch(`/api/admin/reservations/${reservationId}`);
+        const res = await authedFetch(
+          `/api/admin/reservations/${reservationId}`,
+        );
         if (!res.ok) throw new Error("No se pudo cargar la reserva");
-        
+
         const data = await res.json();
         setReservation(data.reservation);
       } catch (err: any) {
@@ -81,16 +138,19 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
 
   const handleResendEmail = async () => {
     if (!reservation || actionLoading) return;
-    
+
     if (!confirm("¿Reenviar correo de confirmación?")) return;
-    
+
     setActionLoading(true);
     try {
-      const res = await authedFetch(`/api/admin/reservations/${reservationId}/resend`, { 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      
+      const res = await authedFetch(
+        `/api/admin/reservations/${reservationId}/resend`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
       if (res.ok) {
         alert("✅ Correo reenviado exitosamente");
       } else {
@@ -106,9 +166,14 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
 
   const handleCancelReservation = async () => {
     if (!reservation || actionLoading) return;
-    
-    if (!confirm("⚠️ ¿Estás seguro de anular esta reserva? Se invalidarán sus códigos/tickets y se notificará por correo.")) return;
-    
+
+    if (
+      !confirm(
+        "⚠️ ¿Estás seguro de anular esta reserva? Se invalidarán sus códigos/tickets y se notificará por correo.",
+      )
+    )
+      return;
+
     setActionLoading(true);
     try {
       const res = await authedFetch(`/api/reservations/update`, {
@@ -116,11 +181,13 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: reservationId, status: "rejected" }),
       });
-      const data = await res.json().catch(() => ({} as any));
-      
+      const data = await res.json().catch(() => ({}) as any);
+
       if (res.ok && data?.success) {
         if (data?.emailError) {
-          alert(`✅ Reserva anulada, pero hubo un problema al enviar el correo: ${data.emailError}`);
+          alert(
+            `✅ Reserva anulada, pero hubo un problema al enviar el correo: ${data.emailError}`,
+          );
         } else if (data?.emailSent) {
           alert("✅ Reserva anulada y correo de notificación enviado");
         } else {
@@ -138,7 +205,6 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
     }
   };
 
-  
   if (!isOpen) return null;
 
   const status = reservation?.status || "pending";
@@ -151,8 +217,12 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between p-6 bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-900 border-b border-neutral-700/50">
           <div>
-            <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1">Reserva</div>
-            <h2 className="text-xl font-bold text-neutral-100">Detalle de reserva</h2>
+            <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+              Reserva
+            </div>
+            <h2 className="text-xl font-bold text-neutral-100">
+              Detalle de reserva
+            </h2>
           </div>
           <Button
             onClick={onClose}
@@ -182,14 +252,20 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
             <>
               {/* Status Badge */}
               <div className="flex items-center justify-between gap-2">
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${config.color} text-sm font-medium`}>
+                <div
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${config.color} text-sm font-medium`}
+                >
                   <StatusIcon className="h-4 w-4" />
                   {config.label}
                 </div>
                 {reservation.friendly_code && (
                   <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg px-4 py-2">
-                    <div className="text-xs text-rose-300/70 uppercase tracking-wider mb-0.5">Código de Reserva</div>
-                    <div className="text-base font-bold text-rose-200 font-mono">{reservation.friendly_code}</div>
+                    <div className="text-xs text-rose-300/70 uppercase tracking-wider mb-0.5">
+                      Código de Reserva
+                    </div>
+                    <div className="text-base font-bold text-rose-200 font-mono">
+                      {reservation.friendly_code}
+                    </div>
                   </div>
                 )}
               </div>
@@ -200,26 +276,43 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                 reservation.conflicting_ticket_reservations.length > 0 && (
                   <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-4">
                     <div className="flex items-start gap-3">
-                      <span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
+                      <span className="text-amber-400 text-lg leading-none mt-0.5">
+                        ⚠️
+                      </span>
                       <div className="space-y-2 flex-1 min-w-0">
                         <p className="text-sm font-semibold text-amber-300">
                           Este cliente ya tiene{" "}
                           {reservation.conflicting_ticket_reservations.reduce(
                             (sum, r) => sum + (r.ticket_quantity || 0),
-                            0
+                            0,
                           )}{" "}
-                          entrada{reservation.conflicting_ticket_reservations.reduce((s, r) => s + (r.ticket_quantity || 0), 0) !== 1 ? "s" : ""} compradas para este evento
+                          entrada
+                          {reservation.conflicting_ticket_reservations.reduce(
+                            (s, r) => s + (r.ticket_quantity || 0),
+                            0,
+                          ) !== 1
+                            ? "s"
+                            : ""}{" "}
+                          compradas para este evento
                         </p>
                         <div className="space-y-1">
-                          {reservation.conflicting_ticket_reservations.map((r) => (
-                            <div key={r.id} className="text-xs text-amber-200/70 font-mono">
-                              {r.friendly_code || r.id.slice(0, 8)} — {r.ticket_quantity} entrada{r.ticket_quantity !== 1 ? "s" : ""} —{" "}
-                              <span className="capitalize">{r.status}</span>
-                            </div>
-                          ))}
+                          {reservation.conflicting_ticket_reservations.map(
+                            (r) => (
+                              <div
+                                key={r.id}
+                                className="text-xs text-amber-200/70 font-mono"
+                              >
+                                {r.friendly_code || r.id.slice(0, 8)} —{" "}
+                                {r.ticket_quantity} entrada
+                                {r.ticket_quantity !== 1 ? "s" : ""} —{" "}
+                                <span className="capitalize">{r.status}</span>
+                              </div>
+                            ),
+                          )}
                         </div>
                         <p className="text-xs text-amber-200/60">
-                          Considera anular la reserva de entradas si el cliente va a ingresar por mesa.
+                          Considera anular la reserva de entradas si el cliente
+                          va a ingresar por mesa.
                         </p>
                       </div>
                     </div>
@@ -234,30 +327,39 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                   <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                     <div className="flex items-center gap-2 mb-3">
                       <User className="h-4 w-4 text-rose-400" />
-                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Cliente</h3>
+                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">
+                        Cliente
+                      </h3>
                     </div>
                     <div className="space-y-2">
                       <div>
-                        <div className="text-xs text-neutral-500 mb-0.5">Nombres</div>
-                        <div className="text-base font-medium text-neutral-100">{reservation.full_name}</div>
+                        <div className="text-xs text-neutral-500 mb-0.5">
+                          Nombres
+                        </div>
+                        <div className="text-base font-medium text-neutral-100">
+                          {reservation.full_name}
+                        </div>
                       </div>
-                      
+
                       {reservation.document && (
                         <div>
-                          <div className="text-xs text-neutral-500 mb-0.5">Documento</div>
+                          <div className="text-xs text-neutral-500 mb-0.5">
+                            Documento
+                          </div>
                           <div className="text-sm text-neutral-200 font-mono">
-                            {(reservation.doc_type || "DNI").toUpperCase()} • {reservation.document}
+                            {(reservation.doc_type || "DNI").toUpperCase()} •{" "}
+                            {reservation.document}
                           </div>
                         </div>
                       )}
-                      
+
                       {reservation.email && (
                         <div className="flex items-center gap-2 text-sm text-neutral-300">
                           <Mail className="h-3.5 w-3.5 text-neutral-400" />
                           {reservation.email}
                         </div>
                       )}
-                      
+
                       {reservation.phone && (
                         <div className="flex items-center gap-2 text-sm text-neutral-300">
                           <Phone className="h-3.5 w-3.5 text-neutral-400" />
@@ -271,10 +373,14 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                   <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                     <div className="flex items-center gap-2 mb-3">
                       <Calendar className="h-4 w-4 text-neutral-400" />
-                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Evento</h3>
+                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">
+                        Evento
+                      </h3>
                     </div>
                     <div className="space-y-2">
-                      <div className="text-base font-medium text-neutral-100">{reservation.event_name}</div>
+                      <div className="text-base font-medium text-neutral-100">
+                        {reservation.event_name}
+                      </div>
                       {reservation.event_starts_at && (
                         <div className="text-sm text-neutral-400">
                           {formatLimaFromDb(reservation.event_starts_at)}
@@ -294,7 +400,9 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                     <div className="bg-violet-500/10 rounded-lg p-4 border border-violet-500/25">
                       <div className="flex items-center gap-2 mb-3">
                         <UserRound className="h-4 w-4 text-violet-400" />
-                        <h3 className="text-sm font-semibold text-violet-300 uppercase tracking-wide">Promotor</h3>
+                        <h3 className="text-sm font-semibold text-violet-300 uppercase tracking-wide">
+                          Promotor
+                        </h3>
                       </div>
                       <div className="space-y-1">
                         {reservation.promoter.name && (
@@ -319,13 +427,17 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                     <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                       <div className="flex items-center gap-2 mb-3">
                         <Ticket className="h-4 w-4 text-purple-400" />
-                        <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Mesa</h3>
+                        <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">
+                          Mesa
+                        </h3>
                       </div>
                       <div className="space-y-2">
-                        <div className="text-base font-medium text-neutral-100">{reservation.table_name || "Sin mesa asignada"}</div>
-                        {(reservation.ticket_quantity ?? reservation.codes?.length) && (
+                        <div className="text-base font-medium text-neutral-100">
+                          {reservation.table_name || "Sin mesa asignada"}
+                        </div>
+                        {reservationDisplayQuantity > 0 && (
                           <div className="text-sm text-neutral-400">
-                            Entradas: {reservation.ticket_quantity ?? reservation.codes?.length}
+                            Entradas: {reservationDisplayQuantity}
                           </div>
                         )}
                       </div>
@@ -337,7 +449,9 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                     <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                       <div className="flex items-center gap-2 mb-3">
                         <FileText className="h-4 w-4 text-green-400" />
-                        <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Voucher</h3>
+                        <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">
+                          Voucher
+                        </h3>
                       </div>
                       <a
                         href={reservation.voucher_url}
@@ -358,7 +472,9 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                   <div className="bg-neutral-800/40 rounded-lg p-4 border border-neutral-700/50">
                     <div className="flex items-center gap-2 mb-3">
                       <Clock className="h-4 w-4 text-neutral-400" />
-                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">Creada</h3>
+                      <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide">
+                        Creada
+                      </h3>
                     </div>
                     <div className="text-sm text-neutral-400">
                       {formatLimaFromDb(reservation.created_at)}
@@ -407,7 +523,7 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                   Reenviar correo
                 </Button>
               )}
-              
+
               {reservation.status !== "rejected" && (
                 <Button
                   onClick={handleCancelReservation}
@@ -420,7 +536,7 @@ export default function ViewReservationModal({ reservationId, isOpen, onClose, o
                 </Button>
               )}
             </div>
-            
+
             <Button
               onClick={onClose}
               disabled={actionLoading}

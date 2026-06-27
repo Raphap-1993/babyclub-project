@@ -5,7 +5,21 @@ import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, StatusBadge, ModernDatePicker } from "@repo/ui";
 import { authedFetch } from "@/lib/authedFetch";
-import { Calendar, Users, Mail, Phone, QrCode, Search, Filter, Eye, Send, XCircle, CheckCircle, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  Mail,
+  Phone,
+  QrCode,
+  Search,
+  Filter,
+  Eye,
+  Send,
+  XCircle,
+  CheckCircle,
+  Trash2,
+} from "lucide-react";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import CreateReservationModal from "./components/CreateReservationModal";
 import ViewReservationModal from "./components/ViewReservationModal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
@@ -23,12 +37,22 @@ type ReservationRow = {
   status: string;
   codes: string[] | null;
   ticket_quantity: number | null;
+  total_ticket_units?: number | null;
   table_name: string;
   event_name: string;
   organizer_name: string;
   organizer_id: string;
   created_at?: string;
 };
+
+function getReservationDisplayQuantity(reservation: ReservationRow) {
+  return resolveReservationTicketQuantity({
+    totalTicketUnits: reservation.total_ticket_units,
+    ticketQuantity: reservation.ticket_quantity,
+    codesCount: Array.isArray(reservation.codes) ? reservation.codes.length : 0,
+    minimum: 1,
+  });
+}
 
 // Componente de búsqueda y filtros expandido
 function SearchAndDateFilters({
@@ -60,16 +84,16 @@ function SearchAndDateFilters({
     <div className="space-y-3 mb-4">
       {/* Filtros compactos en 2 filas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-        <ModernDatePicker 
-          value={fromDate} 
-          onChange={onFromDateChange} 
-          placeholder="Desde" 
+        <ModernDatePicker
+          value={fromDate}
+          onChange={onFromDateChange}
+          placeholder="Desde"
         />
-        
-        <ModernDatePicker 
-          value={toDate} 
-          onChange={onToDateChange} 
-          placeholder="Hasta" 
+
+        <ModernDatePicker
+          value={toDate}
+          onChange={onToDateChange}
+          placeholder="Hasta"
         />
 
         <div className="relative">
@@ -85,7 +109,7 @@ function SearchAndDateFilters({
           </SelectNative>
         </div>
       </div>
-      
+
       {/* Segunda fila: Búsqueda y acciones */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -98,7 +122,7 @@ function SearchAndDateFilters({
             className="h-10 border-neutral-700 bg-neutral-800/50 pl-10 text-neutral-200 placeholder:text-neutral-400"
           />
         </div>
-        
+
         <Button
           onClick={onApplyFilters}
           className="bg-gradient-to-r from-rose-500 to-pink-600 shadow-lg hover:from-rose-400 hover:to-pink-500 hover:shadow-xl"
@@ -106,7 +130,7 @@ function SearchAndDateFilters({
           <Filter className="h-4 w-4" />
           Filtrar
         </Button>
-        
+
         {hasActiveFilters && (
           <Button
             onClick={onClearFilters}
@@ -129,7 +153,7 @@ const createColumns = (
   onCancelReservation: (id: string) => void,
   onDeleteReservation: (id: string) => void,
   openMenuId: string | null,
-  setOpenMenuId: (id: string | null) => void
+  setOpenMenuId: (id: string | null) => void,
 ): ColumnDef<ReservationRow>[] => [
   {
     accessorKey: "full_name",
@@ -189,7 +213,7 @@ const createColumns = (
     header: "Entradas",
     cell: ({ row }) => {
       const reservation = row.original;
-      const codesCount = Math.max(reservation.codes?.length || 0, reservation.ticket_quantity || 0);
+      const codesCount = getReservationDisplayQuantity(reservation);
       return (
         <div className="text-center">
           {codesCount > 0 ? (
@@ -223,7 +247,7 @@ const createColumns = (
             return { variant: "default" as const, label: status || "—" };
         }
       };
-      
+
       const config = getStatusConfig(status);
       return <StatusBadge variant={config.variant}>{config.label}</StatusBadge>;
     },
@@ -233,7 +257,7 @@ const createColumns = (
     header: "Acciones",
     cell: ({ row }) => {
       const reservation = row.original;
-      
+
       return (
         <div className="flex items-center gap-1">
           <Button
@@ -248,13 +272,16 @@ const createColumns = (
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
-          
+
           <Button
             onClick={(e) => {
               e.stopPropagation();
               onApproveReservation(reservation.id);
             }}
-            disabled={reservation.status === "approved" || reservation.status === "rejected"}
+            disabled={
+              reservation.status === "approved" ||
+              reservation.status === "rejected"
+            }
             title="Aprobar reserva"
             variant="ghost"
             size="icon"
@@ -262,7 +289,7 @@ const createColumns = (
           >
             <CheckCircle className="h-3.5 w-3.5" />
           </Button>
-          
+
           <Button
             onClick={(e) => {
               e.stopPropagation();
@@ -276,13 +303,15 @@ const createColumns = (
           >
             <Send className="h-3.5 w-3.5" />
           </Button>
-          
+
           <Button
             onClick={(e) => {
               e.stopPropagation();
               onCancelReservation(reservation.id);
             }}
-            disabled={["rejected", "cancelled"].includes((reservation.status || "").toLowerCase())}
+            disabled={["rejected", "cancelled"].includes(
+              (reservation.status || "").toLowerCase(),
+            )}
             title="Anular reserva"
             variant="ghost"
             size="icon"
@@ -319,7 +348,8 @@ export default function ModernReservationsClient({
   error,
 }: ModernReservationsClientProps) {
   const [reservations] = useState<ReservationRow[]>(initialReservations);
-  const [filteredReservations, setFilteredReservations] = useState<ReservationRow[]>(initialReservations);
+  const [filteredReservations, setFilteredReservations] =
+    useState<ReservationRow[]>(initialReservations);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
@@ -327,18 +357,26 @@ export default function ModernReservationsClient({
   const [tempSearchQuery, setTempSearchQuery] = useState("");
   const [tempStatusFilter, setTempStatusFilter] = useState<string>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [viewReservationId, setViewReservationId] = useState<string | null>(null);
+  const [viewReservationId, setViewReservationId] = useState<string | null>(
+    null,
+  );
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [cancelReservationId, setCancelReservationId] = useState<string | null>(null);
+  const [cancelReservationId, setCancelReservationId] = useState<string | null>(
+    null,
+  );
   const [cancelPending, setCancelPending] = useState(false);
-  const [deleteReservationId, setDeleteReservationId] = useState<string | null>(null);
+  const [deleteReservationId, setDeleteReservationId] = useState<string | null>(
+    null,
+  );
   const [deletePending, setDeletePending] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   // Verificar si hay filtros activos
-  const hasActiveFilters = Boolean(searchQuery || statusFilter !== "all" || fromDate || toDate);
+  const hasActiveFilters = Boolean(
+    searchQuery || statusFilter !== "all" || fromDate || toDate,
+  );
 
   // Recargar datos después de crear reserva
   const handleReservationCreated = async () => {
@@ -354,8 +392,9 @@ export default function ModernReservationsClient({
 
   // Aprobar reserva
   const handleApproveReservation = async (id: string) => {
-    if (!confirm("✅ ¿Aprobar esta reserva y enviar email de confirmación?")) return;
-    
+    if (!confirm("✅ ¿Aprobar esta reserva y enviar email de confirmación?"))
+      return;
+
     try {
       const res = await authedFetch("/api/reservations/update", {
         method: "POST",
@@ -364,12 +403,14 @@ export default function ModernReservationsClient({
         },
         body: JSON.stringify({ id, status: "approved" }),
       });
-      
+
       const data = await res.json();
-      
+
       if (res.ok && data.success) {
         if (data.emailError) {
-          alert(`✅ Reserva aprobada, pero hubo un error al enviar el correo: ${data.emailError}`);
+          alert(
+            `✅ Reserva aprobada, pero hubo un error al enviar el correo: ${data.emailError}`,
+          );
         } else if (data.emailSent) {
           alert("✅ Reserva aprobada y correo enviado exitosamente");
         } else {
@@ -377,7 +418,9 @@ export default function ModernReservationsClient({
         }
         window.location.reload();
       } else {
-        alert(`❌ Error al aprobar reserva: ${data.error || "Error desconocido"}`);
+        alert(
+          `❌ Error al aprobar reserva: ${data.error || "Error desconocido"}`,
+        );
         console.error("Error:", data);
       }
     } catch (err: any) {
@@ -389,20 +432,22 @@ export default function ModernReservationsClient({
   // Reenviar correo
   const handleResendEmail = async (id: string) => {
     if (!confirm("¿Reenviar correo de confirmación?")) return;
-    
+
     try {
-      const res = await authedFetch(`/api/admin/reservations/${id}/resend`, { 
+      const res = await authedFetch(`/api/admin/reservations/${id}/resend`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
       });
-      
+
       if (res.ok) {
         alert("✅ Correo reenviado exitosamente");
       } else {
         const data = await res.json();
-        alert(`❌ Error al reenviar correo: ${data.error || "Error desconocido"}`);
+        alert(
+          `❌ Error al reenviar correo: ${data.error || "Error desconocido"}`,
+        );
         console.error("Error:", data);
       }
     } catch (err: any) {
@@ -433,13 +478,15 @@ export default function ModernReservationsClient({
         },
         body: JSON.stringify({ id: cancelReservationId, status: "rejected" }),
       });
-      
+
       const data = await res.json();
-      
+
       if (res.ok && data.success) {
         setCancelReservationId(null);
         if (data.emailError) {
-          alert(`✅ Reserva anulada, pero hubo un error al enviar el correo: ${data.emailError}`);
+          alert(
+            `✅ Reserva anulada, pero hubo un error al enviar el correo: ${data.emailError}`,
+          );
         } else if (data.emailSent) {
           alert("✅ Reserva anulada y correo de notificación enviado");
         } else {
@@ -447,9 +494,11 @@ export default function ModernReservationsClient({
         }
         window.location.reload();
       } else {
-        const details = Array.isArray(data?.cancellationErrors) ? data.cancellationErrors.join(" | ") : "";
+        const details = Array.isArray(data?.cancellationErrors)
+          ? data.cancellationErrors.join(" | ")
+          : "";
         alert(
-          `❌ Error al anular reserva: ${data.error || "Error desconocido"}${details ? `\n\nDetalle técnico: ${details}` : ""}`
+          `❌ Error al anular reserva: ${data.error || "Error desconocido"}${details ? `\n\nDetalle técnico: ${details}` : ""}`,
         );
         console.error("Error:", data);
       }
@@ -477,7 +526,10 @@ export default function ModernReservationsClient({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id: deleteReservationId, confirmation: deleteConfirmationText }),
+        body: JSON.stringify({
+          id: deleteReservationId,
+          confirmation: deleteConfirmationText,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -486,7 +538,9 @@ export default function ModernReservationsClient({
         alert("✅ Reserva eliminada");
         window.location.reload();
       } else {
-        alert(`❌ Error al eliminar reserva: ${data.error || "Error desconocido"}`);
+        alert(
+          `❌ Error al eliminar reserva: ${data.error || "Error desconocido"}`,
+        );
       }
     } catch (err: any) {
       alert(`❌ Error al eliminar reserva: ${err.message}`);
@@ -516,19 +570,20 @@ export default function ModernReservationsClient({
   // Filtrar reservas
   useEffect(() => {
     let filtered = reservations;
-    
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(reservation => 
-        reservation.full_name?.toLowerCase().includes(query) ||
-        reservation.email?.toLowerCase().includes(query) ||
-        reservation.phone?.includes(query) ||
-        reservation.event_name?.toLowerCase().includes(query) ||
-        reservation.table_name?.toLowerCase().includes(query) ||
-        reservation.organizer_name?.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (reservation) =>
+          reservation.full_name?.toLowerCase().includes(query) ||
+          reservation.email?.toLowerCase().includes(query) ||
+          reservation.phone?.includes(query) ||
+          reservation.event_name?.toLowerCase().includes(query) ||
+          reservation.table_name?.toLowerCase().includes(query) ||
+          reservation.organizer_name?.toLowerCase().includes(query),
       );
     }
-    
+
     if (statusFilter !== "all") {
       filtered = filtered.filter((reservation) => {
         const normalized = reservation.status?.toLowerCase() || "";
@@ -541,24 +596,28 @@ export default function ModernReservationsClient({
         return normalized === statusFilter;
       });
     }
-    
+
     // Filtrar por fechas si están definidas
     if (fromDate) {
-      filtered = filtered.filter(reservation => {
+      filtered = filtered.filter((reservation) => {
         if (!reservation.created_at) return false;
-        const reservationDate = new Date(reservation.created_at).toISOString().split('T')[0];
+        const reservationDate = new Date(reservation.created_at)
+          .toISOString()
+          .split("T")[0];
         return reservationDate >= fromDate;
       });
     }
 
     if (toDate) {
-      filtered = filtered.filter(reservation => {
+      filtered = filtered.filter((reservation) => {
         if (!reservation.created_at) return false;
-        const reservationDate = new Date(reservation.created_at).toISOString().split('T')[0];
+        const reservationDate = new Date(reservation.created_at)
+          .toISOString()
+          .split("T")[0];
         return reservationDate <= toDate;
       });
     }
-    
+
     setFilteredReservations(filtered);
   }, [reservations, searchQuery, statusFilter, fromDate, toDate]);
 
@@ -570,28 +629,44 @@ export default function ModernReservationsClient({
     switch (status?.toLowerCase()) {
       case "approved":
       case "confirmed":
-        return { label: "Aprobada", className: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" };
+        return {
+          label: "Aprobada",
+          className:
+            "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+        };
       case "pending":
-        return { label: "Pendiente", className: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30" };
+        return {
+          label: "Pendiente",
+          className:
+            "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30",
+        };
       case "rejected":
       case "cancelled":
-        return { label: "Rechazada", className: "bg-red-500/20 text-red-300 border border-red-500/30" };
+        return {
+          label: "Rechazada",
+          className: "bg-red-500/20 text-red-300 border border-red-500/30",
+        };
       default:
-        return { label: status || "—", className: "bg-neutral-500/20 text-neutral-300 border border-neutral-700" };
+        return {
+          label: status || "—",
+          className:
+            "bg-neutral-500/20 text-neutral-300 border border-neutral-700",
+        };
     }
   };
 
   const columns = React.useMemo(
-    () => createColumns(
-      (id: string) => setViewReservationId(id),
-      handleApproveReservation,
-      handleResendEmail,
-      handleCancelReservation,
-      handleDeleteReservation,
-      openMenuId,
-      setOpenMenuId
-    ),
-    [openMenuId]
+    () =>
+      createColumns(
+        (id: string) => setViewReservationId(id),
+        handleApproveReservation,
+        handleResendEmail,
+        handleCancelReservation,
+        handleDeleteReservation,
+        openMenuId,
+        setOpenMenuId,
+      ),
+    [openMenuId],
   );
 
   const totalItems = filteredReservations.length;
@@ -655,95 +730,112 @@ export default function ModernReservationsClient({
           <div className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-8 text-center text-sm text-neutral-400">
             🔍 No se encontraron reservas con los filtros aplicados
           </div>
-        ) : pagedReservations.map((reservation) => {
-          const statusCfg = getStatusConfig(reservation.status);
-          const codesCount = Math.max(reservation.codes?.length || 0, reservation.ticket_quantity || 0);
-          const isApproved = ["approved", "confirmed"].includes((reservation.status || "").toLowerCase());
-          const isCancelled = ["rejected", "cancelled"].includes((reservation.status || "").toLowerCase());
-          return (
-            <div
-              key={reservation.id}
-              className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-4 space-y-3"
-            >
-              {/* Header: nombre + estado */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-semibold text-neutral-100 truncate">{reservation.full_name}</p>
-                  {reservation.email && (
-                    <p className="text-xs text-neutral-400 truncate flex items-center gap-1 mt-0.5">
-                      <Mail className="h-3 w-3 flex-shrink-0" />{reservation.email}
+        ) : (
+          pagedReservations.map((reservation) => {
+            const statusCfg = getStatusConfig(reservation.status);
+            const codesCount = getReservationDisplayQuantity(reservation);
+            const isApproved = ["approved", "confirmed"].includes(
+              (reservation.status || "").toLowerCase(),
+            );
+            const isCancelled = ["rejected", "cancelled"].includes(
+              (reservation.status || "").toLowerCase(),
+            );
+            return (
+              <div
+                key={reservation.id}
+                className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-4 space-y-3"
+              >
+                {/* Header: nombre + estado */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-100 truncate">
+                      {reservation.full_name}
                     </p>
-                  )}
-                </div>
-                <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusCfg.className}`}>
-                  {statusCfg.label}
-                </span>
-              </div>
-
-              {/* Info secundaria */}
-              <div className="grid grid-cols-2 gap-2 text-xs text-neutral-300">
-                {reservation.phone && (
-                  <div className="flex items-center gap-1">
-                    <Phone className="h-3 w-3 text-neutral-500 flex-shrink-0" />
-                    {reservation.phone}
+                    {reservation.email && (
+                      <p className="text-xs text-neutral-400 truncate flex items-center gap-1 mt-0.5">
+                        <Mail className="h-3 w-3 flex-shrink-0" />
+                        {reservation.email}
+                      </p>
+                    )}
                   </div>
-                )}
-                {codesCount > 0 && (
-                  <div className="flex items-center gap-1">
-                    <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0" />
-                    {codesCount} entrada{codesCount !== 1 ? "s" : ""}
-                  </div>
-                )}
-                <div className="col-span-2 flex items-center gap-1 text-neutral-400">
-                  <Calendar className="h-3 w-3 flex-shrink-0" />
-                  <span className="truncate">{reservation.event_name}</span>
-                  {reservation.table_name && (
-                    <span className="text-neutral-500">· {reservation.table_name}</span>
+                  <span
+                    className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusCfg.className}`}
+                  >
+                    {statusCfg.label}
+                  </span>
+                </div>
+
+                {/* Info secundaria */}
+                <div className="grid grid-cols-2 gap-2 text-xs text-neutral-300">
+                  {reservation.phone && (
+                    <div className="flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                      {reservation.phone}
+                    </div>
                   )}
+                  {codesCount > 0 && (
+                    <div className="flex items-center gap-1">
+                      <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                      {codesCount} entrada{codesCount !== 1 ? "s" : ""}
+                    </div>
+                  )}
+                  <div className="col-span-2 flex items-center gap-1 text-neutral-400">
+                    <Calendar className="h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{reservation.event_name}</span>
+                    {reservation.table_name && (
+                      <span className="text-neutral-500">
+                        · {reservation.table_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Acciones */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <Button
+                    onClick={() => setViewReservationId(reservation.id)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 bg-neutral-700/40 text-neutral-200 hover:bg-neutral-700/60 text-xs justify-center"
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    Ver detalle
+                  </Button>
+                  <Button
+                    onClick={() => handleApproveReservation(reservation.id)}
+                    disabled={isApproved || isCancelled}
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-30 text-xs justify-center"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                    Aprobar
+                  </Button>
+                  <Button
+                    onClick={() => handleResendEmail(reservation.id)}
+                    disabled={!isApproved}
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-30 text-xs justify-center"
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Reenviar email
+                  </Button>
+                  <Button
+                    onClick={() => handleCancelReservation(reservation.id)}
+                    disabled={isCancelled}
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-30 text-xs justify-center"
+                  >
+                    <XCircle className="h-3.5 w-3.5 mr-1" />
+                    Anular
+                  </Button>
                 </div>
               </div>
-
-              {/* Acciones */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <Button
-                  onClick={() => setViewReservationId(reservation.id)}
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 bg-neutral-700/40 text-neutral-200 hover:bg-neutral-700/60 text-xs justify-center"
-                >
-                  <Eye className="h-3.5 w-3.5 mr-1" />Ver detalle
-                </Button>
-                <Button
-                  onClick={() => handleApproveReservation(reservation.id)}
-                  disabled={isApproved || isCancelled}
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-30 text-xs justify-center"
-                >
-                  <CheckCircle className="h-3.5 w-3.5 mr-1" />Aprobar
-                </Button>
-                <Button
-                  onClick={() => handleResendEmail(reservation.id)}
-                  disabled={!isApproved}
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-30 text-xs justify-center"
-                >
-                  <Send className="h-3.5 w-3.5 mr-1" />Reenviar email
-                </Button>
-                <Button
-                  onClick={() => handleCancelReservation(reservation.id)}
-                  disabled={isCancelled}
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-30 text-xs justify-center"
-                >
-                  <XCircle className="h-3.5 w-3.5 mr-1" />Anular
-                </Button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Tabla para desktop */}
@@ -788,7 +880,9 @@ export default function ModernReservationsClient({
               Se enviará un correo de cancelación al cliente.
               <br />
               <br />
-              También se invalidarán los códigos de mesa y se cancelarán los tickets vinculados a esta reserva, por lo que dejarán de verse como activos en Tickets/QR.
+              También se invalidarán los códigos de mesa y se cancelarán los
+              tickets vinculados a esta reserva, por lo que dejarán de verse
+              como activos en Tickets/QR.
             </AlertDialog.Description>
 
             <div className="mt-6 flex gap-3 justify-end">
@@ -829,16 +923,20 @@ export default function ModernReservationsClient({
               Eliminar reserva
             </AlertDialog.Title>
             <AlertDialog.Description className="mt-3 text-sm text-neutral-300">
-              Esta acción archivará la reserva y desactivará sus tickets/códigos vinculados.
+              Esta acción archivará la reserva y desactivará sus tickets/códigos
+              vinculados.
               <br />
               <br />
-              Para continuar, escribe <span className="font-semibold text-red-300">eliminar</span>.
+              Para continuar, escribe{" "}
+              <span className="font-semibold text-red-300">eliminar</span>.
             </AlertDialog.Description>
 
             <div className="mt-4">
               <Input
                 value={deleteConfirmationText}
-                onChange={(event) => setDeleteConfirmationText(event.target.value)}
+                onChange={(event) =>
+                  setDeleteConfirmationText(event.target.value)
+                }
                 placeholder='Escribe "eliminar"'
                 className="border-neutral-700 bg-neutral-800/60 text-neutral-100"
                 disabled={deletePending}
@@ -857,7 +955,10 @@ export default function ModernReservationsClient({
               </AlertDialog.Cancel>
               <Button
                 onClick={confirmDeleteReservation}
-                disabled={deletePending || deleteConfirmationText.trim().toLowerCase() !== "eliminar"}
+                disabled={
+                  deletePending ||
+                  deleteConfirmationText.trim().toLowerCase() !== "eliminar"
+                }
                 className="bg-red-700 text-white transition-all hover:bg-red-800 disabled:opacity-50"
               >
                 {deletePending ? "Eliminando..." : "Sí, eliminar"}

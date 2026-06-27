@@ -11,14 +11,19 @@ export function resolveReservationTicketQuantity(input: {
   liveTableTicketCount?: unknown;
   minimum?: number;
 }) {
-  const snapshotCandidates = [
-    toPositiveInteger(input.totalTicketUnits),
-    toPositiveInteger(input.ticketQuantity),
-    toPositiveInteger(input.codesCount),
-  ].filter((value) => value > 0);
+  const totalTicketUnits = toPositiveInteger(input.totalTicketUnits);
+  if (totalTicketUnits > 0) {
+    return totalTicketUnits;
+  }
 
-  if (snapshotCandidates.length > 0) {
-    return Math.max(...snapshotCandidates);
+  const ticketQuantity = toPositiveInteger(input.ticketQuantity);
+  if (ticketQuantity > 0) {
+    return ticketQuantity;
+  }
+
+  const codesCount = toPositiveInteger(input.codesCount);
+  if (codesCount > 0) {
+    return codesCount;
   }
 
   const liveTableTicketCount = toPositiveInteger(input.liveTableTicketCount);

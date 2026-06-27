@@ -18,7 +18,9 @@ vi.mock("../email", () => ({
 
 const { createClient } = await import("@supabase/supabase-js");
 const { requireStaffRole } = await import("shared/auth/requireStaff");
-const { createTicketForReservation, createReservationCodes } = await import("../utils");
+const { createTicketForReservation, createReservationCodes } = await import(
+  "../utils"
+);
 const { sendApprovalEmail } = await import("../email");
 
 describe("POST /api/reservations/update", () => {
@@ -112,7 +114,9 @@ describe("POST /api/reservations/update", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.insert": [{ data: [{ id: "unit-1" }], error: null }],
+      "ticket_reservation_units.insert": [
+        { data: [{ id: "unit-1" }], error: null },
+      ],
       "ticket_reservation_units.update": [{ data: null, error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
@@ -158,6 +162,124 @@ describe("POST /api/reservations/update", () => {
     );
     expect(reservationUpdate?.payload).toMatchObject({
       status: "approved",
+    });
+  });
+
+  it("aprueba ticket-only usando el snapshot de 1 QR aunque codes venga inflado", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-inflated-codes",
+            sale_origin: "ticket",
+            table_id: null,
+            product_id: null,
+            full_name: "Juan Pedro Barriga Rivera",
+            email: "juan@test.com",
+            phone: "962900685",
+            doc_type: "dni",
+            document: "12345678",
+            codes: ["CODE-1", "CODE-2", "CODE-3"],
+            ticket_quantity: 1,
+            total_ticket_units: 1,
+            package_quantity: 1,
+            attendees: [],
+            event_id: "event-1",
+            promoter_id: null,
+            event: {
+              id: "event-1",
+              name: "Baby Club",
+              starts_at: "2099-02-01T04:00:00.000Z",
+              location: "Lima",
+            },
+            table: null,
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        { data: [], error: null },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-inflated-codes",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-inflated-codes",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "issued",
+              full_name: "Juan Pedro Barriga Rivera",
+              doc_type: "dni",
+              document: "12345678",
+              email: "juan@test.com",
+              phone: "962900685",
+              ticket_id: "ticket-juan-1",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.insert": [
+        { data: [{ id: "unit-1" }], error: null },
+      ],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-juan-1",
+      code: "CODE-1",
+    });
+    (sendApprovalEmail as any).mockResolvedValue(undefined);
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/reservations/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: "res-ticket-inflated-codes",
+          status: "approved",
+        }),
+      }) as any,
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
+
+    const unitsInsertCall = calls.find(
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "insert",
+    );
+    expect(unitsInsertCall?.payload).toHaveLength(1);
+    expect(unitsInsertCall?.payload[0]).toMatchObject({
+      reservation_id: "res-ticket-inflated-codes",
+      package_index: 1,
+      person_index: 1,
+      unit_index: 1,
     });
   });
 
@@ -295,9 +417,7 @@ describe("POST /api/reservations/update", () => {
       ],
       "codes.select": [
         {
-          data: [
-            
-          ],
+          data: [],
           error: null,
         },
       ],
@@ -377,7 +497,9 @@ describe("POST /api/reservations/update", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.insert": [{ data: [{ id: "unit-1" }, { id: "unit-2" }], error: null }],
+      "ticket_reservation_units.insert": [
+        { data: [{ id: "unit-1" }, { id: "unit-2" }], error: null },
+      ],
       "ticket_reservation_units.update": [{ data: null, error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
@@ -434,12 +556,14 @@ describe("POST /api/reservations/update", () => {
     });
     expect(
       calls.some(
-        (call) => call.table === "ticket_reservation_units" && call.op === "insert",
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "insert",
       ),
     ).toBe(true);
     expect(
       calls.some(
-        (call) => call.table === "ticket_reservation_units" && call.op === "update",
+        (call) =>
+          call.table === "ticket_reservation_units" && call.op === "update",
       ),
     ).toBe(true);
   });

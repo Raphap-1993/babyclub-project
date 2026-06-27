@@ -1,6 +1,7 @@
 import ModernReservationsClient from "./ModernReservationsClient";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,6 +15,7 @@ type ReservationRow = {
   status: string;
   codes: string[] | null;
   ticket_quantity: number | null;
+  total_ticket_units: number | null;
   table_name: string;
   event_name: string;
   organizer_name: string;
@@ -21,7 +23,8 @@ type ReservationRow = {
   created_at?: string;
 };
 
-const RETRYABLE_SUPABASE_ERROR = /(error code 522|connection timed out|gateway timeout|service unavailable|fetch failed|network|temporarily unavailable)/i;
+const RETRYABLE_SUPABASE_ERROR =
+  /(error code 522|connection timed out|gateway timeout|service unavailable|fetch failed|network|temporarily unavailable)/i;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -32,11 +35,14 @@ function sanitizeErrorMessage(input: unknown): string {
 
   if (/<(!doctype|html)/i.test(normalized)) {
     const cloudflareCode = normalized.match(/error code\s+(\d{3})/i)?.[1];
-    if (cloudflareCode) return `Supabase no respondió a tiempo (Cloudflare ${cloudflareCode})`;
+    if (cloudflareCode)
+      return `Supabase no respondió a tiempo (Cloudflare ${cloudflareCode})`;
     return "Supabase devolvió una respuesta HTML inesperada";
   }
 
-  return normalized.length > 220 ? `${normalized.slice(0, 220)}...` : normalized;
+  return normalized.length > 220
+    ? `${normalized.slice(0, 220)}...`
+    : normalized;
 }
 
 function isRetryableSupabaseError(input: unknown): boolean {
@@ -51,9 +57,13 @@ function getUserFacingError(input: unknown): string {
   return sanitizeErrorMessage(input);
 }
 
-async function getReservations(): Promise<{ reservations: ReservationRow[]; error?: string }> {
+async function getReservations(): Promise<{
+  reservations: ReservationRow[];
+  error?: string;
+}> {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) return { reservations: [], error: "Falta configuración de Supabase" };
+    if (!supabaseUrl || !supabaseServiceKey)
+      return { reservations: [], error: "Falta configuración de Supabase" };
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -66,7 +76,8 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
       const result = await applyNotDeleted(
         supabase
           .from("table_reservations")
-          .select(`
+          .select(
+            `
             id,
             friendly_code,
             full_name,
@@ -75,11 +86,13 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
             status,
             codes,
             ticket_quantity,
+            total_ticket_units,
             created_at,
             table_id,
             event_id
-          `)
-          .order("created_at", { ascending: false })
+          `,
+          )
+          .order("created_at", { ascending: false }),
       );
 
       if (!result.error) {
@@ -109,30 +122,48 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
     }
 
     if (lastError) {
-      return { reservations: [], error: getUserFacingError(lastError?.message) };
+      return {
+        reservations: [],
+        error: getUserFacingError(lastError?.message),
+      };
     }
-    
+
     if (!data || data.length === 0) {
       return { reservations: [] };
     }
 
     // Obtener tablas, eventos y organizadores por separado
-    const tableIds = [...new Set(data.map((r: any) => r.table_id).filter(Boolean))];
-    const eventIds = [...new Set(data.map((r: any) => r.event_id).filter(Boolean))];
-    
-    const { data: tables } = tableIds.length > 0 
-      ? await supabase.from("tables").select("id, name").in("id", tableIds)
-      : { data: [] };
-      
-    const { data: events } = eventIds.length > 0
-      ? await supabase.from("events").select("id, name, organizer_id").in("id", eventIds)
-      : { data: [] };
-      
-    const organizerIds = [...new Set(events?.map((e: any) => e.organizer_id).filter(Boolean) || [])];
-    
-    const { data: organizers } = organizerIds.length > 0
-      ? await supabase.from("organizers").select("id, name").in("id", organizerIds)
-      : { data: [] };
+    const tableIds = [
+      ...new Set(data.map((r: any) => r.table_id).filter(Boolean)),
+    ];
+    const eventIds = [
+      ...new Set(data.map((r: any) => r.event_id).filter(Boolean)),
+    ];
+
+    const { data: tables } =
+      tableIds.length > 0
+        ? await supabase.from("tables").select("id, name").in("id", tableIds)
+        : { data: [] };
+
+    const { data: events } =
+      eventIds.length > 0
+        ? await supabase
+            .from("events")
+            .select("id, name, organizer_id")
+            .in("id", eventIds)
+        : { data: [] };
+
+    const organizerIds = [
+      ...new Set(events?.map((e: any) => e.organizer_id).filter(Boolean) || []),
+    ];
+
+    const { data: organizers } =
+      organizerIds.length > 0
+        ? await supabase
+            .from("organizers")
+            .select("id, name")
+            .in("id", organizerIds)
+        : { data: [] };
 
     // Crear mapas para búsqueda rápida
     const tableMap = new Map(tables?.map((t: any) => [t.id, t]) || []);
@@ -142,8 +173,10 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
     const normalized: ReservationRow[] = (data as any[]).map((res) => {
       const table = tableMap.get(res.table_id);
       const event = eventMap.get(res.event_id);
-      const organizer = event?.organizer_id ? organizerMap.get(event.organizer_id) : null;
-      
+      const organizer = event?.organizer_id
+        ? organizerMap.get(event.organizer_id)
+        : null;
+
       return {
         id: res.id,
         friendly_code: res.friendly_code ?? null,
@@ -152,7 +185,16 @@ async function getReservations(): Promise<{ reservations: ReservationRow[]; erro
         phone: res.phone ?? null,
         status: res.status ?? "",
         codes: res.codes ?? null,
-        ticket_quantity: typeof res.ticket_quantity === "number" ? res.ticket_quantity : null,
+        ticket_quantity: resolveReservationTicketQuantity({
+          totalTicketUnits: res.total_ticket_units,
+          ticketQuantity: res.ticket_quantity,
+          codesCount: Array.isArray(res.codes) ? res.codes.length : 0,
+          minimum: 1,
+        }),
+        total_ticket_units:
+          typeof res.total_ticket_units === "number"
+            ? res.total_ticket_units
+            : null,
         table_name: table?.name ?? "Entrada",
         event_name: event?.name ?? "—",
         organizer_name: organizer?.name ?? "Sin organizador",
@@ -176,5 +218,10 @@ export const dynamic = "force-dynamic";
 export default async function ReservationsPage() {
   const { reservations, error } = await getReservations();
 
-  return <ModernReservationsClient initialReservations={reservations} error={error || null} />;
+  return (
+    <ModernReservationsClient
+      initialReservations={reservations}
+      error={error || null}
+    />
+  );
 }
