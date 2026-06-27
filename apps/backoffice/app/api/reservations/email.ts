@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { getEmailDomain, normalizeEmailAddress } from "shared/email/address";
 import { sendEmail } from "shared/email/resend";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
@@ -6,7 +5,7 @@ import { getPublicAppUrl } from "shared/publicUrl";
 import { resolveTicketReservationWorkspaceContext } from "shared/ticketReservationWorkspace";
 import { logProcessEvent } from "../logs/logger";
 
-type Supabase = SupabaseClient<any, "public", any>;
+type Supabase = any;
 
 export async function sendApprovalEmail({
   supabase,

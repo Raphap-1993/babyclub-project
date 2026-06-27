@@ -283,6 +283,171 @@ describe("POST /api/reservations/update", () => {
     });
   });
 
+  it("aprueba ticket-only reparando snapshots parciales cuando falta la unidad 1 del comprador", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-partial-1",
+            sale_origin: "ticket",
+            table_id: null,
+            product_id: null,
+            full_name: "Comprador Parcial",
+            email: "buyer.partial@test.com",
+            phone: "988887777",
+            doc_type: "dni",
+            document: "44556677",
+            codes: ["CODE-1", "CODE-2"],
+            ticket_quantity: 2,
+            total_ticket_units: 2,
+            package_quantity: 1,
+            attendees: [],
+            event_id: "event-1",
+            promoter_id: null,
+            event: {
+              id: "event-1",
+              name: "Baby Club",
+              starts_at: "2099-02-01T04:00:00.000Z",
+              location: "Lima",
+            },
+            table: null,
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-2",
+              reservation_id: "res-ticket-partial-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 2,
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-partial-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+            {
+              id: "unit-2",
+              reservation_id: "res-ticket-partial-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 2,
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-partial-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 1,
+              unit_index: 1,
+              status: "issued",
+              full_name: "Comprador Parcial",
+              doc_type: "dni",
+              document: "44556677",
+              email: "buyer.partial@test.com",
+              phone: "988887777",
+              ticket_id: "ticket-partial-1",
+            },
+            {
+              id: "unit-2",
+              reservation_id: "res-ticket-partial-1",
+              event_id: "event-1",
+              package_index: 1,
+              person_index: 2,
+              unit_index: 2,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.insert": [
+        { data: [{ id: "unit-1" }], error: null },
+      ],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-partial-1",
+      code: "CODE-1",
+    });
+    (sendApprovalEmail as any).mockResolvedValue(undefined);
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/reservations/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "res-ticket-partial-1", status: "approved" }),
+      }) as any,
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
+
+    const unitsInsertCall = calls.find(
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "insert",
+    );
+    expect(unitsInsertCall?.payload).toEqual([
+      expect.objectContaining({
+        reservation_id: "res-ticket-partial-1",
+        package_index: 1,
+        person_index: 1,
+        unit_index: 1,
+      }),
+    ]);
+  });
+
   it("aprueba una reserva de mesa usando la cantidad snapshot y no el ticket_count actual de la mesa", async () => {
     process.env.RESEND_API_KEY = "test-resend-key";
     const { supabase } = createSupabaseMock({

@@ -10,7 +10,10 @@ vi.mock(
     const actual = await vi.importActual<
       typeof import("../../../../../../backoffice/app/api/reservations/utils")
     >("../../../../../../backoffice/app/api/reservations/utils");
-    return actual;
+    return {
+      ...actual,
+      createTicketForReservation: vi.fn(),
+    };
   },
 );
 vi.mock(
@@ -21,6 +24,9 @@ vi.mock(
 );
 
 const { createClient } = await import("@supabase/supabase-js");
+const { createTicketForReservation } = await import(
+  "../../../../../../backoffice/app/api/reservations/utils"
+);
 const { sendTicketEmail } = await import(
   "../../../../../../backoffice/app/api/reservations/email"
 );
@@ -205,6 +211,150 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
       "unit-1",
       "unit-2",
     ]);
+  });
+
+  it("autorrepara la unidad 1 cuando una reserva ticket-only aprobada quedó sin QR emitido", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": [
+        {
+          data: {
+            id: "res-ticket-repair-1",
+            event_id: "event-1",
+            sale_origin: "ticket",
+            status: "approved",
+            full_name: "Blanca Mejia Hoyos",
+            email: "blanca@test.com",
+            phone: "999999999",
+            doc_type: "dni",
+            document: "12345678",
+            ticket_quantity: 1,
+            package_quantity: 1,
+            total_ticket_units: 1,
+            codes: ["BUYER-CODE"],
+            ticket_type_label: "Entrada",
+            promoter_id: null,
+            event: {
+              name: "Baby Pride 2026",
+              starts_at: "2026-06-26T21:00:00.000Z",
+              location: "Mr Juerga",
+              event_prefix: "BABY",
+            },
+          },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.select": [
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-repair-1",
+              event_id: "event-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-repair-1",
+              event_id: "event-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "pending_nomination",
+              full_name: null,
+              doc_type: null,
+              document: null,
+              email: null,
+              phone: null,
+              ticket_id: null,
+            },
+          ],
+          error: null,
+        },
+        {
+          data: [
+            {
+              id: "unit-1",
+              reservation_id: "res-ticket-repair-1",
+              event_id: "event-1",
+              unit_index: 1,
+              package_index: 1,
+              person_index: 1,
+              status: "issued",
+              full_name: "Blanca Mejia Hoyos",
+              doc_type: "dni",
+              document: "12345678",
+              email: "blanca@test.com",
+              phone: "999999999",
+              ticket_id: "ticket-buyer-1",
+            },
+          ],
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "codes.select": [
+        {
+          data: [{ id: "code-1", code: "BUYER-CODE", person_index: 1 }],
+          error: null,
+        },
+      ],
+    });
+    (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-buyer-1",
+      code: "BUYER-CODE",
+    });
+
+    const { GET } = await import("./route");
+    const req = new Request(
+      "http://localhost/api/ticket-reservations/res-ticket-repair-1/units",
+      { method: "GET" },
+    );
+
+    const res = await GET(req as any, {
+      params: Promise.resolve({ id: "res-ticket-repair-1" }),
+    });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
+    expect(payload.units).toEqual([
+      expect.objectContaining({
+        id: "unit-1",
+        status: "issued",
+        ticket_id: "ticket-buyer-1",
+        claim_code: "BUYER-CODE",
+      }),
+    ]);
+
+    const unitUpdate = calls.find(
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "update",
+    );
+    expect(unitUpdate?.payload).toMatchObject({
+      status: "issued",
+      ticket_id: "ticket-buyer-1",
+      full_name: "Blanca Mejia Hoyos",
+      email: "blanca@test.com",
+      phone: "999999999",
+      doc_type: "dni",
+      document: "12345678",
+    });
   });
 
   it("expone claim_code y claim_url por unidad y completa faltantes de forma idempotente", async () => {

@@ -86,24 +86,36 @@ export async function ensureTicketOnlyBuyerIssued({
   let units: TicketOnlyUnit[] = Array.isArray(unitRows) ? unitRows : [];
   let unitsPrepared = false;
 
-  if (units.length === 0 && eventId) {
-    const { error: insertUnitsError } = await supabase
-      .from("ticket_reservation_units")
-      .insert(
-        buildReservationUnits({
-          reservationId,
-          eventId,
-          packageQuantity: 1,
-          unitsPerPackage: ticketQuantity,
-        }),
-      );
-    if (insertUnitsError) {
-      throw new Error(
-        insertUnitsError.message || "No se pudieron preparar las unidades",
-      );
-    }
-    unitsPrepared = true;
+  if (eventId) {
+    const expectedUnits = buildReservationUnits({
+      reservationId,
+      eventId,
+      packageQuantity: 1,
+      unitsPerPackage: ticketQuantity,
+    });
+    const existingUnitIndexes = new Set(
+      units
+        .map((unit) => Number(unit.unit_index || 0))
+        .filter((unitIndex) => unitIndex > 0),
+    );
+    const missingUnits = expectedUnits.filter(
+      (unit) => !existingUnitIndexes.has(unit.unit_index),
+    );
 
+    if (missingUnits.length > 0) {
+      const { error: insertUnitsError } = await supabase
+        .from("ticket_reservation_units")
+        .insert(missingUnits);
+      if (insertUnitsError) {
+        throw new Error(
+          insertUnitsError.message || "No se pudieron preparar las unidades",
+        );
+      }
+      unitsPrepared = true;
+    }
+  }
+
+  if (unitsPrepared) {
     const reloaded = await applyNotDeleted(
       supabase
         .from("ticket_reservation_units")
@@ -123,7 +135,9 @@ export async function ensureTicketOnlyBuyerIssued({
 
   const buyerUnit = units.find((unit) => Number(unit.unit_index || 0) === 1);
   if (!buyerUnit) {
-    return { units, unitsPrepared, buyerCode: null };
+    throw new Error(
+      "No se pudo preparar la unidad principal del comprador para esta reserva.",
+    );
   }
 
   if (buyerUnit.ticket_id && String(buyerUnit.ticket_id).trim()) {

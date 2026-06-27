@@ -12,15 +12,22 @@ import {
   buildEventTicketIdentityKeys,
   findActiveEventTicketConflict,
 } from "shared/eventTicketIdentity";
+import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
+import { ensureTicketOnlyBuyerIssued } from "../../../../../../backoffice/app/api/reservations/ticketOnlyFlow";
 import { ensureReservationUnitClaimCodes } from "../../lib/reservationUnitCodes";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACTIVE_TICKET_RESERVATION_STATUSES = new Set([
+  "approved",
+  "confirmed",
+  "paid",
+]);
 
 const RESERVATION_SELECT =
-  "id,event_id,promoter_id,sale_origin,status,ticket_type_label,package_quantity,total_ticket_units,codes,full_name,email,phone,doc_type,document,event:events(name,starts_at,location,event_prefix)";
+  "id,event_id,promoter_id,sale_origin,status,ticket_quantity,ticket_type_label,package_quantity,total_ticket_units,codes,full_name,email,phone,doc_type,document,event:events(name,starts_at,location,event_prefix)";
 const UNIT_SELECT =
   "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id,nominated_at,issued_at,used_at,cancelled_at";
 
@@ -153,6 +160,25 @@ function buildDuplicateIdentityError(
   return `No puedes nominar a la misma persona dos veces dentro de esta reserva. Revisa ${previousLabel} y ${currentLabel}.`;
 }
 
+function shouldRepairBuyerQr(reservation: any, units: any[]) {
+  const saleOrigin = String(reservation?.sale_origin || "")
+    .trim()
+    .toLowerCase();
+  const status = String(reservation?.status || "")
+    .trim()
+    .toLowerCase();
+  if (
+    saleOrigin !== "ticket" ||
+    !ACTIVE_TICKET_RESERVATION_STATUSES.has(status)
+  ) {
+    return false;
+  }
+
+  const buyerUnit =
+    units.find((unit) => Number(unit?.unit_index || 0) === 1) || null;
+  return !buyerUnit || !String(buyerUnit.ticket_id || "").trim();
+}
+
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -171,12 +197,42 @@ export async function GET(
   const units = await loadUnits(supabase, id);
   if (units.error) return jsonError(units.error.message, 500);
 
+  let currentUnits = units.data;
+  if (shouldRepairBuyerQr(reservation.data, currentUnits)) {
+    try {
+      const repaired = await ensureTicketOnlyBuyerIssued({
+        supabase,
+        reservation: reservation.data as any,
+        reservationId: id,
+        eventId: String((reservation.data as any)?.event_id || "").trim() || null,
+        ticketQuantity: resolveReservationTicketQuantity({
+          totalTicketUnits: (reservation.data as any)?.total_ticket_units,
+          ticketQuantity: (reservation.data as any)?.ticket_quantity,
+          codesCount: Array.isArray((reservation.data as any)?.codes)
+            ? (reservation.data as any).codes.length
+            : 0,
+          minimum: 1,
+        }),
+        tableName:
+          String((reservation.data as any)?.ticket_type_label || "").trim() ||
+          "Entrada",
+        codeType: "courtesy",
+        reusableCodes: Array.isArray((reservation.data as any)?.codes)
+          ? (reservation.data as any).codes
+          : [],
+      });
+      currentUnits = repaired.units;
+    } catch (_err) {
+      currentUnits = units.data;
+    }
+  }
+
   let unitsWithClaimCodes;
   try {
     unitsWithClaimCodes = await ensureReservationUnitClaimCodes({
       supabase,
       reservation: reservation.data as any,
-      units: units.data,
+      units: currentUnits,
       requestUrl: req.url,
     });
   } catch (err: any) {
