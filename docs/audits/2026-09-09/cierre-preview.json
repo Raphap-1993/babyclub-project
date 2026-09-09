@@ -1,0 +1,1739 @@
+[
+  {
+    "version": 1,
+    "event": {
+      "id": "c642e964-3235-44a8-a1fd-d857619a7907",
+      "name": "CHANNEL X | BABY RAVE",
+      "starts_at": "2026-09-20T03:00:00+00:00",
+      "closed_at": null
+    },
+    "generatedAt": "2026-09-09T16:27:29.197Z",
+    "attendance": {
+      "confirmed": 0,
+      "codeOnly": 0,
+      "firstAt": null,
+      "lastAt": null,
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 0
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 0
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 0
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 0
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 0,
+      "attended": 0,
+      "withoutAdmission": 0,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 0
+    },
+    "sales": {
+      "approvedTicketReservations": 1,
+      "declaredTicketAmountCents": 2500,
+      "approvedWithoutAmount": 0,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 0,
+      "distinctTables": 0,
+      "admittedGuests": 0
+    },
+    "promoters": [],
+    "quality": {
+      "archivedReservationsIncluded": 0,
+      "excludedDeletedReservations": 0,
+      "unclassifiedAdmissions": 0,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "b2ca4921-4634-4bdc-a6a9-1772eb988557",
+      "name": "THE BABY GALA",
+      "starts_at": "2026-08-30T03:00:00+00:00",
+      "closed_at": "2026-09-01T18:03:36.648+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:30.890Z",
+    "attendance": {
+      "confirmed": 108,
+      "codeOnly": 0,
+      "firstAt": "2026-08-30T03:43:52.659947+00:00",
+      "lastAt": "2026-08-30T06:31:49.769706+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 25
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 2
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 39
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 42
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 55,
+      "attended": 39,
+      "withoutAdmission": 16,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 0
+    },
+    "sales": {
+      "approvedTicketReservations": 31,
+      "declaredTicketAmountCents": 75500,
+      "approvedWithoutAmount": 0,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 2,
+      "distinctTables": 2,
+      "admittedGuests": 2
+    },
+    "promoters": [
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 34,
+        "purchase": 19,
+        "table": 2,
+        "courtesy": 13,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 2",
+        "confirmed": 17,
+        "purchase": 1,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 11,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 3",
+        "confirmed": 12,
+        "purchase": 2,
+        "table": 0,
+        "courtesy": 3,
+        "free": 0,
+        "unclassified": 7,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 4",
+        "confirmed": 12,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 7,
+        "unknown": 0
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 5",
+        "confirmed": 10,
+        "purchase": 3,
+        "table": 0,
+        "courtesy": 4,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 6",
+        "confirmed": 9,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 7,
+        "unknown": 0
+      },
+      {
+        "id": "2a8bc84e-d287-495d-8fd2-c129d7090b66",
+        "name": "Promotor 7",
+        "confirmed": 7,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 8",
+        "confirmed": 7,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 5,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 37,
+      "excludedDeletedReservations": 0,
+      "unclassifiedAdmissions": 42,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "2face761-1c8c-4686-bcd3-e2a0738b9de3",
+      "name": "MANIFIESTO28: La Revelación",
+      "starts_at": "2026-07-29T03:00:00+00:00",
+      "closed_at": "2026-08-08T02:11:43.545+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:32.384Z",
+    "attendance": {
+      "confirmed": 123,
+      "codeOnly": 2,
+      "firstAt": "2026-07-29T03:30:55.820726+00:00",
+      "lastAt": "2026-07-29T07:23:06.13962+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 20
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 8
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 42
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 53
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 61,
+      "attended": 41,
+      "withoutAdmission": 20,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 1
+    },
+    "sales": {
+      "approvedTicketReservations": 15,
+      "declaredTicketAmountCents": 50500,
+      "approvedWithoutAmount": 0,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 3,
+      "distinctTables": 3,
+      "admittedGuests": 8
+    },
+    "promoters": [
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 49,
+        "purchase": 19,
+        "table": 8,
+        "courtesy": 22,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 2",
+        "confirmed": 22,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 7,
+        "free": 0,
+        "unclassified": 15,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 3",
+        "confirmed": 11,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 4,
+        "free": 0,
+        "unclassified": 7,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 4",
+        "confirmed": 10,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 9,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 5",
+        "confirmed": 9,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 8,
+        "unknown": 0
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 6",
+        "confirmed": 9,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 7,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 7",
+        "confirmed": 6,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 6,
+        "unknown": 0
+      },
+      {
+        "id": "3eb37c4c-c1e9-42ed-883e-fbcde857b224",
+        "name": "Promotor 8",
+        "confirmed": 3,
+        "purchase": 1,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "1faef173-13a6-4e86-a278-a960aa0c5c55",
+        "name": "Promotor 9",
+        "confirmed": 3,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "003936e8-faf0-4163-a2e6-3a9c838a0f6f",
+        "name": "Promotor 10",
+        "confirmed": 1,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 20,
+      "excludedDeletedReservations": 0,
+      "unclassifiedAdmissions": 53,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "477ed77e-ccfb-45e8-8bf2-a66caa266b73",
+      "name": "BABY PRIDE 2026",
+      "starts_at": "2026-06-27T02:00:00+00:00",
+      "closed_at": "2026-07-10T00:48:40.406+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:34.292Z",
+    "attendance": {
+      "confirmed": 215,
+      "codeOnly": 0,
+      "firstAt": "2026-06-27T03:58:08.533888+00:00",
+      "lastAt": "2026-06-27T07:54:06.536097+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 42
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 28
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 48
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 97
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 76,
+      "attended": 48,
+      "withoutAdmission": 28,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 0
+    },
+    "sales": {
+      "approvedTicketReservations": 37,
+      "declaredTicketAmountCents": 124000,
+      "approvedWithoutAmount": 0,
+      "confirmedPaymentCount": 4,
+      "confirmedPaymentAmountCents": 11000,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 5,
+      "distinctTables": 5,
+      "admittedGuests": 28
+    },
+    "promoters": [
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 67,
+        "purchase": 31,
+        "table": 19,
+        "courtesy": 17,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 2",
+        "confirmed": 53,
+        "purchase": 2,
+        "table": 9,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 41,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 3",
+        "confirmed": 29,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 13,
+        "free": 0,
+        "unclassified": 16,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 4",
+        "confirmed": 13,
+        "purchase": 1,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 7,
+        "unknown": 0
+      },
+      {
+        "id": "3eb37c4c-c1e9-42ed-883e-fbcde857b224",
+        "name": "Promotor 5",
+        "confirmed": 12,
+        "purchase": 6,
+        "table": 0,
+        "courtesy": 4,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 6",
+        "confirmed": 10,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 5,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 7",
+        "confirmed": 9,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 8,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 8",
+        "confirmed": 7,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 7,
+        "unknown": 0
+      },
+      {
+        "id": "1faef173-13a6-4e86-a278-a960aa0c5c55",
+        "name": "Promotor 9",
+        "confirmed": 6,
+        "purchase": 1,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "003936e8-faf0-4163-a2e6-3a9c838a0f6f",
+        "name": "Promotor 10",
+        "confirmed": 3,
+        "purchase": 1,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "2a8bc84e-d287-495d-8fd2-c129d7090b66",
+        "name": "Promotor 11",
+        "confirmed": 3,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "c6f32c5c-bfa9-4dc4-b32b-f56e312d2198",
+        "name": "Promotor 12",
+        "confirmed": 3,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 56,
+      "excludedDeletedReservations": 10,
+      "unclassifiedAdmissions": 97,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "90c84915-3b1a-402c-b5c3-781b50cdfbdd",
+      "name": "BABY RAVE | ABYSS",
+      "starts_at": "2026-05-31T03:00:00+00:00",
+      "closed_at": "2026-05-31T21:46:22.699+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:35.963Z",
+    "attendance": {
+      "confirmed": 113,
+      "codeOnly": 0,
+      "firstAt": "2026-05-31T03:36:22.546437+00:00",
+      "lastAt": "2026-05-31T07:07:26.016042+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 32
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 4
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 38
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 39
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 53,
+      "attended": 38,
+      "withoutAdmission": 15,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 0
+    },
+    "sales": {
+      "approvedTicketReservations": 41,
+      "declaredTicketAmountCents": 112500,
+      "approvedWithoutAmount": 0,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 5,
+      "distinctTables": 5,
+      "admittedGuests": 4
+    },
+    "promoters": [
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 39,
+        "purchase": 28,
+        "table": 3,
+        "courtesy": 8,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 2",
+        "confirmed": 18,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 6,
+        "free": 0,
+        "unclassified": 12,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 3",
+        "confirmed": 17,
+        "purchase": 1,
+        "table": 1,
+        "courtesy": 4,
+        "free": 0,
+        "unclassified": 11,
+        "unknown": 0
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 4",
+        "confirmed": 11,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 8,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 5",
+        "confirmed": 8,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 6,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 6",
+        "confirmed": 6,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 3,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 7",
+        "confirmed": 6,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 3,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "1e154de6-e22b-4a20-9072-922919602069",
+        "name": "Promotor 8",
+        "confirmed": 4,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 4,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "003936e8-faf0-4163-a2e6-3a9c838a0f6f",
+        "name": "Promotor 9",
+        "confirmed": 2,
+        "purchase": 2,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "2a8bc84e-d287-495d-8fd2-c129d7090b66",
+        "name": "Promotor 10",
+        "confirmed": 2,
+        "purchase": 1,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 47,
+      "excludedDeletedReservations": 15,
+      "unclassifiedAdmissions": 39,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "f9009c4d-47a8-4517-9eb5-f00f31d92271",
+      "name": "DISCO ANIVERSARIO",
+      "starts_at": "2026-05-02T03:00:00+00:00",
+      "closed_at": "2026-05-12T16:30:28.181+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:37.389Z",
+    "attendance": {
+      "confirmed": 171,
+      "codeOnly": 0,
+      "firstAt": "2026-05-02T03:42:48.476827+00:00",
+      "lastAt": "2026-05-02T08:22:02.280696+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 70
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 35
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 21
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 45
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 32,
+      "attended": 21,
+      "withoutAdmission": 11,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 0
+    },
+    "sales": {
+      "approvedTicketReservations": 98,
+      "declaredTicketAmountCents": 255000,
+      "approvedWithoutAmount": 24,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 19,
+      "distinctTables": 19,
+      "admittedGuests": 35
+    },
+    "promoters": [
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 73,
+        "purchase": 47,
+        "table": 26,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 2",
+        "confirmed": 23,
+        "purchase": 8,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 15,
+        "unknown": 0
+      },
+      {
+        "id": "1e154de6-e22b-4a20-9072-922919602069",
+        "name": "Promotor 3",
+        "confirmed": 15,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 13,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 4",
+        "confirmed": 12,
+        "purchase": 0,
+        "table": 9,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 5",
+        "confirmed": 8,
+        "purchase": 4,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 6",
+        "confirmed": 6,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 4,
+        "unknown": 0
+      },
+      {
+        "id": "1faef173-13a6-4e86-a278-a960aa0c5c55",
+        "name": "Promotor 7",
+        "confirmed": 6,
+        "purchase": 4,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 8",
+        "confirmed": 5,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 5,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 9",
+        "confirmed": 5,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "2a8bc84e-d287-495d-8fd2-c129d7090b66",
+        "name": "Promotor 10",
+        "confirmed": 5,
+        "purchase": 2,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "84197a92-5607-4a32-9c9d-2a86ecf38a40",
+        "name": "Promotor 11",
+        "confirmed": 3,
+        "purchase": 2,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "3eb37c4c-c1e9-42ed-883e-fbcde857b224",
+        "name": "Promotor 12",
+        "confirmed": 3,
+        "purchase": 2,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "7608e619-c698-4cbe-bf7f-b7fe6a9a585b",
+        "name": "Promotor 13",
+        "confirmed": 2,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "d730a416-7fd3-4cc1-82b3-82c102216dca",
+        "name": "Promotor 14",
+        "confirmed": 2,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "9fdbcb04-22b5-451c-9fc6-6caec5e75a30",
+        "name": "Promotor 15",
+        "confirmed": 1,
+        "purchase": 1,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "2c2555a1-374a-4721-8c07-7de829742742",
+        "name": "Promotor 16",
+        "confirmed": 1,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "c6f32c5c-bfa9-4dc4-b32b-f56e312d2198",
+        "name": "Promotor 17",
+        "confirmed": 1,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 125,
+      "excludedDeletedReservations": 15,
+      "unclassifiedAdmissions": 45,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "95864940-3967-4d07-af5a-c7f1fa771c09",
+      "name": "HOT&SEXY",
+      "starts_at": "2026-03-29T03:00:00+00:00",
+      "closed_at": "2026-04-10T18:28:19.302+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:38.930Z",
+    "attendance": {
+      "confirmed": 125,
+      "codeOnly": 0,
+      "firstAt": "2026-03-17T02:16:51.188641+00:00",
+      "lastAt": "2026-03-29T07:57:23.455387+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 35
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 13
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 57
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 19
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 1
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 92,
+      "attended": 57,
+      "withoutAdmission": 35,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 0
+    },
+    "sales": {
+      "approvedTicketReservations": 24,
+      "declaredTicketAmountCents": 0,
+      "approvedWithoutAmount": 24,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 5,
+      "distinctTables": 5,
+      "admittedGuests": 13
+    },
+    "promoters": [
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 41,
+        "purchase": 32,
+        "table": 8,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 1
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 2",
+        "confirmed": 23,
+        "purchase": 1,
+        "table": 5,
+        "courtesy": 15,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "1e154de6-e22b-4a20-9072-922919602069",
+        "name": "Promotor 3",
+        "confirmed": 21,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 21,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 4",
+        "confirmed": 8,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 5",
+        "confirmed": 8,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 6",
+        "confirmed": 8,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 6,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 7",
+        "confirmed": 7,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "2a8bc84e-d287-495d-8fd2-c129d7090b66",
+        "name": "Promotor 8",
+        "confirmed": 6,
+        "purchase": 2,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 9",
+        "confirmed": 3,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 39,
+      "excludedDeletedReservations": 15,
+      "unclassifiedAdmissions": 20,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "ae023aee-5754-4d1b-a2f5-d5d3603bbfcc",
+      "name": "LOVE IS A DRUG",
+      "starts_at": "2026-03-01T03:00:00+00:00",
+      "closed_at": "2026-03-10T03:26:27.928+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:40.193Z",
+    "attendance": {
+      "confirmed": 130,
+      "codeOnly": 0,
+      "firstAt": "2026-03-01T03:55:14.638462+00:00",
+      "lastAt": "2026-03-01T07:24:03.670187+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 40
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 19
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 45
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 26
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 65,
+      "attended": 45,
+      "withoutAdmission": 20,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 0
+    },
+    "sales": {
+      "approvedTicketReservations": 39,
+      "declaredTicketAmountCents": 0,
+      "approvedWithoutAmount": 39,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 5,
+      "distinctTables": 5,
+      "admittedGuests": 19
+    },
+    "promoters": [
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 59,
+        "purchase": 40,
+        "table": 19,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "d672775b-6a96-46d7-8a14-d97f025401b9",
+        "name": "Promotor 2",
+        "confirmed": 36,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 20,
+        "free": 0,
+        "unclassified": 16,
+        "unknown": 0
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 3",
+        "confirmed": 9,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 9,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 4",
+        "confirmed": 8,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 5",
+        "confirmed": 7,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 6,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 6",
+        "confirmed": 3,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 7",
+        "confirmed": 3,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      },
+      {
+        "id": "2a8bc84e-d287-495d-8fd2-c129d7090b66",
+        "name": "Promotor 8",
+        "confirmed": 3,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 3,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 9",
+        "confirmed": 2,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 2,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 62,
+      "excludedDeletedReservations": 1,
+      "unclassifiedAdmissions": 26,
+      "repeatedConfirmations": 0
+    }
+  },
+  {
+    "version": 1,
+    "event": {
+      "id": "e1ac16e5-32ae-484d-9bad-89c8cac680ca",
+      "name": "LAST DANCE",
+      "starts_at": "2025-12-21T03:00:00+00:00",
+      "closed_at": "2026-02-08T22:27:56.403+00:00"
+    },
+    "generatedAt": "2026-09-09T16:27:41.529Z",
+    "attendance": {
+      "confirmed": 98,
+      "codeOnly": 16,
+      "firstAt": "2025-12-20T04:43:21.040619+00:00",
+      "lastAt": "2025-12-21T07:20:04.948498+00:00",
+      "categories": [
+        {
+          "key": "purchase",
+          "label": "Con compra registrada",
+          "description": "Compra aprobada o pago confirmado asociado al acceso.",
+          "count": 0
+        },
+        {
+          "key": "table",
+          "label": "Invitados de mesa",
+          "description": "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+          "count": 0
+        },
+        {
+          "key": "courtesy",
+          "label": "Cortesías / invitaciones",
+          "description": "QR de cortesía sin una compra asociada.",
+          "count": 52
+        },
+        {
+          "key": "free",
+          "label": "Free explícito",
+          "description": "Accesos registrados expresamente como gratuitos.",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "label": "General por clasificar",
+          "description": "El QR general no indica si hubo gratuidad o cobro en puerta.",
+          "count": 46
+        },
+        {
+          "key": "unknown",
+          "label": "Otros por revisar",
+          "description": "Falta evidencia suficiente para clasificar el acceso.",
+          "count": 0
+        }
+      ]
+    },
+    "invitations": {
+      "issued": 80,
+      "attended": 36,
+      "withoutAdmission": 44,
+      "usageWithoutScan": 0,
+      "codeOnlyAdmissions": 16
+    },
+    "sales": {
+      "approvedTicketReservations": 5,
+      "declaredTicketAmountCents": 0,
+      "approvedWithoutAmount": 5,
+      "confirmedPaymentCount": 0,
+      "confirmedPaymentAmountCents": 0,
+      "paymentsWithoutAmount": 0,
+      "otherCurrencyPayments": 0,
+      "refundedPaymentCount": 0,
+      "refundedPaymentAmountCents": 0,
+      "doorAmountCents": null,
+      "tableConsumptionCents": null,
+      "profitCents": null
+    },
+    "tables": {
+      "approvedReservations": 3,
+      "distinctTables": 3,
+      "admittedGuests": 0
+    },
+    "promoters": [
+      {
+        "id": "d672775b-6a96-46d7-8a14-d97f025401b9",
+        "name": "Promotor 1",
+        "confirmed": 37,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 18,
+        "free": 0,
+        "unclassified": 19,
+        "unknown": 0
+      },
+      {
+        "id": "e144046d-7a82-4054-8c2e-89bf6690d0ed",
+        "name": "Promotor 2",
+        "confirmed": 16,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 4,
+        "free": 0,
+        "unclassified": 12,
+        "unknown": 0
+      },
+      {
+        "id": "unassigned",
+        "name": "Sin promotor asignado",
+        "confirmed": 15,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 15,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "5dec5182-f0f1-4b03-bf4d-56dc0d7591b9",
+        "name": "Promotor 4",
+        "confirmed": 9,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 5,
+        "free": 0,
+        "unclassified": 4,
+        "unknown": 0
+      },
+      {
+        "id": "572be072-7f08-4caa-8bf5-d95d4a9e995d",
+        "name": "Promotor 5",
+        "confirmed": 7,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 2,
+        "free": 0,
+        "unclassified": 5,
+        "unknown": 0
+      },
+      {
+        "id": "6dda6fe8-13d4-4887-a218-758fcc166a18",
+        "name": "Promotor 6",
+        "confirmed": 4,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 3,
+        "unknown": 0
+      },
+      {
+        "id": "14c82952-2644-4943-8f61-c7f56740f5d0",
+        "name": "Promotor 7",
+        "confirmed": 4,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 4,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      },
+      {
+        "id": "8c632616-8979-4fb9-afcf-82eba3ca5b1a",
+        "name": "Promotor 8",
+        "confirmed": 2,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "4a6d8e99-2e28-4f33-bebb-9f3a2adf78d1",
+        "name": "Promotor 9",
+        "confirmed": 2,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "f8b09cd7-231b-4747-84a2-130e0067798b",
+        "name": "Promotor 10",
+        "confirmed": 1,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 0,
+        "free": 0,
+        "unclassified": 1,
+        "unknown": 0
+      },
+      {
+        "id": "2685c199-8919-45b9-9cca-d6db0c45f97d",
+        "name": "Promotor 11",
+        "confirmed": 1,
+        "purchase": 0,
+        "table": 0,
+        "courtesy": 1,
+        "free": 0,
+        "unclassified": 0,
+        "unknown": 0
+      }
+    ],
+    "quality": {
+      "archivedReservationsIncluded": 9,
+      "excludedDeletedReservations": 0,
+      "unclassifiedAdmissions": 46,
+      "repeatedConfirmations": 0
+    }
+  }
+]

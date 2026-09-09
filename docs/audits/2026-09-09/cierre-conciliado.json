@@ -1,0 +1,572 @@
+{
+  "mode": "GET-only production data, new read-only loader, no writes; aggregates only",
+  "events": [
+    {
+      "event": "CHANNEL X | BABY RAVE",
+      "confirmed": 0,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 0
+        },
+        {
+          "key": "table",
+          "count": 0
+        },
+        {
+          "key": "courtesy",
+          "count": 0
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 0
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 1,
+        "declaredTicketAmountCents": 2500,
+        "approvedWithoutAmount": 0,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 0,
+        "distinctTables": 0,
+        "admittedGuests": 0
+      },
+      "invitations": {
+        "issued": 0,
+        "attended": 0,
+        "withoutAdmission": 0,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 0
+      },
+      "quality": {
+        "archivedReservationsIncluded": 0,
+        "excludedDeletedReservations": 0,
+        "unclassifiedAdmissions": 0,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:29.197Z"
+    },
+    {
+      "event": "THE BABY GALA",
+      "confirmed": 108,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 25
+        },
+        {
+          "key": "table",
+          "count": 2
+        },
+        {
+          "key": "courtesy",
+          "count": 39
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 42
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 31,
+        "declaredTicketAmountCents": 75500,
+        "approvedWithoutAmount": 0,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 2,
+        "distinctTables": 2,
+        "admittedGuests": 2
+      },
+      "invitations": {
+        "issued": 55,
+        "attended": 39,
+        "withoutAdmission": 16,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 0
+      },
+      "quality": {
+        "archivedReservationsIncluded": 37,
+        "excludedDeletedReservations": 0,
+        "unclassifiedAdmissions": 42,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:30.890Z"
+    },
+    {
+      "event": "MANIFIESTO28: La Revelación",
+      "confirmed": 123,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 20
+        },
+        {
+          "key": "table",
+          "count": 8
+        },
+        {
+          "key": "courtesy",
+          "count": 42
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 53
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 15,
+        "declaredTicketAmountCents": 50500,
+        "approvedWithoutAmount": 0,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 3,
+        "distinctTables": 3,
+        "admittedGuests": 8
+      },
+      "invitations": {
+        "issued": 61,
+        "attended": 41,
+        "withoutAdmission": 20,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 1
+      },
+      "quality": {
+        "archivedReservationsIncluded": 20,
+        "excludedDeletedReservations": 0,
+        "unclassifiedAdmissions": 53,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:32.384Z"
+    },
+    {
+      "event": "BABY PRIDE 2026",
+      "confirmed": 215,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 42
+        },
+        {
+          "key": "table",
+          "count": 28
+        },
+        {
+          "key": "courtesy",
+          "count": 48
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 97
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 37,
+        "declaredTicketAmountCents": 124000,
+        "approvedWithoutAmount": 0,
+        "confirmedPaymentCount": 4,
+        "confirmedPaymentAmountCents": 11000,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 5,
+        "distinctTables": 5,
+        "admittedGuests": 28
+      },
+      "invitations": {
+        "issued": 76,
+        "attended": 48,
+        "withoutAdmission": 28,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 0
+      },
+      "quality": {
+        "archivedReservationsIncluded": 56,
+        "excludedDeletedReservations": 10,
+        "unclassifiedAdmissions": 97,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:34.292Z"
+    },
+    {
+      "event": "BABY RAVE | ABYSS",
+      "confirmed": 113,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 32
+        },
+        {
+          "key": "table",
+          "count": 4
+        },
+        {
+          "key": "courtesy",
+          "count": 38
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 39
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 41,
+        "declaredTicketAmountCents": 112500,
+        "approvedWithoutAmount": 0,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 5,
+        "distinctTables": 5,
+        "admittedGuests": 4
+      },
+      "invitations": {
+        "issued": 53,
+        "attended": 38,
+        "withoutAdmission": 15,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 0
+      },
+      "quality": {
+        "archivedReservationsIncluded": 47,
+        "excludedDeletedReservations": 15,
+        "unclassifiedAdmissions": 39,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:35.963Z"
+    },
+    {
+      "event": "DISCO ANIVERSARIO",
+      "confirmed": 171,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 70
+        },
+        {
+          "key": "table",
+          "count": 35
+        },
+        {
+          "key": "courtesy",
+          "count": 21
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 45
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 98,
+        "declaredTicketAmountCents": 255000,
+        "approvedWithoutAmount": 24,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 19,
+        "distinctTables": 19,
+        "admittedGuests": 35
+      },
+      "invitations": {
+        "issued": 32,
+        "attended": 21,
+        "withoutAdmission": 11,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 0
+      },
+      "quality": {
+        "archivedReservationsIncluded": 125,
+        "excludedDeletedReservations": 15,
+        "unclassifiedAdmissions": 45,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:37.389Z"
+    },
+    {
+      "event": "HOT&SEXY",
+      "confirmed": 125,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 35
+        },
+        {
+          "key": "table",
+          "count": 13
+        },
+        {
+          "key": "courtesy",
+          "count": 57
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 19
+        },
+        {
+          "key": "unknown",
+          "count": 1
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 24,
+        "declaredTicketAmountCents": 0,
+        "approvedWithoutAmount": 24,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 5,
+        "distinctTables": 5,
+        "admittedGuests": 13
+      },
+      "invitations": {
+        "issued": 92,
+        "attended": 57,
+        "withoutAdmission": 35,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 0
+      },
+      "quality": {
+        "archivedReservationsIncluded": 39,
+        "excludedDeletedReservations": 15,
+        "unclassifiedAdmissions": 20,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:38.930Z"
+    },
+    {
+      "event": "LOVE IS A DRUG",
+      "confirmed": 130,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 40
+        },
+        {
+          "key": "table",
+          "count": 19
+        },
+        {
+          "key": "courtesy",
+          "count": 45
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 26
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 39,
+        "declaredTicketAmountCents": 0,
+        "approvedWithoutAmount": 39,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 5,
+        "distinctTables": 5,
+        "admittedGuests": 19
+      },
+      "invitations": {
+        "issued": 65,
+        "attended": 45,
+        "withoutAdmission": 20,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 0
+      },
+      "quality": {
+        "archivedReservationsIncluded": 62,
+        "excludedDeletedReservations": 1,
+        "unclassifiedAdmissions": 26,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:40.193Z"
+    },
+    {
+      "event": "LAST DANCE",
+      "confirmed": 98,
+      "categories": [
+        {
+          "key": "purchase",
+          "count": 0
+        },
+        {
+          "key": "table",
+          "count": 0
+        },
+        {
+          "key": "courtesy",
+          "count": 52
+        },
+        {
+          "key": "free",
+          "count": 0
+        },
+        {
+          "key": "unclassified",
+          "count": 46
+        },
+        {
+          "key": "unknown",
+          "count": 0
+        }
+      ],
+      "sales": {
+        "approvedTicketReservations": 5,
+        "declaredTicketAmountCents": 0,
+        "approvedWithoutAmount": 5,
+        "confirmedPaymentCount": 0,
+        "confirmedPaymentAmountCents": 0,
+        "paymentsWithoutAmount": 0,
+        "otherCurrencyPayments": 0,
+        "refundedPaymentCount": 0,
+        "refundedPaymentAmountCents": 0,
+        "doorAmountCents": null,
+        "tableConsumptionCents": null,
+        "profitCents": null
+      },
+      "tables": {
+        "approvedReservations": 3,
+        "distinctTables": 3,
+        "admittedGuests": 0
+      },
+      "invitations": {
+        "issued": 80,
+        "attended": 36,
+        "withoutAdmission": 44,
+        "usageWithoutScan": 0,
+        "codeOnlyAdmissions": 16
+      },
+      "quality": {
+        "archivedReservationsIncluded": 9,
+        "excludedDeletedReservations": 0,
+        "unclassifiedAdmissions": 46,
+        "repeatedConfirmations": 0
+      },
+      "generatedAt": "2026-09-09T16:27:41.529Z"
+    }
+  ]
+}

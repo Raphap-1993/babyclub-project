@@ -1513,7 +1513,7 @@ export async function GET(req: NextRequest) {
           document: row.document,
           email: row.email,
           phone: row.phone,
-          asistio: "NO",
+          asistio: row.free_qr_attended === 0 ? "NO" : row.free_qr_no_show > 0 ? "PARCIAL" : "SÍ",
           free_qr_assigned: row.free_qr_assigned,
           free_qr_attended: row.free_qr_attended,
           free_qr_no_show: row.free_qr_no_show,
@@ -1714,7 +1714,7 @@ export async function GET(req: NextRequest) {
       supabase,
       {
         select:
-          "id,event_id,ticket_id,code_id,raw_value,result,code:codes(type,promoter_id),ticket:tickets(promoter_id)",
+          "id,event_id,ticket_id,code_id,raw_value,result,created_at,code:codes(type,promoter_id),ticket:tickets(promoter_id)",
         allowedEventIds,
         fromIso,
         toIso,

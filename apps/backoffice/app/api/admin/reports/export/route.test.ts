@@ -120,6 +120,7 @@ describe("GET /api/admin/reports/export", () => {
       (call) => call.table === "scan_logs" && call.op === "select",
     );
     expect(scanCalls.length).toBe(2);
+    expect(scanCalls[0].selectClause?.split(",")).toContain("created_at");
     expect(
       scanCalls[0]?.filters?.some(
         (f) => f.type === "is" && f.args[0] === "deleted_at",
@@ -620,6 +621,7 @@ describe("GET /api/admin/reports/export", () => {
     expect(payload.rows[1].free_qr_attended).toBe(1);
     expect(payload.rows[1].free_qr_no_show).toBe(1);
     expect(payload.rows[1].no_show_rate_percent).toBe(50);
+    expect(payload.rows[1].asistio).toBe("PARCIAL");
     expect(payload.rows[1].last_free_qr_event).toBe("NEON RITUAL");
     expect(payload.rows[1].last_free_qr_status).toBe("Asistió");
     expect(payload.rows[1].last_no_show_event).toBe("LOVE IS A DRUG");

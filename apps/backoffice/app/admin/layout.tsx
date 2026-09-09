@@ -143,7 +143,7 @@ const menuSections: NavSection[] = [
       },
       {
         id: "reports-events",
-        label: "Operación de eventos",
+        label: "Cierre de evento",
         href: "/admin/reportes/mesas",
         icon: ClipboardList,
         isActive: (pathname) =>

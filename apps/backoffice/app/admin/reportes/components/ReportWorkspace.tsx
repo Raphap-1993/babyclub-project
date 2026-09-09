@@ -256,10 +256,10 @@ export default function ReportWorkspace({
         0,
       );
     return {
-      asistentes: total("asistentes"),
+      asistentes: total("unique_admissions_confirmed"),
 
-      viaCortesia: total("via_cortesia"),
-      viaGeneral: total("via_general"),
+      viaCortesia: total("courtesy_qr_scans_confirmed"),
+      viaGeneral: total("general_qr_scans_confirmed"),
     };
   }, [report, rows]);
 

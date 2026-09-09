@@ -28,11 +28,11 @@ type ReportModuleCard = {
 
 const reportModules: ReportModuleCard[] = [
   {
-    title: "Operación de Eventos",
+    title: "Cierre de evento",
     description:
-      "Reporte operativo por evento con asistencia, ventas y control de no-show de QR free.",
+      "Concilia asistentes, compras, invitaciones y mesas. Identifica lo que falta para confirmar la recaudación.",
     href: "/admin/reportes/mesas",
-    cta: "Abrir reporte",
+    cta: "Revisar cierre",
     icon: BarChart3,
   },
   {
@@ -61,7 +61,7 @@ const reportModules: ReportModuleCard[] = [
   },
   {
     title: "Ingresos",
-    description: "Acceso directo al reporte comercial de ventas por evento.",
+    description: "Revisa importes de reservas y pagos confirmados sin duplicarlos.",
     href: "/admin/ingresos",
     cta: "Ir a ingresos",
     icon: ReceiptText,
@@ -73,8 +73,8 @@ export default function ReportesHubPage() {
     <AdminPage>
       <AdminHeader
         kicker="Reportes"
-        title="Módulo de Reportes"
-        description="Centraliza aquí los reportes operativos y comerciales del dashboard."
+        title="Reportes"
+        description="Empieza por el cierre de una fiesta o consulta un reporte especializado."
       />
 
       <section className="grid gap-3 md:grid-cols-2">
