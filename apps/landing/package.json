@@ -14,7 +14,7 @@
     "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.563.0",
-    "next": "16.0.7",
+    "next": "16.3.4",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-zoom-pan-pinch": "^3.7.0",

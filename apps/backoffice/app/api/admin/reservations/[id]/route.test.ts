@@ -83,6 +83,31 @@ describe("PATCH /api/admin/reservations/[id]", () => {
       context: { role: "admin", staffId: "staff-1" },
     });
 
+    const buyerUnit = {
+      id: "unit-1",
+      reservation_id: "res-ticket-1",
+      event_id: "event-1",
+      package_index: 1,
+      person_index: 1,
+      unit_index: 1,
+      status: "pending_nomination",
+      full_name: "Ana Perez",
+      doc_type: "dni",
+      document: "12345678",
+      email: "ana@example.com",
+      phone: "999999999",
+      ticket_id: null,
+    };
+    const guestUnit = {
+      ...buyerUnit,
+      id: "unit-2",
+      person_index: 2,
+      unit_index: 2,
+      full_name: null,
+      document: null,
+      email: null,
+      phone: null,
+    };
     const { supabase } = createSupabaseMock({
       "table_reservations.select": [
         {
@@ -114,13 +139,25 @@ describe("PATCH /api/admin/reservations/[id]", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.select": [{ data: [], error: null }],
+      "ticket_reservation_units.select": [
+        { data: [], error: null },
+        { data: [buyerUnit, guestUnit], error: null },
+        {
+          data: [{ ...buyerUnit, status: "issued", ticket_id: "ticket-1" }, guestUnit],
+          error: null,
+        },
+      ],
       "ticket_reservation_units.insert": [{ data: null, error: null }],
+      "ticket_reservation_units.update": [{ data: null, error: null }],
       "codes.select": [{ data: [], error: null }],
       "table_reservations.update": [{ data: null, error: null }],
     });
 
     (createClient as any).mockReturnValue(supabase);
+    (createTicketForReservation as any).mockResolvedValue({
+      ticketId: "ticket-1",
+      code: "BUYER-CODE",
+    });
     (sendApprovalEmail as any).mockResolvedValue({ data: { id: "email-1" }, error: null });
 
     const { PATCH } = await import("./route");
@@ -136,7 +173,11 @@ describe("PATCH /api/admin/reservations/[id]", () => {
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
     expect(payload.emailSent).toBe(true);
-    expect(createTicketForReservation).not.toHaveBeenCalled();
+    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
     expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
+    expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
+      ticketIds: ["ticket-1"],
+      codes: ["BUYER-CODE"],
+    });
   });
 });

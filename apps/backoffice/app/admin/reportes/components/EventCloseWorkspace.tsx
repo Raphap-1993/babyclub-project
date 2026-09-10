@@ -519,6 +519,8 @@ export default function EventCloseWorkspace({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -608,20 +610,53 @@ export default function EventCloseWorkspace({
   const visible = report?.event.id === eventId && !error ? report : null;
   const categoryCount = (key: string) =>
     visible?.attendance.categories.find((row) => row.key === key)?.count || 0;
-  const exportCsv = () => {
-    if (!visible) return;
-    const url = URL.createObjectURL(
-      new Blob([eventCloseCsv(visible)], { type: "text/csv;charset=utf-8;" }),
-    );
+  const download = (
+    blob: Blob,
+    snapshot: EventCloseReport,
+    extension: "csv" | "xlsx",
+  ) => {
+    const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `cierre-${visible.event.name.replace(/[^a-zA-Z0-9-]/g, "-")}-${visible.generatedAt.slice(0, 10)}.csv`;
+    anchor.download = `cierre-${snapshot.event.name.replace(/[^a-zA-Z0-9-]/g, "-")}-${snapshot.generatedAt.slice(0, 10)}.${extension}`;
     document.body.appendChild(anchor);
     anchor.click();
     window.setTimeout(() => {
       anchor.remove();
       URL.revokeObjectURL(url);
     }, 1000);
+  };
+  const exportCsv = () => {
+    if (!visible) return;
+    setExportError(null);
+    download(
+      new Blob([eventCloseCsv(visible)], { type: "text/csv;charset=utf-8;" }),
+      visible,
+      "csv",
+    );
+  };
+  const exportExcel = async () => {
+    if (!visible || exporting) return;
+    const snapshot = visible;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const { eventCloseExcel } = await import("@/lib/reports/eventCloseExcel");
+      const bytes = await eventCloseExcel(snapshot);
+      download(
+        new Blob([bytes.buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        snapshot,
+        "xlsx",
+      );
+    } catch {
+      setExportError(
+        "No se pudo generar el Excel. Vuelve a intentar la descarga.",
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -641,15 +676,31 @@ export default function EventCloseWorkspace({
             Asistencia, compras y mesas en una sola lectura.
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={exportCsv}
-          disabled={!visible || loading}
-        >
-          <ArrowDownToLine size={16} />
-          Exportar cierre
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={exportCsv}
+            disabled={!visible || loading || exporting}
+          >
+            CSV
+          </Button>
+          <Button
+            onClick={exportExcel}
+            disabled={!visible || loading || exporting}
+          >
+            <ArrowDownToLine size={16} />
+            {exporting ? "Generando Excel…" : "Descargar Excel"}
+          </Button>
+        </div>
       </header>
+      {exportError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-rose-300/25 bg-rose-300/5 p-4 text-sm text-rose-100"
+        >
+          {exportError}
+        </p>
+      )}
       {previewReports && (
         <div className="rounded-xl border border-sky-300/20 bg-sky-300/5 px-4 py-3 text-xs leading-5 text-sky-100">
           Vista previa de solo lectura · datos agregados del corte auditado.
@@ -828,8 +879,8 @@ export default function EventCloseWorkspace({
           <footer className="flex flex-wrap justify-between gap-2 px-1 text-[11px] leading-5 text-neutral-500">
             <span>{formatLima(visible.event.starts_at)} · Horario de Lima</span>
             <span>
-              Lectura: {formatLima(visible.generatedAt, true)} · El CSV conserva
-              este corte
+              Lectura: {formatLima(visible.generatedAt, true)} · Excel y CSV
+              conservan este corte
             </span>
           </footer>
         </>
