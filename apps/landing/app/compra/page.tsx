@@ -787,7 +787,7 @@ function CompraContent({
   // header text tweak
   const headerSubtitle = culqiEnabled
     ? "Genera tu entrada o reserva tu mesa pagando online con Culqi."
-    : "Genera tu entrada o reserva tu mesa con Yape/Plin; el pago online está en integración.";
+    : "Compra tus entradas o reserva tu mesa con Yape o Plin.";
   const ticketPrice = activeTicketSelection?.price ?? 0;
   const ticketTotalUnits = activeTicketSelection?.totalUnits ?? 0;
   const ticketTotalPrice = activeTicketSelection?.totalPrice ?? 0;
