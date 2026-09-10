@@ -1,5 +1,9 @@
 import ExcelJS from "exceljs";
-import { settlementStatusLabel, type EventCloseReport } from "./eventClose";
+import {
+  settlementStatusLabel,
+  visibleAccessCategories,
+  type EventCloseReport,
+} from "./eventClose";
 
 const moneyFormat = '"S/" #,##0.00';
 const dateFormat = "yyyy-mm-dd hh:mm";
@@ -110,7 +114,7 @@ export async function eventCloseExcel(
     attendance.confirmed,
     "Entradas validadas en puerta; cada entrada cuenta una vez.",
   );
-  for (const category of attendance.categories)
+  for (const category of visibleAccessCategories(report))
     add(category.label, category.count, category.description);
   add(
     "Invitaciones con ticket emitidas",
@@ -208,11 +212,6 @@ export async function eventCloseExcel(
   for (const label of ["Cobros en puerta", "Consumo de mesas", "Ganancia neta"])
     add(label, "No disponible", "Sin registro en este reporte.");
   add(
-    "Accesos sin modalidad indicada",
-    quality.unclassifiedAdmissions,
-    "Incluye QR generales y otros accesos sin indicación de pago o gratuidad.",
-  );
-  add(
     "Reservas del historial de cierre",
     quality.archivedReservationsIncluded,
     "Historial del evento; todos los estados.",
@@ -264,10 +263,20 @@ export async function eventCloseExcel(
     dateFormat,
   );
 
-  const promoters = sheet(
-    "Promotores",
-    [38, 15, 18, 16, 23, 20, 18, 18, 18, 20, 25],
-  );
+  const showUnknown = report.promoters.some((promoter) => promoter.unknown > 0);
+  const promoters = sheet("Promotores", [
+    38,
+    15,
+    18,
+    16,
+    23,
+    ...(showUnknown ? [20] : []),
+    18,
+    18,
+    18,
+    20,
+    25,
+  ]);
   promoters.getCell("A3").value = report.event.closed_at
     ? "BabyClub · Entradas emitidas, invitaciones y accesos confirmados. Evento cerrado."
     : "BabyClub · Entradas emitidas, invitaciones y accesos confirmados. Evento abierto; asistencia en curso.";
@@ -277,7 +286,7 @@ export async function eventCloseExcel(
     "Con compra",
     "Mesa",
     "Invitación / free",
-    "Sin modalidad",
+    ...(showUnknown ? ["Sin tipo de entrada"] : []),
     "Entradas personales emitidas",
     "Invitaciones personales emitidas",
     "Invitaciones personales con ingreso",
@@ -292,7 +301,7 @@ export async function eventCloseExcel(
       promoter.purchase,
       promoter.table,
       promoter.courtesy + promoter.free,
-      promoter.unclassified + promoter.unknown,
+      ...(showUnknown ? [promoter.unknown] : []),
       promoter.issued,
       promoter.invited,
       promoter.invitationAttended,
@@ -317,7 +326,10 @@ export async function eventCloseExcel(
     });
   }
   if (report.promoters.length)
-    promoters.autoFilter = { from: "A5", to: `K${promoters.rowCount}` };
+    promoters.autoFilter = {
+      from: "A5",
+      to: { row: promoters.rowCount, column: promoters.columnCount },
+    };
   else
     promoters.getCell("A6").value =
       "Sin entradas ni accesos registrados por promotor.";

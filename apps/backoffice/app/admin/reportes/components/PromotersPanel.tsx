@@ -39,6 +39,7 @@ export default function PromotersPanel({
     currentPage * REPORT_PAGE_SIZE,
     (currentPage + 1) * REPORT_PAGE_SIZE,
   );
+  const showUnknown = filtered.some((row) => row.unknown > 0);
   const totals = filtered.reduce(
     (sum, row) => ({
       issued: sum.issued + row.issued,
@@ -114,7 +115,7 @@ export default function PromotersPanel({
                     "Con compra",
                     "Mesa",
                     "Invitación / free",
-                    "Sin modalidad",
+                    ...(showUnknown ? ["Sin tipo de entrada"] : []),
                   ].map((label) => (
                     <TableHead
                       key={label}
@@ -152,7 +153,7 @@ export default function PromotersPanel({
                         row.purchase,
                         row.table,
                         row.courtesy + row.free,
-                        row.unclassified + row.unknown,
+                        ...(showUnknown ? [row.unknown] : []),
                       ].map((value, index) => (
                         <TableCell
                           key={index}
@@ -166,7 +167,10 @@ export default function PromotersPanel({
                       id={`promoter-detail-${row.id}`}
                       hidden={expandedId !== row.id}
                     >
-                      <TableCell colSpan={6} className="bg-white/[0.025] p-4">
+                      <TableCell
+                        colSpan={showUnknown ? 6 : 5}
+                        className="bg-white/[0.025] p-4"
+                      >
                         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                           {[
                             ["Entradas personales emitidas", row.issued],

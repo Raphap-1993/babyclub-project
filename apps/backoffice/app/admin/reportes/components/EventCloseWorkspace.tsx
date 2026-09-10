@@ -18,6 +18,8 @@ import {
   eventCloseCsv,
   formatLima,
   formatPen,
+  visibleAccessCategories,
+  type AccessCategory,
   type EventCloseReport,
   type EventRow,
 } from "@/lib/reports/eventClose";
@@ -33,14 +35,13 @@ import ReportPanel from "./ReportPanel";
 import PromotersPanel from "./PromotersPanel";
 import SettlementsPanel from "./SettlementsPanel";
 
-const colors = [
-  "bg-rose-400",
-  "bg-violet-400",
-  "bg-sky-400",
-  "bg-emerald-400",
-  "bg-amber-400",
-  "bg-neutral-400",
-];
+const colors: Record<AccessCategory, string> = {
+  purchase: "bg-rose-400",
+  table: "bg-violet-400",
+  courtesy: "bg-sky-400",
+  free: "bg-emerald-400",
+  unknown: "bg-neutral-400",
+};
 const number = (value: number) => value.toLocaleString("es-PE");
 
 function Stat({
@@ -74,6 +75,7 @@ function Stat({
 
 function Breakdown({ report }: { report: EventCloseReport }) {
   const { attendance } = report;
+  const categories = visibleAccessCategories(report);
   return (
     <ReportPanel
       title="Cómo ingresaron"
@@ -85,10 +87,10 @@ function Breakdown({ report }: { report: EventCloseReport }) {
             className="mb-5 flex h-3 overflow-hidden rounded-full bg-white/5"
             aria-hidden="true"
           >
-            {attendance.categories.map((row, i) => (
+            {categories.map((row) => (
               <div
                 key={row.key}
-                className={colors[i]}
+                className={colors[row.key]}
                 style={{
                   width: `${(row.count / attendance.confirmed) * 100}%`,
                 }}
@@ -96,14 +98,14 @@ function Breakdown({ report }: { report: EventCloseReport }) {
             ))}
           </div>
           <ul>
-            {attendance.categories.map((row, i) => (
+            {categories.map((row) => (
               <li
                 key={row.key}
                 className="flex items-center justify-between gap-3 py-2.5 text-sm"
               >
                 <span className="flex items-center gap-2.5">
                   <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${colors[i]}`}
+                    className={`h-2 w-2 shrink-0 rounded-full ${colors[row.key]}`}
                   />
                   {row.label}
                 </span>
@@ -235,7 +237,7 @@ function Invitations({ report }: { report: EventCloseReport }) {
   ] as const;
   return (
     <ReportPanel
-      title="Invitaciones"
+      title="Invitaciones y free"
       description="Entradas de cortesía y free emitidas para este evento."
     >
       <dl className="divide-y divide-white/5">
@@ -297,9 +299,9 @@ function Tables({ report }: { report: EventCloseReport }) {
 function Quality({ report }: { report: EventCloseReport }) {
   const items = [
     {
-      label: "Accesos sin modalidad indicada",
+      label: "Sin tipo de entrada",
       value: report.quality.unclassifiedAdmissions,
-      note: "Incluye QR generales y otros accesos sin indicación de pago o gratuidad.",
+      note: "Accesos cuyo tipo de entrada no está registrado.",
     },
     {
       label: "Reservas del historial de cierre",
@@ -318,22 +320,24 @@ function Quality({ report }: { report: EventCloseReport }) {
       description="Información complementaria del evento."
     >
       <dl className="divide-y divide-white/5">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            className="flex items-start justify-between gap-4 py-4"
-          >
-            <div>
-              <dt className="text-sm font-medium">{item.label}</dt>
-              <p className="mt-1 text-xs leading-5 text-neutral-400">
-                {item.note}
-              </p>
+        {items
+          .filter((item) => item.value > 0)
+          .map((item) => (
+            <div
+              key={item.label}
+              className="flex items-start justify-between gap-4 py-4"
+            >
+              <div>
+                <dt className="text-sm font-medium">{item.label}</dt>
+                <p className="mt-1 text-xs leading-5 text-neutral-400">
+                  {item.note}
+                </p>
+              </div>
+              <dd className="text-lg font-semibold tabular-nums">
+                {number(item.value)}
+              </dd>
             </div>
-            <dd className="text-lg font-semibold tabular-nums">
-              {number(item.value)}
-            </dd>
-          </div>
-        ))}
+          ))}
       </dl>
       <details className="mt-6 border-t border-white/10 pt-4 text-xs text-neutral-400">
         <summary className="cursor-pointer py-1 text-neutral-300">
@@ -350,8 +354,8 @@ function Quality({ report }: { report: EventCloseReport }) {
             independientes y no se suman entre sí.
           </p>
           <p>
-            Los accesos sin modalidad indicada se incluyen en la asistencia
-            total, sin asignarlos a entradas pagadas o gratuitas.
+            Entrada free incluye los QR generales del evento. Los cobros en
+            puerta se consultan por separado en Ingresos.
           </p>
           <p>
             Actualizado el {formatLima(report.generatedAt, true)} · Hora de
@@ -681,7 +685,7 @@ export default function EventCloseWorkspace({
             <Stat
               label="Invitaciones y free"
               value={categoryCount("courtesy") + categoryCount("free")}
-              note="Cortesías y entradas gratuitas"
+              note="Ingresaron con invitación o entrada free"
               icon={Gift}
             />
             <Stat

@@ -81,17 +81,13 @@ const categories = [
   {
     key: "free",
     label: "Entrada free",
-    description: "Entradas de acceso gratuito.",
-  },
-  {
-    key: "unclassified",
-    label: "QR general",
-    description: "Accesos con QR general. Modalidad de cobro no indicada.",
+    description:
+      "Entradas free del evento, incluidos los QR generales. Cobros en puerta por separado.",
   },
   {
     key: "unknown",
-    label: "Otros accesos",
-    description: "Modalidad de acceso no indicada.",
+    label: "Sin tipo de entrada",
+    description: "Accesos cuyo tipo de entrada no está registrado.",
   },
 ] as const;
 export type AccessCategory = (typeof categories)[number]["key"];
@@ -195,9 +191,9 @@ export function buildEventClose(
     // A removed/unavailable reservation must never turn a purchase into a free invitation.
     if (reservationId) return "unknown";
     if (status(code?.type) === "courtesy") return "courtesy";
-    if (status(code?.type) === "free") return "free";
-    if (["general", "promoter_link"].includes(status(code?.type)))
-      return "unclassified";
+    // General is the event's free entry type, not evidence of a zero door payment.
+    // Purchase/table relations above take precedence over the issuing QR type.
+    if (["free", "general"].includes(status(code?.type))) return "free";
     return "unknown";
   }
 
@@ -222,7 +218,6 @@ export function buildEventClose(
     table: 0,
     courtesy: 0,
     free: 0,
-    unclassified: 0,
     unknown: 0,
   };
   const promoterRows = new Map<
@@ -240,7 +235,6 @@ export function buildEventClose(
       table: number;
       courtesy: number;
       free: number;
-      unclassified: number;
       unknown: number;
     }
   >();
@@ -263,16 +257,18 @@ export function buildEventClose(
         table: 0,
         courtesy: 0,
         free: 0,
-        unclassified: 0,
         unknown: 0,
       });
     return promoterRows.get(promoterId)!;
   }
+  let generalAdmissionsWithoutPayment = 0;
   for (const scan of admissions.values()) {
     const ticket = scan.ticket_id ? tickets.get(scan.ticket_id) : undefined;
     const code = codes.get(ticket?.code_id || scan.code_id || "");
     const category = classify(ticket, code);
     counts[category]++;
+    if (category === "free" && status(code?.type) === "general")
+      generalAdmissionsWithoutPayment++;
     const row = promoterRow(ticket, code);
     row.confirmed++;
     row[category]++;
@@ -420,12 +416,18 @@ export function buildEventClose(
         .length,
       excludedDeletedReservations:
         forEvent(input.reservations).length - reservations.length,
-      unclassifiedAdmissions: counts.unclassified + counts.unknown,
+      unclassifiedAdmissions: counts.unknown,
+      // Preserve the evidence gap for historical cash reconciliation independently of entry type.
+      generalAdmissionsWithoutPayment,
       repeatedConfirmations: confirmedScans.length - admissions.size,
     },
   };
 }
 export type EventCloseReport = ReturnType<typeof buildEventClose>;
+
+/** One visibility rule for the chart, CSV and Excel; never drops nonzero unknown admissions. */
+export const visibleAccessCategories = (report: EventCloseReport) =>
+  report.attendance.categories.filter((category) => category.count > 0);
 
 export const settlementStatusLabel = (value: string): string =>
   ({
@@ -464,7 +466,7 @@ export function eventCloseCsv(report: EventCloseReport): string {
       report.attendance.confirmed,
       "Entradas validadas en puerta",
     ],
-    ...report.attendance.categories.map((row) => [
+    ...visibleAccessCategories(report).map((row) => [
       report.event.name,
       "Asistencia",
       row.label,
@@ -585,12 +587,10 @@ export function eventCloseCsv(report: EventCloseReport): string {
     ...report.promoters.flatMap((row) =>
       [
         ["Accesos confirmados", row.confirmed],
-        ["Con compra", row.purchase],
-        ["Mesa", row.table],
-        ["Cortesías ingresadas", row.courtesy],
-        ["Free ingresados", row.free],
-        ["QR general", row.unclassified],
-        ["Otros accesos", row.unknown],
+        ...visibleAccessCategories(report).map((category) => [
+          category.label,
+          row[category.key],
+        ]),
         ["Entradas personales emitidas", row.issued],
         ["Invitaciones personales emitidas", row.invited],
         ["Invitaciones personales con ingreso", row.invitationAttended],

@@ -59,8 +59,7 @@ function report(): EventCloseReport {
       purchase: 10,
       table: 2,
       courtesy: 3,
-      free: 4,
-      unclassified: 5,
+      free: 9,
       unknown: 1,
       issued: 45,
       invited: 17,
@@ -81,6 +80,59 @@ async function read(value: EventCloseReport) {
 }
 
 describe("descarga Excel del cierre visible", () => {
+  it("exporta general y free juntos sin filas ni columnas de tipos vacíos", async () => {
+    const source = buildEventClose({
+      event: {
+        id: "e",
+        name: "Fiesta de prueba",
+        starts_at: null,
+        closed_at: null,
+      },
+      codes: ["general", "free"].map((type) => ({
+        id: type,
+        event_id: "e",
+        type,
+        promoter_id: "p",
+      })),
+      tickets: ["general", "free"].map((id) => ({
+        id,
+        event_id: "e",
+        code_id: id,
+      })),
+      scans: ["general", "free"].map((id) => ({
+        id,
+        event_id: "e",
+        ticket_id: id,
+        raw_value: id,
+        result: "valid",
+      })),
+      reservations: [],
+      payments: [],
+      promoters: [],
+    });
+    const workbook = await read(source);
+    const close = workbook.getWorksheet("Cierre")!;
+    const values = close.getRows(1, close.rowCount)!;
+    expect(
+      values.find((row) => row.getCell(1).value === "Entrada free")?.getCell(2)
+        .value,
+    ).toBe(2);
+    expect(values.map((row) => row.getCell(1).value)).not.toContain(
+      "QR general",
+    );
+    expect(values.map((row) => row.getCell(1).value)).not.toContain(
+      "Otros accesos",
+    );
+    expect(values.map((row) => row.getCell(1).value)).not.toContain(
+      "Sin tipo de entrada",
+    );
+    const promoters = workbook.getWorksheet("Promotores")!;
+    expect(promoters.getRow(5).values).not.toContain("Sin tipo de entrada");
+    expect(promoters.getRow(5).values).not.toContain("Sin modalidad");
+    expect(promoters.getCell("E6").value).toBe(2);
+    expect(promoters.getCell("F6").value).toBe(2);
+    expect(promoters.getCell("H6").value).toBe(2);
+  });
   it("produce hojas de cierre y promotores con importes numéricos y formatos de Excel", async () => {
     const source = report();
     const workbook = await read(source);
@@ -111,8 +163,8 @@ describe("descarga Excel del cierre visible", () => {
     expect(cell.value).toBe('=HYPERLINK("https://example.com")');
     expect(cell.type).toBe(ExcelJS.ValueType.String);
     expect(sheet.getCell("B6").value).toBe(25);
-    expect(sheet.getCell("E6").value).toBe(7);
-    expect(sheet.getCell("F6").value).toBe(6);
+    expect(sheet.getCell("E6").value).toBe(12);
+    expect(sheet.getCell("F6").value).toBe(1);
     expect(sheet.getCell("G6").value).toBe(45);
     expect(sheet.getCell("H6").value).toBe(17);
     expect(sheet.getCell("I6").value).toBe(7);

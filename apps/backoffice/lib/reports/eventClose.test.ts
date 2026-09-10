@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildEventClose,
   eventCloseCsv,
+  visibleAccessCategories,
   type EventCloseInput,
   type SettlementRow,
 } from "./eventClose";
@@ -23,7 +24,7 @@ const input = (): EventCloseInput => ({
 });
 
 describe("emisión por promotor del mismo cierre", () => {
-  it("incluye promotores con entradas emitidas y cero asistencia sin convertir compras o QR generales en invitaciones", () => {
+  it("incluye QR generales en free y conserva las compras por separado aun sin asistencia", () => {
     const data = input();
     data.event.closed_at = null;
     data.promoters = [{ id: "p1", name: "Ana" }];
@@ -59,13 +60,13 @@ describe("emisión por promotor del mismo cierre", () => {
         name: "Ana",
         issued: 4,
         confirmed: 0,
-        invited: 2,
+        invited: 3,
         invitationAttended: 0,
-        invitationWithoutAdmission: 2,
+        invitationWithoutAdmission: 3,
         invitationUsageWithoutScan: 0,
       }),
     ]);
-    expect(report.invitations.issued).toBe(2);
+    expect(report.invitations.issued).toBe(3);
     expect(eventCloseCsv(report)).toContain('"Evento abierto"');
     expect(eventCloseCsv(report)).not.toMatch(/no.?show|ausente/i);
   });
@@ -390,7 +391,7 @@ describe("cierre por evidencia", () => {
     expect(report.attendance.firstAt).toBe("2026-08-30T04:00:00Z");
   });
 
-  it("no inventa gratuidad ni pago en puerta para un QR general, y conserva códigos sin ticket", () => {
+  it("agrupa el QR general como tipo free sin inventar un cobro y conserva códigos sin ticket", () => {
     const data = input();
     data.codes = [{ id: "c-1", event_id: "event-1", type: "general" }];
     data.scans = [
@@ -406,9 +407,10 @@ describe("cierre por evidencia", () => {
     expect(report.attendance.confirmed).toBe(1);
     expect(report.attendance.codeOnly).toBe(1);
     expect(
-      report.attendance.categories.find((row) => row.key === "unclassified")
-        ?.count,
+      report.attendance.categories.find((row) => row.key === "free")?.count,
     ).toBe(1);
+    expect(report.quality.generalAdmissionsWithoutPayment).toBe(1);
+    expect(report.invitations.codeOnlyAdmissions).toBe(1);
     expect(report.sales.doorAmountCents).toBeNull();
     expect(report.sales.profitCents).toBeNull();
   });
@@ -514,5 +516,161 @@ describe("cierre por evidencia", () => {
     const csv = eventCloseCsv(report);
     expect(csv).toContain("' =HYPERLINK(1)".replace("' ", "'"));
     expect(csv).toContain("No disponible");
+  });
+});
+
+describe("tipos de acceso consolidados", () => {
+  it("une general y free con prioridad para compras y mesas, sin modificar fuentes ni importes", () => {
+    const data = input();
+    data.codes = ["general", "free", "courtesy", "promoter_link"].map(
+      (type) => ({
+        id: type,
+        event_id: "event-1",
+        type,
+        promoter_id: "p1",
+      }),
+    );
+    data.reservations = [
+      {
+        id: "purchase",
+        event_id: "event-1",
+        status: "approved",
+        sale_origin: "ticket",
+        ticket_total_amount: 125,
+      },
+      {
+        id: "table",
+        event_id: "event-1",
+        status: "approved",
+        sale_origin: "table",
+        table_id: "table-1",
+      },
+    ];
+    data.tickets = [
+      { id: "general-1", event_id: "event-1", code_id: "general" },
+      { id: "general-2", event_id: "event-1", code_id: "general" },
+      { id: "explicit-free", event_id: "event-1", code_id: "free" },
+      { id: "invitation", event_id: "event-1", code_id: "courtesy" },
+      { id: "paid", event_id: "event-1", code_id: "general" },
+      {
+        id: "reserved",
+        event_id: "event-1",
+        code_id: "general",
+        table_reservation_id: "purchase",
+      },
+      {
+        id: "table",
+        event_id: "event-1",
+        code_id: "general",
+        table_reservation_id: "table",
+      },
+      {
+        id: "missing-relation",
+        event_id: "event-1",
+        code_id: "general",
+        table_reservation_id: "missing",
+      },
+      { id: "purchase-link", event_id: "event-1", code_id: "promoter_link" },
+    ];
+    data.payments = [
+      {
+        id: "payment",
+        event_id: "event-1",
+        ticket_id: "paid",
+        status: "paid",
+        currency_code: "PEN",
+        amount: 2500,
+      },
+    ];
+    data.scans = data.tickets.map((ticket) => ({
+      id: ticket.id,
+      event_id: "event-1",
+      ticket_id: ticket.id,
+      raw_value: ticket.id,
+      result: "valid",
+    }));
+    data.scans.push({ ...data.scans[0], id: "repeat" });
+    const original = JSON.stringify(data);
+    const report = buildEventClose(data);
+    expect(report.attendance.confirmed).toBe(9);
+    expect(
+      Object.fromEntries(
+        report.attendance.categories.map((row) => [row.key, row.count]),
+      ),
+    ).toEqual({
+      purchase: 2,
+      table: 1,
+      courtesy: 1,
+      free: 3,
+      unknown: 2,
+    });
+    expect(report.promoters[0]).toMatchObject({
+      confirmed: 9,
+      purchase: 2,
+      table: 1,
+      courtesy: 1,
+      free: 3,
+      unknown: 2,
+      invited: 4,
+      invitationAttended: 4,
+    });
+    expect(report.invitations).toMatchObject({
+      issued: 4,
+      attended: 4,
+      withoutAdmission: 0,
+    });
+    expect(report.sales).toMatchObject({
+      declaredTicketAmountCents: 12500,
+      confirmedPaymentAmountCents: 2500,
+      doorAmountCents: null,
+      profitCents: null,
+    });
+    expect(report.quality).toMatchObject({
+      unclassifiedAdmissions: 2,
+      generalAdmissionsWithoutPayment: 2,
+      repeatedConfirmations: 1,
+    });
+    expect(JSON.stringify(data)).toBe(original);
+    expect(
+      visibleAccessCategories(report).reduce((sum, row) => sum + row.count, 0),
+    ).toBe(9);
+    expect(eventCloseCsv(report)).toContain('"Asistencia","Entrada free","3"');
+    expect(eventCloseCsv(report)).not.toContain('"QR general"');
+  });
+
+  it("omite categorías vacías en la vista y el CSV, conservando los accesos sin tipo cuando existen", () => {
+    const data = input();
+    data.codes = [{ id: "g", event_id: "event-1", type: "general" }];
+    data.tickets = [{ id: "t", event_id: "event-1", code_id: "g" }];
+    data.scans = [
+      {
+        id: "s",
+        event_id: "event-1",
+        ticket_id: "t",
+        raw_value: "t",
+        result: "valid",
+      },
+    ];
+    const report = buildEventClose(data);
+    expect(
+      visibleAccessCategories(report).map((row) => [row.label, row.count]),
+    ).toEqual([["Entrada free", 1]]);
+    const csv = eventCloseCsv(report);
+    expect(csv).not.toMatch(
+      /"Otros accesos"|"Sin tipo de entrada"|"QR general"/,
+    );
+    expect(visibleAccessCategories(buildEventClose(input()))).toEqual([]);
+    data.scans.push({
+      id: "missing",
+      event_id: "event-1",
+      ticket_id: "missing",
+      raw_value: "missing",
+      result: "valid",
+    });
+    const withUnknown = buildEventClose(data);
+    expect(
+      visibleAccessCategories(withUnknown).map((row) => row.count),
+    ).toEqual([1, 1]);
+    expect(eventCloseCsv(withUnknown)).toContain('"Sin tipo de entrada","1"');
   });
 });
