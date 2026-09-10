@@ -84,6 +84,7 @@ describe("TicketPage commercial presentation", () => {
         },
       ],
       "table_reservations.select": [{ data: null, error: null }],
+      "ticket_reservation_units.select": [{ data: null, error: null }],
     });
     (createClient as any).mockReturnValue(supabase);
 
@@ -94,6 +95,7 @@ describe("TicketPage commercial presentation", () => {
       }),
     );
 
+    expect(html).toContain("Tu QR está listo");
     expect(html).toContain("Mesa / Box");
     expect(html).toContain(
       "Este QR corresponde a un cupo individual de mesa o box.",
@@ -147,6 +149,7 @@ describe("TicketPage commercial presentation", () => {
           error: null,
         },
       ],
+      "ticket_reservation_units.select": [{ data: null, error: null }],
     });
     (createClient as any).mockReturnValue(supabase);
 
@@ -159,7 +162,7 @@ describe("TicketPage commercial presentation", () => {
 
     expect(html).toContain("QR promotor");
     expect(html).toContain(
-      "Este QR no tiene límite de hora de ingreso.",
+      "Invitación personal. Consulta las condiciones de ingreso del evento.",
     );
     expect(html).not.toContain("QR de mesa / promotor");
     expect(html).toContain("Maria Promo");

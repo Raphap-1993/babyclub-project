@@ -1,7 +1,6 @@
+import { getTicketAccessState } from "shared/ticketAccess";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { DateTime } from "luxon";
-import { EVENT_TZ } from "shared/datetime";
 import { getEntryCutoff } from "shared/entryLimit";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import {
@@ -271,7 +270,6 @@ export async function POST(req: NextRequest) {
   });
 
   const now = new Date();
-  const nowLima = DateTime.fromJSDate(now).setZone(EVENT_TZ);
 
   const eventQuery = applyNotDeleted(
     supabase
@@ -324,9 +322,6 @@ export async function POST(req: NextRequest) {
 
   const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
   const entryCutoffIso = entryCutoff?.cutoff.toUTC().toISO() ?? null;
-  const entryCutoffExceeded = entryCutoff
-    ? nowLima > entryCutoff.cutoff
-    : false;
 
   const codeQuery = applyNotDeleted(
     supabase
@@ -364,101 +359,15 @@ export async function POST(req: NextRequest) {
   let ticket_used = false;
   let match_type: MatchType = "none";
   let reason: string | null = null;
+  let ticketExpiry: string | null = null;
   let other_event: { id: string; name: string | null } | null = null;
 
   if (codeRow) {
     match_type = "code";
     code_id = codeRow.id;
     code_type = (codeRow.type || "").toLowerCase() || null;
-    reservation_id =
-      typeof (codeRow as any).table_reservation_id === "string"
-        ? (codeRow as any).table_reservation_id
-        : null;
-    const expired = codeRow.expires_at
-      ? new Date(codeRow.expires_at) < now
-      : false;
-    if (!codeRow.is_active) {
-      result = "inactive";
-    } else if (expired) {
-      result = "expired";
-    } else if (
-      codeRow.max_uses !== null &&
-      codeRow.max_uses !== undefined &&
-      (codeRow.uses ?? 0) >= codeRow.max_uses
-    ) {
-      result = "exhausted";
-    } else {
-      result = "valid";
-      if (
-        (codeRow.type || "").toLowerCase() === "general" &&
-        entryCutoffExceeded
-      ) {
-        result = "expired";
-        reason = "entry_cutoff";
-      }
-    }
-
-    const ticketQuery = applyNotDeleted(
-      supabase
-        .from("tickets")
-        .select(
-          "id,full_name,dni,doc_type,document,email,phone,used,is_active,payment_status,table_id,product_id,table_reservation_id",
-        )
-        .eq("code_id", codeRow.id)
-        .eq("event_id", event_id)
-        .order("created_at", { ascending: false })
-        .limit(1),
-    );
-    const { data: ticketData } = await ticketQuery.maybeSingle();
-    if (ticketData) {
-      ticket_id = (ticketData as any).id ?? null;
-      ticket_used = Boolean((ticketData as any).used);
-      reservation_id =
-        reservation_id ||
-        (typeof (ticketData as any).table_reservation_id === "string"
-          ? (ticketData as any).table_reservation_id
-          : null);
-      ticket_table_id =
-        typeof (ticketData as any).table_id === "string"
-          ? (ticketData as any).table_id
-          : null;
-      ticket_product_id =
-        typeof (ticketData as any).product_id === "string"
-          ? (ticketData as any).product_id
-          : null;
-      person = {
-        full_name: (ticketData as any).full_name ?? null,
-        dni: (ticketData as any).dni ?? null,
-        email: (ticketData as any).email ?? null,
-        phone: (ticketData as any).phone ?? null,
-      };
-      person_doc_type =
-        typeof (ticketData as any).doc_type === "string"
-          ? (ticketData as any).doc_type
-          : person?.dni
-            ? "dni"
-            : null;
-      person_document =
-        typeof (ticketData as any).document === "string" &&
-        (ticketData as any).document.trim()
-          ? String((ticketData as any).document).trim().toLowerCase()
-          : typeof (ticketData as any).dni === "string" &&
-              (ticketData as any).dni.trim()
-            ? String((ticketData as any).dni).trim()
-            : null;
-      if (
-        (ticketData as any).is_active === false ||
-        String((ticketData as any).payment_status || "").toLowerCase() ===
-          "pending"
-      ) {
-        result = "inactive";
-        reason = "ticket_inactive";
-      }
-      if (ticket_used) {
-        result = "duplicate";
-        reason = null;
-      }
-    }
+    result = "invalid";
+    reason = "individual_qr_required";
   }
 
   if (!codeRow) {
@@ -466,7 +375,7 @@ export async function POST(req: NextRequest) {
       supabase
         .from("tickets")
         .select(
-          "id,code_id,full_name,dni,doc_type,document,email,phone,used,is_active,payment_status,table_id,product_id,table_reservation_id,code:codes(type)",
+          "id,code_id,full_name,dni,doc_type,document,email,phone,used,is_active,payment_status,table_id,product_id,table_reservation_id,code:codes(type,expires_at)",
         )
         .eq("qr_token", codeValue)
         .eq("event_id", event_id),
@@ -494,14 +403,23 @@ export async function POST(req: NextRequest) {
         typeof (ticketRow as any).product_id === "string"
           ? (ticketRow as any).product_id
           : null;
-      if (ticket_used) {
-        result = "duplicate";
-      } else if (codeType === "general" && entryCutoffExceeded) {
-        result = "expired";
-        reason = "entry_cutoff";
-      } else {
-        result = "valid";
-      }
+      const access = getTicketAccessState({
+        ticket: ticketRow,
+        code: codeRel,
+        event: eventRow,
+        now,
+      });
+      result =
+        access.state === "ready"
+          ? "valid"
+          : access.state === "used"
+            ? "duplicate"
+            : access.state === "pending"
+              ? "inactive"
+              : access.state;
+      reason =
+        access.reason === "payment_pending" ? "ticket_inactive" : access.reason;
+      ticketExpiry = access.expiredAt;
       person = {
         full_name: (ticketRow as any).full_name ?? null,
         dni: (ticketRow as any).dni ?? null,
@@ -517,7 +435,9 @@ export async function POST(req: NextRequest) {
       person_document =
         typeof (ticketRow as any).document === "string" &&
         (ticketRow as any).document.trim()
-          ? String((ticketRow as any).document).trim().toLowerCase()
+          ? String((ticketRow as any).document)
+              .trim()
+              .toLowerCase()
           : typeof (ticketRow as any).dni === "string" &&
               (ticketRow as any).dni.trim()
             ? String((ticketRow as any).dni).trim()
@@ -594,7 +514,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const unitStatus = String((reservationUnit as any)?.status || "").toLowerCase();
+    const unitStatus = String(
+      (reservationUnit as any)?.status || "",
+    ).toLowerCase();
     if (
       reservationUnit?.id &&
       unitStatus !== "issued" &&
@@ -667,7 +589,7 @@ export async function POST(req: NextRequest) {
     expired_at:
       reason === "entry_cutoff"
         ? entryCutoffIso
-        : (codeRow?.expires_at ?? null),
+        : (ticketExpiry ?? codeRow?.expires_at ?? null),
     person,
     ticket_used,
     person_already_entered,

@@ -16,12 +16,16 @@ function isCodesTypeCheckError(error: any): boolean {
   if (!error) return false;
   const message = String(error?.message || "");
   const details = String(error?.details || "");
-  return error?.code === "23514" && /codes_type_check/i.test(`${message} ${details}`);
+  return (
+    error?.code === "23514" && /codes_type_check/i.test(`${message} ${details}`)
+  );
 }
 
 const sanitizeBase = (value: string) => {
   const normalized = (value || "").toLowerCase().trim();
-  const cleaned = normalized.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const cleaned = normalized
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return cleaned || "mesa";
 };
 
@@ -41,29 +45,57 @@ async function ensurePerson(
     dni,
     docType,
     document,
-  }: { fullName: string; email?: string | null; phone?: string | null; dni?: string | null; docType?: DocumentType; document?: string | null }
+  }: {
+    fullName: string;
+    email?: string | null;
+    phone?: string | null;
+    dni?: string | null;
+    docType?: DocumentType;
+    document?: string | null;
+  },
 ): Promise<string> {
   const cleanDni = dni?.trim() || null;
   const cleanEmail = email?.trim() || null;
   const cleanPhone = phone?.trim() || null;
-  const { docType: safeDocType, document: safeDocument } = normalizeDocument(docType, document);
+  const { docType: safeDocType, document: safeDocument } = normalizeDocument(
+    docType,
+    document,
+  );
   const { first, last } = splitName(fullName);
 
-  const searchOrder: Array<{ field: "document" | "dni" | "email" | "phone"; value: string }> = [];
-  if (safeDocument) searchOrder.push({ field: "document", value: safeDocument });
+  const searchOrder: Array<{
+    field: "document" | "dni" | "email" | "phone";
+    value: string;
+  }> = [];
+  if (safeDocument)
+    searchOrder.push({ field: "document", value: safeDocument });
   if (cleanDni) searchOrder.push({ field: "dni", value: cleanDni });
-  if (cleanEmail) searchOrder.push({ field: "email", value: cleanEmail });
-  if (cleanPhone) searchOrder.push({ field: "phone", value: cleanPhone });
+  // A buyer may receive every attendee's email. Shared contacts must not merge
+  // attendees with different documents into the buyer's person_id.
+  if (!safeDocument && !cleanDni) {
+    if (cleanEmail) searchOrder.push({ field: "email", value: cleanEmail });
+    if (cleanPhone) searchOrder.push({ field: "phone", value: cleanPhone });
+  }
 
   for (const item of searchOrder) {
     const { data, error } = await supabase
       .from("persons")
-      .select("id")
+      .select("id,doc_type")
       .eq(item.field, item.value)
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (data?.id) return data.id;
+    if (data?.id) {
+      if (
+        (item.field === "document" || item.field === "dni") &&
+        String(data.doc_type || "dni").toLowerCase() !== safeDocType
+      ) {
+        throw new Error(
+          "Este documento está registrado con otro tipo de documento. El equipo debe revisarlo antes de emitir la entrada.",
+        );
+      }
+      return data.id;
+    }
   }
 
   const { data, error } = await supabase
@@ -80,7 +112,13 @@ async function ensurePerson(
     .select("id")
     .single();
 
-  if (error || !data?.id) throw new Error(error?.message || "No se pudo crear persona");
+  if (error?.code === "23505") {
+    throw new Error(
+      "Este documento ya está registrado. Revisa su tipo de documento antes de volver a emitir la entrada.",
+    );
+  }
+  if (error || !data?.id)
+    throw new Error(error?.message || "No se pudo crear persona");
   return data.id;
 }
 
@@ -98,7 +136,7 @@ async function ensureCodeForTicket(
     reuseCodes?: string[];
     codeType?: "courtesy" | "table" | "general";
     tableReservationId?: string | null;
-  }
+  },
 ): Promise<{ codeId: string; code: string }> {
   if (reuseCodes && reuseCodes.length > 0) {
     const candidate = reuseCodes.map((c) => String(c).trim()).find(Boolean);
@@ -113,7 +151,10 @@ async function ensureCodeForTicket(
         .maybeSingle();
       if (data?.id) {
         const patch: Record<string, any> = {};
-        if (tableReservationId && data.table_reservation_id !== tableReservationId) {
+        if (
+          tableReservationId &&
+          data.table_reservation_id !== tableReservationId
+        ) {
           patch.table_reservation_id = tableReservationId;
         }
         if (codeType === "table" && data.type !== "table") {
@@ -121,19 +162,28 @@ async function ensureCodeForTicket(
         }
 
         if (Object.keys(patch).length > 0) {
-          let { error: patchError } = await supabase.from("codes").update(patch).eq("id", data.id);
+          let { error: patchError } = await supabase
+            .from("codes")
+            .update(patch)
+            .eq("id", data.id);
           if (patchError && patch.type && isCodesTypeCheckError(patchError)) {
             // Compatibilidad con BDs que aún no aceptan type='table'
             delete patch.type;
             if (Object.keys(patch).length > 0) {
-              const retry = await supabase.from("codes").update(patch).eq("id", data.id);
+              const retry = await supabase
+                .from("codes")
+                .update(patch)
+                .eq("id", data.id);
               patchError = retry.error;
             } else {
               patchError = null;
             }
           }
           if (patchError) {
-            throw new Error(patchError.message || "No se pudo actualizar el código de reserva");
+            throw new Error(
+              patchError.message ||
+                "No se pudo actualizar el código de reserva",
+            );
           }
         }
         return { codeId: data.id, code: candidate };
@@ -165,7 +215,8 @@ async function ensureCodeForTicket(
     ({ data, error } = await insertCode("courtesy"));
   }
 
-  if (error || !data?.id) throw new Error(error?.message || "No se pudo generar código");
+  if (error || !data?.id)
+    throw new Error(error?.message || "No se pudo generar código");
   return { codeId: data.id, code: data.code };
 }
 
@@ -203,9 +254,16 @@ export async function createTicketForReservation(
     productId?: string | null;
     tableReservationId?: string | null;
     enforceEventUniqueness?: boolean;
-  }
+  },
 ): Promise<{ ticketId: string; code: string }> {
-  const personId = await ensurePerson(supabase, { fullName, email, phone, dni, docType, document });
+  const personId = await ensurePerson(supabase, {
+    fullName,
+    email,
+    phone,
+    dni,
+    docType,
+    document,
+  });
   if (enforceEventUniqueness) {
     const conflict = await findActiveEventTicketConflict(supabase as any, {
       eventId,
@@ -216,6 +274,9 @@ export async function createTicketForReservation(
       docType: docType || "dni",
       document: document || null,
       dni: dni || null,
+      allowExpiredGeneralReplacement: Boolean(
+        tableReservationId && codeType !== "general",
+      ),
     });
     if (conflict?.ticketId) {
       throw new EventTicketConflictError(conflict);
@@ -251,13 +312,18 @@ export async function createTicketForReservation(
     .select("id")
     .single();
 
-  if (error || !data?.id) throw new Error(error?.message || "No se pudo crear ticket");
+  if (error || !data?.id)
+    throw new Error(error?.message || "No se pudo crear ticket");
   return { ticketId: data.id, code };
 }
 
 export async function generateCourtesyCodes(
   supabase: Supabase,
-  { eventId, tableName, count }: { eventId: string | null; tableName: string; count: number }
+  {
+    eventId,
+    tableName,
+    count,
+  }: { eventId: string | null; tableName: string; count: number },
 ): Promise<string[]> {
   if (!eventId || count <= 0) return [];
   const base = sanitizeBase(tableName);
@@ -271,7 +337,10 @@ export async function generateCourtesyCodes(
     uses: 0,
   }));
 
-  const { data, error } = await supabase.from("codes").insert(payload).select("code");
+  const { data, error } = await supabase
+    .from("codes")
+    .insert(payload)
+    .select("code");
   if (error) throw new Error(error.message);
   return (data || []).map((row: any) => row.code).filter(Boolean);
 }
@@ -300,17 +369,18 @@ export async function createReservationCodes(
     quantity: number;
     codeType?: "table" | "courtesy";
     personIndexes?: number[];
-  }
+  },
 ): Promise<{ codes: string[]; codeIds: string[] }> {
-  const indexes = Array.isArray(personIndexes) && personIndexes.length > 0
-    ? Array.from(
-        new Set(
-          personIndexes.filter(
-            (value) => Number.isInteger(value) && value > 0,
+  const indexes =
+    Array.isArray(personIndexes) && personIndexes.length > 0
+      ? Array.from(
+          new Set(
+            personIndexes.filter(
+              (value) => Number.isInteger(value) && value > 0,
+            ),
           ),
-        ),
-      ).sort((a, b) => a - b)
-    : Array.from({ length: quantity }, (_, index) => index + 1);
+        ).sort((a, b) => a - b)
+      : Array.from({ length: quantity }, (_, index) => index + 1);
   if (indexes.length <= 0) return { codes: [], codeIds: [] };
 
   const friendlyCodes =
@@ -339,7 +409,10 @@ export async function createReservationCodes(
 
   // Compatibilidad con BDs que aún no aceptan type='table'
   if (error && codeType === "table" && isCodesTypeCheckError(error)) {
-    ({ data, error } = await supabase.from("codes").insert(buildPayload("courtesy")).select("id,code"));
+    ({ data, error } = await supabase
+      .from("codes")
+      .insert(buildPayload("courtesy"))
+      .select("id,code"));
   }
 
   if (error) throw new Error(`Error creating codes: ${error.message}`);

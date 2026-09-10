@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import {
   normalizeDocument,
@@ -7,13 +6,9 @@ import {
   type DocumentType,
 } from "shared/document";
 import { applyNotDeleted } from "shared/db/softDelete";
-import {
-  buildEventTicketConflictMessage,
-  buildEventTicketIdentityKeys,
-  findActiveEventTicketConflict,
-} from "shared/eventTicketIdentity";
+import { buildEventTicketIdentityKeys } from "shared/eventTicketIdentity";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
-import { sendTicketEmail } from "../../../../../../backoffice/app/api/reservations/email";
+import { getTicketAccessState } from "shared/ticketAccess";
 import { ensureTicketOnlyBuyerIssued } from "../../../../../../backoffice/app/api/reservations/ticketOnlyFlow";
 import { ensureReservationUnitClaimCodes } from "../../lib/reservationUnitCodes";
 
@@ -29,7 +24,7 @@ const ACTIVE_TICKET_RESERVATION_STATUSES = new Set([
 const RESERVATION_SELECT =
   "id,event_id,promoter_id,sale_origin,status,ticket_quantity,ticket_type_label,package_quantity,total_ticket_units,codes,full_name,email,phone,doc_type,document,event:events(name,starts_at,location,event_prefix)";
 const UNIT_SELECT =
-  "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id,nominated_at,issued_at,used_at,cancelled_at";
+  "id,reservation_id,event_id,package_index,person_index,unit_index,status,full_name,doc_type,document,email,phone,ticket_id,nominated_at,issued_at,used_at,cancelled_at,updated_at";
 
 function getSupabase() {
   if (!supabaseUrl || !supabaseServiceKey) return null;
@@ -38,8 +33,11 @@ function getSupabase() {
   });
 }
 
-function jsonError(error: string, status: number) {
-  return NextResponse.json({ success: false, error }, { status });
+function jsonError(error: string, status: number, code?: string) {
+  return NextResponse.json(
+    { success: false, error, ...(code ? { code } : {}) },
+    { status },
+  );
 }
 
 function normalizeOptionalEmailAddress(value: unknown) {
@@ -60,7 +58,9 @@ async function loadReservation(supabase: any, reservationId: string) {
 
   if (error) return { error };
   if (!data) return { notFound: true };
-  const saleOrigin = String((data as any).sale_origin || "").trim().toLowerCase();
+  const saleOrigin = String((data as any).sale_origin || "")
+    .trim()
+    .toLowerCase();
   if (saleOrigin !== "ticket" && saleOrigin !== "table") {
     return { wrongType: true, data };
   }
@@ -85,20 +85,70 @@ async function loadUnits(supabase: any, reservationId: string) {
   };
 }
 
-function normalizeComparableUnitState(raw: any, reservationDocType: DocumentType) {
-  const fullName = typeof raw?.full_name === "string" ? raw.full_name.trim() : "";
+async function addAccessStates(supabase: any, units: any[]) {
+  const ticketIds = Array.from(
+    new Set(units.map((unit) => String(unit.ticket_id || "")).filter(Boolean)),
+  );
+  const ticketsById = new Map<string, any>();
+  for (let start = 0; start < ticketIds.length; start += 500) {
+    const { data, error } = await supabase
+      .from("tickets")
+      .select(
+        "id,used,is_active,deleted_at,payment_status,code:codes(type,expires_at),event:events(starts_at,entry_limit,is_active,closed_at,deleted_at)",
+      )
+      .in("id", ticketIds.slice(start, start + 500));
+    if (error)
+      throw new Error("No se pudo comprobar el estado de las entradas.");
+    for (const ticket of Array.isArray(data) ? data : [])
+      ticketsById.set(String(ticket.id), ticket);
+  }
+  return units.map((unit) => {
+    const ticket = ticketsById.get(String(unit.ticket_id || ""));
+    const code = Array.isArray(ticket?.code) ? ticket.code[0] : ticket?.code;
+    const event = Array.isArray(ticket?.event)
+      ? ticket.event[0]
+      : ticket?.event;
+    const access = ticket
+      ? getTicketAccessState({ ticket, code, event: event || null, unit })
+      : {
+          state:
+            unit.status === "cancelled" || unit.ticket_id
+              ? "inactive"
+              : "pending",
+          reason: unit.ticket_id ? "ticket_unavailable" : "nomination_required",
+          expiredAt: null,
+        };
+    return {
+      ...unit,
+      access_status: access.state,
+      access_reason: access.reason,
+      expired_at: access.expiredAt,
+    };
+  });
+}
+
+function normalizeComparableUnitState(
+  raw: any,
+  reservationDocType: DocumentType,
+) {
+  const fullName =
+    typeof raw?.full_name === "string" ? raw.full_name.trim() : "";
   const docTypeRaw =
     typeof raw?.doc_type === "string" && raw.doc_type.trim()
       ? (raw.doc_type as DocumentType)
       : reservationDocType;
-  const documentRaw = typeof raw?.document === "string" ? raw.document.trim() : "";
+  const documentRaw =
+    typeof raw?.document === "string" ? raw.document.trim() : "";
   const { docType, document } = normalizeDocument(docTypeRaw, documentRaw);
   const email = normalizeOptionalEmailAddress(raw?.email);
   const phone = typeof raw?.phone === "string" ? raw.phone.trim() : "";
   return { fullName, docType, document, email, phone };
 }
 
-function sameNominationState(existing: any, next: ReturnType<typeof normalizeComparableUnitState>) {
+function sameNominationState(
+  existing: any,
+  next: ReturnType<typeof normalizeComparableUnitState>,
+) {
   const existingState = normalizeComparableUnitState(
     existing,
     (existing?.doc_type as DocumentType) || "dni",
@@ -133,7 +183,12 @@ function buildEffectiveUnitIdentityState(
   if (pendingUpdate) return pendingUpdate;
 
   const isBuyerUnit = Number(unit?.unit_index || 0) === 1;
-  if (!isBuyerUnit) {
+  if (
+    !isBuyerUnit ||
+    String(unit?.status || "").toLowerCase() === "issued" ||
+    String(unit?.status || "").toLowerCase() === "nominated" ||
+    String(unit?.status || "").toLowerCase() === "used"
+  ) {
     return normalizeComparableUnitState(unit, reservationDocType);
   }
 
@@ -179,9 +234,10 @@ function shouldRepairBuyerQr(reservation: any, units: any[]) {
   return !buyerUnit || !String(buyerUnit.ticket_id || "").trim();
 }
 
-export async function GET(
+async function loadWorkspace(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
+  prepare: boolean,
 ) {
   const supabase = getSupabase();
   if (!supabase) return jsonError("Supabase config missing", 500);
@@ -197,14 +253,35 @@ export async function GET(
   const units = await loadUnits(supabase, id);
   if (units.error) return jsonError(units.error.message, 500);
 
+  if (
+    prepare &&
+    !ACTIVE_TICKET_RESERVATION_STATUSES.has(
+      String((reservation.data as any)?.status || "").toLowerCase(),
+    )
+  ) {
+    return jsonError(
+      "La compra aún no está aprobada para preparar sus entradas.",
+      409,
+    );
+  }
+  const buyer = units.data.find((unit: any) => Number(unit.unit_index) === 1);
+  if (
+    prepare &&
+    buyer &&
+    ["used", "cancelled"].includes(String(buyer.status).toLowerCase()) &&
+    !buyer.ticket_id
+  ) {
+    return jsonError("Esta entrada no se puede volver a emitir.", 409);
+  }
   let currentUnits = units.data;
-  if (shouldRepairBuyerQr(reservation.data, currentUnits)) {
+  if (prepare && shouldRepairBuyerQr(reservation.data, currentUnits)) {
     try {
       const repaired = await ensureTicketOnlyBuyerIssued({
         supabase,
         reservation: reservation.data as any,
         reservationId: id,
-        eventId: String((reservation.data as any)?.event_id || "").trim() || null,
+        eventId:
+          String((reservation.data as any)?.event_id || "").trim() || null,
         ticketQuantity: resolveReservationTicketQuantity({
           totalTicketUnits: (reservation.data as any)?.total_ticket_units,
           ticketQuantity: (reservation.data as any)?.ticket_quantity,
@@ -222,8 +299,11 @@ export async function GET(
           : [],
       });
       currentUnits = repaired.units;
-    } catch (_err) {
-      currentUnits = units.data;
+    } catch (err: any) {
+      return jsonError(
+        err?.message || "No se pudieron preparar las entradas.",
+        409,
+      );
     }
   }
 
@@ -234,16 +314,45 @@ export async function GET(
       reservation: reservation.data as any,
       units: currentUnits,
       requestUrl: req.url,
+      readOnly: !prepare,
     });
+    unitsWithClaimCodes = await addAccessStates(supabase, unitsWithClaimCodes);
   } catch (err: any) {
-    return jsonError(err?.message || "No se pudieron preparar los códigos", 500);
+    return jsonError(
+      err?.message || "No se pudieron preparar los códigos",
+      500,
+    );
   }
 
   return NextResponse.json({
     success: true,
     reservation: reservation.data,
     units: unitsWithClaimCodes,
+    needsPreparation:
+      shouldRepairBuyerQr(reservation.data, currentUnits) ||
+      unitsWithClaimCodes.some((unit: any) => !unit.claim_code),
   });
+}
+
+export async function GET(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  return loadWorkspace(req, context, false);
+}
+
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonError("Solicitud inválida.", 400);
+  }
+  if (body?.action !== "prepare") return jsonError("Acción no válida.", 400);
+  return loadWorkspace(req, context, true);
 }
 
 export async function PUT(
@@ -273,6 +382,17 @@ export async function PUT(
   }
   if (reservation.error) return jsonError(reservation.error.message, 500);
 
+  if (
+    !ACTIVE_TICKET_RESERVATION_STATUSES.has(
+      String((reservation.data as any)?.status || "").toLowerCase(),
+    )
+  ) {
+    return jsonError(
+      "La compra no está disponible para nominar entradas.",
+      409,
+    );
+  }
+
   const units = await loadUnits(supabase, id);
   if (units.error) return jsonError(units.error.message, 500);
   const unitsById = new Map(
@@ -293,6 +413,7 @@ export async function PUT(
       normalizedInput: ReturnType<typeof normalizeComparableUnitState>;
       isIssuedUnit: boolean;
       nominationChanged: boolean;
+      expectedUpdatedAt: string | null;
     }
   >();
 
@@ -303,17 +424,18 @@ export async function PUT(
       return jsonError("Unidad no encontrada para esta reserva", 404);
     }
     const unitLabel = `unidad ${existingUnit.unit_index || "?"}`;
-    if (Number(existingUnit.unit_index || 0) === 1) {
-      return jsonError(
-        "La unidad 1 corresponde al comprador y no se puede editar desde el workspace",
-        409,
-      );
-    }
-    if (existingUnit.status === "used" || existingUnit.status === "cancelled") {
-      return jsonError(`No puedes editar ${unitLabel} ya emitida o usada`, 409);
+    if (
+      ["used", "cancelled"].includes(
+        String(existingUnit.status || "").toLowerCase(),
+      )
+    ) {
+      return jsonError(`No puedes editar ${unitLabel} usada o cancelada`, 409);
     }
 
-    const normalizedInput = normalizeComparableUnitState(raw, reservationDocType);
+    const normalizedInput = normalizeComparableUnitState(
+      raw,
+      reservationDocType,
+    );
     if (!normalizedInput.fullName) {
       return jsonError(`${unitLabel} necesita nombre completo`, 400);
     }
@@ -324,8 +446,32 @@ export async function PUT(
       return jsonError(`Email inválido para ${unitLabel}`, 400);
     }
 
-    const isIssuedUnit = String(existingUnit.status || "").toLowerCase() === "issued";
-    const nominationChanged = !sameNominationState(existingUnit, normalizedInput);
+    const isIssuedUnit =
+      String(existingUnit.status || "").toLowerCase() === "issued";
+    const nominationChanged = !sameNominationState(
+      existingUnit,
+      normalizedInput,
+    );
+    if (isIssuedUnit && !existingUnit.ticket_id)
+      return jsonError(
+        "Esta entrada necesita una revisión antes de continuar.",
+        409,
+      );
+    const expectedUpdatedAt =
+      typeof raw?.expected_updated_at === "string"
+        ? raw.expected_updated_at
+        : null;
+    if (
+      expectedUpdatedAt &&
+      expectedUpdatedAt !== existingUnit.updated_at &&
+      !sameNominationState(existingUnit, normalizedInput)
+    ) {
+      return jsonError(
+        "La entrada fue modificada. Actualiza la compra antes de continuar.",
+        409,
+        "NOMINATION_VERSION_CONFLICT",
+      );
+    }
 
     pendingUpdates.set(unitId, {
       unitId,
@@ -334,6 +480,7 @@ export async function PUT(
       normalizedInput,
       isIssuedUnit,
       nominationChanged,
+      expectedUpdatedAt,
     });
   }
 
@@ -353,8 +500,7 @@ export async function PUT(
       phone: effectiveState.phone || null,
       docType: effectiveState.docType,
       document: effectiveState.document,
-      dni:
-        effectiveState.docType === "dni" ? effectiveState.document : null,
+      dni: effectiveState.docType === "dni" ? effectiveState.document : null,
     })) {
       const previousLabel = seenIdentityKeys.get(key);
       if (previousLabel && previousLabel !== unitLabel) {
@@ -367,6 +513,12 @@ export async function PUT(
     }
   }
 
+  const updatedUnits: Array<{
+    id: string;
+    ticketId: string | null;
+    qrRotated: boolean;
+    updated_at: string;
+  }> = [];
   for (const {
     unitId,
     unitLabel,
@@ -374,90 +526,74 @@ export async function PUT(
     normalizedInput,
     isIssuedUnit,
     nominationChanged,
+    expectedUpdatedAt,
   } of pendingUpdates.values()) {
     if (isIssuedUnit && !nominationChanged) {
       continue;
     }
 
     if (isIssuedUnit && existingUnit.ticket_id && nominationChanged) {
-      const eventConflict = await findActiveEventTicketConflict(
-        supabase as any,
+      if (!expectedUpdatedAt)
+        return jsonError(
+          "Actualiza la compra antes de editar esta entrada.",
+          409,
+          "NOMINATION_VERSION_REQUIRED",
+        );
+      const { data: edited, error } = await supabase.rpc(
+        "update_ticket_reservation_unit_nomination",
         {
-          eventId: String((reservation.data as any).event_id || ""),
-          fullName: normalizedInput.fullName,
-          email: normalizedInput.email || null,
-          phone: normalizedInput.phone || null,
-          docType: normalizedInput.docType,
-          document: normalizedInput.document,
-          dni:
-            normalizedInput.docType === "dni"
-              ? normalizedInput.document
-              : null,
+          p_reservation_id: id,
+          p_unit_id: unitId,
+          p_expected_updated_at: expectedUpdatedAt,
+          p_full_name: normalizedInput.fullName,
+          p_doc_type: normalizedInput.docType,
+          p_document: normalizedInput.document,
+          p_email: normalizedInput.email || null,
+          p_phone: normalizedInput.phone || null,
         },
       );
-      if (
-        eventConflict?.ticketId &&
-        String(eventConflict.ticketId).trim() !==
-          String(existingUnit.ticket_id || "").trim()
-      ) {
+      if (error) {
+        const message = String(error.message || "");
+        if (error.code === "PGRST202" || error.code === "42883")
+          return jsonError(
+            "La actualización de entradas está en preparación. No se modificó tu entrada.",
+            503,
+            "NOMINATION_UPDATE_UNAVAILABLE",
+          );
+        const reasons: Record<string, string> = {
+          NOMINATION_VERSION_CONFLICT:
+            "La entrada fue modificada. Actualiza la compra antes de continuar.",
+          UNIT_NOT_EDITABLE:
+            "Esta entrada está usada, cancelada o ya no está disponible para editar.",
+          UNIT_EXPIRED:
+            "Esta entrada venció. Para asistir necesitas comprar otra entrada.",
+          EVENT_TICKET_IDENTITY_CONFLICT:
+            "Esta persona ya tiene otra entrada para este evento.",
+          PERSON_DOCUMENT_TYPE_CONFLICT:
+            "Este documento requiere una revisión del equipo antes de continuar.",
+        };
+        const code = Object.keys(reasons).find((reason) =>
+          message.includes(reason),
+        );
         return jsonError(
-          buildEventTicketConflictMessage(eventConflict.reason),
+          code
+            ? reasons[code]
+            : "No se pudo confirmar la actualización. Actualiza la compra antes de reintentar.",
           409,
+          code || "NOMINATION_UPDATE_FAILED",
         );
       }
-
-      const effectiveEmail =
-        normalizedInput.email || (reservation.data as any).email || "";
-      const newQrToken = randomUUID();
-
-      const { error: ticketUpdateError } = await supabase
-        .from("tickets")
-        .update({
-          full_name: normalizedInput.fullName,
-          doc_type: normalizedInput.docType,
-          document: normalizedInput.document,
-          dni: normalizedInput.docType === "dni" ? normalizedInput.document : null,
-          email: effectiveEmail || null,
-          phone: normalizedInput.phone || null,
-          qr_token: newQrToken,
-        })
-        .eq("id", existingUnit.ticket_id)
-        .eq("event_id", (reservation.data as any).event_id);
-      if (ticketUpdateError) return jsonError(ticketUpdateError.message, 500);
-
-      const reissuePatch = {
-        full_name: normalizedInput.fullName,
-        doc_type: normalizedInput.docType,
-        document: normalizedInput.document,
-        email: normalizedInput.email || null,
-        phone: normalizedInput.phone || null,
-        status: "issued",
-        ticket_id: existingUnit.ticket_id,
-        issued_at: reissueTimestamp,
-        nominated_at: reissueTimestamp,
-        updated_at: reissueTimestamp,
-      };
-
-      const { error: updateError } = await supabase
-        .from("ticket_reservation_units")
-        .update(reissuePatch)
-        .eq("id", unitId)
-        .eq("reservation_id", id);
-
-      if (updateError) {
+      if (!edited?.unit_id || !edited?.ticket_id || !edited?.updated_at)
         return jsonError(
-          friendlyNominationUpdateError(updateError.message, unitLabel),
-          400,
+          "No se pudo confirmar la actualización. Actualiza la compra.",
+          500,
         );
-      }
-
-      if (effectiveEmail) {
-        await sendTicketEmail({
-          supabase,
-          ticketId: String(existingUnit.ticket_id),
-          toEmail: effectiveEmail,
-        });
-      }
+      updatedUnits.push({
+        id: edited.unit_id,
+        ticketId: edited.ticket_id,
+        qrRotated: Boolean(edited.qr_rotated),
+        updated_at: edited.updated_at,
+      });
       continue;
     }
 
@@ -472,11 +608,21 @@ export async function PUT(
       updated_at: reissueTimestamp,
     };
 
-    const { error } = await supabase
+    let updateQuery = supabase
       .from("ticket_reservation_units")
       .update(patch)
       .eq("id", unitId)
-      .eq("reservation_id", id);
+      .eq("reservation_id", id)
+      .eq("status", existingUnit.status)
+      .is("ticket_id", null);
+    if (expectedUpdatedAt || existingUnit.updated_at)
+      updateQuery = updateQuery.eq(
+        "updated_at",
+        expectedUpdatedAt || existingUnit.updated_at,
+      );
+    const { data: updated, error } = await updateQuery
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       return jsonError(
@@ -484,6 +630,18 @@ export async function PUT(
         400,
       );
     }
+    if (!updated)
+      return jsonError(
+        "La entrada cambió de estado. Actualiza la compra antes de continuar.",
+        409,
+        "NOMINATION_VERSION_CONFLICT",
+      );
+    updatedUnits.push({
+      id: unitId,
+      ticketId: null,
+      qrRotated: false,
+      updated_at: reissueTimestamp,
+    });
   }
 
   const reloadedUnits = await loadUnits(supabase, id);
@@ -496,14 +654,20 @@ export async function PUT(
       reservation: reservation.data as any,
       units: reloadedUnits.data,
       requestUrl: req.url,
+      readOnly: true,
     });
+    unitsWithClaimCodes = await addAccessStates(supabase, unitsWithClaimCodes);
   } catch (err: any) {
-    return jsonError(err?.message || "No se pudieron preparar los códigos", 500);
+    return jsonError(
+      err?.message || "No se pudieron preparar los códigos",
+      500,
+    );
   }
 
   return NextResponse.json({
     success: true,
-    updatedCount: inputs.length,
+    updatedCount: pendingUpdates.size,
+    updatedUnits,
     reservation: reservation.data,
     units: unitsWithClaimCodes,
   });

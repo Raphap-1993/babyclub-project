@@ -1,169 +1,121 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { createSupabaseMock } from "../../../../../../tests/utils/supabaseMock";
-
-vi.mock("shared/auth/requireStaff", () => ({
-  requireStaffRole: vi.fn(),
-}));
-
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(),
-}));
-
+vi.mock("shared/auth/requireStaff", () => ({ requireStaffRole: vi.fn() }));
+vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn() }));
 vi.mock("../email", () => ({
   sendApprovalEmail: vi.fn(),
   sendTicketEmail: vi.fn(),
 }));
-
-vi.mock("../utils", () => ({
-  createTicketForReservation: vi.fn(),
-}));
-
-vi.mock("shared/ticketReservationUnits", () => ({
-  buildReservationUnits: vi.fn(() => [
-    {
-      reservation_id: "res-1",
-      event_id: "event-1",
-      package_index: 1,
-      person_index: 1,
-      unit_index: 1,
-      status: "pending_nomination",
-    },
-  ]),
-}));
-
+vi.mock("../utils", () => ({ createTicketForReservation: vi.fn() }));
+vi.mock("../ticketOnlyFlow", () => ({ ensureTicketOnlyBuyerIssued: vi.fn() }));
 const { createClient } = await import("@supabase/supabase-js");
 const { requireStaffRole } = await import("shared/auth/requireStaff");
-const { createTicketForReservation } = await import("../utils");
 const { sendApprovalEmail, sendTicketEmail } = await import("../email");
+const { ensureTicketOnlyBuyerIssued } = await import("../ticketOnlyFlow");
+const { createTicketForReservation } = await import("../utils");
 
-describe("POST /api/reservations/resend", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    process.env.SUPABASE_URL = "http://localhost:54321";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
-    process.env.RESEND_API_KEY = "resend-key";
-    process.env.NEXT_PUBLIC_APP_URL = "https://babyclubaccess.com";
-    (requireStaffRole as any).mockResolvedValue({
-      ok: true,
-      context: {
-        user: { id: "user-1" },
-        staffId: "staff-1",
-        role: "admin",
-        staff: {},
+beforeEach(() => {
+  vi.resetModules();
+  vi.resetAllMocks();
+  process.env.SUPABASE_URL = "http://localhost:54321";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
+  process.env.RESEND_API_KEY = "test-key";
+  (requireStaffRole as any).mockResolvedValue({ ok: true });
+  (sendApprovalEmail as any).mockResolvedValue(undefined);
+});
+
+it("ruta anterior también reenvía un solo consolidado sin emitir tickets", async () => {
+  const units = [
+    {
+      unit_index: 1,
+      status: "issued",
+      ticket_id: "ticket-1",
+      email: "first@example.test",
+    },
+    {
+      unit_index: 2,
+      status: "issued",
+      ticket_id: "ticket-2",
+      email: "second@example.test",
+    },
+  ];
+  const { supabase, calls } = createSupabaseMock({
+    "table_reservations.select": {
+      data: {
+        id: "res-1",
+        full_name: "Buyer Demo",
+        email: "buyer@example.test",
+        sale_origin: "ticket",
+        status: "approved",
+        total_ticket_units: 2,
+        codes: [],
+        event_id: "event-1",
       },
-    });
+      error: null,
+    },
+    "ticket_reservation_units.select": { data: units, error: null },
+    "tickets.select": {
+      data: [{ id: "ticket-1" }, { id: "ticket-2" }],
+      error: null,
+    },
+    "codes.select": { data: [], error: null },
   });
-
-  it("reenvia confirmación para ticket-only aunque todavía no haya QR emitidos", async () => {
-    const { supabase } = createSupabaseMock({
-      "table_reservations.select": [
-        {
-          data: {
-            id: "res-1",
-            full_name: "Ana Pérez",
-            email: "ana@example.com",
-            phone: "+51999999999",
-            doc_type: "dni",
-            document: "12345678",
-            sale_origin: "ticket",
-            status: "approved",
-            codes: [],
-            ticket_quantity: 2,
-            total_ticket_units: 2,
-            event_id: "event-1",
-            promoter_id: null,
-            table: null,
-            event: null,
-          },
-          error: null,
-        },
-      ],
-      "ticket_reservation_units.select": [
-        { data: [], error: null },
-        {
-          data: [
-            {
-              id: "unit-1",
-              reservation_id: "res-1",
-              event_id: "event-1",
-              package_index: 1,
-              person_index: 1,
-              unit_index: 1,
-              status: "pending_nomination",
-              full_name: "Ana Pérez",
-              doc_type: "dni",
-              document: "12345678",
-              email: "ana@example.com",
-              phone: "+51999999999",
-              ticket_id: null,
-            },
-          ],
-          error: null,
-        },
-        {
-          data: [
-            {
-              id: "unit-1",
-              reservation_id: "res-1",
-              event_id: "event-1",
-              package_index: 1,
-              person_index: 1,
-              unit_index: 1,
-              status: "issued",
-              full_name: "Ana Pérez",
-              doc_type: "dni",
-              document: "12345678",
-              email: "ana@example.com",
-              phone: "+51999999999",
-              ticket_id: "ticket-1",
-            },
-          ],
-          error: null,
-        },
-      ],
-      "ticket_reservation_units.insert": [{ data: [{ reservation_id: "res-1" }], error: null }],
-      "ticket_reservation_units.update": [{ data: null, error: null }],
-      "table_reservations.update": [{ data: null, error: null }],
-    });
-
-    (createClient as any).mockReturnValue(supabase);
-    (createTicketForReservation as any).mockResolvedValue({
-      ticketId: "ticket-1",
-      code: "BUYER-CODE",
-    });
-    (sendApprovalEmail as any).mockResolvedValue(undefined);
-    (sendTicketEmail as any).mockResolvedValue(undefined);
-
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/reservations/resend", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer token-123",
-        },
-        body: JSON.stringify({ id: "res-1" }),
-      }) as any,
-    );
-    const payload = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(payload.success).toBe(true);
-    expect(payload.sentCount).toBe(1);
-    expect(payload.unitsPrepared).toBe(true);
-    expect(createTicketForReservation).toHaveBeenCalledTimes(1);
-    expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
-    expect((sendApprovalEmail as any).mock.calls[0][0]).toMatchObject({
-      id: "res-1",
-      email: "ana@example.com",
-      resourceLabel: "Entrada",
-      ticketIds: ["ticket-1"],
-      callToAction: {
-        label: "Completar asistentes",
-        url: "https://babyclubaccess.com/compra?reservationId=res-1",
-      },
-    });
-    expect(sendTicketEmail).toHaveBeenCalledTimes(1);
+  (createClient as any).mockReturnValue(supabase);
+  (ensureTicketOnlyBuyerIssued as any).mockResolvedValue({
+    units,
+    unitsPrepared: false,
+    buyerCode: null,
   });
+  const { POST } = await import("./route");
+  const response = await POST(
+    new Request("http://localhost/api/reservations/resend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "res-1" }),
+    }) as any,
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    success: true,
+    sentCount: 1,
+    ticketsCreated: 0,
+    unitsPrepared: false,
+  });
+  expect(sendApprovalEmail).toHaveBeenCalledTimes(1);
+  expect(sendTicketEmail).not.toHaveBeenCalled();
+  expect(ensureTicketOnlyBuyerIssued).not.toHaveBeenCalled();
+  expect(createTicketForReservation).not.toHaveBeenCalled();
+  expect(calls.every((c) => c.op === "select")).toBe(true);
+});
+
+it("rechaza JSON inválido sin consultar BD ni enviar", async () => {
+  const { POST } = await import("./route");
+  const response = await POST(
+    new Request("http://localhost/api/reservations/resend", {
+      method: "POST",
+      body: "{",
+    }) as any,
+  );
+  expect(response.status).toBe(400);
+  expect(createClient).not.toHaveBeenCalled();
+  expect(sendApprovalEmail).not.toHaveBeenCalled();
+});
+
+it("requiere personal autenticado", async () => {
+  (requireStaffRole as any).mockResolvedValue({
+    ok: false,
+    status: 401,
+    error: "unauthorized",
+  });
+  const { POST } = await import("./route");
+  expect(
+    (
+      await POST(
+        new Request("http://localhost/api/reservations/resend", {
+          method: "POST",
+        }) as any,
+      )
+    ).status,
+  ).toBe(401);
+  expect(createClient).not.toHaveBeenCalled();
 });

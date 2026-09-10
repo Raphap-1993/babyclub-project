@@ -1,5 +1,9 @@
 import { applyNotDeleted } from "shared/db/softDelete";
-import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
+import {
+  normalizeDocument,
+  validateDocument,
+  type DocumentType,
+} from "shared/document";
 import { resolveFirstValidEmailAddress } from "shared/email/address";
 import {
   buildEventTicketIdentityKeys,
@@ -103,7 +107,20 @@ function resolveIssuableUnits(units: any[], targetUnitId?: string) {
       (unit) => String(unit.id || "") === targetUnitId,
     );
     if (!selectedUnit) {
-      throw new ReservationIssueError(404, "Unidad no encontrada para esta reserva");
+      throw new ReservationIssueError(
+        404,
+        "Unidad no encontrada para esta reserva",
+      );
+    }
+    if (
+      ["used", "cancelled"].includes(
+        String(selectedUnit.status || "").toLowerCase(),
+      )
+    ) {
+      throw new ReservationIssueError(
+        409,
+        "Esta entrada está usada o cancelada y no se puede volver a emitir.",
+      );
     }
     if (
       selectedUnit.ticket_id ||
@@ -125,7 +142,13 @@ function resolveIssuableUnits(units: any[], targetUnitId?: string) {
 
   const buyerUnit =
     units.find((unit: any) => Number(unit.unit_index || 0) === 1) || null;
-  const buyerNeedsIssue = Boolean(buyerUnit && !buyerUnit.ticket_id);
+  const buyerNeedsIssue = Boolean(
+    buyerUnit &&
+      !buyerUnit.ticket_id &&
+      ["pending_nomination", "nominated"].includes(
+        String(buyerUnit.status || "").toLowerCase(),
+      ),
+  );
   const issuableAssistantUnits = units.filter(
     (unit: any) =>
       Number(unit.unit_index || 0) > 1 &&
@@ -165,22 +188,63 @@ export async function issueReservationUnits({
       String(unit.status || "").toLowerCase() === "pending_nomination",
   ).length;
 
+  const issuableUnits = resolveIssuableUnits(units.data, targetUnitId);
+  const mailDelivery: Array<{
+    unitId: string;
+    ticketId: string;
+    status: "sent" | "failed" | "skipped";
+    error?: string;
+  }> = [];
+  async function deliver(unit: any, ticketId: string) {
+    const identity = getUnitIdentity(unit, reservation);
+    const base = { unitId: String(unit.id), ticketId };
+    if (!identity.effectiveEmail) {
+      mailDelivery.push({ ...base, status: "skipped" });
+      return;
+    }
+    try {
+      await sendTicketEmailFn({
+        supabase,
+        ticketId,
+        toEmail: identity.effectiveEmail,
+      });
+      mailDelivery.push({ ...base, status: "sent" });
+    } catch {
+      mailDelivery.push({
+        ...base,
+        status: "failed",
+        error:
+          "La entrada está lista, pero no pudimos enviar el correo. Puedes reintentar el envío.",
+      });
+    }
+  }
+
   const { codesByUnitIndex, mergedCodes } = await ensureReservationUnitCodes(
     supabase,
     {
       reservation,
       units: units.data,
+      readOnly: issuableUnits.length === 0,
     },
   );
 
-  const issuableUnits = resolveIssuableUnits(units.data, targetUnitId);
   if (issuableUnits.length === 0) {
+    const existing = targetUnitId
+      ? units.data.find(
+          (unit: any) =>
+            String(unit.id) === targetUnitId &&
+            String(unit.status).toLowerCase() === "issued" &&
+            unit.ticket_id,
+        )
+      : null;
+    if (existing) await deliver(existing, String(existing.ticket_id));
     return {
       success: true,
       issuedCount: 0,
       pendingNominationCount,
       codes: mergedCodes,
       units: units.data,
+      mailDelivery,
     };
   }
 
@@ -225,6 +289,9 @@ export async function issueReservationUnits({
     const existingConflict = await findActiveEventTicketConflict(
       supabase as any,
       {
+        allowExpiredGeneralReplacement: ["ticket", "table"].includes(
+          saleOrigin,
+        ),
         eventId: String((reservation as any).event_id || ""),
         fullName: identity.fullName,
         email: identity.email,
@@ -269,10 +336,10 @@ export async function issueReservationUnits({
       reuseCodes: reuseCode ? [reuseCode] : [],
       codeType: isTableReservation ? "table" : "courtesy",
       tableId: isTableReservation
-        ? ((reservation as any).table_id || null)
+        ? (reservation as any).table_id || null
         : null,
       productId: isTableReservation
-        ? ((reservation as any).product_id || null)
+        ? (reservation as any).product_id || null
         : null,
       tableReservationId: reservationId,
     });
@@ -309,13 +376,7 @@ export async function issueReservationUnits({
       throw new ReservationIssueError(500, updateError.message);
     }
 
-    if (identity.effectiveEmail) {
-      await sendTicketEmailFn({
-        supabase,
-        ticketId: result.ticketId,
-        toEmail: identity.effectiveEmail,
-      });
-    }
+    await deliver(unit, result.ticketId);
   }
 
   const finalCodes = uniqueStrings([...mergedCodes, ...issuedCodes]);
@@ -341,5 +402,6 @@ export async function issueReservationUnits({
     pendingNominationCount,
     codes: finalCodes,
     units: reloadedUnits.data,
+    mailDelivery,
   };
 }

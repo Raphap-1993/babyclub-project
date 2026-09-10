@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createTicketForReservation, createReservationCodes } from "../../reservations/utils";
-import { sendEmail } from "shared/email/resend";
+import { sendApprovalEmail } from "../../reservations/email";
 import {
-  getEmailDomain,
   isPresentButInvalidEmailAddress,
-  isValidEmailAddress,
   normalizeOptionalEmailAddress,
   resolveFirstValidEmailAddress,
 } from "shared/email/address";
-import { getPublicAppUrl } from "shared/publicUrl";
-import { formatLimaFromDb } from "shared/limaTime";
 import { normalizeDocument, validateDocument, type DocumentType } from "shared/document";
-import { logProcessEvent } from "../../logs/logger";
 import { requireStaffRole } from "shared/auth/requireStaff";
 import { applyNotDeleted } from "shared/db/softDelete";
 import { findTableAvailability, isTableAvailableForEvent } from "shared/tableAvailability";
@@ -438,153 +433,29 @@ async function sendReservationEmail({
   email: string;
 }) {
   try {
-    const recipientEmail = normalizeOptionalEmailAddress(email);
-    const recipientDomain = getEmailDomain(recipientEmail);
-    if (!recipientEmail || !isValidEmailAddress(recipientEmail)) {
-      await logProcessEvent({
-        supabase,
-        category: "email",
-        action: "reservation_confirmed",
-        status: "error",
-        message: "Email inválido",
-        toEmail: recipientEmail || email || null,
-        provider: "resend",
-        providerId: null,
-        reservationId,
-        ticketId,
-        meta: { recipient_domain: recipientDomain },
-      });
-      return;
-    }
-
-    const { data: resv } = await supabase
+    const { data: reservation, error } = await supabase
       .from("table_reservations")
-      .select(
-        "id,full_name,email,phone,codes,product:table_products(name),table:tables(name,event:events(name,starts_at,location)),ticket:tickets(qr_token)"
-      )
+      .select("id,status,full_name,email,phone,codes,table:tables(name,event:events(name,starts_at,location))")
       .eq("id", reservationId)
       .maybeSingle();
-    if (!resv) return;
+    if (error || !reservation || !["approved", "confirmed", "paid"].includes(String(reservation.status || "").toLowerCase())) return;
 
-    const tableRel = Array.isArray(resv.table) ? resv.table[0] : (resv as any).table;
-    const eventRel = tableRel?.event ? (Array.isArray(tableRel.event) ? tableRel.event[0] : tableRel.event) : null;
-    const codes = Array.isArray(resv.codes) ? resv.codes.map((c: any) => String(c)).filter(Boolean) : [];
-    const qrToken = Array.isArray(resv.ticket) ? resv.ticket[0]?.qr_token : (resv as any).ticket?.qr_token;
-    const productRel = Array.isArray(resv.product) ? resv.product[0] : (resv as any).product;
-
-    const appUrl = getPublicAppUrl();
-    const ticketUrl = `${appUrl}/ticket/${ticketId}`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(
-      qrToken || ticketId
-    )}`;
-    const eventLabel = eventRel?.name || "Evento";
-    const dateLabel = eventRel?.starts_at ? formatLimaFromDb(eventRel.starts_at) : "";
-
-    const codesHtml =
-      codes.length > 0
-        ? codes
-            .map(
-              (c: string) =>
-                `<div style="margin-bottom:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0f0f0f;font-family:'Inter','Helvetica Neue',Arial,sans-serif;color:#f5f5f5;font-weight:700;">${c}</div>`
-            )
-            .join("")
-        : `<p style="color:#cfcfcf;font-size:14px;">Sin códigos de mesa.</p>`;
-
-    const html = `
-    <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#050505;padding:24px 12px;">
-        <tr>
-          <td align="center">
-            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:680px;background:#0b0b0b;border-radius:24px;border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
-              <tr>
-                <td style="padding:26px 32px 16px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(233,30,99,0.12));color:#ffffff;">
-                  <div style="text-transform:uppercase;font-size:12px;letter-spacing:0.28em;color:#f2f2f2;opacity:0.8;margin-bottom:6px;">Baby</div>
-                  <h1 style="margin:0;font-size:26px;line-height:1.2;color:#ffffff;">Reserva confirmada</h1>
-                  <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">Mesa ${tableRel?.name || ""} • ${eventLabel}${dateLabel ? ` • ${dateLabel}` : ""}</p>
-                  ${eventRel?.location ? `<p style="margin:4px 0 0;font-size:13px;color:#c8c8c8;">${eventRel.location}</p>` : ""}
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:22px 32px 26px;">
-                  <p style="margin:0 0 12px;font-size:15px;color:#f5f5f5;">Hola ${resv.full_name || "invitadx"},</p>
-                  <p style="margin:0 0 14px;font-size:14px;color:#d7d7d7;line-height:1.6;">Adjuntamos tu QR y los códigos de mesa asociados a tu pack.</p>
-                  <div style="text-align:center;margin-bottom:16px;">
-                    <img src="${qrUrl}" alt="QR" width="210" height="210" style="border-radius:16px;border:8px solid #0f0f0f;background:#fff;" />
-                  </div>
-                  <div style="margin-bottom:16px;text-align:center;">
-                    <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket actualizado</a>
-                  </div>
-                  ${productRel?.name ? `<p style="font-size:14px;color:#f5f5f5;"><strong>Pack:</strong> ${productRel.name}</p>` : ""}
-                  <div style="margin-top:12px;">
-                    <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#bcbcbc;">Códigos de mesa</p>
-                    ${codesHtml}
-                  </div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </div>`;
-
-    const textBody = [
-      `Reserva confirmada - Mesa ${tableRel?.name || ""}`,
-      `Evento: ${eventLabel}${dateLabel ? ` • ${dateLabel}` : ""}`,
-      eventRel?.location ? `Lugar: ${eventRel.location}` : null,
-      productRel?.name ? `Pack: ${productRel.name}` : null,
-      "",
-      "Códigos de mesa:",
-      codes.length > 0 ? codes.map((c: any) => `- ${c}`).join("\n") : "- (sin códigos)",
-      "",
-      `Ticket: ${ticketUrl}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    if (recipientEmail) {
-      const subject = `BABY - Reserva confirmada (${tableRel?.name || "Mesa"})`;
-      let providerId: string | null = null;
-      try {
-        const result: any = await sendEmail({
-          to: recipientEmail,
-          subject,
-          html,
-          text: textBody,
-        });
-        providerId = result?.data?.id || null;
-        if (result?.error) {
-          throw new Error(result.error?.message || "Error enviando correo");
-        }
-        await logProcessEvent({
-          supabase,
-          category: "email",
-          action: "reservation_confirmed",
-          status: "success",
-          message: subject,
-          toEmail: recipientEmail,
-          provider: "resend",
-          providerId,
-          reservationId,
-          ticketId,
-          meta: { recipient_domain: recipientDomain },
-        });
-      } catch (err: any) {
-        await logProcessEvent({
-          supabase,
-          category: "email",
-          action: "reservation_confirmed",
-          status: "error",
-          message: err?.message || "No se pudo enviar correo",
-          toEmail: recipientEmail,
-          provider: "resend",
-          providerId,
-          reservationId,
-          ticketId,
-          meta: { recipient_domain: recipientDomain },
-        });
-      }
-    }
-  } catch (_err) {
-    // ignore email errors here
+    const table = Array.isArray(reservation.table) ? reservation.table[0] : reservation.table;
+    const event = Array.isArray(table?.event) ? table.event[0] : table?.event;
+    await sendApprovalEmail({
+      supabase,
+      id: reservationId,
+      full_name: reservation.full_name || "",
+      email,
+      phone: reservation.phone || null,
+      codes: Array.isArray(reservation.codes) ? reservation.codes : [],
+      ticketIds: [ticketId],
+      tableName: table?.name || "Mesa",
+      event: event || null,
+      resourceLabel: "Mesa",
+      logAction: "reservation_confirmed",
+    });
+  } catch {
+    // The reservation is already saved; delivery failures are logged by the sender.
   }
 }

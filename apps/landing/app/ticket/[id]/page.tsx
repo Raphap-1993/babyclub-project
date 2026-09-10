@@ -1,5 +1,10 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { ticketQrDataUrl } from "shared/ticketQr";
+import {
+  getTicketAccessState,
+  type TicketAccessState,
+} from "shared/ticketAccess";
 import { EmailSender } from "./EmailSender";
 import { TicketDownloader } from "./TicketDownloader";
 import Link from "next/link";
@@ -22,6 +27,7 @@ type TicketView = {
   reservation_sale_origin?: "table" | "ticket" | null;
   reservation_ticket_type_label?: string | null;
   qr_token: string;
+  access: TicketAccessState;
   full_name: string | null;
   doc_type: string | null;
   document: string | null;
@@ -64,8 +70,7 @@ function isMissingReservationCommercialColumnsError(error: any) {
   const haystack = `${message} ${details} ${hint}`.toLowerCase();
   return (
     haystack.includes("does not exist") &&
-    (haystack.includes("sale_origin") ||
-      haystack.includes("ticket_type_label"))
+    (haystack.includes("sale_origin") || haystack.includes("ticket_type_label"))
   );
 }
 
@@ -78,7 +83,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,event_id,table_reservation_id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,location,starts_at,entry_limit),promoter:promoters(code,person:persons(first_name,last_name))",
+      "id,event_id,table_reservation_id,qr_token,used,is_active,deleted_at,payment_status,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,location,starts_at,entry_limit,is_active,closed_at,deleted_at),promoter:promoters(code,person:persons(first_name,last_name))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -100,6 +105,23 @@ async function getTicket(id: string): Promise<TicketView | null> {
       : promoterRel.person
     : null;
 
+  const { data: unit, error: unitError } = await supabase
+    .from("ticket_reservation_units")
+    .select("status,deleted_at")
+    .eq("ticket_id", id)
+    .maybeSingle();
+  let access: TicketAccessState = unitError
+    ? { state: "pending", reason: "status_unavailable", expiredAt: null }
+    : getTicketAccessState({
+        ticket: data,
+        code: codeRel,
+        event: eventRel,
+        unit,
+      });
+  if (access.state === "ready" && !String(data.qr_token || "").trim()) {
+    access = { state: "pending", reason: "qr_unavailable", expiredAt: null };
+  }
+
   const normalized: TicketView = {
     id: data.id as string,
     event_id: (data as any).event_id ?? null,
@@ -108,6 +130,7 @@ async function getTicket(id: string): Promise<TicketView | null> {
       codeRel?.table_reservation_id ??
       null,
     qr_token: data.qr_token as string,
+    access,
     full_name: (data as any).full_name ?? null,
     doc_type:
       (data as any).doc_type ??
@@ -190,7 +213,10 @@ async function getTicket(id: string): Promise<TicketView | null> {
     );
     let { data: reservationRow, error: reservationError } =
       await reservationQuery.maybeSingle();
-    if (reservationError && isMissingReservationCommercialColumnsError(reservationError)) {
+    if (
+      reservationError &&
+      isMissingReservationCommercialColumnsError(reservationError)
+    ) {
       reservationQuery = applyNotDeleted(
         supabase
           .from("table_reservations")
@@ -260,7 +286,10 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
   );
   let { data: reservationById, error: reservationError } =
     await reservationByIdQuery.maybeSingle();
-  if (reservationError && isMissingReservationCommercialColumnsError(reservationError)) {
+  if (
+    reservationError &&
+    isMissingReservationCommercialColumnsError(reservationError)
+  ) {
     reservationByIdQuery = applyNotDeleted(
       supabase
         .from("table_reservations")
@@ -274,8 +303,9 @@ async function getReservationCodesFor(ticket: TicketView): Promise<string[]> {
   const activeStatuses = new Set(["approved", "confirmed", "paid"]);
   if (
     reservationById &&
-    (ticket.reservation_sale_origin || (reservationById as any)?.sale_origin || null) ===
-      "table" &&
+    (ticket.reservation_sale_origin ||
+      (reservationById as any)?.sale_origin ||
+      null) === "table" &&
     activeStatuses.has(status) &&
     Array.isArray((reservationById as any).codes) &&
     isReservationOwner(ticket, reservationById as any)
@@ -322,6 +352,10 @@ export default async function TicketPage({
   const { id } = await params;
   const ticket = await getTicket(id);
   if (!ticket) return notFound();
+  const qrImageSrc =
+    ticket.access.state === "ready"
+      ? await ticketQrDataUrl(ticket.qr_token)
+      : null;
 
   const promoterName = ticket.promoter?.person
     ? `${ticket.promoter.person.first_name} ${ticket.promoter.person.last_name}`.trim()
@@ -378,22 +412,29 @@ export default async function TicketPage({
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
               BABY
             </p>
-            <h1 className="text-3xl font-semibold">Tu QR ya está listo</h1>
+            <h1 className="text-3xl font-semibold">
+              {accessTitle(ticket.access.state)}
+            </h1>
           </div>
           <div className="flex items-center gap-3">
-            <TicketDownloader ticketId={ticket.id} />
-            <Link
-              href={`/registro?code=${encodeURIComponent(ticket.code.code)}`}
-              className="rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
-            >
-              Usar mi código
-            </Link>
+            {ticket.access.state === "ready" && (
+              <TicketDownloader ticketId={ticket.id} />
+            )}
+            {workspaceContext.nominationUrl && (
+              <Link
+                href={workspaceContext.nominationUrl}
+                className="rounded-full px-4 py-2 text-sm font-semibold btn-smoke-outline transition"
+              >
+                Ver mis entradas
+              </Link>
+            )}
           </div>
         </div>
 
         <div id="ticket-content">
           <VerticalTicket
             ticket={ticket}
+            qrImageSrc={qrImageSrc}
             promoterName={promoterName}
             extraCodes={extraCodes}
             workspaceContext={workspaceContext}
@@ -405,14 +446,27 @@ export default async function TicketPage({
           />
         </div>
 
-        <EmailSender ticketId={ticket.id} defaultEmail={ticket.email} />
+        {ticket.access.state === "ready" && (
+          <EmailSender ticketId={ticket.id} defaultEmail={ticket.email} />
+        )}
         <LegalFooterLinks className="pb-2" compact />
       </div>
     </main>
   );
 }
+function accessTitle(state: TicketAccessState["state"]) {
+  return {
+    ready: "Tu QR está listo",
+    used: "Entrada utilizada",
+    inactive: "Entrada no disponible",
+    expired: "Entrada vencida",
+    pending: "Entrada pendiente",
+  }[state];
+}
+
 function VerticalTicket({
   ticket,
+  qrImageSrc,
   promoterName,
   extraCodes,
   workspaceContext,
@@ -423,6 +477,7 @@ function VerticalTicket({
   eventDateTime,
 }: {
   ticket: TicketView;
+  qrImageSrc: string | null;
   promoterName: string | null;
   extraCodes: string[];
   workspaceContext: TicketWorkspaceContext;
@@ -432,7 +487,6 @@ function VerticalTicket({
   eventTimeLabel: string;
   eventDateTime: string;
 }) {
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(ticket.qr_token)}`;
   const docValue = ticket.document || ticket.dni || "—";
   const docTypeLabel = (
     ticket.doc_type || (ticket.dni ? "dni" : "")
@@ -455,13 +509,56 @@ function VerticalTicket({
         </div>
 
         <div className="flex justify-center">
-          <img
-            src={qrUrl}
-            alt="QR de entrada"
-            className="rounded-2xl border border-white/20 bg-white p-2"
-            width={220}
-            height={220}
-          />
+          {qrImageSrc ? (
+            <img
+              src={qrImageSrc}
+              alt="QR de entrada"
+              className="rounded-2xl border border-white/20 bg-white p-2"
+              width={220}
+              height={220}
+            />
+          ) : (
+            <div
+              role="status"
+              className="w-full rounded-xl border border-white/15 p-5 text-center"
+            >
+              <p className="font-semibold">
+                {accessTitle(ticket.access.state)}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-neutral-300">
+                {ticket.access.state === "used"
+                  ? "Esta entrada ya registró un ingreso."
+                  : ticket.access.state === "expired"
+                    ? "La hora de ingreso de esta entrada ya pasó."
+                    : ticket.access.state === "pending"
+                      ? "El QR estará disponible cuando se confirme el estado de esta entrada."
+                      : "Esta entrada ya no permite el ingreso."}
+              </p>
+              {ticket.access.expiredAt && (
+                <p className="mt-2 text-sm text-neutral-400">
+                  Venció: {formatLimaFromDb(ticket.access.expiredAt)} · Lima
+                </p>
+              )}
+              {ticket.access.state === "expired" && (
+                <div className="mt-4 border-t border-white/15 pt-4 text-sm leading-6 text-neutral-300">
+                  <p>
+                    Al comprar otra entrada recibirás un QR nuevo. Esta entrada
+                    seguirá vencida.
+                  </p>
+                  <Link
+                    href={
+                      ticket.event_id
+                        ? `/compra?event_id=${encodeURIComponent(ticket.event_id)}`
+                        : "/compra"
+                    }
+                    className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-white px-4 font-semibold text-black"
+                  >
+                    Comprar otra entrada
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {warnings.length > 0 && (
@@ -511,8 +608,8 @@ function VerticalTicket({
           {!ticket.table_name &&
             ticket.table_reservation_id &&
             ticket.reservation_sale_origin !== "ticket" && (
-            <Info label="Origen" value="Reserva de mesa" />
-          )}
+              <Info label="Origen" value="Reserva de mesa" />
+            )}
           {ticket.table_name && <Info label="Mesa" value={ticket.table_name} />}
           {ticket.product_name && (
             <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0a0a0a] p-3">
@@ -562,15 +659,15 @@ function VerticalTicket({
                 {workspaceContext.pendingAssistantCount === 1 ? "" : "s"}{" "}
                 pendiente
                 {workspaceContext.pendingAssistantCount === 1 ? "" : "s"} por
-                completar. Completar asistentes o compartir sus códigos queda
-                en tus manos cuando quieras.
+                completar. Completa sus datos para obtener el QR de cada
+                persona.
               </p>
               <div className="mt-3">
                 <Link
                   href={workspaceContext.nominationUrl}
                   className="inline-flex rounded-full px-4 py-2 text-sm font-semibold btn-smoke transition"
                 >
-                  Gestionar grupo
+                  Ver mis entradas
                 </Link>
               </div>
             </div>
@@ -594,9 +691,8 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function AdditionalInfo() {
   const lines = [
-    "(+18) Presentando DNI",
-    "¿Llegas tarde? Adquiere tu entrada!",
-    "Si te registras y no asistes, no tendras acceso al link de registro o seras filtrado para proximos eventos.",
+    "Ingreso para mayores de 18 años, presentando tu documento.",
+    "Cada QR corresponde a una persona. Revisa el horario de ingreso indicado en tu entrada.",
   ];
 
   return (
@@ -664,7 +760,7 @@ function buildWarnings({
       title: "QR libre",
       body: expiresLabel
         ? `Hora límite de ingreso: ${expiresLabel}.`
-        : "QR libre con hora límite configurable. Llega temprano para asegurar tu ingreso.",
+        : "Consulta el horario de ingreso del evento y llega temprano.",
       tone: "free",
     });
   } else if (codeType === "general") {
@@ -673,14 +769,14 @@ function buildWarnings({
       body: entryLimitLabel
         ? `Hora límite de ingreso: ${entryLimitLabel}. Horario del evento: ${eventTimeLabel}.`
         : eventTimeLabel
-        ? `Hora de ingreso del evento: ${eventTimeLabel}.`
-        : "QR con hora límite configurable.",
+          ? `Hora de ingreso del evento: ${eventTimeLabel}.`
+          : "Consulta el horario de ingreso del evento.",
       tone: "general",
     });
   } else if (reservationSaleOrigin === "ticket" && ticketTypeLabel) {
     items.push({
       title: ticketTypeLabel,
-      body: "Entrada nominada emitida desde una compra por paquetes.",
+      body: "Entrada personal. Válida para el titular indicado.",
       tone: "ticket",
     });
   } else if (hasTableContext) {
@@ -692,19 +788,25 @@ function buildWarnings({
   } else if (isPromoterCode) {
     items.push({
       title: "QR promotor",
-      body: "Este QR no tiene límite de hora de ingreso.",
+      body: expiresLabel
+        ? `Ingreso permitido hasta ${expiresLabel}.`
+        : "Invitación personal. Consulta las condiciones de ingreso del evento.",
       tone: "promoter",
     });
   } else if (codeType === "courtesy") {
     items.push({
       title: "QR cortesía",
-      body: "Este QR no tiene límite de hora de ingreso.",
+      body: expiresLabel
+        ? `Ingreso permitido hasta ${expiresLabel}.`
+        : "Invitación personal. Consulta las condiciones de ingreso del evento.",
       tone: "courtesy",
     });
   } else {
     items.push({
       title: "QR",
-      body: "Este QR no tiene límite de hora de ingreso.",
+      body: expiresLabel
+        ? `Ingreso permitido hasta ${expiresLabel}.`
+        : "Invitación personal. Consulta las condiciones de ingreso del evento.",
       tone: "neutral",
     });
   }

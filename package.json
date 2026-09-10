@@ -31,6 +31,7 @@
   "devDependencies": {
     "@types/luxon": "^3.7.1",
     "@types/node": "^22.15.3",
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.22",
@@ -46,6 +47,7 @@
     "@supabase/supabase-js": "^2.86.0",
     "@zxing/browser": "^0.1.4",
     "luxon": "^3.7.2",
+    "qrcode": "1.5.4",
     "resend": "^6.6.0"
   },
   "packageManager": "pnpm@9.0.0",

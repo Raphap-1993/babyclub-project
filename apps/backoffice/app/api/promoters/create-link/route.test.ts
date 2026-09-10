@@ -1,75 +1,63 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseMock } from "../../../../../../tests/utils/supabaseMock";
-
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(),
-}));
-vi.mock("shared/auth/requireStaff", () => ({
-  requireStaffRole: vi.fn(),
-}));
-
+vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn() }));
+vi.mock("shared/auth/requireStaff", () => ({ requireStaffRole: vi.fn() }));
 const { createClient } = await import("@supabase/supabase-js");
 const { requireStaffRole } = await import("shared/auth/requireStaff");
-
-describe("POST /api/promoters/create-link", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    process.env.SUPABASE_URL = "http://localhost:54321";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-key";
-    (requireStaffRole as any).mockResolvedValue({
-      ok: true,
-      context: {
-        role: "admin",
-        staffId: "staff-1",
-      },
-    });
+const id = "11111111-1111-4111-8111-111111111111";
+function request(body: any) {
+  return new Request("http://localhost/api/promoters/create-link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-
-  it("bloquea crear links nuevos si el promotor está inactivo", async () => {
+}
+describe("permanent promoter link endpoint", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("SUPABASE_URL", "http://localhost:54321");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "synthetic-test-key");
+    vi.stubEnv("NEXT_PUBLIC_LANDING_URL", "http://localhost:3001");
+    vi.mocked(requireStaffRole).mockResolvedValue({
+      ok: true,
+      context: { role: "admin", staffId: "staff-1" },
+    } as any);
+  });
+  it("returns the same link without an event, code, or database writes", async () => {
     const { supabase, calls } = createSupabaseMock({
-      "promoters.select": [
-        {
-          data: {
-            id: "prom-1",
-            is_active: false,
-          },
-          error: null,
-        },
-      ],
-      "events.select": [
-        {
-          data: {
-            id: "event-1",
-            is_active: true,
-          },
-          error: null,
-        },
-      ],
-      "codes.select": [{ data: null, error: null }],
-      "codes.insert": [{ data: { id: "code-1", code: "PROMO-LINK" }, error: null }],
+      "promoters.select": { data: { id, is_active: true }, error: null },
     });
-    (createClient as any).mockReturnValue(supabase);
-
+    vi.mocked(createClient).mockReturnValue(supabase as any);
     const { POST } = await import("./route");
-    const req = new Request("http://localhost/api/promoters/create-link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        promoter_id: "prom-1",
-        event_id: "event-1",
-        code: "PROMO-LINK",
-      }),
-    });
-
-    const res = await POST(req as any);
-    const payload = await res.json();
-
-    expect(res.status).toBe(409);
-    expect(payload.success).toBe(false);
-    expect(String(payload.error || "")).toContain("inactivo");
+    for (let index = 0; index < 2; index++) {
+      const res = await POST(request({ promoter_id: id }) as any);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        permanent: true,
+        url: `http://localhost:3001/p/${id}`,
+      });
+    }
     expect(
-      calls.some((call) => call.table === "codes" && call.op === "insert"),
-    ).toBe(false);
+      calls.every((call) => call.op === "select" && call.table === "promoters"),
+    ).toBe(true);
+  });
+  it("rejects inactive promoters without writing", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "promoters.select": { data: { id, is_active: false }, error: null },
+    });
+    vi.mocked(createClient).mockReturnValue(supabase as any);
+    const { POST } = await import("./route");
+    expect((await POST(request({ promoter_id: id }) as any)).status).toBe(404);
+    expect(calls.every((call) => call.op === "select")).toBe(true);
+  });
+  it("preserves staff authorization", async () => {
+    vi.mocked(requireStaffRole).mockResolvedValue({
+      ok: false,
+      status: 401,
+      error: "Unauthorized",
+    } as any);
+    const { POST } = await import("./route");
+    expect((await POST(request({ promoter_id: id }) as any)).status).toBe(401);
+    expect(createClient).not.toHaveBeenCalled();
   });
 });

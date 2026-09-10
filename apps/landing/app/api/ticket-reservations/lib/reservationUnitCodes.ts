@@ -72,10 +72,16 @@ function resolveEventPrefix(reservation: ReservationLike) {
 }
 
 function resolveCodeTableName(reservation: ReservationLike) {
-  const saleOrigin = String(reservation.sale_origin || "").trim().toLowerCase();
+  const saleOrigin = String(reservation.sale_origin || "")
+    .trim()
+    .toLowerCase();
   if (saleOrigin === "table") {
     const tableRel = getRelation(reservation.table);
-    return String(tableRel?.name || reservation.ticket_type_label || "Mesa").trim() || "Mesa";
+    return (
+      String(
+        tableRel?.name || reservation.ticket_type_label || "Mesa",
+      ).trim() || "Mesa"
+    );
   }
 
   return `T${sanitizeSegment(String(reservation.id || "").slice(-6), "TICKET")}`;
@@ -89,7 +95,9 @@ function isCodesTypeCheckError(error: any): boolean {
   if (!error) return false;
   const message = String(error?.message || "");
   const details = String(error?.details || "");
-  return error?.code === "23514" && /codes_type_check/i.test(`${message} ${details}`);
+  return (
+    error?.code === "23514" && /codes_type_check/i.test(`${message} ${details}`)
+  );
 }
 
 async function insertReservationCodes(
@@ -134,7 +142,9 @@ async function insertReservationCodes(
       .select("id,code"));
   }
   if (error) {
-    throw new Error(error.message || "No se pudieron crear los códigos por unidad");
+    throw new Error(
+      error.message || "No se pudieron crear los códigos por unidad",
+    );
   }
 
   return Array.isArray(data) ? data : [];
@@ -145,9 +155,11 @@ export async function ensureReservationUnitCodes(
   {
     reservation,
     units,
+    readOnly = false,
   }: {
     reservation: ReservationLike;
     units: UnitLike[];
+    readOnly?: boolean;
   },
 ): Promise<{
   codesByUnitIndex: Map<number, string>;
@@ -158,9 +170,7 @@ export async function ensureReservationUnitCodes(
   const eventId = String(reservation.event_id || "").trim();
   const unitIndexes = resolveUnitIndexes(reservation, units);
   const reservationCodes = Array.isArray(reservation.codes)
-    ? reservation.codes
-        .map((code) => String(code || "").trim())
-        .filter(Boolean)
+    ? reservation.codes.map((code) => String(code || "").trim()).filter(Boolean)
     : [];
 
   const codesByUnitIndex = new Map<number, string>();
@@ -204,8 +214,10 @@ export async function ensureReservationUnitCodes(
   const missingIndexes = unitIndexes.filter(
     (unitIndex) => !codesByUnitIndex.has(unitIndex),
   );
-  if (missingIndexes.length > 0) {
-    const saleOrigin = String(reservation.sale_origin || "").trim().toLowerCase();
+  if (!readOnly && missingIndexes.length > 0) {
+    const saleOrigin = String(reservation.sale_origin || "")
+      .trim()
+      .toLowerCase();
     const created = await insertReservationCodes(supabase as any, {
       eventId,
       eventPrefix: resolveEventPrefix(reservation),
@@ -226,8 +238,8 @@ export async function ensureReservationUnitCodes(
   const mergedCodes = uniqueStrings([...reservationCodes, ...orderedCodes]);
 
   if (
-    missingIndexes.length > 0 ||
-    !sameCodeList(reservationCodes, mergedCodes)
+    !readOnly &&
+    (missingIndexes.length > 0 || !sameCodeList(reservationCodes, mergedCodes))
   ) {
     const { error: updateError } = await supabase
       .from("table_reservations")
@@ -272,19 +284,23 @@ export async function ensureReservationUnitClaimCodes({
   reservation,
   units,
   requestUrl = "http://localhost/",
+  readOnly = false,
 }: {
   supabase: any;
   reservation: ReservationLike;
   units: Array<UnitLike & Record<string, any>>;
   requestUrl?: string;
+  readOnly?: boolean;
 }) {
   const { codesByUnitIndex } = await ensureReservationUnitCodes(supabase, {
     reservation,
     units,
+    readOnly,
   });
 
   return units.map((unit) => {
-    const claimCode = codesByUnitIndex.get(Number(unit.unit_index || 0)) || null;
+    const claimCode =
+      codesByUnitIndex.get(Number(unit.unit_index || 0)) || null;
     return {
       ...unit,
       claim_code: claimCode,

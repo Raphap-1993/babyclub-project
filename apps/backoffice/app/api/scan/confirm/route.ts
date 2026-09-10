@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { DateTime } from "luxon";
-import { EVENT_TZ } from "shared/datetime";
-import { getEntryCutoff } from "shared/entryLimit";
+import { getTicketAccessState } from "shared/ticketAccess";
 import { requireStaffRole } from "shared/auth/requireStaff";
-import { getClientIp, parseRateLimitEnv, rateLimit, rateLimitHeaders } from "shared/security/rateLimit";
+import {
+  getClientIp,
+  parseRateLimitEnv,
+  rateLimit,
+  rateLimitHeaders,
+} from "shared/security/rateLimit";
 import { applyNotDeleted } from "shared/db/softDelete";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_SCAN_PER_MIN = parseRateLimitEnv(process.env.RATE_LIMIT_SCAN_PER_MIN, 120);
+const RATE_LIMIT_SCAN_PER_MIN = parseRateLimitEnv(
+  process.env.RATE_LIMIT_SCAN_PER_MIN,
+  120,
+);
 
 export async function POST(req: NextRequest) {
   const guard = await requireStaffRole(req, ["door", "admin", "superadmin"]);
   if (!guard.ok) {
-    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+    return NextResponse.json(
+      { success: false, error: guard.error },
+      { status: guard.status },
+    );
   }
   const limiter = rateLimit(req, {
     keyPrefix: "backoffice:scan:confirm",
@@ -30,26 +39,58 @@ export async function POST(req: NextRequest) {
   if (!limiter.ok) {
     return NextResponse.json(
       { success: false, error: "rate_limited", retryAfterMs: limiter.resetMs },
-      { status: 429, headers: rateLimitHeaders(limiter) }
+      { status: 429, headers: rateLimitHeaders(limiter) },
     );
   }
   if (!supabaseUrl || !supabaseServiceKey) {
-    return NextResponse.json({ success: false, error: "Supabase config missing" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Supabase config missing" },
+      { status: 500 },
+    );
   }
 
   let body: any = null;
   try {
     body = await req.json();
   } catch (_err) {
-    return NextResponse.json({ success: false, error: "JSON inválido" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "JSON inválido" },
+      { status: 400 },
+    );
   }
 
-  const code_id = typeof body?.code_id === "string" ? body.code_id.trim() : null;
-  const ticket_id = typeof body?.ticket_id === "string" ? body.ticket_id.trim() : null;
-  const event_id = typeof body?.event_id === "string" ? body.event_id.trim() : null;
+  const ticket_id =
+    typeof body?.ticket_id === "string" ? body.ticket_id.trim() : null;
+  const qr_token =
+    typeof body?.qr_token === "string" ? body.qr_token.trim() : null;
+  const event_id =
+    typeof body?.event_id === "string" ? body.event_id.trim() : null;
 
-  if (!code_id && !ticket_id) {
-    return NextResponse.json({ success: false, error: "code_id o ticket_id es requerido" }, { status: 400 });
+  if (!ticket_id) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Presenta el QR individual de la entrada",
+        reason: "individual_qr_required",
+      },
+      { status: 400 },
+    );
+  }
+  if (!qr_token) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Vuelve a escanear el QR de la entrada",
+        reason: "rescan_required",
+      },
+      { status: 400 },
+    );
+  }
+  if (!event_id) {
+    return NextResponse.json(
+      { success: false, error: "Selecciona el evento" },
+      { status: 400 },
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -60,18 +101,34 @@ export async function POST(req: NextRequest) {
   const ticketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,code_id,event_id,used,used_at,is_active,payment_status")
-      .match(ticket_id ? { id: ticket_id } : { code_id })
+      .select(
+        "id,code_id,event_id,used,used_at,is_active,payment_status,qr_token,doc_type,document,dni",
+      )
+      .eq("id", ticket_id)
       .order("created_at", { ascending: false })
-      .limit(1)
+      .limit(1),
   );
   const { data: ticket, error: ticketErr } = await ticketQuery.maybeSingle();
 
   if (ticketErr) {
-    return NextResponse.json({ success: false, error: ticketErr.message }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: ticketErr.message },
+      { status: 400 },
+    );
   }
 
   if (ticket) {
+    if (ticket.qr_token !== qr_token) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "La entrada fue actualizada. Escanea el QR actual",
+          result: "invalid",
+          reason: "rescan_required",
+        },
+        { status: 409 },
+      );
+    }
     if (
       ticket.is_active === false ||
       String(ticket.payment_status || "").toLowerCase() === "pending"
@@ -97,44 +154,82 @@ export async function POST(req: NextRequest) {
       );
     }
     if (ticket.used) {
-      return NextResponse.json({ success: false, error: "Este ticket ya fue usado", result: "duplicate" }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Este ticket ya fue usado",
+          result: "duplicate",
+        },
+        { status: 400 },
+      );
     }
 
-    const codeLookup = applyNotDeleted(supabase.from("codes").select("id,type").eq("id", ticket.code_id));
-    const { data: codeRow } = await codeLookup.maybeSingle();
-    const codeType = (codeRow?.type || "").toLowerCase();
+    const codeLookup = applyNotDeleted(
+      supabase
+        .from("codes")
+        .select("id,type,expires_at")
+        .eq("id", ticket.code_id),
+    );
+    const { data: codeRow, error: codeError } = await codeLookup.maybeSingle();
+    if (codeError || (ticket.code_id && !codeRow)) {
+      return NextResponse.json(
+        { success: false, error: "No se pudo validar la entrada" },
+        { status: 409 },
+      );
+    }
     const eventQuery = applyNotDeleted(
       supabase
         .from("events")
         .select("starts_at,entry_limit,is_active,closed_at")
-        .eq("id", ticket.event_id)
+        .eq("id", ticket.event_id),
     );
-    const { data: eventRow, error: eventError } = await eventQuery.maybeSingle();
+    const { data: eventRow, error: eventError } =
+      await eventQuery.maybeSingle();
     if (eventError) {
-      return NextResponse.json({ success: false, error: eventError.message }, { status: 400 });
-    }
-    if (eventRow?.is_active === false || eventRow?.closed_at) {
       return NextResponse.json(
-        { success: false, error: "El evento está inactivo", result: "inactive" },
-        { status: 409 },
+        { success: false, error: eventError.message },
+        { status: 400 },
       );
     }
-    if (codeType === "general") {
-      if (eventRow) {
-        const entryCutoff = getEntryCutoff(eventRow.starts_at, eventRow.entry_limit);
-        if (entryCutoff && DateTime.now().setZone(EVENT_TZ) > entryCutoff.cutoff) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Fuera de hora de ingreso",
-              result: "expired",
-              reason: "entry_cutoff",
-              expired_at: entryCutoff.cutoff.toUTC().toISO(),
-            },
-            { status: 400 }
-          );
-        }
-      }
+    const { data: unit, error: unitError } = await supabase
+      .from("ticket_reservation_units")
+      .select("id,status,deleted_at")
+      .eq("ticket_id", ticket.id)
+      .maybeSingle();
+    if (unitError)
+      return NextResponse.json(
+        { success: false, error: "No se pudo validar al asistente" },
+        { status: 409 },
+      );
+    const access = getTicketAccessState({
+      ticket,
+      code: codeRow,
+      event: eventRow,
+      unit,
+    });
+    if (access.state !== "ready") {
+      const result =
+        access.state === "used"
+          ? "duplicate"
+          : access.state === "pending"
+            ? "invalid"
+            : access.state;
+      const error =
+        access.state === "expired"
+          ? "La entrada ha vencido"
+          : access.reason === "nomination_required"
+            ? "Completa los datos del asistente antes de ingresar"
+            : "La entrada no está disponible para ingresar";
+      return NextResponse.json(
+        {
+          success: false,
+          error,
+          result,
+          reason: access.reason,
+          expired_at: access.expiredAt,
+        },
+        { status: 409 },
+      );
     }
 
     const now = new Date().toISOString();
@@ -143,14 +238,25 @@ export async function POST(req: NextRequest) {
       .update({ used: true, used_at: now })
       .eq("id", ticket.id)
       .eq("used", false)
+      .eq("qr_token", qr_token)
+      .eq("is_active", true)
+      .is("deleted_at", null)
       .select("id")
       .maybeSingle();
     if (updErr) {
-      return NextResponse.json({ success: false, error: updErr.message }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: updErr.message },
+        { status: 400 },
+      );
     }
     if (!updatedTicket?.id) {
       return NextResponse.json(
-        { success: false, error: "Este ticket ya fue usado", result: "duplicate" },
+        {
+          success: false,
+          error: "La entrada cambió. Vuelve a escanear el QR",
+          result: "invalid",
+          reason: "rescan_required",
+        },
         { status: 409 },
       );
     }
@@ -189,108 +295,8 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  if (!code_id) {
-    return NextResponse.json({ success: false, error: "Ticket no encontrado", result: "not_found" }, { status: 404 });
-  }
-
-  const codeQuery = applyNotDeleted(
-    supabase.from("codes").select("id,event_id,type,is_active,max_uses,uses,expires_at").eq("id", code_id)
+  return NextResponse.json(
+    { success: false, error: "Ticket no encontrado", result: "not_found" },
+    { status: 404 },
   );
-  const { data: codeRow, error: codeErr } = await codeQuery.maybeSingle();
-
-  if (codeErr) {
-    return NextResponse.json({ success: false, error: codeErr.message }, { status: 400 });
-  }
-  if (!codeRow) {
-    return NextResponse.json({ success: false, error: "Código no encontrado", result: "not_found" }, { status: 404 });
-  }
-  const codeEventQuery = applyNotDeleted(
-    supabase
-      .from("events")
-      .select("starts_at,entry_limit,is_active,closed_at")
-      .eq("id", codeRow.event_id)
-  );
-  const { data: codeEventRow, error: codeEventError } = await codeEventQuery.maybeSingle();
-  if (codeEventError) {
-    return NextResponse.json({ success: false, error: codeEventError.message }, { status: 400 });
-  }
-  if (codeEventRow?.is_active === false || codeEventRow?.closed_at) {
-    return NextResponse.json(
-      { success: false, error: "El evento está inactivo", result: "inactive" },
-      { status: 409 },
-    );
-  }
-  if (event_id && codeRow.event_id !== event_id) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "El código pertenece a otro evento",
-        result: "invalid",
-        reason: "event_mismatch",
-      },
-      { status: 409 },
-    );
-  }
-  if (!codeRow.is_active) {
-    return NextResponse.json({ success: false, error: "Código inactivo", result: "inactive" }, { status: 400 });
-  }
-  if ((codeRow.type || "").toLowerCase() === "general") {
-    if (codeEventRow) {
-      const entryCutoff = getEntryCutoff(codeEventRow.starts_at, codeEventRow.entry_limit);
-      if (entryCutoff && DateTime.now().setZone(EVENT_TZ) > entryCutoff.cutoff) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Fuera de hora de ingreso",
-            result: "expired",
-            reason: "entry_cutoff",
-            expired_at: entryCutoff.cutoff.toUTC().toISO(),
-          },
-          { status: 400 }
-        );
-      }
-    }
-  }
-  const expired = codeRow.expires_at ? new Date(codeRow.expires_at) < new Date() : false;
-  if (expired) {
-    return NextResponse.json({ success: false, error: "Código expirado", result: "expired" }, { status: 400 });
-  }
-  if (codeRow.max_uses !== null && codeRow.max_uses !== undefined && (codeRow.uses ?? 0) >= codeRow.max_uses) {
-    return NextResponse.json({ success: false, error: "Código sin cupos", result: "exhausted" }, { status: 400 });
-  }
-
-  const nextUses = (codeRow.uses ?? 0) + 1;
-  const { data: updatedCode, error: updateErr } = await supabase
-    .from("codes")
-    .update({ uses: nextUses })
-    .eq("id", codeRow.id)
-    .eq("uses", codeRow.uses ?? 0)
-    .select("id")
-    .maybeSingle();
-  if (updateErr) {
-    return NextResponse.json({ success: false, error: updateErr.message }, { status: 400 });
-  }
-  if (!updatedCode?.id) {
-    return NextResponse.json(
-      { success: false, error: "Código sin cupos", result: "exhausted" },
-      { status: 409 },
-    );
-  }
-
-  await supabase.from("scan_logs").insert({
-    event_id: codeRow.event_id,
-    code_id: codeRow.id,
-    ticket_id: null,
-    raw_value: codeRow.id,
-    result: "valid",
-    scanned_by_staff_id: guard.context?.staffId || null,
-  });
-
-  return NextResponse.json({
-    success: true,
-    result: "confirmed",
-    code_id: codeRow.id,
-    uses: nextUses,
-    max_uses: codeRow.max_uses ?? null,
-  });
 }

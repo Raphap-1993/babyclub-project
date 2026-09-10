@@ -19,15 +19,39 @@ describe("POST /api/scan/confirm", () => {
   });
 
   it("confirma ticket válido y marca uso", async () => {
-    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { user: { id: "user-1" }, staffId: "staff-1", role: "door", staff: {} } });
+    (requireStaffRole as any).mockResolvedValue({
+      ok: true,
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "door",
+        staff: {},
+      },
+    });
     const { supabase, calls } = createSupabaseMock({
       "tickets.select": [
         {
-          data: { id: "ticket-1", code_id: "code-1", event_id: "event-1", used: false, used_at: null },
+          data: {
+            id: "ticket-1",
+            code_id: "code-1",
+            event_id: "event-1",
+            used: false,
+            used_at: null,
+            qr_token: "individual-token",
+            is_active: true,
+          },
           error: null,
         },
       ],
-      "codes.select": [{ data: { id: "code-1", type: "courtesy" }, error: null }],
+      "events.select": [
+        {
+          data: { starts_at: "2099-01-01T03:00:00Z", is_active: true },
+          error: null,
+        },
+      ],
+      "codes.select": [
+        { data: { id: "code-1", type: "courtesy" }, error: null },
+      ],
       "tickets.update": [{ data: { id: "ticket-1" }, error: null }],
       "ticket_reservation_units.update": [{ data: null, error: null }],
       "scan_logs.insert": [{ data: null, error: null }],
@@ -39,7 +63,11 @@ describe("POST /api/scan/confirm", () => {
     const req = new Request("http://localhost/api/scan/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticket_id: "ticket-1" }),
+      body: JSON.stringify({
+        qr_token: "individual-token",
+        ticket_id: "ticket-1",
+        event_id: "event-1",
+      }),
     });
 
     const res = await POST(req as any);
@@ -60,11 +88,27 @@ describe("POST /api/scan/confirm", () => {
   });
 
   it("bloquea la confirmación si el ticket no pertenece al evento seleccionado", async () => {
-    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { user: { id: "user-1" }, staffId: "staff-1", role: "door", staff: {} } });
+    (requireStaffRole as any).mockResolvedValue({
+      ok: true,
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "door",
+        staff: {},
+      },
+    });
     const { supabase } = createSupabaseMock({
       "tickets.select": [
         {
-          data: { id: "ticket-1", code_id: "code-1", event_id: "event-otro", used: false, used_at: null },
+          data: {
+            id: "ticket-1",
+            code_id: "code-1",
+            event_id: "event-otro",
+            used: false,
+            used_at: null,
+            qr_token: "individual-token",
+            is_active: true,
+          },
           error: null,
         },
       ],
@@ -76,7 +120,11 @@ describe("POST /api/scan/confirm", () => {
     const req = new Request("http://localhost/api/scan/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticket_id: "ticket-1", event_id: "event-1" }),
+      body: JSON.stringify({
+        qr_token: "individual-token",
+        ticket_id: "ticket-1",
+        event_id: "event-1",
+      }),
     });
 
     const res = await POST(req as any);
@@ -89,15 +137,39 @@ describe("POST /api/scan/confirm", () => {
   });
 
   it("trata como duplicado cuando otro operador ya confirmó el ticket en paralelo", async () => {
-    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { user: { id: "user-1" }, staffId: "staff-1", role: "door", staff: {} } });
+    (requireStaffRole as any).mockResolvedValue({
+      ok: true,
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "door",
+        staff: {},
+      },
+    });
     const { supabase, calls } = createSupabaseMock({
       "tickets.select": [
         {
-          data: { id: "ticket-1", code_id: "code-1", event_id: "event-1", used: false, used_at: null },
+          data: {
+            id: "ticket-1",
+            code_id: "code-1",
+            event_id: "event-1",
+            used: false,
+            used_at: null,
+            qr_token: "individual-token",
+            is_active: true,
+          },
           error: null,
         },
       ],
-      "codes.select": [{ data: { id: "code-1", type: "courtesy" }, error: null }],
+      "events.select": [
+        {
+          data: { starts_at: "2099-01-01T03:00:00Z", is_active: true },
+          error: null,
+        },
+      ],
+      "codes.select": [
+        { data: { id: "code-1", type: "courtesy" }, error: null },
+      ],
       "tickets.update": [{ data: null, error: null }],
     });
 
@@ -107,7 +179,11 @@ describe("POST /api/scan/confirm", () => {
     const req = new Request("http://localhost/api/scan/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticket_id: "ticket-1", event_id: "event-1" }),
+      body: JSON.stringify({
+        qr_token: "individual-token",
+        ticket_id: "ticket-1",
+        event_id: "event-1",
+      }),
     });
 
     const res = await POST(req as any);
@@ -115,7 +191,8 @@ describe("POST /api/scan/confirm", () => {
 
     expect(res.status).toBe(409);
     expect(payload.success).toBe(false);
-    expect(payload.result).toBe("duplicate");
+    expect(payload.result).toBe("invalid");
+    expect(payload.reason).toBe("rescan_required");
     const updateCall = calls.find(
       (call) => call.table === "tickets" && call.op === "update",
     );
@@ -128,7 +205,15 @@ describe("POST /api/scan/confirm", () => {
   });
 
   it("rechaza confirmar un ticket inactivo o pendiente", async () => {
-    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { user: { id: "user-1" }, staffId: "staff-1", role: "door", staff: {} } });
+    (requireStaffRole as any).mockResolvedValue({
+      ok: true,
+      context: {
+        user: { id: "user-1" },
+        staffId: "staff-1",
+        role: "door",
+        staff: {},
+      },
+    });
     const { supabase } = createSupabaseMock({
       "tickets.select": [
         {
@@ -136,6 +221,7 @@ describe("POST /api/scan/confirm", () => {
             id: "ticket-pending-1",
             code_id: "code-pending-1",
             event_id: "event-1",
+            qr_token: "individual-token",
             used: false,
             used_at: null,
             is_active: false,
@@ -152,7 +238,11 @@ describe("POST /api/scan/confirm", () => {
     const req = new Request("http://localhost/api/scan/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticket_id: "ticket-pending-1", event_id: "event-1" }),
+      body: JSON.stringify({
+        qr_token: "individual-token",
+        ticket_id: "ticket-pending-1",
+        event_id: "event-1",
+      }),
     });
 
     const res = await POST(req as any);

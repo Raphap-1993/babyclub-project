@@ -1,11 +1,98 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseMock } from "../../../../../tests/utils/supabaseMock";
-import {
-  EventTicketConflictError,
-} from "shared/eventTicketIdentity";
+import { EventTicketConflictError } from "shared/eventTicketIdentity";
 import { createReservationCodes, createTicketForReservation } from "./utils";
 
 describe("createTicketForReservation", () => {
+  it("crea persona distinta cuando el asistente comparte contactos del comprador pero tiene otro documento", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "persons.select": [
+        { data: null, error: null },
+        { data: null, error: null },
+        {
+          data: { id: "person-buyer", doc_type: "dni", document: "11112222" },
+          error: null,
+        },
+      ],
+      "persons.insert": { data: { id: "person-guest" }, error: null },
+      "tickets.select": {
+        data: [
+          {
+            id: "ticket-buyer",
+            person_id: "person-buyer",
+            full_name: "Persona Compradora",
+            doc_type: "dni",
+            document: "11112222",
+            email: "shared@example.test",
+            phone: "999999999",
+          },
+        ],
+        error: null,
+      },
+      "codes.select": {
+        data: {
+          id: "code-guest",
+          type: "courtesy",
+          table_reservation_id: "reservation-1",
+        },
+        error: null,
+      },
+      "tickets.insert": { data: { id: "ticket-guest" }, error: null },
+    });
+    await expect(
+      createTicketForReservation(supabase as any, {
+        eventId: "event-1",
+        tableName: "Entrada",
+        fullName: "Persona Invitada",
+        docType: "dni",
+        document: "33334444",
+        dni: "33334444",
+        email: "shared@example.test",
+        phone: "999999999",
+        reuseCodes: ["GUEST-CODE"],
+        codeType: "courtesy",
+        tableReservationId: "reservation-1",
+      }),
+    ).resolves.toEqual({ ticketId: "ticket-guest", code: "GUEST-CODE" });
+    expect(
+      calls.find((call) => call.table === "tickets" && call.op === "insert")
+        ?.payload.person_id,
+    ).toBe("person-guest");
+    expect(
+      calls
+        .filter((call) => call.table === "persons" && call.op === "select")
+        .some((call) =>
+          call.filters?.some(
+            (filter) =>
+              filter.args[0] === "email" || filter.args[0] === "phone",
+          ),
+        ),
+    ).toBe(false);
+  });
+
+  it("pide revisión si el documento pertenece a un tipo distinto sin reutilizar esa persona", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "persons.select": {
+        data: {
+          id: "person-passport",
+          doc_type: "pasaporte",
+          document: "33334444",
+        },
+        error: null,
+      },
+    });
+    await expect(
+      createTicketForReservation(supabase as any, {
+        eventId: "event-1",
+        tableName: "Entrada",
+        fullName: "Persona Invitada",
+        docType: "dni",
+        document: "33334444",
+      }),
+    ).rejects.toThrow("tipo de documento");
+    expect(calls.some((call) => call.op === "insert")).toBe(false);
+  });
+
   it("bloquea un segundo QR del mismo evento cuando coincide nombre+correo aunque el documento cambie", async () => {
     const { supabase } = createSupabaseMock({
       "persons.select": [

@@ -810,7 +810,7 @@ export default function ScanClient({
                     type="button"
                     disabled={confirming || modal.ticket_used}
                     onClick={async () => {
-                      if (!modal?.code_id && !modal?.ticket_id) return;
+                      if (!modal?.ticket_id) return;
                       setConfirming(true);
                       try {
                         const res = await authedFetch("/api/scan/confirm", {
@@ -819,6 +819,7 @@ export default function ScanClient({
                           body: JSON.stringify({
                             code_id: modal.code_id,
                             ticket_id: modal.ticket_id,
+                            qr_token: modal.value,
                             event_id: eventId,
                           }),
                         });
@@ -924,6 +925,10 @@ function getResultBadgeVariant(
 }
 
 function getResultTitle(result: string, reason?: string | null) {
+  if (reason === "individual_qr_required")
+    return "Se requiere el QR individual";
+  if (reason === "nomination_required")
+    return "Completa los datos del asistente";
   if (result === "expired" && reason === "entry_cutoff") return "Fuera de hora";
   if (result === "duplicate" && reason === "person_already_entered")
     return "DNI ya ingresó al evento";
@@ -958,6 +963,10 @@ function getResultHint(modal: {
   qr_kind_label?: string | null;
 }) {
   const qrLabel = getQrKindLabel(modal.qr_kind, modal.qr_kind_label);
+  if (modal.reason === "individual_qr_required")
+    return "Pide al asistente que abra su entrada personal. El código de registro sirve para obtenerla.";
+  if (modal.reason === "nomination_required")
+    return "El comprador debe completar los datos en Mis entradas antes del ingreso.";
   if (modal.result === "confirmed")
     return `${qrLabel} registrado correctamente.`;
   if (modal.result === "valid")

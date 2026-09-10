@@ -17,10 +17,12 @@ describe("POST /api/ticket-reservations", () => {
 
   it("resuelve el tipo de entrada desde DB, persiste compra por paquetes y crea unidades pendientes", async () => {
     const { supabase, calls } = createSupabaseMock({
+      "promoters.select": { data: { id: "11111111-1111-4111-8111-111111111111", is_active: true }, error: null },
+      "codes.select": { data: { id: "33333333-3333-4333-8333-333333333333", code: "PROM01", type: "promoter_link", promoter_id: "11111111-1111-4111-8111-111111111111", event_id: "22222222-2222-4222-8222-222222222222", is_active: true }, error: null },
       "events.select": [
         {
           data: {
-            id: "event-1",
+            id: "22222222-2222-4222-8222-222222222222",
             event_prefix: "BABY",
             is_active: true,
             closed_at: null,
@@ -44,6 +46,7 @@ describe("POST /api/ticket-reservations", () => {
           },
           error: null,
         },
+        { data: { id: "22222222-2222-4222-8222-222222222222", is_active: true, sale_status: "on_sale" }, error: null },
       ],
       "table_reservations.insert": [
         {
@@ -79,7 +82,7 @@ describe("POST /api/ticket-reservations", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        event_id: "event-1",
+        event_id: "22222222-2222-4222-8222-222222222222",
         doc_type: "dni",
         document: "12345678",
         nombre: "Ana",
@@ -90,8 +93,8 @@ describe("POST /api/ticket-reservations", () => {
         payment_method: "culqi",
         ticket_type_code: "all_night_2",
         package_quantity: 3,
-        promoter_id: "prom-1",
-        promoter_link_code_id: "code-link-1",
+        promoter_id: "11111111-1111-4111-8111-111111111111",
+        promoter_link_code_id: "33333333-3333-4333-8333-333333333333",
         promoter_link_code: "PROM01",
       }),
     });
@@ -116,7 +119,7 @@ describe("POST /api/ticket-reservations", () => {
       (call) => call.table === "table_reservations" && call.op === "insert",
     );
     expect(insertCall?.payload).toMatchObject({
-      event_id: "event-1",
+      event_id: "22222222-2222-4222-8222-222222222222",
       sale_origin: "ticket",
       ticket_pricing_phase: "all_night",
       ticket_type_id: "type-all-night-2",
@@ -128,8 +131,8 @@ describe("POST /api/ticket-reservations", () => {
       ticket_unit_price: 21,
       ticket_total_amount: 126,
       status: "pending",
-      promoter_id: "prom-1",
-      promoter_link_code_id: "code-link-1",
+      promoter_id: "11111111-1111-4111-8111-111111111111",
+      promoter_link_code_id: "33333333-3333-4333-8333-333333333333",
       promoter_link_code: "PROM01",
     });
     expect(insertCall?.payload.attendees).toHaveLength(1);
@@ -147,7 +150,7 @@ describe("POST /api/ticket-reservations", () => {
     expect(unitsInsertCall?.payload).toHaveLength(6);
     expect(unitsInsertCall?.payload[0]).toMatchObject({
       reservation_id: "res-ticket-1",
-      event_id: "event-1",
+      event_id: "22222222-2222-4222-8222-222222222222",
       package_index: 1,
       person_index: 1,
       unit_index: 1,
@@ -165,7 +168,188 @@ describe("POST /api/ticket-reservations", () => {
     );
     expect(codesInsertCall?.payload).toHaveLength(6);
     expect(codesInsertCall?.payload[0]).toMatchObject({
-      event_id: "event-1",
+      event_id: "22222222-2222-4222-8222-222222222222",
+      table_reservation_id: "res-ticket-1",
+      person_index: 1,
+      type: "courtesy",
+      is_active: true,
+      max_uses: 1,
+    });
+    expect(codesInsertCall?.payload[5]).toMatchObject({
+      table_reservation_id: "res-ticket-1",
+      person_index: 6,
+      type: "courtesy",
+    });
+
+    const reservationUpdateCall = calls.find(
+      (call) => call.table === "table_reservations" && call.op === "update",
+    );
+    expect(reservationUpdateCall?.payload).toMatchObject({
+      codes: [
+        "BC-BABY-2-QR-001",
+        "BC-BABY-2-QR-002",
+        "BC-BABY-2-QR-003",
+        "BC-BABY-2-QR-004",
+        "BC-BABY-2-QR-005",
+        "BC-BABY-2-QR-006",
+      ],
+    });
+  });
+  it("permite nueva compra y nuevos slots cuando el comprador conserva un QR general vencido sin usar", async () => {
+    const { supabase, calls } = createSupabaseMock({
+      "tickets.select": { data: [{ id: "expired-general", full_name: "Ana Torres Rios", doc_type: "dni", document: "12345678", used: false, is_active: true, code: { type: "general", expires_at: "2000-01-01T00:00:00Z" }, event: { is_active: true } }], error: null },
+      "promoters.select": { data: { id: "11111111-1111-4111-8111-111111111111", is_active: true }, error: null },
+      "codes.select": { data: { id: "33333333-3333-4333-8333-333333333333", code: "PROM01", type: "promoter_link", promoter_id: "11111111-1111-4111-8111-111111111111", event_id: "22222222-2222-4222-8222-222222222222", is_active: true }, error: null },
+      "events.select": [
+        {
+          data: {
+            id: "22222222-2222-4222-8222-222222222222",
+            event_prefix: "BABY",
+            is_active: true,
+            closed_at: null,
+            sale_status: "on_sale",
+            sale_public_message: null,
+            early_bird_enabled: true,
+            ticket_types: [
+              {
+                id: "type-all-night-2",
+                code: "all_night_2",
+                label: "2 QR ALL NIGHT",
+                description: "Incluye 2 tragos a eleccion",
+                sale_phase: "all_night",
+                ticket_quantity: 2,
+                price: 42,
+                currency_code: "PEN",
+                is_active: true,
+                sort_order: 20,
+              },
+            ],
+          },
+          error: null,
+        },
+        { data: { id: "22222222-2222-4222-8222-222222222222", is_active: true, sale_status: "on_sale" }, error: null },
+      ],
+      "table_reservations.insert": [
+        {
+          data: { id: "res-ticket-1" },
+          error: null,
+        },
+      ],
+      "ticket_reservation_units.insert": [
+        {
+          data: null,
+          error: null,
+        },
+      ],
+      "codes.insert": [
+        {
+          data: [
+            { id: "code-1", code: "BC-BABY-2-QR-001" },
+            { id: "code-2", code: "BC-BABY-2-QR-002" },
+            { id: "code-3", code: "BC-BABY-2-QR-003" },
+            { id: "code-4", code: "BC-BABY-2-QR-004" },
+            { id: "code-5", code: "BC-BABY-2-QR-005" },
+            { id: "code-6", code: "BC-BABY-2-QR-006" },
+          ],
+          error: null,
+        },
+      ],
+      "table_reservations.update": [{ data: null, error: null }],
+    });
+    (createClient as any).mockReturnValue(supabase);
+
+    const { POST } = await import("./route");
+    const req = new Request("http://localhost/api/ticket-reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_id: "22222222-2222-4222-8222-222222222222",
+        doc_type: "dni",
+        document: "12345678",
+        nombre: "Ana",
+        apellido_paterno: "Torres",
+        apellido_materno: "Rios",
+        email: "ana@test.com",
+        telefono: "999999999",
+        payment_method: "culqi",
+        ticket_type_code: "all_night_2",
+        package_quantity: 3,
+        promoter_id: "11111111-1111-4111-8111-111111111111",
+        promoter_link_code_id: "33333333-3333-4333-8333-333333333333",
+        promoter_link_code: "PROM01",
+      }),
+    });
+
+    const res = await POST(req as any);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload).toMatchObject({
+      success: true,
+      reservationId: "res-ticket-1",
+      ticket_type_code: "all_night_2",
+      ticket_type_label: "2 QR ALL NIGHT",
+      ticket_quantity: 6,
+      package_quantity: 3,
+      total_ticket_units: 6,
+      amount: 126,
+      amount_cents: 12600,
+    });
+
+    const insertCall = calls.find(
+      (call) => call.table === "table_reservations" && call.op === "insert",
+    );
+    expect(insertCall?.payload).toMatchObject({
+      event_id: "22222222-2222-4222-8222-222222222222",
+      sale_origin: "ticket",
+      ticket_pricing_phase: "all_night",
+      ticket_type_id: "type-all-night-2",
+      ticket_type_code: "all_night_2",
+      ticket_type_label: "2 QR ALL NIGHT",
+      ticket_quantity: 6,
+      package_quantity: 3,
+      total_ticket_units: 6,
+      ticket_unit_price: 21,
+      ticket_total_amount: 126,
+      status: "pending",
+      promoter_id: "11111111-1111-4111-8111-111111111111",
+      promoter_link_code_id: "33333333-3333-4333-8333-333333333333",
+      promoter_link_code: "PROM01",
+    });
+    expect(insertCall?.payload.attendees).toHaveLength(1);
+    expect(insertCall?.payload.attendees[0]).toMatchObject({
+      person_index: 1,
+      doc_type: "dni",
+      document: "12345678",
+      full_name: "Ana Torres Rios",
+    });
+
+    const unitsInsertCall = calls.find(
+      (call) =>
+        call.table === "ticket_reservation_units" && call.op === "insert",
+    );
+    expect(unitsInsertCall?.payload).toHaveLength(6);
+    expect(unitsInsertCall?.payload[0]).toMatchObject({
+      reservation_id: "res-ticket-1",
+      event_id: "22222222-2222-4222-8222-222222222222",
+      package_index: 1,
+      person_index: 1,
+      unit_index: 1,
+      status: "pending_nomination",
+    });
+    expect(unitsInsertCall?.payload[5]).toMatchObject({
+      package_index: 3,
+      person_index: 2,
+      unit_index: 6,
+      status: "pending_nomination",
+    });
+
+    const codesInsertCall = calls.find(
+      (call) => call.table === "codes" && call.op === "insert",
+    );
+    expect(codesInsertCall?.payload).toHaveLength(6);
+    expect(codesInsertCall?.payload[0]).toMatchObject({
+      event_id: "22222222-2222-4222-8222-222222222222",
       table_reservation_id: "res-ticket-1",
       person_index: 1,
       type: "courtesy",

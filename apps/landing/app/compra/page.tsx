@@ -122,6 +122,8 @@ function CompraRouter() {
 
   return (
     <CompraContent
+      eventIdFromUrl={searchParams.get("event_id") || null}
+      promoterRefFromUrl={searchParams.get("promoter_ref") || null}
       promoterIdFromUrl={searchParams.get("promoter_id") || null}
       promoterLinkCodeIdFromUrl={
         searchParams.get("promoter_link_code_id") || null
@@ -133,11 +135,15 @@ function CompraRouter() {
 }
 
 function CompraContent({
+  eventIdFromUrl,
+  promoterRefFromUrl,
   promoterIdFromUrl,
   promoterLinkCodeIdFromUrl,
   promoterLinkCodeFromUrl,
   tabFromUrl,
 }: {
+  eventIdFromUrl: string | null;
+  promoterRefFromUrl: string | null;
   promoterIdFromUrl: string | null;
   promoterLinkCodeIdFromUrl: string | null;
   promoterLinkCodeFromUrl: string | null;
@@ -234,8 +240,8 @@ function CompraContent({
     null,
   );
   const [reservationSubmitted, setReservationSubmitted] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-  const [ticketEventId, setTicketEventId] = useState<string>("");
+  const [selectedEventId, setSelectedEventId] = useState<string>(eventIdFromUrl || "");
+  const [ticketEventId, setTicketEventId] = useState<string>(eventIdFromUrl || "");
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
   const [ticketVoucherUrl, setTicketVoucherUrl] = useState<string>("");
   const [selectedTicketTypeCode, setSelectedTicketTypeCode] = useState("");
@@ -986,7 +992,8 @@ function CompraContent({
           code: defaultCode,
           voucher_url: form.voucher_url || undefined,
           payment_method: useCulqi ? "culqi" : "yape",
-          promoter_id: promoterIdFromUrl || undefined,
+          promoter_ref: promoterRefFromUrl || undefined,
+        promoter_id: promoterIdFromUrl || undefined,
           promoter_link_code_id: promoterLinkCodeIdFromUrl || undefined,
           promoter_link_code: promoterLinkCodeFromUrl || undefined,
         }),
@@ -1245,6 +1252,7 @@ function CompraContent({
         expected_ticket_quantity: activeTicketSelection.ticketQuantity,
         expected_ticket_total_amount: activeTicketSelection.totalPrice,
         payment_method: useCulqi ? "culqi" : "yape",
+        promoter_ref: promoterRefFromUrl || undefined,
         promoter_id: promoterIdFromUrl || undefined,
         promoter_link_code_id: promoterLinkCodeIdFromUrl || undefined,
         promoter_link_code: promoterLinkCodeFromUrl || undefined,

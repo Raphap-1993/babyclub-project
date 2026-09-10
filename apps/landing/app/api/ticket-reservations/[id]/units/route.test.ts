@@ -4,24 +4,18 @@ import { createSupabaseMock } from "../../../../../../../tests/utils/supabaseMoc
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
 }));
-vi.mock(
-  "../../../../../../backoffice/app/api/reservations/utils",
-  async () => {
-    const actual = await vi.importActual<
-      typeof import("../../../../../../backoffice/app/api/reservations/utils")
-    >("../../../../../../backoffice/app/api/reservations/utils");
-    return {
-      ...actual,
-      createTicketForReservation: vi.fn(),
-    };
-  },
-);
-vi.mock(
-  "../../../../../../backoffice/app/api/reservations/email",
-  () => ({
-    sendTicketEmail: vi.fn(),
-  }),
-);
+vi.mock("../../../../../../backoffice/app/api/reservations/utils", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../../../../../backoffice/app/api/reservations/utils")
+  >("../../../../../../backoffice/app/api/reservations/utils");
+  return {
+    ...actual,
+    createTicketForReservation: vi.fn(),
+  };
+});
+vi.mock("../../../../../../backoffice/app/api/reservations/email", () => ({
+  sendTicketEmail: vi.fn(),
+}));
 
 const { createClient } = await import("@supabase/supabase-js");
 const { createTicketForReservation } = await import(
@@ -213,7 +207,7 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     ]);
   });
 
-  it("autorrepara la unidad 1 cuando una reserva ticket-only aprobada quedó sin QR emitido", async () => {
+  it("prepara explícitamente la unidad 1 cuando una reserva ticket-only aprobada quedó sin QR emitido", async () => {
     const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [
         {
@@ -305,7 +299,9 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "ticket_reservation_units.update": [
+        { data: { id: "unit-2" }, error: null },
+      ],
       "codes.select": [
         {
           data: [{ id: "code-1", code: "BUYER-CODE", person_index: 1 }],
@@ -319,13 +315,17 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
       code: "BUYER-CODE",
     });
 
-    const { GET } = await import("./route");
+    const { POST } = await import("./route");
     const req = new Request(
       "http://localhost/api/ticket-reservations/res-ticket-repair-1/units",
-      { method: "GET" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare" }),
+      },
     );
 
-    const res = await GET(req as any, {
+    const res = await POST(req as any, {
       params: Promise.resolve({ id: "res-ticket-repair-1" }),
     });
     const payload = await res.json();
@@ -357,7 +357,7 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     });
   });
 
-  it("expone claim_code y claim_url por unidad y completa faltantes de forma idempotente", async () => {
+  it("prepara claim_code y claim_url por acción explícita", async () => {
     const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [
         {
@@ -430,13 +430,17 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     });
     (createClient as any).mockReturnValue(supabase);
 
-    const { GET } = await import("./route");
+    const { POST } = await import("./route");
     const req = new Request(
       "http://localhost/api/ticket-reservations/res-ticket-claims/units",
-      { method: "GET" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare" }),
+      },
     );
 
-    const res = await GET(req as any, {
+    const res = await POST(req as any, {
       params: Promise.resolve({ id: "res-ticket-claims" }),
     });
     const payload = await res.json();
@@ -506,7 +510,7 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
         },
       ],
       "ticket_reservation_units.update": [
-        { data: null, error: null },
+        { data: { id: "unit-2" }, error: null },
         { data: null, error: null },
       ],
     });
@@ -592,7 +596,9 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           error: null,
         },
       ],
-      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "ticket_reservation_units.update": [
+        { data: { id: "unit-2" }, error: null },
+      ],
     });
     (createClient as any).mockReturnValue(supabase);
 
@@ -639,8 +645,12 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     });
   });
 
-  it("rechaza editar la unidad 1 porque es del comprador", async () => {
+  it("permite nominar unidad 1 antes de emisión sin obligar al comprador a asistir", async () => {
     const { supabase } = createSupabaseMock({
+      "ticket_reservation_units.update": {
+        data: { id: "unit-1" },
+        error: null,
+      },
       "table_reservations.select": [
         {
           data: {
@@ -693,9 +703,12 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     });
     const payload = await res.json();
 
-    expect(res.status).toBe(409);
-    expect(payload.success).toBe(false);
-    expect(String(payload.error || "")).toContain("comprador");
+    expect(res.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.updatedUnits[0]).toMatchObject({
+      id: "unit-1",
+      qrRotated: false,
+    });
   });
 
   it("rechaza nominar una unidad con el mismo documento del comprador", async () => {
@@ -1207,6 +1220,8 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           data: [
             {
               id: "unit-2",
+              updated_at: "2026-09-10T00:00:00Z",
+              expected_updated_at: "2026-09-10T00:00:00Z",
               unit_index: 2,
               status: "issued",
               full_name: "Nombre Viejo",
@@ -1220,8 +1235,18 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           error: null,
         },
       ],
-      "tickets.update": [{ data: null, error: null }],
-      "ticket_reservation_units.update": [{ data: null, error: null }],
+      "update_ticket_reservation_unit_nomination.rpc": {
+        data: {
+          unit_id: "unit-2",
+          ticket_id: "old-ticket",
+          updated_at: "2026-09-10T01:00:00Z",
+          qr_rotated: true,
+        },
+        error: null,
+      },
+      "ticket_reservation_units.update": [
+        { data: { id: "unit-2" }, error: null },
+      ],
     });
     (createClient as any).mockReturnValue(supabase);
     (sendTicketEmail as any).mockResolvedValue({ data: { id: "mail-1" } });
@@ -1236,6 +1261,8 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           units: [
             {
               id: "unit-2",
+              updated_at: "2026-09-10T00:00:00Z",
+              expected_updated_at: "2026-09-10T00:00:00Z",
               full_name: "Nombre Nuevo",
               doc_type: "dni",
               document: "87654321",
@@ -1254,48 +1281,32 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(sendTicketEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(sendTicketEmail).not.toHaveBeenCalled();
+    expect(payload.updatedUnits).toEqual([
+      {
+        id: "unit-2",
         ticketId: "old-ticket",
-        toEmail: "new@test.com",
-      }),
-    );
-
-    const unitUpdate = calls.find(
-      (call) =>
-      call.table === "ticket_reservation_units" && call.op === "update",
-    );
-    expect(unitUpdate?.payload).toMatchObject({
-      full_name: "Nombre Nuevo",
-      doc_type: "dni",
-      document: "87654321",
-      email: "new@test.com",
-      phone: "988888888",
-      status: "issued",
-      ticket_id: "old-ticket",
+        updated_at: "2026-09-10T01:00:00Z",
+        qrRotated: true,
+      },
+    ]);
+    expect(calls.find((call) => call.op === "rpc")?.payload).toMatchObject({
+      p_reservation_id: "res-ticket-1",
+      p_unit_id: "unit-2",
+      p_document: "87654321",
+      p_expected_updated_at: "2026-09-10T00:00:00Z",
     });
-    expect(unitUpdate?.payload?.deleted_at).toBeUndefined();
-
-    const ticketUpdate = calls.find(
-      (call) => call.table === "tickets" && call.op === "update",
-    );
-    expect(ticketUpdate?.payload).toMatchObject({
-      full_name: "Nombre Nuevo",
-      doc_type: "dni",
-      document: "87654321",
-      email: "new@test.com",
-      phone: "988888888",
-    });
-    expect(ticketUpdate?.payload?.qr_token).toBeDefined();
-    expect(ticketUpdate?.payload?.issued_at).toBeUndefined();
-    expect(ticketUpdate?.payload?.updated_at).toBeUndefined();
     expect(
-      calls.find((call) => call.table === "tickets" && call.op === "insert"),
-    ).toBeFalsy();
+      calls.some((call) => call.op === "update" || call.op === "insert"),
+    ).toBe(false);
   });
 
   it("vuelve a validar unicidad por evento antes de reemitir una unidad ya emitida", async () => {
     const { supabase, calls } = createSupabaseMock({
+      "update_ticket_reservation_unit_nomination.rpc": {
+        data: null,
+        error: { code: "P0001", message: "EVENT_TICKET_IDENTITY_CONFLICT" },
+      },
       "table_reservations.select": [
         {
           data: {
@@ -1315,6 +1326,8 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           data: [
             {
               id: "unit-2",
+              updated_at: "2026-09-10T00:00:00Z",
+              expected_updated_at: "2026-09-10T00:00:00Z",
               unit_index: 2,
               status: "issued",
               full_name: "Nombre Viejo",
@@ -1361,6 +1374,8 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
           units: [
             {
               id: "unit-2",
+              updated_at: "2026-09-10T00:00:00Z",
+              expected_updated_at: "2026-09-10T00:00:00Z",
               full_name: "Nombre Nuevo",
               doc_type: "dni",
               document: "87654321",
@@ -1379,7 +1394,7 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
 
     expect(res.status).toBe(409);
     expect(payload.success).toBe(false);
-    expect(String(payload.error || "")).toContain("QR activo");
+    expect(String(payload.error || "")).toContain("otra entrada");
     expect(
       calls.find((call) => call.table === "tickets" && call.op === "update"),
     ).toBeFalsy();
@@ -1465,6 +1480,8 @@ describe("GET/PUT /api/ticket-reservations/[id]/units", () => {
     expect(String(payload.error || "")).toContain(
       "Completa el nombre y documento de unidad 2 antes de guardar.",
     );
-    expect(String(payload.error || "")).not.toContain("violates check constraint");
+    expect(String(payload.error || "")).not.toContain(
+      "violates check constraint",
+    );
   });
 });

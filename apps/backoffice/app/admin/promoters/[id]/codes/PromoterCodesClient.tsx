@@ -119,13 +119,10 @@ export default function PromoterCodesClient({
   const [batches, setBatches] = useState<BatchItem[]>(recentBatches);
 
   // Promoter link state
-  const [linkEventId, setLinkEventId] = useState(events[0]?.id ?? "");
-  const [linkCode, setLinkCode] = useState("");
-  const [linkNotes, setLinkNotes] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [createdLink, setCreatedLink] = useState<{ code: string; url: string } | null>(null);
-  const [promoterLinks, setPromoterLinks] = useState<PromoterLinkItem[]>(initialPromoterLinks);
+  const [createdLink, setCreatedLink] = useState<{ url: string } | null>(null);
+  const promoterLinks = initialPromoterLinks;
 
   const promoterName = useMemo(() => {
     const person = promoter.person;
@@ -225,16 +222,6 @@ export default function PromoterCodesClient({
 
   async function handleCreateLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!linkEventId) {
-      setLinkError("Selecciona un evento.");
-      return;
-    }
-    const cleanedCode = linkCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
-    if (!cleanedCode || cleanedCode.length < 2) {
-      setLinkError("El código debe tener al menos 2 caracteres (letras y números).");
-      return;
-    }
-
     setLinkLoading(true);
     setLinkError(null);
     setCreatedLink(null);
@@ -248,35 +235,18 @@ export default function PromoterCodesClient({
         },
         body: JSON.stringify({
           promoter_id: promoter.id,
-          event_id: linkEventId,
-          code: cleanedCode,
-          notes: linkNotes.trim() || null,
         }),
       });
 
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || "No se pudo crear el link directo");
+        throw new Error(payload?.error || "No se pudo obtener el enlace permanente");
       }
 
-      const baseUrl = process.env.NEXT_PUBLIC_LANDING_URL || "https://babyclubaccess.com";
-      const url = `${baseUrl}/registro?code=${encodeURIComponent(payload.code)}`;
-      setCreatedLink({ code: payload.code, url });
-      setLinkCode("");
-      const selectedEventName = events.find((e) => e.id === linkEventId)?.name ?? null;
-      setPromoterLinks((prev) => [
-        {
-          id: payload.id,
-          code: payload.code,
-          event_id: linkEventId || null,
-          event_name: selectedEventName,
-          is_active: true,
-          created_at: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+      setCreatedLink({ url: payload.url });
+      await copyText(payload.url).catch(() => undefined);
     } catch (err: any) {
-      setLinkError(err?.message || "Error inesperado al crear el link");
+      setLinkError(err?.message || "No se pudo obtener el enlace permanente");
     } finally {
       setLinkLoading(false);
     }
@@ -417,74 +387,27 @@ export default function PromoterCodesClient({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-4 w-4 text-blue-300" />
-            Crear link directo de promotor
+            Enlace permanente de promotor
           </CardTitle>
           <CardDescription>
-            Un código único y memorable que el promotor comparte como link.{" "}
-            <span className="font-mono text-white/70">
-              /registro?code=WILLIAMS
-            </span>{" "}
-            · Usos ilimitados · Auto-asigna al promotor.
+            Comparte siempre el mismo enlace. Tus compradores elegirán entre las fiestas disponibles, sin crear otro código por evento.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCreateLink} className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Evento</span>
-                <SelectNative
-                  value={linkEventId}
-                  onChange={(e) => setLinkEventId(e.target.value)}
-                  disabled={!promoterOperational}
-                >
-                  <option value="">Selecciona evento</option>
-                  {events.map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.name}
-                    </option>
-                  ))}
-                </SelectNative>
-              </label>
-
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                  Código del link
-                </span>
-                <Input
-                  value={linkCode}
-                  onChange={(e) => setLinkCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
-                  placeholder={promoter.code?.toUpperCase() || "WILLIAMS"}
-                  maxLength={32}
-                  disabled={!promoterOperational}
-                />
-              </label>
-            </div>
-
-            <label className="block space-y-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Notas internas</span>
-              <textarea
-                rows={2}
-                value={linkNotes}
-                onChange={(e) => setLinkNotes(e.target.value)}
-                placeholder="Opcional, para control operativo"
-                disabled={!promoterOperational}
-                className="w-full rounded-lg border border-[#2b2b2b] bg-[#151515] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#a60c2f]/50"
-              />
-            </label>
-
             <Button type="submit" disabled={linkLoading || !promoterOperational}>
               {!promoterOperational
                 ? "Promotor inactivo"
                 : linkLoading
-                  ? "Creando..."
-                  : "Crear link directo"}
+                  ? "Preparando..."
+                  : "Copiar mi enlace permanente"}
             </Button>
 
             {linkError ? <p className="text-sm text-red-300">{linkError}</p> : null}
 
             {createdLink ? (
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-3 space-y-2">
-                <p className="text-sm font-semibold text-emerald-300">Link creado</p>
+                <p className="text-sm font-semibold text-emerald-300">Tu enlace permanente</p>
                 <div className="flex items-center gap-2 rounded border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm text-white/90">
                   <span className="flex-1 truncate">{createdLink.url}</span>
                   <Button

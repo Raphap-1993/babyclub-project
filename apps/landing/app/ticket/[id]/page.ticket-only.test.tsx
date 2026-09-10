@@ -119,6 +119,7 @@ describe("TicketPage ticket-only presentation", () => {
         },
       ],
       "ticket_reservation_units.select": [
+        { data: { status: "issued", deleted_at: null }, error: null },
         {
           data: [
             {
@@ -148,7 +149,8 @@ describe("TicketPage ticket-only presentation", () => {
     expect(html).toContain("Smoke Trio");
     expect(html).not.toContain("Reserva de mesa");
     expect(html).not.toContain("QR de mesa / promotor");
-    expect(html).toContain("Completar asistentes");
+    expect(html).toContain("Tu QR está listo");
+    expect(html).toContain("Ver mis entradas");
     expect(html).toContain("/compra?reservationId=res-ticket-1");
   });
 });

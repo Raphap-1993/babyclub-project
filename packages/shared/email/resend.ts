@@ -1,11 +1,13 @@
-import { Resend, type CreateEmailOptions } from "resend";
+import { Resend, type CreateEmailResponse } from "resend";
 import {
   isValidEmailAddress,
   normalizeEmailAddress,
   normalizeEmailRecipients,
 } from "./address";
 
-const DEFAULT_FROM_RAW = (process.env.RESEND_FROM ?? "BabyClub Access <no-reply@babyclubaccess.com>").trim();
+const DEFAULT_FROM_RAW = (
+  process.env.RESEND_FROM ?? "BabyClub Access <no-reply@babyclubaccess.com>"
+).trim();
 const EXPECTED_DOMAIN = "@babyclubaccess.com";
 
 function validateFromAddress(from: string) {
@@ -17,10 +19,6 @@ function validateFromAddress(from: string) {
 export function getResendClient() {
   const apiKey = (process.env.RESEND_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing RESEND_API_KEY");
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[resend] key prefix:", apiKey.slice(0, 6));
-    console.log("[resend] from:", DEFAULT_FROM_RAW);
-  }
   validateFromAddress(DEFAULT_FROM_RAW);
   return new Resend(apiKey);
 }
@@ -37,11 +35,13 @@ export async function sendEmail({
   html?: string;
   text?: string;
   replyTo?: string;
-}) {
+}): Promise<CreateEmailResponse> {
   const resend = getResendClient();
   validateFromAddress(DEFAULT_FROM_RAW);
   const normalizedTo = normalizeEmailRecipients(to);
-  const recipientList = Array.isArray(normalizedTo) ? normalizedTo : [normalizedTo];
+  const recipientList = Array.isArray(normalizedTo)
+    ? normalizedTo
+    : [normalizedTo];
   if (recipientList.length === 0) {
     throw new Error("Recipient email missing");
   }
@@ -62,5 +62,12 @@ export async function sendEmail({
     }
     (payload as any).reply_to = normalizedReplyTo;
   }
-  return resend.emails.send(payload);
+  const result = await resend.emails.send(payload);
+  if (result.error) {
+    throw new Error(result.error.message || "No se pudo enviar el correo");
+  }
+  if (!result.data?.id) {
+    throw new Error("El proveedor no confirmó el envío del correo");
+  }
+  return result;
 }

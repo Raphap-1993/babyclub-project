@@ -41,26 +41,13 @@ describe("POST /api/scan", () => {
           error: null,
         },
       ],
-      "codes.select": [
-        {
-          data: {
-            id: "code-1",
-            code: "TABLE-001",
-            type: "courtesy",
-            event_id: "event-1",
-            is_active: true,
-            max_uses: 1,
-            uses: 0,
-            expires_at: null,
-            table_reservation_id: "res-1",
-          },
-          error: null,
-        },
-      ],
+      "codes.select": [{ data: null, error: null }],
       "tickets.select": [
         {
           data: {
             id: "ticket-1",
+            code: { type: "courtesy" },
+            code_id: "code-1",
             full_name: "Mesa Cliente",
             dni: "12345678",
             email: "mesa@test.com",
@@ -228,7 +215,8 @@ describe("POST /api/scan", () => {
 
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(payload.result).toBe("valid");
+    expect(payload.result).toBe("invalid");
+    expect(payload.reason).toBe("individual_qr_required");
     expect(payload.qr_kind).toBe("ticket_general");
     expect(payload.qr_kind_label).toBe("Entrada General");
   });
@@ -324,26 +312,13 @@ describe("POST /api/scan", () => {
           error: null,
         },
       ],
-      "codes.select": [
-        {
-          data: {
-            id: "code-table-5",
-            code: "TABLE-555",
-            type: "table",
-            event_id: "event-5",
-            is_active: true,
-            max_uses: 1,
-            uses: 0,
-            expires_at: null,
-            table_reservation_id: "res-table-5",
-          },
-          error: null,
-        },
-      ],
+      "codes.select": [{ data: null, error: null }],
       "tickets.select": [
         {
           data: {
             id: "ticket-table-5",
+            code: { type: "table" },
+            code_id: "code-1",
             full_name: "Ana Mesa",
             dni: "12345678",
             email: "ana@mesa.com",

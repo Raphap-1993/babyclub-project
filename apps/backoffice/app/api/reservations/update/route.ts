@@ -521,6 +521,7 @@ export async function POST(req: NextRequest) {
         const existingConflict = await findActiveEventTicketConflict(
           supabase as any,
           {
+        allowExpiredGeneralReplacement: true,
             eventId,
             fullName: attendee.fullName,
             email: attendee.email || resolvedEmail,

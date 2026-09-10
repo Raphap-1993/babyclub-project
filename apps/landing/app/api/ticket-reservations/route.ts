@@ -1,3 +1,4 @@
+import { PurchaseAttributionError, resolvePurchaseAttribution } from "shared/promoterAttribution";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -110,7 +111,7 @@ function stripUnsupportedReservationColumns(
     changed = true;
   }
 
-  if (isMissingPromoterLinkTraceColumnsError(error)) {
+  if (isMissingPromoterLinkTraceColumnsError(error) && !payload.promoter_id) {
     delete nextPayload.promoter_link_code_id;
     delete nextPayload.promoter_link_code;
     changed = true;
@@ -295,20 +296,7 @@ export async function POST(req: NextRequest) {
 
   const event_id =
     typeof body?.event_id === "string" ? body.event_id.trim() : "";
-  const promoter_id =
-    typeof body?.promoter_id === "string" && body.promoter_id.trim()
-      ? body.promoter_id.trim()
-      : null;
-  const promoterLinkCodeId =
-    typeof body?.promoter_link_code_id === "string" &&
-    body.promoter_link_code_id.trim()
-      ? body.promoter_link_code_id.trim()
-      : null;
-  const promoterLinkCode =
-    typeof body?.promoter_link_code === "string" &&
-    body.promoter_link_code.trim()
-      ? body.promoter_link_code.trim()
-      : null;
+
   const docTypeRaw =
     typeof body?.doc_type === "string"
       ? (body.doc_type as DocumentType)
@@ -601,6 +589,7 @@ export async function POST(req: NextRequest) {
     const existingConflict = await findActiveEventTicketConflict(
       supabase as any,
       {
+        allowExpiredGeneralReplacement: true,
         eventId: event_id,
         fullName: attendee.full_name,
         email: attendee.email || null,
@@ -624,6 +613,17 @@ export async function POST(req: NextRequest) {
       );
     }
   }
+
+  let attribution;
+  try {
+    attribution = await resolvePurchaseAttribution(supabase, event_id, body);
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof PurchaseAttributionError ? error.message : "No pudimos verificar la atribución", code: "invalid_promoter_attribution" },
+      { status: error instanceof PurchaseAttributionError ? error.status : 503 },
+    );
+  }
+  const { promoterId: promoter_id, promoterLinkCodeId, promoterLinkCode } = attribution;
 
   const insertPayload: Record<string, any> = {
     table_id: null,

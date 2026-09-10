@@ -92,12 +92,101 @@ describe("sendTicketEmail", () => {
     expect(sendEmail).toHaveBeenCalledTimes(1);
     const payload = (sendEmail as any).mock.calls[0][0];
     expect(payload.to).toBe("buyer@test.com");
-    expect(String(payload.html || "")).toContain("Completar asistentes");
+    expect(String(payload.html || "")).toContain("Ver mis entradas");
     expect(String(payload.html || "")).toContain(
       "https://babyclubaccess.com/compra?reservationId=res-ticket-1",
     );
     expect(String(payload.text || "")).toContain(
-      "Completar asistentes: https://babyclubaccess.com/compra?reservationId=res-ticket-1",
+      "Ver mis entradas: https://babyclubaccess.com/compra?reservationId=res-ticket-1",
     );
+  });
+
+  it("envía acceso al ticket vigente sin QR externo y escapa los datos del asistente", async () => {
+    const { supabase } = createSupabaseMock({
+      "tickets.select": {
+        data: {
+          id: "ticket-1",
+          qr_token: "private-token",
+          full_name: '<a href="https://example.test">Demo</a>',
+          document: "12345678",
+          doc_type: "dni",
+          phone: "<b>999</b>",
+          event: { name: "Evento <Demo>", location: "Sala <Demo>" },
+          code: { code: "CODE<1>", type: "courtesy" },
+        },
+        error: null,
+      },
+    });
+    const { sendTicketEmail } = await import("./email");
+    await sendTicketEmail({
+      supabase,
+      ticketId: "ticket-1",
+      toEmail: "recipient@example.test",
+    });
+    const payload = (sendEmail as any).mock.calls[0][0];
+    expect(payload.html).not.toContain("api.qrserver.com");
+    expect(payload.html).not.toContain("private-token");
+    expect(payload.html).not.toContain(
+      '<a href="https://example.test">Demo</a>',
+    );
+    expect(payload.html).toContain("Evento &lt;Demo&gt;");
+    expect(payload.html).toContain(
+      "https://babyclubaccess.com/ticket/ticket-1",
+    );
+  });
+
+  it("ofrece una sola entrada a la compra sin códigos ni botones repetidos", async () => {
+    const { supabase } = createSupabaseMock({
+      "tickets.select": {
+        data: null,
+        error: { message: "Ticket lookup failed" },
+      },
+    });
+    const { sendApprovalEmail } = await import("./email");
+    await sendApprovalEmail({
+      supabase,
+      id: "res-1",
+      full_name: "Buyer",
+      email: "buyer@example.test",
+      phone: "<em>999</em>",
+      codes: ["CODE<1>"],
+      ticketIds: ["ticket-1"],
+      resourceLabel: "<b>Mesa</b>",
+      callToAction: {
+        label: "Completar asistentes",
+        url: "https://babyclubaccess.com/compra?reservationId=res-1",
+      },
+    });
+    const payload = (sendEmail as any).mock.calls[0][0];
+    expect(payload.html).not.toContain("api.qrserver.com");
+    expect(payload.html).not.toContain("<img");
+    expect(payload.html).toContain("Mis entradas");
+    expect(payload.html.match(/<a\s/g)).toHaveLength(1);
+    expect(payload.html).not.toContain("<em>999</em>");
+    expect(payload.html).not.toContain("<b>Mesa</b>");
+    expect(payload.text).toContain(
+      "https://babyclubaccess.com/compra?reservationId=res-1",
+    );
+    expect(payload.html).not.toContain("CODE");
+    expect(payload.text).not.toContain("CODE");
+    expect(payload.text).not.toContain("/ticket/ticket-1");
+    expect(payload.html).toContain("1 entrada disponible");
+  });
+
+  it("usa el enlace seguro de la compra incluso sin tickets emitidos ni CTA proporcionado", async () => {
+    const { sendApprovalEmail } = await import("./email");
+    await sendApprovalEmail({
+      id: "res id/1",
+      full_name: "Buyer",
+      email: "buyer@example.test",
+      phone: null,
+      codes: [],
+    });
+    const payload = (sendEmail as any).mock.calls[0][0];
+    expect(payload.html.match(/<a\s/g)).toHaveLength(1);
+    expect(payload.text).toContain("/compra?reservationId=res%20id%2F1");
+    expect(payload.html).not.toContain("No se generaron códigos");
+    expect(payload.text).not.toContain("sin códigos");
+    expect(payload.html).not.toContain("entradas disponibles");
   });
 });

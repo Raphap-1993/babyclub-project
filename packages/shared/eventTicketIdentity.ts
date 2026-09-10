@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeDocument, type DocumentType } from "./document";
 import { applyNotDeleted } from "./db/softDelete";
 import { normalizeEmailAddress } from "./email/address";
+import { getTicketAccessState } from "./ticketAccess";
 
 type Supabase = SupabaseClient<any, "public", any>;
 
@@ -14,6 +15,8 @@ export type EventTicketIdentityInput = {
   docType?: DocumentType | null;
   document?: string | null;
   dni?: string | null;
+  /** Only approved purchase issuance may replace an unused expired general QR. */
+  allowExpiredGeneralReplacement?: boolean;
 };
 
 export type EventTicketConflictReason =
@@ -39,7 +42,7 @@ export type EventTicketConflict = {
 };
 
 const ACTIVE_TICKET_SELECT =
-  "id,person_id,table_reservation_id,qr_token,full_name,email,phone,doc_type,document,dni,code:codes(code,type)";
+  "id,person_id,table_reservation_id,qr_token,full_name,email,phone,doc_type,document,dni,used,is_active,payment_status,code:codes(code,type,expires_at),event:events(starts_at,entry_limit,is_active,closed_at,deleted_at)";
 
 export class EventTicketConflictError extends Error {
   conflict: EventTicketConflict;
@@ -75,7 +78,9 @@ export function buildEventTicketIdentityKeys(
     input.docType || "dni",
     input.document || input.dni || null,
   );
-  const normalizedDocument = String(document || "").trim().toLowerCase();
+  const normalizedDocument = String(document || "")
+    .trim()
+    .toLowerCase();
   const normalizedName = normalizeFullNameForIdentity(input.fullName);
   const normalizedEmail = normalizeEmailAddress(String(input.email || ""));
   const normalizedPhone = normalizePhoneForIdentity(input.phone);
@@ -154,7 +159,9 @@ export async function findActiveEventTicketConflict(
     input.docType || "dni",
     input.document || input.dni || null,
   );
-  const normalizedDocument = String(document || "").trim().toLowerCase();
+  const normalizedDocument = String(document || "")
+    .trim()
+    .toLowerCase();
   const normalizedName = normalizeFullNameForIdentity(input.fullName);
   const normalizedEmail = normalizeEmailAddress(String(input.email || ""));
   const phoneCandidates = buildPhoneCandidates(input.phone);
@@ -176,22 +183,38 @@ export async function findActiveEventTicketConflict(
 
   if (filters.length === 0) return null;
 
-  const { data, error } = await applyNotDeleted(
-    supabase
-      .from("tickets")
-      .select(ACTIVE_TICKET_SELECT)
-      .eq("event_id", eventId)
-      .eq("is_active", true)
-      .or(Array.from(new Set(filters)).join(","))
-      .order("created_at", { ascending: true })
-      .limit(20),
-  );
-
-  if (error) {
-    throw new Error(error.message || "No se pudo validar duplicados por evento");
+  const candidates: any[] = [];
+  for (let start = 0; ; start += 500) {
+    const { data, error } = await applyNotDeleted(
+      supabase
+        .from("tickets")
+        .select(ACTIVE_TICKET_SELECT)
+        .eq("event_id", eventId)
+        .eq("is_active", true)
+        .or(Array.from(new Set(filters)).join(","))
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(start, start + 499),
+    );
+    if (error)
+      throw new Error(
+        error.message || "No se pudo validar duplicados por evento",
+      );
+    const page = Array.isArray(data) ? data : [];
+    candidates.push(...page);
+    if (page.length < 500) break;
   }
 
-  const rows = Array.isArray(data) ? data : [];
+  const rows = candidates.filter((row: any) => {
+    if (!input.allowExpiredGeneralReplacement || row.used) return true;
+    const code = Array.isArray(row.code) ? row.code[0] : row.code;
+    if (String(code?.type || "").toLowerCase() !== "general") return true;
+    const event = Array.isArray(row.event) ? row.event[0] : row.event;
+    return (
+      getTicketAccessState({ ticket: row, code, event: event || null })
+        .state !== "expired"
+    );
+  });
   for (const row of rows) {
     if (personId && row?.person_id === personId) {
       return mapConflictTicket(row, "person_id");
@@ -208,14 +231,24 @@ export async function findActiveEventTicketConflict(
   for (const row of rows) {
     const rowName = normalizeFullNameForIdentity(row?.full_name);
     const rowEmail = normalizeEmailAddress(String(row?.email || ""));
-    if (normalizedName && normalizedEmail && rowName === normalizedName && rowEmail === normalizedEmail) {
+    if (
+      normalizedName &&
+      normalizedEmail &&
+      rowName === normalizedName &&
+      rowEmail === normalizedEmail
+    ) {
       return mapConflictTicket(row, "full_name_email");
     }
   }
   for (const row of rows) {
     const rowName = normalizeFullNameForIdentity(row?.full_name);
     const rowPhone = normalizePhoneForIdentity(row?.phone);
-    if (normalizedName && normalizedPhone && rowName === normalizedName && rowPhone === normalizedPhone) {
+    if (
+      normalizedName &&
+      normalizedPhone &&
+      rowName === normalizedName &&
+      rowPhone === normalizedPhone
+    ) {
       return mapConflictTicket(row, "full_name_phone");
     }
   }

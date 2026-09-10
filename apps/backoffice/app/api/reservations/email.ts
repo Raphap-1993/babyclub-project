@@ -1,5 +1,6 @@
 import { getEmailDomain, normalizeEmailAddress } from "shared/email/address";
 import { sendEmail } from "shared/email/resend";
+import { escapeEmailHtml as escape } from "shared/email/template";
 import { formatLimaFromDb, toLimaPartsFromDb } from "shared/limaTime";
 import { getPublicAppUrl } from "shared/publicUrl";
 import { resolveTicketReservationWorkspaceContext } from "shared/ticketReservationWorkspace";
@@ -12,13 +13,13 @@ export async function sendApprovalEmail({
   id,
   full_name,
   email,
-  phone,
   codes,
   ticketIds,
   tableName,
   event,
   resourceLabel = "Mesa",
   callToAction,
+  logAction = "reservation_approved",
 }: {
   supabase?: Supabase | null;
   id: string;
@@ -35,19 +36,12 @@ export async function sendApprovalEmail({
   } | null;
   resourceLabel?: string;
   callToAction?: { label: string; url: string } | null;
+  logAction?: "reservation_approved" | "reservation_confirmed";
 }) {
-  const escape = (value: string) =>
-    value
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-
-  const safeName = full_name ? escape(full_name) : "";
-  const safeTable = tableName ? escape(tableName) : "—";
-  const safeEventName = event?.name ? escape(event.name) : "";
-  const safeLocation = event?.location ? escape(event.location) : "";
-
+  const safeName = escape(full_name || "");
+  const safeTable = escape(tableName || resourceLabel);
+  const safeEventName = escape(event?.name || "");
+  const safeLocation = escape(event?.location || "");
   const dateLabel = (() => {
     if (!event?.starts_at) return null;
     try {
@@ -56,94 +50,38 @@ export async function sendApprovalEmail({
       return null;
     }
   })();
-
-  const appUrl = getPublicAppUrl();
+  const reservationUrl =
+    callToAction?.url ||
+    `${getPublicAppUrl()}/compra?reservationId=${encodeURIComponent(id)}`;
+  const availableCount = new Set((ticketIds || []).filter(Boolean)).size;
+  const availableLabel =
+    availableCount === 1
+      ? "1 entrada disponible"
+      : `${availableCount} entradas disponibles`;
   const recipientEmail = normalizeEmailAddress(email);
   const recipientDomain = getEmailDomain(recipientEmail);
-
-  // ✅ NUEVO: Generar HTML con tickets individuales (cada uno con su QR único)
-  const ticketsHtml =
-    ticketIds && ticketIds.length > 0 && supabase
-      ? (
-          await Promise.all(
-            ticketIds.map(async (ticketId, index) => {
-              // Obtener datos del ticket para mostrar qr_token, event_id, organizer
-              const { data: ticketData } = await supabase
-                .from("tickets")
-                .select(
-                  "qr_token,event:events(id,name,organizer:organizers(name))",
-                )
-                .eq("id", ticketId)
-                .maybeSingle();
-
-              const qrToken = ticketData?.qr_token || ticketId;
-              const eventRel = Array.isArray(ticketData?.event)
-                ? ticketData.event[0]
-                : ticketData?.event;
-              const organizerRel = Array.isArray(eventRel?.organizer)
-                ? eventRel.organizer[0]
-                : eventRel?.organizer;
-
-              const ticketUrl = `${appUrl}/ticket/${ticketId}`;
-              const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(qrToken)}`;
-
-              return `
-        <div style="padding:16px;border-radius:14px;border:1px solid rgba(255,255,255,0.1);background:#0f0f0f;margin-bottom:14px;">
-          <div style="font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-size:15px;color:#f5f5f5;font-weight:700;margin-bottom:4px;">Entrada ${index + 1} de ${ticketIds.length}</div>
-          ${eventRel?.name ? `<div style="font-size:12px;color:#d0d0d0;margin-bottom:2px;">Evento: ${escape(eventRel.name)}</div>` : ""}
-          ${organizerRel?.name ? `<div style="font-size:11px;color:#b8b8b8;margin-bottom:8px;">Organizador: ${escape(organizerRel.name)}</div>` : ""}
-          ${codes[index] ? `<div style="font-size:13px;color:#e0e0e0;margin-bottom:8px;font-family:monospace;">Código: ${escape(codes[index])}</div>` : ""}
-          <img src="${qrImg}" alt="QR Entrada ${index + 1}" width="200" height="200" style="border-radius:12px;border:6px solid #0b0b0b;background:#fff;display:block;margin:8px 0;" />
-          <a href="${ticketUrl}" style="display:inline-block;margin-top:8px;padding:10px 18px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:600;font-size:13px;text-decoration:none;letter-spacing:0.02em;">Ver QR completo</a>
-          <div style="font-size:11px;color:#a8a8a8;margin-top:8px;line-height:1.4;">
-            Este QR contiene evento y organizador. Solo es válido para este evento específico.
-          </div>
-        </div>
-      `;
-            }),
-          )
-        ).join("")
-      : codes.length > 0
-        ? `<p style="color:#f5f5f5;font-size:14px;">Códigos generados: ${codes.join(", ")}</p>`
-        : `<p style="color:#f5f5f5;font-size:14px;">No se generaron códigos para esta reserva.</p>`;
 
   const html = `
   <div style="margin:0;padding:0;background:#050505;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#050505;padding:24px 12px;">
       <tr>
         <td align="center">
-          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:720px;background:#0b0b0b;border-radius:24px;border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;background:#0b0b0b;border-radius:24px;border:1px solid rgba(255,255,255,0.05);overflow:hidden;">
             <tr>
               <td style="padding:28px 32px 16px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(233,30,99,0.12));color:#ffffff;">
                 <div style="text-transform:uppercase;font-size:12px;letter-spacing:0.28em;color:#f2f2f2;opacity:0.8;margin-bottom:6px;">Baby</div>
                 <h1 style="margin:0;font-size:26px;line-height:1.2;color:#ffffff;">Reserva aprobada</h1>
-                <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">${resourceLabel} ${safeTable}${safeEventName ? ` • ${safeEventName}` : ""}${dateLabel ? ` • ${dateLabel}` : ""}</p>
+                ${safeEventName ? `<p style="margin:10px 0 0;font-size:16px;color:#f5f5f5;">${safeEventName}</p>` : ""}
+                <p style="margin:6px 0 0;font-size:14px;color:#d9d9d9;">${safeTable}${dateLabel ? ` • ${escape(dateLabel)}` : ""}</p>
                 ${safeLocation ? `<p style="margin:4px 0 0;font-size:13px;color:#c8c8c8;">${safeLocation}</p>` : ""}
               </td>
             </tr>
             <tr>
               <td style="padding:22px 32px 28px;">
-                <p style="margin:0 0 10px;font-size:15px;color:#f5f5f5;">Hola ${safeName || "invitadx"},</p>
-                <p style="margin:0 0 14px;font-size:14px;color:#d7d7d7;line-height:1.6;">
-                  Confirmamos tu reserva. Cada QR es individual y contiene el evento y organizador específico.
-                  ${phone ? `<br/>Teléfono registrado: ${phone}` : ""}
-                </p>
-                ${ticketsHtml}
-                ${
-                  callToAction?.url
-                    ? `
-                <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
-                  Asigna los asistentes pendientes antes del evento desde el enlace de abajo.
-                  <div style="margin-top:12px;">
-                    <a href="${escape(callToAction.url)}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;letter-spacing:0.02em;">${escape(callToAction.label)}</a>
-                  </div>
-                </div>
-                    `
-                    : ""
-                }
-                <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
-                  Si algún código no funciona, muestra este correo en puerta o responde a este mensaje para que podamos ayudarte.
-                </div>
+                <p style="margin:0 0 10px;font-size:15px;color:#f5f5f5;">${safeName ? `Hola ${safeName},` : "Hola,"}</p>
+                <p style="margin:0 0 14px;font-size:14px;color:#d7d7d7;line-height:1.6;">Tu reserva está confirmada. Completa los datos de cada asistente y revisa sus entradas en un solo lugar.</p>
+                ${availableCount > 0 ? `<p style="margin:0 0 18px;font-size:14px;color:#f5f5f5;">${availableLabel}</p>` : ""}
+                <a href="${escape(reservationUrl)}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.02em;">Mis entradas</a>
               </td>
             </tr>
           </table>
@@ -153,22 +91,20 @@ export async function sendApprovalEmail({
   </div>`;
 
   const textBody = [
-    `Reserva aprobada`,
-    `Mesa: ${tableName || "-"}`,
-    event?.name ? `Evento: ${event.name}` : null,
-    dateLabel ? `Fecha: ${dateLabel}` : null,
-    phone ? `Teléfono: ${phone}` : null,
-    "",
-    "Códigos:",
-    codes.length > 0
-      ? codes.map((c) => `- ${c}`).join("\n")
-      : "- (sin códigos)",
-    callToAction?.url ? `${callToAction.label}: ${callToAction.url}` : null,
+    "Reserva aprobada",
+    event?.name || null,
+    tableName || resourceLabel,
+    dateLabel,
+    event?.location || null,
+    full_name ? `Hola ${full_name},` : "Hola,",
+    "Tu reserva está confirmada. Completa los datos de cada asistente y revisa sus entradas en un solo lugar.",
+    availableCount > 0 ? availableLabel : null,
+    `Mis entradas: ${reservationUrl}`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const subject = "Reserva aprobada - códigos y QR";
+  const subject = "Reserva aprobada - tus entradas";
   let providerId: string | null = null;
 
   try {
@@ -185,7 +121,7 @@ export async function sendApprovalEmail({
     await logProcessEvent({
       supabase: supabase || null,
       category: "email",
-      action: "reservation_approved",
+      action: logAction,
       status: "success",
       message: subject,
       toEmail: recipientEmail,
@@ -198,7 +134,7 @@ export async function sendApprovalEmail({
     await logProcessEvent({
       supabase: supabase || null,
       category: "email",
-      action: "reservation_approved",
+      action: logAction,
       status: "error",
       message: err?.message || "No se pudo enviar correo",
       toEmail: recipientEmail,
@@ -230,13 +166,6 @@ export async function sendCancellationEmail({
     location?: string | null;
   } | null;
 }) {
-  const escape = (value: string) =>
-    value
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-
   const safeName = full_name ? escape(full_name) : "";
   const safeTable = tableName ? escape(tableName) : "—";
   const safeEventName = event?.name ? escape(event.name) : "";
@@ -361,7 +290,7 @@ export async function sendTicketEmail({
   const { data, error } = await supabase
     .from("tickets")
     .select(
-      "id,table_reservation_id,qr_token,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,starts_at,location)",
+      "id,table_reservation_id,full_name,doc_type,document,dni,email,phone,code:codes(code,type,expires_at,promoter_id,table_reservation_id),event:events(name,starts_at,location)",
     )
     .eq("id", ticketId)
     .maybeSingle();
@@ -383,11 +312,7 @@ export async function sendTicketEmail({
   const dateLabel = eventRel?.starts_at
     ? formatLimaFromDb(eventRel.starts_at)
     : "";
-  const ticketUrl = `${appUrl}/ticket/${ticketId}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=jpg&color=000000&bgcolor=ffffff&data=${encodeURIComponent(
-    data.qr_token,
-  )}`;
-  const qrImg = qrUrl;
+  const ticketUrl = `${appUrl}/ticket/${encodeURIComponent(ticketId)}`;
   const isFreeCode = (codeRel?.type || "").toLowerCase() === "free";
   const isPromoterCode = Boolean(codeRel?.promoter_id);
   const expiresLabel = (() => {
@@ -445,9 +370,9 @@ export async function sendTicketEmail({
                   <tr>
                     <td style="padding-top:14px;">
                       <div style="padding:12px 14px;border-radius:14px;background:linear-gradient(120deg,rgba(233,30,99,0.14),rgba(255,111,183,0.08));color:#ffddea;font-size:13px;line-height:1.5;">
-                        Aún tienes ${workspaceCountLabel} para completar desde tu workspace de compra.
+                        Aún tienes ${workspaceCountLabel} para completar en tu compra.
                         <div style="margin-top:12px;">
-                          <a href="${workspaceContext.nominationUrl}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;letter-spacing:0.02em;">Completar asistentes</a>
+                          <a href="${escape(workspaceContext.nominationUrl)}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;letter-spacing:0.02em;">Ver mis entradas</a>
                         </div>
                       </div>
                     </td>
@@ -465,18 +390,13 @@ export async function sendTicketEmail({
               <td style="padding:28px 32px 10px;background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(233,30,99,0.1));color:#ffffff;">
                 <div style="text-transform:uppercase;font-size:12px;letter-spacing:0.28em;color:#f2f2f2;opacity:0.8;margin-bottom:6px;">Baby</div>
                 <h1 style="margin:0;font-size:26px;line-height:1.2;color:#ffffff;">Entrada generada</h1>
-                <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">${eventRel?.name || "Evento"}${dateLabel ? ` • ${dateLabel}` : ""}</p>
-                ${eventRel?.location ? `<p style="margin:4px 0 0;font-size:13px;color:#c8c8c8;">${eventRel.location}</p>` : ""}
+                <p style="margin:8px 0 0;font-size:14px;color:#d9d9d9;">${escape(eventRel?.name || "Evento")}${dateLabel ? ` • ${escape(dateLabel)}` : ""}</p>
+                ${eventRel?.location ? `<p style="margin:4px 0 0;font-size:13px;color:#c8c8c8;">${escape(eventRel.location)}</p>` : ""}
               </td>
             </tr>
             <tr>
               <td style="padding:20px 32px 28px;">
                 <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-                  <tr>
-                    <td align="center" style="padding:12px 0 18px;">
-                      <img src="${qrImg}" alt="QR" width="220" height="220" style="border-radius:18px;border:8px solid #0f0f0f;background:#fff;display:block;" />
-                    </td>
-                  </tr>
                   <tr>
                     <td style="padding:0;">
                       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden;background:#0f0f0f;">
@@ -484,18 +404,18 @@ export async function sendTicketEmail({
                           <td style="padding:16px 18px;">
                             <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#bcbcbc;">Datos</p>
                             <p style="margin:0;font-size:14px;color:#f5f5f5;line-height:1.6;">
-                              <strong>Nombre:</strong> ${data.full_name || "-"}<br/>
-                              <strong>Documento:</strong> ${documentLabel}<br/>
-                              <strong>Código:</strong> ${codeRel?.code || "-"}
-                              ${data.phone ? `<br/><strong>Teléfono:</strong> ${data.phone}` : ""}
+                              <strong>Nombre:</strong> ${escape(data.full_name || "-")}<br/>
+                              <strong>Documento:</strong> ${escape(documentLabel)}<br/>
+                              <strong>Código:</strong> ${escape(codeRel?.code || "-")}
+                              ${data.phone ? `<br/><strong>Teléfono:</strong> ${escape(data.phone)}` : ""}
                             </p>
                           </td>
                           <td style="padding:16px 18px;border-left:1px solid rgba(255,255,255,0.06);" width="42%">
                             <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#bcbcbc;">Evento</p>
                             <p style="margin:0;font-size:14px;color:#f5f5f5;line-height:1.6;">
-                              ${eventRel?.name || "Evento"}<br/>
-                              ${dateLabel ? dateLabel : ""}
-                              ${eventRel?.location ? `<br/>${eventRel.location}` : ""}
+                              ${escape(eventRel?.name || "Evento")}<br/>
+                              ${escape(dateLabel)}
+                              ${eventRel?.location ? `<br/>${escape(eventRel.location)}` : ""}
                             </p>
                           </td>
                         </tr>
@@ -506,11 +426,11 @@ export async function sendTicketEmail({
                   ${workspaceHtml}
                   <tr>
                     <td align="center" style="padding:20px 0 6px;">
-                      <a href="${ticketUrl}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver ticket</a>
+                      <a href="${escape(ticketUrl)}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(120deg,#e91e63,#ff6fb7);color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.04em;">Ver entrada</a>
                     </td>
                   </tr>
                   <tr>
-                    <td style="text-align:center;color:#7f7f7f;font-size:12px;line-height:1.5;padding-bottom:4px;">Muestra este QR en puerta para validar tu ingreso.</td>
+                    <td style="text-align:center;color:#7f7f7f;font-size:12px;line-height:1.5;padding-bottom:4px;">Abre tu entrada para ver el QR vigente. Descárgalo antes de salir y muéstralo en puerta.</td>
                   </tr>
                 </table>
               </td>
@@ -524,7 +444,7 @@ export async function sendTicketEmail({
   const textWarnings =
     warnings.length > 0 ? `\n\nAvisos:\n- ${warnings.join("\n- ")}` : "";
   const textWorkspace = showWorkspaceCta
-    ? `\nCompletar asistentes: ${workspaceContext.nominationUrl}\nPendientes: ${workspaceCountLabel}`
+    ? `\nVer mis entradas: ${workspaceContext.nominationUrl}\nPendientes: ${workspaceCountLabel}`
     : "";
   const textBody = `Tu QR para ${eventRel?.name || "el evento"}\nNombre: ${data.full_name || "-"}\nDocumento: ${documentLabel}\nCódigo: ${codeRel?.code || "-"}\nEvento: ${eventRel?.name || ""}${dateLabel ? ` • ${dateLabel}` : ""}${eventRel?.location ? ` • ${eventRel.location}` : ""}\nEnlace del ticket: ${ticketUrl}${textWorkspace}${textWarnings}`;
 

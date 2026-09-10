@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
     0,
   );
   const conflict = await findActiveEventTicketConflict(supabase as any, {
+        allowExpiredGeneralReplacement: true,
     eventId: event_id,
     fullName: fullName || null,
     email: email || null,

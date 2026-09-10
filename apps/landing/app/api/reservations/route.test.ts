@@ -17,14 +17,16 @@ describe("POST /api/reservations", () => {
 
   it("crea reserva de mesa y genera códigos individuales por persona", async () => {
     const { supabase, calls } = createSupabaseMock({
+      "promoters.select": { data: { id: "11111111-1111-4111-8111-111111111111", is_active: true }, error: null },
+      "codes.select": { data: { id: "33333333-3333-4333-8333-333333333333", code: "PROM01", type: "promoter_link", promoter_id: "11111111-1111-4111-8111-111111111111", event_id: "22222222-2222-4222-8222-222222222222", is_active: true }, error: null },
       "tables.select": [
         {
           data: {
             id: "table-1",
-            event_id: "event-1",
+            event_id: "22222222-2222-4222-8222-222222222222",
             ticket_count: 2,
             is_active: true,
-            event: { id: "event-1", name: "Evento" },
+            event: { id: "22222222-2222-4222-8222-222222222222", name: "Evento" },
           },
           error: null,
         },
@@ -32,7 +34,7 @@ describe("POST /api/reservations", () => {
       "events.select": [
         {
           data: {
-            id: "event-1",
+            id: "22222222-2222-4222-8222-222222222222",
             is_active: true,
             closed_at: null,
             sale_status: "on_sale",
@@ -40,6 +42,7 @@ describe("POST /api/reservations", () => {
           },
           error: null,
         },
+        { data: { id: "22222222-2222-4222-8222-222222222222", is_active: true, sale_status: "on_sale" }, error: null },
       ],
       "table_products.select": [
         {
@@ -72,10 +75,10 @@ describe("POST /api/reservations", () => {
         phone: "+51999999999",
         voucher_url: "https://example.com/voucher.png",
         product_id: "prod-1",
-        event_id: "event-1",
+        event_id: "22222222-2222-4222-8222-222222222222",
         code: "PUBLIC",
-        promoter_id: "prom-1",
-        promoter_link_code_id: "code-link-1",
+        promoter_id: "11111111-1111-4111-8111-111111111111",
+        promoter_link_code_id: "33333333-3333-4333-8333-333333333333",
         promoter_link_code: "PROM01",
       }),
     });
@@ -94,8 +97,8 @@ describe("POST /api/reservations", () => {
       (call) => call.table === "table_reservations" && call.op === "insert",
     );
     expect(reservationInsert?.payload).toMatchObject({
-      promoter_id: "prom-1",
-      promoter_link_code_id: "code-link-1",
+      promoter_id: "11111111-1111-4111-8111-111111111111",
+      promoter_link_code_id: "33333333-3333-4333-8333-333333333333",
       promoter_link_code: "PROM01",
     });
 
@@ -105,7 +108,7 @@ describe("POST /api/reservations", () => {
     expect(codesInsert?.payload).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          promoter_id: "prom-1",
+          promoter_id: "11111111-1111-4111-8111-111111111111",
           table_reservation_id: "res-1",
         }),
       ]),
