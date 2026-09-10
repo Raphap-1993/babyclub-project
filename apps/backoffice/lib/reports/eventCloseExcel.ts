@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import type { EventCloseReport } from "./eventClose";
+import { settlementStatusLabel, type EventCloseReport } from "./eventClose";
 
 const moneyFormat = '"S/" #,##0.00';
 const dateFormat = "yyyy-mm-dd hh:mm";
@@ -50,7 +50,7 @@ export async function eventCloseExcel(
     value.getRow(2).height = 36;
     value.mergeCells(3, 1, 3, last);
     value.getCell("A3").value =
-      "Fuente: BabyClub · mismo corte del reporte visible. Reservas y pagos no se suman.";
+      "BabyClub · Reservas y pagos presentados por separado. Importes en soles.";
     value.getCell("A3").font = {
       name: "Calibri",
       size: 10,
@@ -81,7 +81,7 @@ export async function eventCloseExcel(
   }
 
   const close = sheet("Cierre", [43, 24, 80]);
-  header(close, ["Indicador", "Valor", "Alcance / pendiente"]);
+  header(close, ["Indicador", "Valor", "Detalle"]);
   const add = (
     label: string,
     value: string | number | Date,
@@ -103,18 +103,19 @@ export async function eventCloseExcel(
     row.getCell(2).numFmt = format;
     row.getCell(2).font = { name: "Calibri", size: 11, bold: true };
   };
-  const { sales, attendance, invitations, tables, quality } = report;
+  const { sales, attendance, invitations, tables, quality, settlements } =
+    report;
   add(
-    "Ingresos confirmados",
+    "Accesos confirmados",
     attendance.confirmed,
-    "QR únicos admitidos. No equivale a personas físicas únicas.",
+    "Entradas validadas en puerta; cada entrada cuenta una vez.",
   );
   for (const category of attendance.categories)
     add(category.label, category.count, category.description);
   add(
     "Invitaciones con ticket emitidas",
     invitations.issued,
-    "Excluye compras y tickets anulados sin ingreso.",
+    "Entradas de cortesía y free vigentes o con asistencia registrada.",
   );
   add(
     "Invitaciones con ticket ingresadas",
@@ -126,52 +127,52 @@ export async function eventCloseExcel(
     invitations.withoutAdmission,
     report.event.closed_at
       ? "Evento cerrado."
-      : "Evento sin cierre: no son ausencias definitivas.",
+      : "Evento abierto; asistencia en curso.",
   );
   add(
-    "Uso pendiente de conciliar",
+    "Usadas sin confirmación de ingreso",
     invitations.usageWithoutScan,
-    "No se interpreta como ausencia.",
+    "Uso registrado; ingreso sin confirmar.",
   );
   add(
     "Invitados con código sin ticket",
     invitations.codeOnlyAdmissions,
-    "Adicionales al detalle de tickets; incluidos en asistencia.",
+    "Incluidos en la asistencia total.",
   );
   add(
     "Reservas de entradas aprobadas",
     sales.approvedTicketReservations,
-    "Pedidos aprobados, no personas ni pagos.",
+    "Cantidad de reservas de entradas aprobadas.",
   );
   add(
-    "Monto declarado en reservas",
+    "Valor de reservas aprobadas",
     sales.approvedWithoutAmount > 0 &&
       sales.approvedWithoutAmount === sales.approvedTicketReservations
       ? "No disponible"
       : sales.declaredTicketAmountCents / 100,
-    "Importes declarados en soles, pendientes de conciliar con caja. No sumar a pagos.",
+    "Valor de las entradas aprobadas, separado de los pagos registrados.",
     moneyFormat,
   );
   add(
     "Reservas sin importe",
     sales.approvedWithoutAmount,
-    "Excluidas de la suma de importes.",
+    "Importe pendiente de registrar.",
   );
   add(
-    "Pagos confirmados",
+    "Pagos registrados en soles",
     sales.confirmedPaymentAmountCents / 100,
-    "Registrados como pagados en soles, sin reembolso. Cero aquí no demuestra recaudación cero.",
+    "Pagos confirmados sin devoluciones.",
     moneyFormat,
   );
   add(
-    "Cantidad de pagos confirmados",
+    "Cantidad de pagos registrados",
     sales.confirmedPaymentCount,
     "Registros en soles, sin reembolso.",
   );
   add(
     "Pagos sin importe",
     sales.paymentsWithoutAmount,
-    "Pendientes de conciliar.",
+    "Importe pendiente de registrar.",
   );
   add(
     "Pagos con otra moneda o sin moneda",
@@ -184,18 +185,18 @@ export async function eventCloseExcel(
     "Cantidad de registros con devolución.",
   );
   add(
-    "Importe original de pagos reembolsados",
+    "Importe original de los pagos con devolución",
     sales.refundedPaymentAmountCents / 100,
-    "No acredita el importe exacto de devoluciones parciales.",
+    "Importe original de los pagos con devolución; devoluciones parciales no desglosadas.",
     moneyFormat,
   );
   add(
     "Reservas de mesa aprobadas",
     tables.approvedReservations,
-    "Reservas, no invitados.",
+    "Cantidad de reservas aprobadas.",
   );
   add(
-    "Mesas distintas reservadas",
+    "Mesas reservadas",
     tables.distinctTables,
     "Mesas vinculadas a reservas aprobadas.",
   );
@@ -205,30 +206,50 @@ export async function eventCloseExcel(
     "Accesos confirmados.",
   );
   for (const label of ["Cobros en puerta", "Consumo de mesas", "Ganancia neta"])
-    add(
-      label,
-      "No disponible",
-      "Falta registro conciliable; no se calcula como cero.",
-    );
+    add(label, "No disponible", "Sin registro en este reporte.");
   add(
-    "Ingresos por clasificar",
+    "Accesos sin modalidad indicada",
     quality.unclassifiedAdmissions,
-    "No se puede distinguir gratuidad o cobro en puerta.",
+    "Incluye QR generales y otros accesos sin indicación de pago o gratuidad.",
   );
   add(
-    "Reservas recuperadas del cierre",
+    "Reservas del historial de cierre",
     quality.archivedReservationsIncluded,
-    "Todos los estados. Incluidas solo para lectura histórica.",
+    "Historial del evento; todos los estados.",
   );
   add(
-    "Reservas eliminadas fuera del cierre",
+    "Reservas retiradas del historial",
     quality.excludedDeletedReservations,
     "Excluidas del registro de reservas del cierre.",
   );
   add(
-    "Confirmaciones repetidas excluidas",
+    "Validaciones repetidas",
     quality.repeatedConfirmations,
-    "No incrementan la asistencia.",
+    "Cada entrada cuenta una vez en la asistencia.",
+  );
+  add("Cantidad de liquidaciones", settlements.count, "Registros del evento.");
+  add(
+    "Liquidaciones pendientes en soles",
+    settlements.pendingCents / 100,
+    "Borradores y pendientes.",
+    moneyFormat,
+  );
+  add(
+    "Liquidaciones pagadas en soles",
+    settlements.settledCents / 100,
+    "Pagadas, entregadas y cerradas.",
+    moneyFormat,
+  );
+  add(
+    "Liquidaciones anuladas en soles",
+    settlements.voidCents / 100,
+    "Importes anulados.",
+    moneyFormat,
+  );
+  add(
+    "Liquidaciones en otra moneda o sin moneda",
+    settlements.otherCurrencyCount,
+    "Fuera de los totales en soles.",
   );
   add(
     "Fecha del evento (UTC)",
@@ -237,21 +258,33 @@ export async function eventCloseExcel(
     dateFormat,
   );
   add(
-    "Lectura del reporte (UTC)",
+    "Actualización del reporte (UTC)",
     new Date(report.generatedAt),
-    "Fecha del corte exportado; no se vuelve a consultar al descargar.",
+    "Fecha de actualización de los datos exportados.",
     dateFormat,
   );
 
-  const promoters = sheet("Promotores", [38, 15, 18, 16, 23, 20]);
+  const promoters = sheet(
+    "Promotores",
+    [38, 15, 18, 16, 23, 20, 18, 18, 18, 20, 25],
+  );
+  promoters.getCell("A3").value = report.event.closed_at
+    ? "BabyClub · Entradas emitidas, invitaciones y accesos confirmados. Evento cerrado."
+    : "BabyClub · Entradas emitidas, invitaciones y accesos confirmados. Evento abierto; asistencia en curso.";
   header(promoters, [
     "Promotor",
     "Total ingresados",
     "Con compra",
     "Mesa",
     "Invitación / free",
-    "Por revisar",
+    "Sin modalidad",
+    "Entradas personales emitidas",
+    "Invitaciones personales emitidas",
+    "Invitaciones personales con ingreso",
+    "Invitaciones personales sin ingreso",
+    "Invitaciones personales usadas sin confirmación de ingreso",
   ]);
+  promoters.getRow(5).height = 60;
   for (const promoter of report.promoters) {
     const row = promoters.addRow([
       promoter.name,
@@ -260,6 +293,11 @@ export async function eventCloseExcel(
       promoter.table,
       promoter.courtesy + promoter.free,
       promoter.unclassified + promoter.unknown,
+      promoter.issued,
+      promoter.invited,
+      promoter.invitationAttended,
+      promoter.invitationWithoutAdmission,
+      promoter.invitationUsageWithoutScan,
     ]);
     row.height = 32;
     row.eachCell((cell, column) => {
@@ -279,9 +317,68 @@ export async function eventCloseExcel(
     });
   }
   if (report.promoters.length)
-    promoters.autoFilter = { from: "A5", to: `F${promoters.rowCount}` };
+    promoters.autoFilter = { from: "A5", to: `K${promoters.rowCount}` };
   else
-    promoters.getCell("A6").value = "Sin ingresos para atribuir a promotores.";
+    promoters.getCell("A6").value =
+      "Sin entradas ni accesos registrados por promotor.";
+
+  const settlementSheet = sheet(
+    "Liquidaciones",
+    [38, 17, 14, 20, 20, 14, 24, 24, 38],
+  );
+  settlementSheet.getCell("A3").value =
+    "BabyClub · Cada importe conserva su moneda. Los totales del cierre incluyen soles.";
+  header(settlementSheet, [
+    "Promotor",
+    "Estado",
+    "Moneda",
+    "Importe",
+    "Unidades en efectivo",
+    "Tragos",
+    "Creada (UTC)",
+    "Liquidada (UTC)",
+    "Identificador",
+  ]);
+  const exportDate = (value: string | null) =>
+    value && Number.isFinite(Date.parse(value)) ? new Date(value) : "Sin fecha";
+  for (const settlement of settlements.records) {
+    const row = settlementSheet.addRow([
+      settlement.promoterName,
+      settlementStatusLabel(settlement.status),
+      settlement.currencyCode || "Sin moneda",
+      settlement.cashTotalCents / 100,
+      settlement.cashUnits,
+      settlement.drinkUnits,
+      exportDate(settlement.createdAt),
+      exportDate(settlement.settledAt),
+      settlement.id,
+    ]);
+    row.height = 32;
+    row.eachCell((cell) => {
+      cell.font = { name: "Calibri", size: 11 };
+      cell.alignment = { vertical: "middle", wrapText: true };
+      if (row.number % 2 === 0)
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF5F5F5" },
+        };
+    });
+    row.getCell(4).numFmt =
+      settlement.currencyCode === "PEN" ? moneyFormat : "#,##0.00";
+    row.getCell(5).numFmt = "#,##0";
+    row.getCell(6).numFmt = "#,##0.##";
+    row.getCell(7).numFmt = dateFormat;
+    row.getCell(8).numFmt = dateFormat;
+  }
+  if (settlements.records.length)
+    settlementSheet.autoFilter = {
+      from: "A5",
+      to: `I${settlementSheet.rowCount}`,
+    };
+  else
+    settlementSheet.getCell("A6").value =
+      "Sin liquidaciones registradas para este evento.";
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(buffer);

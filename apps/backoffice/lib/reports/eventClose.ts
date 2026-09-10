@@ -39,6 +39,18 @@ export type ScanRow = RelatedRow & {
   result?: string | null;
   created_at?: string | null;
 };
+export type SettlementRow = RelatedRow & {
+  promoter_id?: string | null;
+  promoter_name?: string | null;
+  status?: string | null;
+  currency_code?: string | null;
+  cash_total_cents?: number | string | null;
+  cash_units?: number | string | null;
+  drink_units?: number | string | null;
+  created_at?: string | null;
+  settled_at?: string | null;
+  is_active?: boolean | null;
+};
 export type EventCloseInput = {
   event: EventRow;
   tickets: TicketRow[];
@@ -47,39 +59,39 @@ export type EventCloseInput = {
   payments: PaymentRow[];
   scans: ScanRow[];
   promoters: { id: string; name: string }[];
+  settlements?: SettlementRow[];
 };
 
 const categories = [
   {
     key: "purchase",
-    label: "Con compra registrada",
-    description: "Compra aprobada o pago confirmado asociado al acceso.",
+    label: "Con compra",
+    description: "Entradas con compra aprobada o pago confirmado.",
   },
   {
     key: "table",
     label: "Invitados de mesa",
-    description:
-      "Accesos vinculados a una mesa; no equivalen a mesas vendidas.",
+    description: "Invitados que ingresaron con una reserva de mesa.",
   },
   {
     key: "courtesy",
     label: "Cortesías / invitaciones",
-    description: "QR de cortesía sin una compra asociada.",
+    description: "Entradas de cortesía e invitaciones.",
   },
   {
     key: "free",
-    label: "Free explícito",
-    description: "Accesos registrados expresamente como gratuitos.",
+    label: "Entrada free",
+    description: "Entradas de acceso gratuito.",
   },
   {
     key: "unclassified",
-    label: "General por clasificar",
-    description: "El QR general no indica si hubo gratuidad o cobro en puerta.",
+    label: "QR general",
+    description: "Accesos con QR general. Modalidad de cobro no indicada.",
   },
   {
     key: "unknown",
-    label: "Otros por revisar",
-    description: "Falta evidencia suficiente para clasificar el acceso.",
+    label: "Otros accesos",
+    description: "Modalidad de acceso no indicada.",
   },
 ] as const;
 export type AccessCategory = (typeof categories)[number]["key"];
@@ -112,6 +124,15 @@ function amount(
   if (!Number.isFinite(number) || number < 0) return null;
   const cents = Math.round(number * multiplier);
   return Number.isSafeInteger(cents) ? cents : null;
+}
+
+function quantity(value: number | string | null | undefined): number {
+  const count = Number(value);
+  return Number.isFinite(count) &&
+    count >= 0 &&
+    count <= Number.MAX_SAFE_INTEGER
+    ? count
+    : 0;
 }
 
 export function buildEventClose(
@@ -209,6 +230,11 @@ export function buildEventClose(
     {
       id: string;
       name: string;
+      issued: number;
+      invited: number;
+      invitationAttended: number;
+      invitationWithoutAdmission: number;
+      invitationUsageWithoutScan: number;
       confirmed: number;
       purchase: number;
       table: number;
@@ -218,11 +244,7 @@ export function buildEventClose(
       unknown: number;
     }
   >();
-  for (const scan of admissions.values()) {
-    const ticket = scan.ticket_id ? tickets.get(scan.ticket_id) : undefined;
-    const code = codes.get(ticket?.code_id || scan.code_id || "");
-    const category = classify(ticket, code);
-    counts[category]++;
+  function promoterRow(ticket?: TicketRow, code?: CodeRow) {
     const promoterId = ticket?.promoter_id || code?.promoter_id || "unassigned";
     if (!promoterRows.has(promoterId))
       promoterRows.set(promoterId, {
@@ -231,6 +253,11 @@ export function buildEventClose(
           promoterId === "unassigned"
             ? "Sin promotor asignado"
             : promoters.get(promoterId)?.name || "Promotor sin nombre",
+        issued: 0,
+        invited: 0,
+        invitationAttended: 0,
+        invitationWithoutAdmission: 0,
+        invitationUsageWithoutScan: 0,
         confirmed: 0,
         purchase: 0,
         table: 0,
@@ -239,7 +266,14 @@ export function buildEventClose(
         unclassified: 0,
         unknown: 0,
       });
-    const row = promoterRows.get(promoterId)!;
+    return promoterRows.get(promoterId)!;
+  }
+  for (const scan of admissions.values()) {
+    const ticket = scan.ticket_id ? tickets.get(scan.ticket_id) : undefined;
+    const code = codes.get(ticket?.code_id || scan.code_id || "");
+    const category = classify(ticket, code);
+    counts[category]++;
+    const row = promoterRow(ticket, code);
     row.confirmed++;
     row[category]++;
   }
@@ -263,12 +297,23 @@ export function buildEventClose(
       (!isHistoricalRow(ticket, event) || ticket.is_active === false)
     )
       continue;
-    const category = classify(ticket, codes.get(ticket.code_id || ""));
+    const code = codes.get(ticket.code_id || "");
+    const row = promoterRow(ticket, code);
+    row.issued++;
+    const category = classify(ticket, code);
     if (category !== "courtesy" && category !== "free") continue;
     invitations.issued++;
-    if (admitted) invitations.attended++;
-    else if (ticket.used || ticket.used_at) invitations.usageWithoutScan++;
-    else invitations.withoutAdmission++;
+    row.invited++;
+    if (admitted) {
+      invitations.attended++;
+      row.invitationAttended++;
+    } else if (ticket.used || ticket.used_at) {
+      invitations.usageWithoutScan++;
+      row.invitationUsageWithoutScan++;
+    } else {
+      invitations.withoutAdmission++;
+      row.invitationWithoutAdmission++;
+    }
   }
   const declaredAmounts = ticketReservations.map((row) =>
     amount(row.ticket_total_amount, 100),
@@ -279,6 +324,31 @@ export function buildEventClose(
   );
   const sum = (values: (number | null)[]) =>
     values.reduce<number>((total, value) => total + (value ?? 0), 0);
+  const settlementRecords = forEvent(input.settlements ?? [])
+    .filter((row) => !row.deleted_at && row.is_active !== false)
+    .map((row) => ({
+      id: row.id,
+      promoterId: row.promoter_id || null,
+      promoterName:
+        row.promoter_name?.trim() ||
+        promoters.get(row.promoter_id || "")?.name ||
+        "Promotor sin nombre",
+      status: status(row.status),
+      currencyCode: status(row.currency_code).toUpperCase() || null,
+      cashTotalCents: amount(row.cash_total_cents) ?? 0,
+      cashUnits: amount(row.cash_units) ?? 0,
+      drinkUnits: quantity(row.drink_units),
+      createdAt: row.created_at || null,
+      settledAt: row.settled_at || null,
+    }));
+  const settlementTotal = (statuses: string[]) =>
+    sum(
+      settlementRecords
+        .filter(
+          (row) => row.currencyCode === "PEN" && statuses.includes(row.status),
+        )
+        .map((row) => row.cashTotalCents),
+    );
   const dates = [...admissions.values()]
     .map((scan) => scan.created_at)
     .filter((date): date is string =>
@@ -302,6 +372,16 @@ export function buildEventClose(
       })),
     },
     invitations,
+    settlements: {
+      records: settlementRecords,
+      count: settlementRecords.length,
+      pendingCents: settlementTotal(["draft", "pending"]),
+      settledCents: settlementTotal(["paid", "delivered", "closed"]),
+      voidCents: settlementTotal(["void"]),
+      otherCurrencyCount: settlementRecords.filter(
+        (row) => row.currencyCode !== "PEN",
+      ).length,
+    },
     sales: {
       approvedTicketReservations: ticketReservations.length,
       declaredTicketAmountCents: sum(declaredAmounts),
@@ -347,6 +427,16 @@ export function buildEventClose(
 }
 export type EventCloseReport = ReturnType<typeof buildEventClose>;
 
+export const settlementStatusLabel = (value: string): string =>
+  ({
+    draft: "Borrador",
+    pending: "Pendiente",
+    paid: "Pagada",
+    delivered: "Entregada",
+    closed: "Cerrada",
+    void: "Anulada",
+  })[value] || (value ? "Otro estado" : "Sin estado");
+
 export const formatPen = (cents: number) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(
     cents / 100,
@@ -365,14 +455,14 @@ export function formatLima(date: string | null, time = false): string {
 /** Export the already displayed snapshot, not a second query with possibly different filters. */
 export function eventCloseCsv(report: EventCloseReport): string {
   const rows: (string | number)[][] = [
-    ["Evento", "Sección", "Indicador", "Valor", "Unidad / alcance"],
+    ["Evento", "Sección", "Indicador", "Valor", "Detalle"],
     [report.event.name, "Corte", "Generado", report.generatedAt, "UTC"],
     [
       report.event.name,
       "Asistencia",
-      "Ingresos confirmados",
+      "Accesos confirmados",
       report.attendance.confirmed,
-      "QR únicos, no intentos de escaneo",
+      "Entradas validadas en puerta",
     ],
     ...report.attendance.categories.map((row) => [
       report.event.name,
@@ -386,7 +476,7 @@ export function eventCloseCsv(report: EventCloseReport): string {
       "Invitaciones",
       "Emitidas",
       report.invitations.issued,
-      "Cortesías y free explícitos",
+      "Cortesías y entradas free",
     ],
     [
       report.event.name,
@@ -400,67 +490,67 @@ export function eventCloseCsv(report: EventCloseReport): string {
       "Invitaciones",
       "Sin ingreso registrado",
       report.invitations.withoutAdmission,
-      report.event.closed_at ? "Evento cerrado" : "Evento aún sin cierre",
+      report.event.closed_at ? "Evento cerrado" : "Evento abierto",
     ],
     [
       report.event.name,
       "Invitaciones",
-      "Uso pendiente de conciliar",
+      "Usadas sin confirmación de ingreso",
       report.invitations.usageWithoutScan,
-      "No se marca como ausente",
+      "Uso registrado; ingreso sin confirmar",
     ],
     [
       report.event.name,
       "Ingresos",
       "Reservas de entradas aprobadas",
       report.sales.approvedTicketReservations,
-      "Pedidos, no personas",
+      "Reservas de entradas aprobadas",
     ],
     [
       report.event.name,
       "Ingresos",
-      "Monto declarado en reservas",
+      "Valor de reservas aprobadas",
       report.sales.approvedWithoutAmount > 0 &&
       report.sales.approvedWithoutAmount ===
         report.sales.approvedTicketReservations
         ? "No disponible"
         : report.sales.declaredTicketAmountCents / 100,
-      "PEN; no sumar a pagos ni interpretar como caja",
+      "Soles; valor de las entradas aprobadas, separado de los pagos",
     ],
     [
       report.event.name,
       "Ingresos",
       "Reservas sin importe",
       report.sales.approvedWithoutAmount,
-      "Pendientes de conciliar",
+      "Importe pendiente de registrar",
     ],
     [
       report.event.name,
       "Ingresos",
-      "Pagos confirmados",
+      "Pagos registrados en soles",
       report.sales.confirmedPaymentAmountCents / 100,
-      "PEN; registrados como paid, sin reembolso",
+      "Soles; pagos confirmados sin devoluciones",
     ],
     [
       report.event.name,
       "Ingresos",
       "Pagos sin importe",
       report.sales.paymentsWithoutAmount,
-      "Pendientes de conciliar",
+      "Importe pendiente de registrar",
     ],
     [
       report.event.name,
       "Ingresos",
       "Pagos en otra moneda o sin moneda",
       report.sales.otherCurrencyPayments,
-      "Excluidos del total PEN",
+      "Fuera del total en soles",
     ],
     [
       report.event.name,
       "Ingresos",
-      "Importe original de pagos reembolsados",
+      "Importe original de los pagos con devolución",
       report.sales.refundedPaymentAmountCents / 100,
-      "PEN; no acredita importe exacto de devolución parcial",
+      "Soles; importe original de los pagos con devolución, sin desglose de devoluciones parciales",
     ],
     [
       report.event.name,
@@ -479,10 +569,10 @@ export function eventCloseCsv(report: EventCloseReport): string {
     ...["Cobros en puerta", "Consumo de mesas", "Ganancia neta"].map(
       (label) => [
         report.event.name,
-        "Pendiente",
+        "Resumen financiero",
         label,
         "No disponible",
-        "Falta registro conciliable",
+        "Sin registro en este reporte",
       ],
     ),
     [
@@ -490,21 +580,89 @@ export function eventCloseCsv(report: EventCloseReport): string {
       "Invitaciones",
       "Ingresos con código sin ticket",
       report.invitations.codeOnlyAdmissions,
-      "Adicionales a los tickets invitados; incluidos en asistencia",
+      "Incluidos en la asistencia total",
     ],
-    ...report.promoters.map((row) => [
+    ...report.promoters.flatMap((row) =>
+      [
+        ["Accesos confirmados", row.confirmed],
+        ["Con compra", row.purchase],
+        ["Mesa", row.table],
+        ["Cortesías ingresadas", row.courtesy],
+        ["Free ingresados", row.free],
+        ["QR general", row.unclassified],
+        ["Otros accesos", row.unknown],
+        ["Entradas personales emitidas", row.issued],
+        ["Invitaciones personales emitidas", row.invited],
+        ["Invitaciones personales con ingreso", row.invitationAttended],
+        ["Invitaciones personales sin ingreso", row.invitationWithoutAdmission],
+        [
+          "Invitaciones personales usadas sin confirmación de ingreso",
+          row.invitationUsageWithoutScan,
+        ],
+      ].map(([label, value]) => [
+        report.event.name,
+        "Promotores",
+        row.name,
+        value,
+        label,
+      ]),
+    ),
+    ...[
+      [
+        "Cantidad de liquidaciones",
+        report.settlements.count,
+        "Registros del evento",
+      ],
+      [
+        "Pendiente en soles",
+        report.settlements.pendingCents / 100,
+        "PEN; borradores y pendientes",
+      ],
+      [
+        "Pagado en soles",
+        report.settlements.settledCents / 100,
+        "PEN; pagadas, entregadas y cerradas",
+      ],
+      ["Anulado en soles", report.settlements.voidCents / 100, "PEN; anuladas"],
+      [
+        "Otra moneda o sin moneda",
+        report.settlements.otherCurrencyCount,
+        "Fuera de los totales en soles",
+      ],
+    ].map(([label, value, note]) => [
       report.event.name,
-      "Promotores",
-      row.name,
-      row.confirmed,
-      "Ingresos confirmados",
+      "Liquidaciones",
+      label,
+      value,
+      note,
     ]),
+    ...report.settlements.records.flatMap((row) =>
+      [
+        ["Identificador", row.id],
+        ["Estado", settlementStatusLabel(row.status)],
+        ["Moneda", row.currencyCode || "Sin moneda"],
+        [
+          `Importe en ${row.currencyCode || "moneda sin indicar"}`,
+          row.cashTotalCents / 100,
+        ],
+        ["Unidades en efectivo", row.cashUnits],
+        ["Tragos", row.drinkUnits],
+        ["Creada (UTC)", row.createdAt || "Sin fecha"],
+        ["Liquidada (UTC)", row.settledAt || "Sin fecha"],
+      ].map(([label, value]) => [
+        report.event.name,
+        "Detalle de liquidación",
+        row.promoterName,
+        value,
+        label,
+      ]),
+    ),
     [
       report.event.name,
-      "Calidad",
-      "Reservas recuperadas del cierre",
+      "Detalle del cierre",
+      "Reservas del historial de cierre",
       report.quality.archivedReservationsIncluded,
-      "Solo lectura histórica",
+      "Historial del evento; todos los estados",
     ],
   ];
   const escape = (value: string | number) => {

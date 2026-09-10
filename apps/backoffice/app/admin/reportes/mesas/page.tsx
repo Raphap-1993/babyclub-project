@@ -1,22 +1,10 @@
-import EventCloseWorkspace from "../components/EventCloseWorkspace";
+import { redirect } from "next/navigation";
+import { legacyReportHref, type ReportSearchParams } from "../navigation";
+
+export const dynamic = "force-dynamic";
 
 export default async function ReporteMesasPage({
   searchParams,
-}: {
-  searchParams?: Promise<{ report?: string; event_id?: string }>;
-}) {
-  const params = await searchParams;
-  const initialView =
-    params?.report === "event_sales"
-      ? "income"
-      : params?.report === "free_qr_no_show" ||
-          params?.report === "event_attendance"
-        ? "attendance"
-        : "summary";
-  return (
-    <EventCloseWorkspace
-      initialView={initialView}
-      initialEventId={params?.event_id}
-    />
-  );
+}: { searchParams?: Promise<ReportSearchParams> } = {}) {
+  redirect(legacyReportHref(await searchParams, "summary"));
 }

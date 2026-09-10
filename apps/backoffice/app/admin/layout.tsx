@@ -131,39 +131,20 @@ const menuSections: NavSection[] = [
   {
     id: "reports",
     label: "Reportes",
-    description: "Lectura consolidada y auditoría.",
+    description: "Resultados por evento.",
     icon: "≡",
     children: [
       {
-        id: "reports-hub",
-        label: "Hub de reportes",
+        id: "reports-events",
+        label: "Reportes por evento",
         href: "/admin/reportes",
         icon: ClipboardList,
-        isActive: (pathname) => pathname === "/admin/reportes",
-      },
-      {
-        id: "reports-events",
-        label: "Cierre de evento",
-        href: "/admin/reportes/mesas",
-        icon: ClipboardList,
         isActive: (pathname) =>
-          pathname === "/admin/reportes/mesas" ||
+          pathname === "/admin/reportes" ||
+          pathname.startsWith("/admin/reportes/") ||
           pathname === "/admin/asistencia" ||
           pathname === "/admin/ingresos",
       },
-      {
-        id: "reports-promoters",
-        label: "Promotores",
-        href: "/admin/reportes/promotores",
-        icon: Users,
-      },
-      {
-        id: "reports-liquidaciones",
-        label: "Liquidaciones",
-        href: "/admin/reportes/liquidaciones",
-        icon: Banknote,
-      },
-      { id: "logs", label: "Logs", href: "/admin/logs", icon: FileClock },
     ],
   },
   {
@@ -172,16 +153,37 @@ const menuSections: NavSection[] = [
     description: "Configuración y control interno.",
     icon: "⛭",
     children: [
-      { id: "branding", label: "Branding", href: "/admin/branding", icon: Palette },
+      {
+        id: "logs",
+        label: "Historial de actividad",
+        href: "/admin/logs",
+        icon: FileClock,
+      },
+      {
+        id: "branding",
+        label: "Branding",
+        href: "/admin/branding",
+        icon: Palette,
+      },
       { id: "users", label: "Usuarios", href: "/admin/users", icon: Users },
-      { id: "security", label: "Seguridad", href: "/admin/seguridad", icon: ShieldCheck },
+      {
+        id: "security",
+        label: "Seguridad",
+        href: "/admin/seguridad",
+        icon: ShieldCheck,
+      },
       {
         id: "integrations",
         label: "Integraciones",
         href: "/admin/integraciones",
         icon: Plug,
       },
-      { id: "backup", label: "Backup BD", href: "/admin/utilidades/backup", icon: Database },
+      {
+        id: "backup",
+        label: "Backup BD",
+        href: "/admin/utilidades/backup",
+        icon: Database,
+      },
     ],
   },
 ];
@@ -216,7 +218,9 @@ function NavChildLink({
     >
       <span
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ${
-          active ? "bg-rose-500/20 text-rose-100" : "bg-neutral-800 text-neutral-400"
+          active
+            ? "bg-rose-500/20 text-rose-100"
+            : "bg-neutral-800 text-neutral-400"
         }`}
       >
         <Icon size={15} />
@@ -239,7 +243,9 @@ function NavSectionBlock({
   onToggle: () => void;
   onNavigate?: () => void;
 }) {
-  const activeChild = section.children.some((child) => isChildActive(pathname, child));
+  const activeChild = section.children.some((child) =>
+    isChildActive(pathname, child),
+  );
 
   return (
     <section className="space-y-2">
@@ -293,14 +299,21 @@ function NavSectionBlock({
   );
 }
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(menuSections.map((section) => [section.id, section.id === "resumen"])),
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(
+    () =>
+      Object.fromEntries(
+        menuSections.map((section) => [section.id, section.id === "resumen"]),
+      ),
   );
 
   useEffect(() => {
@@ -472,7 +485,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </>
       ) : null}
 
-      <div className={isDoorSession ? "flex-1 min-w-0" : "flex flex-1 min-w-0 flex-col"}>
+      <div
+        className={
+          isDoorSession ? "flex-1 min-w-0" : "flex flex-1 min-w-0 flex-col"
+        }
+      >
         {!isDoorSession ? (
           <div className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950/95 px-4 backdrop-blur-sm md:hidden">
             <div className="flex items-center gap-2">
@@ -518,7 +535,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
           </div>
         ) : null}
-        <main className={isDoorSession ? "p-2 md:p-4" : "flex-1 p-3 sm:p-4 md:p-6 lg:p-8"}>
+        <main
+          className={
+            isDoorSession ? "p-2 md:p-4" : "flex-1 p-3 sm:p-4 md:p-6 lg:p-8"
+          }
+        >
           {children}
         </main>
       </div>

@@ -57,35 +57,40 @@ export async function loadEventClose(client: SupabaseClient, eventId: string) {
     table: string,
     fields: string,
   ) =>
-    readReportPages<EventCloseInput[K][number]>(() =>
+    readReportPages<NonNullable<EventCloseInput[K]>[number]>(() =>
       client.from(table).select(fields).eq("event_id", eventId),
     );
   // Explicit fields: no attendee identities, vouchers, QR secrets or card details are returned.
-  const [tickets, codes, reservations, payments, scans] = await Promise.all([
-    read<"tickets">(
-      "tickets",
-      "id,event_id,code_id,table_reservation_id,promoter_id,used,used_at,is_active,deleted_at",
-    ),
-    read<"codes">(
-      "codes",
-      "id,event_id,type,table_reservation_id,promoter_id,deleted_at",
-    ),
-    read<"reservations">(
-      "table_reservations",
-      "id,event_id,status,sale_origin,table_id,ticket_total_amount,deleted_at",
-    ),
-    read<"payments">(
-      "payments",
-      "id,event_id,status,amount,currency_code,reservation_id,ticket_id,refunded_at",
-    ),
-    read<"scans">(
-      "scan_logs",
-      "id,event_id,ticket_id,code_id,raw_value,result,created_at",
-    ),
-  ]);
+  const [tickets, codes, reservations, payments, scans, settlements] =
+    await Promise.all([
+      read<"tickets">(
+        "tickets",
+        "id,event_id,code_id,table_reservation_id,promoter_id,used,used_at,is_active,deleted_at",
+      ),
+      read<"codes">(
+        "codes",
+        "id,event_id,type,table_reservation_id,promoter_id,deleted_at",
+      ),
+      read<"reservations">(
+        "table_reservations",
+        "id,event_id,status,sale_origin,table_id,ticket_total_amount,deleted_at",
+      ),
+      read<"payments">(
+        "payments",
+        "id,event_id,status,amount,currency_code,reservation_id,ticket_id,refunded_at",
+      ),
+      read<"scans">(
+        "scan_logs",
+        "id,event_id,ticket_id,code_id,raw_value,result,created_at",
+      ),
+      read<"settlements">(
+        "promoter_settlements",
+        "id,event_id,promoter_id,promoter_name,status,currency_code,cash_total_cents,cash_units,drink_units,created_at,settled_at,deleted_at,is_active",
+      ),
+    ]);
   const promoterIds = [
     ...new Set(
-      [...tickets, ...codes]
+      [...tickets, ...codes, ...settlements]
         .map((row) => row.promoter_id)
         .filter((id): id is string => Boolean(id)),
     ),
@@ -117,7 +122,16 @@ export async function loadEventClose(client: SupabaseClient, eventId: string) {
     }
   }
   return buildEventClose(
-    { event, tickets, codes, reservations, payments, scans, promoters },
+    {
+      event,
+      tickets,
+      codes,
+      reservations,
+      payments,
+      scans,
+      promoters,
+      settlements,
+    },
     generatedAt,
   );
 }

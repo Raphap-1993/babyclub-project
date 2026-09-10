@@ -1,27 +1,17 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowDownToLine,
-  ArrowRight,
-  CircleAlert,
   RefreshCw,
   Users,
   Ticket,
   Gift,
   Armchair,
-  Check,
 } from "lucide-react";
-import {
-  Select,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@repo/ui";
+import { Select } from "@repo/ui";
 import { Button } from "@/components/ui/button";
 import { authedFetch } from "@/lib/authedFetch";
 import {
@@ -32,15 +22,17 @@ import {
   type EventRow,
 } from "@/lib/reports/eventClose";
 
-const views = [
-  { key: "summary", label: "Resumen" },
-  { key: "attendance", label: "Asistencia" },
-  { key: "income", label: "Ingresos" },
-  { key: "tables", label: "Mesas" },
-  { key: "promoters", label: "Promotores" },
-  { key: "quality", label: "Calidad del cierre" },
-] as const;
-type View = (typeof views)[number]["key"];
+import {
+  reportPage,
+  reportSelectionQuery,
+  reportView,
+  reportViews as views,
+  type ReportView as View,
+} from "../navigation";
+import ReportPanel from "./ReportPanel";
+import PromotersPanel from "./PromotersPanel";
+import SettlementsPanel from "./SettlementsPanel";
+
 const colors = [
   "bg-rose-400",
   "bg-violet-400",
@@ -50,28 +42,6 @@ const colors = [
   "bg-neutral-400",
 ];
 const number = (value: number) => value.toLocaleString("es-PE");
-
-function Panel({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="min-w-0 rounded-2xl border border-white/10 bg-[#111111] p-5">
-      <h2 className="text-base font-semibold text-white">{title}</h2>
-      {description && (
-        <p className="mt-1 max-w-xl text-xs leading-5 text-neutral-400">
-          {description}
-        </p>
-      )}
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
 
 function Stat({
   label,
@@ -105,9 +75,9 @@ function Stat({
 function Breakdown({ report }: { report: EventCloseReport }) {
   const { attendance } = report;
   return (
-    <Panel
+    <ReportPanel
       title="Cómo ingresaron"
-      description="Cada ingreso aparece una sola vez, según la compra o invitación asociada."
+      description="Distribución de accesos por tipo de entrada."
     >
       {attendance.confirmed > 0 ? (
         <>
@@ -147,17 +117,16 @@ function Breakdown({ report }: { report: EventCloseReport }) {
             ))}
           </ul>
           <div className="mt-3 flex justify-between border-t border-white/10 pt-4 text-sm font-semibold">
-            <span>Total conciliado</span>
+            <span>Total de accesos</span>
             <span className="tabular-nums">{number(attendance.confirmed)}</span>
           </div>
         </>
       ) : (
         <p className="rounded-xl bg-white/[0.03] p-5 text-sm leading-6 text-neutral-400">
-          Este evento todavía no tiene ingresos confirmados. Los intentos de
-          escaneo no se cuentan como asistencia.
+          Todavía no se han registrado accesos a este evento.
         </p>
       )}
-    </Panel>
+    </ReportPanel>
   );
 }
 
@@ -170,88 +139,90 @@ function Income({
 }) {
   const { sales } = report;
   return (
-    <Panel
-      title="Dinero registrado"
-      description="Dos fuentes para conciliar. Sus importes pueden corresponder a las mismas compras y no se suman."
+    <ReportPanel
+      title="Reservas y pagos"
+      description="Valor de las entradas aprobadas y pagos registrados, presentados por separado."
     >
       <div className="space-y-4">
         <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
           <p className="text-xs text-neutral-300">
-            Monto en reservas de entradas aprobadas
+            Valor de reservas aprobadas
           </p>
           <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">
-            {sales.approvedWithoutAmount > 0 &&
-            sales.approvedWithoutAmount === sales.approvedTicketReservations
-              ? "Sin importe registrado"
-              : formatPen(sales.declaredTicketAmountCents)}
+            {sales.approvedTicketReservations === 0
+              ? "Sin reservas aprobadas"
+              : sales.approvedWithoutAmount === sales.approvedTicketReservations
+                ? "Sin importe registrado"
+                : formatPen(sales.declaredTicketAmountCents)}
           </p>
           <p className="mt-2 text-xs leading-5 text-neutral-400">
-            {number(sales.approvedTicketReservations)} reservas aprobadas ·
-            importe declarado, pendiente de conciliar con caja.
+            {number(sales.approvedTicketReservations)}{" "}
+            {sales.approvedTicketReservations === 1
+              ? "reserva de entradas aprobada"
+              : "reservas de entradas aprobadas"}
           </p>
           {sales.approvedWithoutAmount > 0 && (
-            <p className="mt-2 text-xs text-amber-200">
-              {number(sales.approvedWithoutAmount)} reservas sin importe quedan
-              fuera de esta suma.
+            <p className="mt-2 text-xs text-neutral-400">
+              {number(sales.approvedWithoutAmount)} con importe pendiente de
+              registrar.
             </p>
           )}
         </div>
         <div className="flex flex-wrap items-start justify-between gap-3 px-1">
           <div>
             <p className="text-sm text-neutral-300">
-              Pagos confirmados en el sistema
+              Pagos registrados en soles
             </p>
             <p className="mt-1 text-xs text-neutral-500">
-              {number(sales.confirmedPaymentCount)} registros en soles, sin
-              reembolso
+              {number(sales.confirmedPaymentCount)}{" "}
+              {sales.confirmedPaymentCount === 1
+                ? "pago confirmado"
+                : "pagos confirmados"}{" "}
+              · sin devoluciones
             </p>
           </div>
           <strong className="text-xl font-semibold tabular-nums">
-            {formatPen(sales.confirmedPaymentAmountCents)}
+            {sales.confirmedPaymentCount > 0
+              ? formatPen(sales.confirmedPaymentAmountCents)
+              : "Sin pagos registrados"}
           </strong>
         </div>
-        {sales.confirmedPaymentCount === 0 && (
-          <p className="text-xs leading-5 text-amber-200/90">
-            No hay pagos confirmados en esta fuente. Esto no demuestra que la
-            fiesta no haya recaudado.
-          </p>
-        )}
         {!compact && (
           <>
             <div className="grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs text-neutral-400">Cobros en puerta</p>
-                <p className="mt-1 font-medium">Sin registro conciliable</p>
+                <p className="mt-1 font-medium">Sin registro</p>
               </div>
               <div>
                 <p className="text-xs text-neutral-400">Ganancia neta</p>
-                <p className="mt-1 font-medium">No disponible</p>
+                <p className="mt-1 font-medium">No calculada</p>
               </div>
             </div>
             <p className="text-xs leading-5 text-neutral-400">
-              Para calcular ganancia se necesita consolidar todos los cobros,
-              consumos, devoluciones y gastos del evento.
+              La ganancia neta considera los ingresos y gastos del evento.
             </p>
             {(sales.otherCurrencyPayments > 0 ||
               sales.paymentsWithoutAmount > 0) && (
-              <p className="text-xs leading-5 text-amber-200">
-                Por revisar: {sales.otherCurrencyPayments} pagos con otra moneda
-                o sin moneda y {sales.paymentsWithoutAmount} pagos en soles sin
-                importe válido.
+              <p className="text-xs leading-5 text-neutral-400">
+                Pagos fuera del total en soles: {sales.otherCurrencyPayments}{" "}
+                con otra moneda o moneda sin indicar;{" "}
+                {sales.paymentsWithoutAmount} con importe pendiente de
+                registrar.
               </p>
             )}
             {sales.refundedPaymentCount > 0 && (
               <p className="text-xs leading-5 text-neutral-400">
                 {sales.refundedPaymentCount} pagos con devolución. Importe
-                original registrado en soles:{" "}
-                {formatPen(sales.refundedPaymentAmountCents)}. El importe exacto
-                devuelto requiere conciliación.
+                original de los pagos:{" "}
+                {formatPen(sales.refundedPaymentAmountCents)}. Devoluciones
+                parciales no desglosadas.
               </p>
             )}
           </>
         )}
       </div>
-    </Panel>
+    </ReportPanel>
   );
 }
 
@@ -260,12 +231,12 @@ function Invitations({ report }: { report: EventCloseReport }) {
     ["Invitaciones emitidas", report.invitations.issued],
     ["Con ingreso confirmado", report.invitations.attended],
     ["Sin ingreso registrado", report.invitations.withoutAdmission],
-    ["Uso pendiente de conciliar", report.invitations.usageWithoutScan],
+    ["Usadas sin confirmación de ingreso", report.invitations.usageWithoutScan],
   ] as const;
   return (
-    <Panel
-      title="Invitaciones con ticket"
-      description="Tickets de cortesía y free explícitos. Excluye compras, QR generales y tickets anulados sin ingreso."
+    <ReportPanel
+      title="Invitaciones"
+      description="Entradas de cortesía y free emitidas para este evento."
     >
       <dl className="divide-y divide-white/5">
         {rows.map(([label, value]) => (
@@ -277,31 +248,29 @@ function Invitations({ report }: { report: EventCloseReport }) {
       </dl>
       {report.invitations.codeOnlyAdmissions > 0 && (
         <p className="mt-4 text-sm leading-6 text-sky-200">
-          Además, {number(report.invitations.codeOnlyAdmissions)} cortesías o
-          free ingresaron con código sin ticket individual. Están incluidos en
-          el total de asistencia.
+          {number(report.invitations.codeOnlyAdmissions)} accesos adicionales
+          con código de invitación, incluidos en la asistencia total.
         </p>
       )}
       <p className="mt-4 rounded-xl bg-white/[0.03] p-3 text-xs leading-5 text-neutral-400">
         {report.event.closed_at
-          ? "La ausencia se revisa sobre el evento cerrado."
-          : "El evento aún no tiene cierre: estos accesos no son ausencias definitivas."}{" "}
-        Un QR marcado como usado sin escaneo conciliado queda por revisar.
+          ? "Asistencia final del evento."
+          : "La asistencia se actualiza hasta el cierre del evento."}
       </p>
-    </Panel>
+    </ReportPanel>
   );
 }
 
 function Tables({ report }: { report: EventCloseReport }) {
   const rows = [
     ["Reservas de mesa aprobadas", report.tables.approvedReservations],
-    ["Mesas distintas reservadas", report.tables.distinctTables],
+    ["Mesas reservadas", report.tables.distinctTables],
     ["Invitados que ingresaron", report.tables.admittedGuests],
   ] as const;
   return (
-    <Panel
-      title="Mesas y consumo"
-      description="Las reservas, los invitados y el consumo son medidas diferentes."
+    <ReportPanel
+      title="Reservas de mesas"
+      description="Mesas reservadas e invitados que asistieron al evento."
     >
       <div className="grid gap-4 sm:grid-cols-3">
         {rows.map(([label, value]) => (
@@ -313,191 +282,84 @@ function Tables({ report }: { report: EventCloseReport }) {
           </div>
         ))}
       </div>
-      <div className="mt-6 rounded-xl border border-amber-300/15 bg-amber-300/[0.04] p-4">
-        <p className="text-sm font-medium text-amber-100">
-          Consumo por mesa: sin registro conciliable
+      <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.025] p-4">
+        <p className="text-sm font-medium text-neutral-200">
+          Consumo de mesas: sin registro
         </p>
         <p className="mt-2 text-xs leading-5 text-neutral-400">
-          Una reserva o el precio del paquete no permiten saber qué se sirvió y
-          cobró. El cierre necesita los consumos, pagos y saldos de cada mesa.
+          El consumo se presenta por separado del valor de la reserva.
         </p>
       </div>
-    </Panel>
+    </ReportPanel>
   );
 }
 
 function Quality({ report }: { report: EventCloseReport }) {
   const items = [
     {
-      title: `${number(report.quality.unclassifiedAdmissions)} ingresos por clasificar`,
-      text: "Los generales no prueban gratuidad ni pago en puerta. Las relaciones incompletas quedan pendientes de revisión.",
-      pending: report.quality.unclassifiedAdmissions > 0,
+      label: "Accesos sin modalidad indicada",
+      value: report.quality.unclassifiedAdmissions,
+      note: "Incluye QR generales y otros accesos sin indicación de pago o gratuidad.",
     },
     {
-      title: `${number(report.quality.archivedReservationsIncluded)} reservas recuperadas del cierre`,
-      text: "Incluidas para consultar el historial. Se excluyen las eliminadas en otro momento.",
-      pending: false,
+      label: "Reservas del historial de cierre",
+      value: report.quality.archivedReservationsIncluded,
+      note: "Reservas conservadas en el historial del evento, en todos sus estados.",
     },
     {
-      title: `${number(report.sales.approvedWithoutAmount)} reservas aprobadas sin importe`,
-      text: "No se sustituyen con precios actuales ni se inventa un cobro.",
-      pending: report.sales.approvedWithoutAmount > 0,
-    },
-    {
-      title: "Caja, consumo y gastos pendientes de consolidar",
-      text: "Hasta tener estos registros no se puede confirmar la recaudación total ni la ganancia del evento.",
-      pending: true,
+      label: "Reservas con importe pendiente",
+      value: report.sales.approvedWithoutAmount,
+      note: "Reservas aprobadas cuyo importe aún no está registrado.",
     },
   ];
   return (
-    <Panel
-      title="Qué podemos confirmar"
-      description="El cierre muestra los vacíos de información sin confundirlos con ceros."
+    <ReportPanel
+      title="Detalle del cierre"
+      description="Información complementaria del evento."
     >
-      <ul className="space-y-5">
+      <dl className="divide-y divide-white/5">
         {items.map((item) => (
-          <li key={item.title} className="flex items-start gap-3">
-            {item.pending ? (
-              <CircleAlert
-                className="mt-0.5 shrink-0 text-amber-300"
-                size={17}
-              />
-            ) : (
-              <Check className="mt-0.5 shrink-0 text-emerald-300" size={17} />
-            )}
+          <div
+            key={item.label}
+            className="flex items-start justify-between gap-4 py-4"
+          >
             <div>
-              <p className="text-sm font-medium">{item.title}</p>
+              <dt className="text-sm font-medium">{item.label}</dt>
               <p className="mt-1 text-xs leading-5 text-neutral-400">
-                {item.text}
+                {item.note}
               </p>
             </div>
-          </li>
+            <dd className="text-lg font-semibold tabular-nums">
+              {number(item.value)}
+            </dd>
+          </div>
         ))}
-      </ul>
+      </dl>
       <details className="mt-6 border-t border-white/10 pt-4 text-xs text-neutral-400">
         <summary className="cursor-pointer py-1 text-neutral-300">
-          Cómo se calcula este cierre
+          Acerca de este reporte
         </summary>
         <div className="mt-3 space-y-2 leading-5">
+          <p>Cada entrada validada cuenta una sola vez en la asistencia.</p>
           <p>
-            Asistencia: confirmaciones de ingreso únicas por ticket o código. Se
-            excluyen preconsultas e intentos fallidos.{" "}
-            {number(report.quality.repeatedConfirmations)} confirmaciones
-            repetidas fueron deduplicadas.
+            Las entradas con compra aprobada se muestran en Con compra. Las
+            cortesías y entradas free se presentan por separado.
           </p>
           <p>
-            {number(report.attendance.codeOnly)} accesos tienen código sin
-            ticket individual; el total mide QR admitidos, no personas
-            identificadas de forma única.
+            El valor de las reservas y los pagos registrados son importes
+            independientes y no se suman entre sí.
           </p>
           <p>
-            Se incluyen reservas cuyo borrado coincide exactamente con el
-            cierre. {number(report.quality.excludedDeletedReservations)}{" "}
-            reservas eliminadas fuera del cierre quedan excluidas.
+            Los accesos sin modalidad indicada se incluyen en la asistencia
+            total, sin asignarlos a entradas pagadas o gratuitas.
           </p>
           <p>
-            Las compras se identifican antes que el tipo de QR. Un ticket
-            comprado puede tener un QR de cortesía sin ser una invitación
-            gratuita.
-          </p>
-          <p>
-            Lectura iniciada: {formatLima(report.generatedAt, true)} (Lima). En
-            un evento en curso los registros pueden cambiar durante la consulta.
+            Actualizado el {formatLima(report.generatedAt, true)} · Hora de
+            Lima.
           </p>
         </div>
       </details>
-    </Panel>
-  );
-}
-
-function Promoters({ report }: { report: EventCloseReport }) {
-  const [page, setPage] = useState(0);
-  const rows = report.promoters.slice(page * 10, (page + 1) * 10);
-  return (
-    <Panel
-      title="Ingresos por promotor"
-      description="Atribución del acceso confirmado. Estas cifras no calculan comisiones ni liquidaciones."
-    >
-      {rows.length ? (
-        <>
-          <div className="overflow-x-auto">
-            <Table className="w-full min-w-[580px] text-left text-sm">
-              <caption className="sr-only">
-                Ingresos confirmados por promotor para {report.event.name}
-              </caption>
-              <TableHeader className="border-b border-white/10 text-xs text-neutral-400">
-                <TableRow>
-                  {[
-                    "Promotor",
-                    "Total",
-                    "Con compra",
-                    "Mesa",
-                    "Invitación / free",
-                    "Por revisar",
-                  ].map((label) => (
-                    <TableHead
-                      key={label}
-                      scope="col"
-                      className="px-2 py-3 font-normal first:pl-0 [&:not(:first-child)]:text-right"
-                    >
-                      {label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-white/5">
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableHead scope="row" className="py-4 pr-4 font-medium">
-                      {row.name}
-                    </TableHead>
-                    {[
-                      row.confirmed,
-                      row.purchase,
-                      row.table,
-                      row.courtesy + row.free,
-                      row.unclassified + row.unknown,
-                    ].map((value, index) => (
-                      <TableCell
-                        key={index}
-                        className="px-2 py-4 text-right tabular-nums text-neutral-300"
-                      >
-                        {number(value)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          {report.promoters.length > 10 && (
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <Button
-                variant="ghost"
-                disabled={page === 0}
-                onClick={() => setPage(page - 1)}
-              >
-                Anterior
-              </Button>
-              <span className="text-xs text-neutral-400">
-                {page + 1} / {Math.ceil(report.promoters.length / 10)}
-              </span>
-              <Button
-                variant="ghost"
-                disabled={(page + 1) * 10 >= report.promoters.length}
-                onClick={() => setPage(page + 1)}
-              >
-                Siguiente
-              </Button>
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="py-5 text-sm text-neutral-400">
-          Todavía no hay ingresos para atribuir a promotores.
-        </p>
-      )}
-    </Panel>
+    </ReportPanel>
   );
 }
 
@@ -513,8 +375,41 @@ export default function EventCloseWorkspace({
   const [events, setEvents] = useState<EventRow[]>(
     previewReports?.map((report) => report.event) || [],
   );
-  const [eventId, setEventId] = useState(initialEventId);
-  const [view, setView] = useState<View>(initialView);
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const view = reportView(searchParams, initialView);
+  const eventId =
+    searchParams.get("event_id") ||
+    initialEventId ||
+    events.find(
+      (event) => event.starts_at && Date.parse(event.starts_at) <= Date.now(),
+    )?.id ||
+    events[0]?.id ||
+    "";
+  const promoterId = searchParams.get("promoter_id") || "";
+  const promoterPage = reportPage(searchParams.get("promoter_page"));
+  const settlementPage = reportPage(searchParams.get("settlement_page"));
+
+  // Next syncs native history with useSearchParams. The URL is the only selection
+  // state, so browser Back/Forward cannot compete with a second state effect.
+  const changeSelection = (
+    changes: Parameters<typeof reportSelectionQuery>[1],
+  ) => {
+    const next = reportSelectionQuery(window.location.search, changes);
+    if (next !== window.location.search.slice(1)) {
+      window.history.pushState(null, "", `${window.location.pathname}?${next}`);
+    }
+  };
+
+  useEffect(() => {
+    if (!eventId || new URLSearchParams(query).has("event_id")) return;
+    const next = reportSelectionQuery(query, { eventId, view });
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}?${next}`,
+    );
+  }, [eventId, query, view]);
   const [report, setReport] = useState<EventCloseReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -542,16 +437,6 @@ export default function EventCloseWorkspace({
         }
         if (controller.signal.aborted) return;
         setEvents(options);
-        setEventId((current) =>
-          options.some((event) => event.id === current)
-            ? current
-            : options.find(
-                (event) =>
-                  event.starts_at && Date.parse(event.starts_at) <= Date.now(),
-              )?.id ||
-              options[0]?.id ||
-              "",
-        );
         if (!options.length) setLoading(false);
       } catch (caught) {
         if (!controller.signal.aborted) {
@@ -663,17 +548,11 @@ export default function EventCloseWorkspace({
     <div className="mx-auto max-w-7xl space-y-5 pb-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href="/admin/reportes"
-            className="text-xs text-neutral-400 hover:text-white"
-          >
-            Reportes
-          </Link>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight sm:text-3xl">
-            Cierre de evento
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Reportes por evento
           </h1>
           <p className="mt-2 text-sm text-neutral-400">
-            Asistencia, compras y mesas en una sola lectura.
+            Asistencia, ingresos, mesas, promotores y liquidaciones del evento.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -719,7 +598,9 @@ export default function EventCloseWorkspace({
             id="close-event"
             value={eventId}
             disabled={!events.length}
-            onChange={(event) => setEventId(event.target.value)}
+            onChange={(event) =>
+              changeSelection({ eventId: event.target.value })
+            }
             placeholder={events.length ? undefined : "Sin eventos disponibles"}
             options={events.map((event) => ({
               value: event.id,
@@ -733,9 +614,7 @@ export default function EventCloseWorkspace({
             <span
               className={`rounded-full px-3 py-1.5 text-xs ${visible.event.closed_at ? "bg-white/5 text-neutral-300" : "bg-emerald-300/10 text-emerald-200"}`}
             >
-              {visible.event.closed_at
-                ? "Evento cerrado"
-                : "Sin cierre registrado"}
+              {visible.event.closed_at ? "Evento cerrado" : "Evento abierto"}
             </span>
           )}
           <Button
@@ -768,11 +647,11 @@ export default function EventCloseWorkspace({
           role="status"
           className="rounded-2xl border border-white/10 p-8 text-sm text-neutral-400"
         >
-          Consultando compras, invitaciones e ingresos del evento…
+          Cargando reporte…
         </div>
       )}
       {!loading && !error && !events.length && (
-        <Panel
+        <ReportPanel
           title="Todavía no hay eventos"
           description="El cierre estará disponible cuando exista un evento registrado."
         >
@@ -782,27 +661,27 @@ export default function EventCloseWorkspace({
           >
             Ir a eventos
           </Link>
-        </Panel>
+        </ReportPanel>
       )}
       {visible && !loading && (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Stat
-              label="Ingresos confirmados"
+              label="Accesos confirmados"
               value={visible.attendance.confirmed}
-              note="QR únicos admitidos"
+              note="Entradas validadas en puerta"
               icon={Users}
             />
             <Stat
-              label="Con compra registrada"
+              label="Con compra"
               value={categoryCount("purchase")}
-              note="Accesos asociados a compras"
+              note="Ingresaron con entrada comprada"
               icon={Ticket}
             />
             <Stat
-              label="Invitación / free"
+              label="Invitaciones y free"
               value={categoryCount("courtesy") + categoryCount("free")}
-              note="Accesos gratuitos identificados"
+              note="Cortesías y entradas gratuitas"
               icon={Gift}
             />
             <Stat
@@ -812,36 +691,8 @@ export default function EventCloseWorkspace({
               icon={Armchair}
             />
           </div>
-          {visible.quality.unclassifiedAdmissions > 0 && (
-            <div className="flex flex-col justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.055] px-4 py-3 sm:flex-row sm:items-center">
-              <div className="flex items-start gap-2.5">
-                <CircleAlert
-                  size={17}
-                  className="mt-0.5 shrink-0 text-amber-200"
-                />
-                <p className="text-sm leading-6 text-amber-100">
-                  <strong>
-                    {number(visible.quality.unclassifiedAdmissions)} ingresos
-                    necesitan clasificación.
-                  </strong>
-                  <span className="text-amber-100/70">
-                    {" "}
-                    Aún no se puede distinguir si fueron free o cobrados en
-                    puerta.
-                  </span>
-                </p>
-              </div>
-              <button
-                className="flex shrink-0 items-center gap-2 py-1 text-xs font-medium text-amber-100 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-amber-200"
-                onClick={() => setView("quality")}
-              >
-                Ver detalle
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          )}
           <nav
-            aria-label="Secciones del cierre"
+            aria-label="Secciones del reporte"
             className="flex gap-1 overflow-x-auto border-b border-white/10 pb-1"
           >
             {views.map((item) => (
@@ -849,7 +700,7 @@ export default function EventCloseWorkspace({
                 key={item.key}
                 type="button"
                 aria-pressed={view === item.key}
-                onClick={() => setView(item.key)}
+                onClick={() => changeSelection({ view: item.key })}
                 className={`shrink-0 rounded-lg px-4 py-3 text-sm transition focus-visible:outline focus-visible:outline-rose-300 ${view === item.key ? "bg-white/10 font-medium text-white" : "text-neutral-400 hover:bg-white/5 hover:text-white"}`}
               >
                 {item.label}
@@ -872,16 +723,36 @@ export default function EventCloseWorkspace({
             {view === "income" && <Income report={visible} />}
             {view === "tables" && <Tables report={visible} />}
             {view === "promoters" && (
-              <Promoters key={visible.event.id} report={visible} />
+              <PromotersPanel
+                report={visible}
+                promoterId={promoterId}
+                page={promoterPage}
+                onPromoterChange={(value) =>
+                  changeSelection({ promoterId: value })
+                }
+                onPageChange={(value) =>
+                  changeSelection({ promoterPage: value })
+                }
+              />
+            )}
+            {view === "settlements" && (
+              <SettlementsPanel
+                report={visible}
+                promoterId={promoterId}
+                onPromoterChange={(value) =>
+                  changeSelection({ promoterId: value })
+                }
+                page={settlementPage}
+                onPageChange={(value) =>
+                  changeSelection({ settlementPage: value })
+                }
+              />
             )}
             {view === "quality" && <Quality report={visible} />}
           </div>
           <footer className="flex flex-wrap justify-between gap-2 px-1 text-[11px] leading-5 text-neutral-500">
             <span>{formatLima(visible.event.starts_at)} · Horario de Lima</span>
-            <span>
-              Lectura: {formatLima(visible.generatedAt, true)} · Excel y CSV
-              conservan este corte
-            </span>
+            <span>Actualizado: {formatLima(visible.generatedAt, true)}</span>
           </footer>
         </>
       )}
