@@ -65,7 +65,9 @@ export function shouldShowTicketTypeEmptyState({
 export function resolveInitialTicketEventId(
   currentTicketEventId: string,
   ticketEventOptions: PurchaseEventOption[],
+  requestedEventId?: string | null,
 ) {
+  if (requestedEventId?.trim()) return requestedEventId.trim();
   if (currentTicketEventId) return currentTicketEventId;
   if (ticketEventOptions.length === 1) {
     return ticketEventOptions[0]?.id || "";

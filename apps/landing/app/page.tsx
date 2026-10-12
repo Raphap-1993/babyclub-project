@@ -1,25 +1,11 @@
-import AccessCodeClient from "./AccessCodeClient";
+import HomeClient from "./home/HomeClient";
 import { getBranding } from "../lib/branding";
-import type { EntryMode } from "./accessCodeViewState";
+import AccessCodeClient from "./AccessCodeClient";
 
-type AccessCodePageProps = {
-  searchParams?:
-    | Promise<{ mode?: string | string[] }>
-    | { mode?: string | string[] };
-};
-
-export default async function AccessCodePage({
-  searchParams,
-}: AccessCodePageProps) {
+export default async function HomePage({searchParams}:{searchParams?:Promise<Record<string,string|string[]|undefined>>}) {
   const { logo_url } = await getBranding();
-  const resolvedSearchParams = await Promise.resolve(searchParams);
-  const modeValue = Array.isArray(resolvedSearchParams?.mode)
-    ? resolvedSearchParams.mode[0]
-    : resolvedSearchParams?.mode;
-  const initialMode: EntryMode =
-    modeValue === "nomination" ? "nomination" : "access";
-
-  return (
-    <AccessCodeClient initialLogoUrl={logo_url} initialMode={initialMode} />
-  );
+  const params = await searchParams;
+  const mode = Array.isArray(params?.mode) ? params.mode[0] : params?.mode;
+  if (mode === "nomination" || mode === "access") return <AccessCodeClient initialLogoUrl={logo_url} initialMode={mode} />;
+  return <HomeClient initialLogoUrl={logo_url} />;
 }

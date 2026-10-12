@@ -11,6 +11,14 @@ import {
 } from "./purchaseState";
 
 describe("resolveInitialTicketEventId", () => {
+  it("preserves the requested event even when unavailable instead of buying another event", () => {
+    expect(
+      resolveInitialTicketEventId("", [{ id: "other" }], "unavailable"),
+    ).toBe("unavailable");
+    expect(
+      resolveInitialTicketEventId("old", [{ id: "other" }], " chosen "),
+    ).toBe("chosen");
+  });
   it("does not auto-select the first active event when multiple options exist", () => {
     const result = resolveInitialTicketEventId("", [
       { id: "event-older", name: "Older Event" },

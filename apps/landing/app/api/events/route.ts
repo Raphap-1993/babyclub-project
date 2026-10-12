@@ -33,6 +33,23 @@ function normalizeEventsForPublicResponse(events: any[] | null | undefined) {
   );
 }
 
+function normalizePublicCoverImage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const url = value.trim();
+  if (url.startsWith("/") && !url.startsWith("//") && !url.includes("\\"))
+    return url;
+  try {
+    const parsed = new URL(url);
+    return ["https:", "http:"].includes(parsed.protocol) &&
+      !parsed.username &&
+      !parsed.password
+      ? url
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   if (!supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
@@ -53,7 +70,7 @@ export async function GET() {
         supabase
           .from("events")
           .select(
-            "id,name,starts_at,location,organizer_id,is_active,closed_at,sale_status,sale_public_message,early_bird_enabled,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2,ticket_types:event_ticket_types(id,code,label,description,sale_phase,ticket_quantity,price,currency_code,is_active,sort_order)",
+            "id,name,header_image,starts_at,location,organizer_id,is_active,closed_at,sale_status,sale_public_message,early_bird_enabled,early_bird_price_1,early_bird_price_2,all_night_price_1,all_night_price_2,ticket_types:event_ticket_types(id,code,label,description,sale_phase,ticket_quantity,price,currency_code,is_active,sort_order)",
           )
           .eq("is_active", true)
           .order("starts_at", { ascending: true }),
@@ -73,7 +90,9 @@ export async function GET() {
         applyNotDeleted(
           supabase
             .from("events")
-            .select("id,name,starts_at,location,organizer_id,is_active,closed_at")
+            .select(
+              "id,name,header_image,starts_at,location,organizer_id,is_active,closed_at",
+            )
             .eq("is_active", true)
             .order("starts_at", { ascending: true }),
         ),
@@ -99,7 +118,13 @@ export async function GET() {
     );
   }
 
+  const events = normalizeEventsForPublicResponse(
+    data as any[] | null | undefined,
+  );
   return NextResponse.json({
-    events: normalizeEventsForPublicResponse(data as any[] | null | undefined),
+    events: events.map((event) => ({
+      ...event,
+      cover_image: normalizePublicCoverImage(event.header_image),
+    })),
   });
 }

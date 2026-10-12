@@ -61,13 +61,9 @@ export function getFocusedDisplayViewBox(
   const slotTop =
     slots.length > 0 ? Math.min(...slots.map((slot) => slot.y)) : null;
   const slotRight =
-    slots.length > 0
-      ? Math.max(...slots.map((slot) => slot.x + slot.w))
-      : null;
+    slots.length > 0 ? Math.max(...slots.map((slot) => slot.x + slot.w)) : null;
   const slotBottom =
-    slots.length > 0
-      ? Math.max(...slots.map((slot) => slot.y + slot.h))
-      : null;
+    slots.length > 0 ? Math.max(...slots.map((slot) => slot.y + slot.h)) : null;
   const left =
     slotLeft === null
       ? extraBounds!.x
@@ -110,11 +106,7 @@ export function getFocusedDisplayViewBox(
     const expandedLeft = clampNumber(left - paddingLeft, 0, size.width);
     const expandedTop = clampNumber(top - paddingTop, 0, size.height);
     const expandedRight = clampNumber(right + paddingRight, 0, size.width);
-    const expandedBottom = clampNumber(
-      bottom + paddingBottom,
-      0,
-      size.height,
-    );
+    const expandedBottom = clampNumber(bottom + paddingBottom, 0, size.height);
     const width = clampNumber(
       expandedRight - expandedLeft,
       size.width * 0.44,
@@ -127,8 +119,16 @@ export function getFocusedDisplayViewBox(
     );
 
     return {
-      x: clampNumber(expandedLeft, 0, size.width - width),
-      y: clampNumber(expandedTop, 0, size.height - height),
+      x: clampNumber(
+        (expandedLeft + expandedRight - width) / 2,
+        0,
+        size.width - width,
+      ),
+      y: clampNumber(
+        (expandedTop + expandedBottom - height) / 2,
+        0,
+        size.height - height,
+      ),
       width,
       height,
     };
@@ -398,7 +398,12 @@ export default function TableMap({
       width,
       height,
     };
-  }, [imageNaturalSize?.height, imageNaturalSize?.width, viewBoxSize.height, viewBoxSize.width]);
+  }, [
+    imageNaturalSize?.height,
+    imageNaturalSize?.width,
+    viewBoxSize.height,
+    viewBoxSize.width,
+  ]);
 
   const shouldFocusOnSlots =
     focusOnSlots ||

@@ -7,6 +7,25 @@ import {
 } from "./TableMap";
 
 describe("TableMap focus framing", () => {
+  it("centra la zona móvil cuando el ancho mínimo supera el contenido", () => {
+    const focused = getFocusedDisplayViewBox(
+      [
+        {
+          id: "center",
+          label: "1",
+          x: 450,
+          y: 200,
+          w: 20,
+          h: 20,
+          status: "available",
+        },
+      ],
+      { width: 1000, height: 600 },
+      "mobile",
+    );
+    expect(focused.width).toBe(440);
+    expect(focused.x + focused.width / 2).toBe(460);
+  });
   it("acerca la vista cuando las mesas ocupan solo una zona del croquis", () => {
     const slots: MapSlot[] = [
       {

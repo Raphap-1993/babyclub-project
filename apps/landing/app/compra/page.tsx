@@ -3,6 +3,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { evaluateEventSales } from "shared/eventSales";
 import { useSearchParams } from "next/navigation";
 import { CreditCard, Smartphone } from "lucide-react";
 import NominationClient from "./reserva/[id]/NominationClient";
@@ -130,6 +131,10 @@ function CompraRouter() {
       }
       promoterLinkCodeFromUrl={searchParams.get("promoter_link_code") || null}
       tabFromUrl={searchParams.get("tab")}
+      ticketTypeFromUrl={searchParams.get("ticket_type_code")}
+      quantityFromUrl={searchParams.get("package_quantity")}
+      tableFromUrl={searchParams.get("table_id")}
+      productFromUrl={searchParams.get("product_id")}
     />
   );
 }
@@ -141,6 +146,10 @@ function CompraContent({
   promoterLinkCodeIdFromUrl,
   promoterLinkCodeFromUrl,
   tabFromUrl,
+  ticketTypeFromUrl,
+  quantityFromUrl,
+  tableFromUrl,
+  productFromUrl,
 }: {
   eventIdFromUrl: string | null;
   promoterRefFromUrl: string | null;
@@ -148,6 +157,10 @@ function CompraContent({
   promoterLinkCodeIdFromUrl: string | null;
   promoterLinkCodeFromUrl: string | null;
   tabFromUrl: string | null;
+  ticketTypeFromUrl: string | null;
+  quantityFromUrl: string | null;
+  tableFromUrl: string | null;
+  productFromUrl: string | null;
 }) {
   const [tables, setTables] = useState<TableRow[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -181,6 +194,8 @@ function CompraContent({
     tabFromUrl === "mesa" ? "mesa" : "ticket",
   );
   const [ticketStep, setTicketStep] = useState<PurchaseStepId>(1);
+  const appliedDetailSelection = useRef(false);
+  const appliedDetailTable = useRef(false);
   const [mesaStep, setMesaStep] = useState<PurchaseStepId>(1);
   const [uploading, setUploading] = useState(false);
   const [ticketUploading, setTicketUploading] = useState(false);
@@ -465,9 +480,19 @@ function CompraContent({
         });
         setSelected(nextSelection.selectedTableId);
         setSelectedProduct(nextSelection.selectedProductId);
+        if (!appliedDetailTable.current && tabFromUrl === "mesa" && tableFromUrl) {
+          const requestedTable = tables.find((table: TableRow) => table.id === tableFromUrl && !table.is_reserved);
+          const requestedProduct = requestedTable?.products?.find((product: {id:string;is_active?:boolean}) => product.id === productFromUrl && product.is_active !== false);
+          if (requestedTable && (!productFromUrl || requestedProduct)) {
+            appliedDetailTable.current = true;
+            setSelected(requestedTable.id);
+            setSelectedProduct(requestedProduct?.id || requestedTable.products?.find((product: {id:string;is_active?:boolean}) => product.is_active !== false)?.id || "");
+            setMesaStep(2);
+          }
+        }
       })
       .catch(() => setTables([]));
-  }, [organizerId, selectedEventId]);
+  }, [organizerId, selectedEventId, tabFromUrl, tableFromUrl, productFromUrl]);
 
   // Cargar layout del organizador (NO depende del evento, es del organizador)
   useEffect(() => {
@@ -741,10 +766,24 @@ function CompraContent({
 
   useEffect(() => {
     const nextSelection = reconcileTicketTypeCode(
+      // Preserve the current production reconciliation and price drift guards.
       selectedTicketTypeCode,
       ticketTypeOptions,
       !ticketTypeSelectionTouched,
     );
+    if (!appliedDetailSelection.current && ticketTypeOptions.length && ticketSelectedEventData?.id === eventIdFromUrl) {
+      appliedDetailSelection.current = true;
+      const requestedType = ticketTypeOptions.find(option => option.code === ticketTypeFromUrl);
+      const requestedQuantity = Number(quantityFromUrl);
+      if (requestedType && Number.isInteger(requestedQuantity) && requestedQuantity >= 1 && requestedQuantity <= 10 && evaluateEventSales(ticketSelectedEventData).available) {
+        setTicketTypeSelectionTouched(true);
+        setSelectedTicketTypeCode(requestedType.code);
+        setTicketPackageQuantity(requestedQuantity);
+        setTicketSelectionSnapshot(buildTicketSelectionSnapshot(requestedType, requestedQuantity));
+        setTicketStep(2);
+        return;
+      }
+    }
     const snapshotDrifted =
       ticketStep > 1 &&
       hasTicketSelectionDrifted(ticketSelectionSnapshot, selectedTicketType);
@@ -774,6 +813,10 @@ function CompraContent({
     ticketSelectionSnapshot,
     ticketTypeOptions,
     ticketTypeSelectionTouched,
+    ticketSelectedEventData,
+    eventIdFromUrl,
+    ticketTypeFromUrl,
+    quantityFromUrl,
   ]);
 
   const ticketSelectionPreview = selectedTicketType
