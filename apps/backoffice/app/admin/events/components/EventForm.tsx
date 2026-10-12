@@ -38,6 +38,7 @@ type EventRecord = {
   marketing_capacity?: number | null;
   header_image: string;
   cover_image?: string;
+  public_description?: string;
   is_active: boolean;
   sale_status?: "on_sale" | "sold_out" | "paused" | null;
   sale_public_message?: string | null;
@@ -54,6 +55,7 @@ type FormValues = {
   marketing_capacity: string;
   header_image: string;
   cover_image: string;
+  public_description: string;
   is_active: boolean;
   sale_status: "on_sale" | "sold_out" | "paused";
   sale_public_message: string;
@@ -70,6 +72,7 @@ const emptyForm: FormValues = {
   marketing_capacity: "",
   header_image: "",
   cover_image: "",
+  public_description: "",
   is_active: true,
   sale_status: "on_sale",
   sale_public_message: "",
@@ -154,6 +157,7 @@ export default function EventForm({
         ? Number(form.marketing_capacity)
         : null,
       header_image: form.header_image.trim(),
+      public_description: form.public_description.trim(),
       cover_image: form.cover_image.trim(),
       is_active: Boolean(form.is_active),
       sale_status: form.sale_status,
@@ -424,15 +428,19 @@ export default function EventForm({
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-medium text-neutral-300">
-                Cover (imagen cabecera)
+                Portada y miniatura del evento
               </label>
               <ManifestUploader
                 code={`${form.code || form.name}-cover`}
                 onUploaded={(url) => updateField("cover_image", url)}
                 initialUrl={form.cover_image}
-                label="Subir cover (imagen)"
+                label="Subir portada del evento"
                 inputId="cover-file"
               />
+              <p className="text-xs text-neutral-400">
+                Esta imagen se muestra en la tarjeta del home y en el detalle
+                del evento. Es independiente de la foto principal del home.
+              </p>
               {form.cover_image && (
                 <div className="overflow-hidden rounded-lg border border-neutral-600 bg-neutral-700 p-2">
                   <img
@@ -445,6 +453,29 @@ export default function EventForm({
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label
+              htmlFor="event-public-description"
+              className="block text-sm font-medium text-neutral-300"
+            >
+              Descripción pública del evento
+            </label>
+            <textarea
+              id="event-public-description"
+              value={form.public_description}
+              maxLength={2000}
+              rows={4}
+              onChange={(event) =>
+                updateField("public_description", event.target.value)
+              }
+              className="w-full rounded-lg border border-neutral-600 bg-neutral-800 p-3 text-white"
+              placeholder="Describe la experiencia, artistas o propuesta del evento."
+            />
+            <p className="text-xs text-neutral-400">
+              Visible en el detalle del evento. Si lo dejas vacío, no se
+              mostrará descripción. {form.public_description.length}/2000
+            </p>
+          </div>
           <div className="flex items-center gap-4">
             <Checkbox
               label="Evento activo"
@@ -656,6 +687,7 @@ function normalizeInitial(
         ? String(initialData.marketing_capacity)
         : "",
     header_image: initialData.header_image ?? "",
+    public_description: initialData.public_description ?? "",
     cover_image: initialData.cover_image ?? "",
     is_active: initialData.is_active ?? true,
     sale_status:

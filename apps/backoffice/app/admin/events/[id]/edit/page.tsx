@@ -20,6 +20,7 @@ type EventRow = {
   marketing_capacity?: number | null;
   header_image: string;
   cover_image?: string;
+  public_description?: string;
   is_active: boolean;
   sale_status?: "on_sale" | "sold_out" | "paused" | null;
   sale_public_message?: string | null;
@@ -70,6 +71,7 @@ async function getEvent(id: string): Promise<EventRow | null> {
     .maybeSingle();
 
   const codeQuery = applyNotDeleted(
+    // Event presentation is stored in the existing per-event settings table.
     supabase
       .from("codes")
       .select("id,code")
@@ -81,11 +83,18 @@ async function getEvent(id: string): Promise<EventRow | null> {
 
   const code = codes?.code || "";
   const cover_image = coverRow?.value_text || "";
+  const { data: descriptionRow } = await supabase
+    .from("event_messages")
+    .select("value_text")
+    .eq("event_id", id)
+    .eq("key", "public_description")
+    .maybeSingle();
 
   return {
     ...(ensureEventSalesDefaults(data as any) as EventRow),
     code,
     cover_image,
+    public_description: descriptionRow?.value_text || "",
   };
 }
 

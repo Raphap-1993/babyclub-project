@@ -121,10 +121,48 @@ export async function GET() {
   const events = normalizeEventsForPublicResponse(
     data as any[] | null | undefined,
   );
+  const presentationByEvent = new Map<
+    string,
+    { cover_image?: string | null; public_description?: string | null }
+  >();
+  if (events.length) {
+    const settings = await withSupabaseRetry<any[]>(
+      "events.presentation",
+      () =>
+        supabase
+          .from("event_messages")
+          .select("event_id,key,value_text")
+          .in(
+            "event_id",
+            events.map((event) => event.id),
+          )
+          .in("key", ["cover_image", "public_description"]),
+      1,
+    );
+    if (settings.error)
+      return NextResponse.json(
+        {
+          events: [],
+          error: "No se pudo cargar la presentación de los eventos",
+        },
+        { status: 503 },
+      );
+    for (const row of settings.data || []) {
+      const previous = presentationByEvent.get(row.event_id) || {};
+      if (row.key === "cover_image")
+        previous.cover_image = normalizePublicCoverImage(row.value_text);
+      if (row.key === "public_description")
+        previous.public_description =
+          typeof row.value_text === "string" ? row.value_text.trim() : null;
+      presentationByEvent.set(row.event_id, previous);
+    }
+  }
   return NextResponse.json({
     events: events.map((event) => ({
       ...event,
-      cover_image: normalizePublicCoverImage(event.header_image),
+      cover_image: presentationByEvent.get(event.id)?.cover_image || null,
+      public_description:
+        presentationByEvent.get(event.id)?.public_description || null,
     })),
   });
 }

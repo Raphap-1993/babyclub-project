@@ -12,7 +12,7 @@ import {
 } from "./eventModel";
 import styles from "./home.module.css";
 
-const COVER = "/images/baby-club-cover.png";
+const COVER = "/images/baby-home-cover.jpg";
 
 function EventCard({ event }: { event: HomeEvent }) {
   const presentation = eventPresentation(event);

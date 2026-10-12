@@ -8,6 +8,7 @@ export type HomeEvent = EventSalesSnapshot & {
   starts_at?: string | null;
   location?: string | null;
   cover_image?: string | null;
+  public_description?: string | null;
   ticket_types?: TicketTypeOption[];
 };
 

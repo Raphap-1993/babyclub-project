@@ -53,6 +53,19 @@ export async function POST(req: NextRequest) {
     cover_image,
     ticketTypes,
   } = buildEventPayload(body);
+  if (
+    body?.public_description !== undefined &&
+    (typeof body.public_description !== "string" ||
+      body.public_description.length > 2000)
+  )
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "La descripción debe ser texto y tener como máximo 2000 caracteres",
+      },
+      { status: 400 },
+    );
   if (error) {
     return NextResponse.json({ success: false, error }, { status: 400 });
   }
@@ -148,6 +161,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (eventId && body?.public_description !== undefined) {
+    const { error: descriptionError } = await supabase
+      .from("event_messages")
+      .upsert(
+        {
+          event_id: eventId,
+          key: "public_description",
+          value_text: body.public_description.trim(),
+        },
+        { onConflict: "event_id,key" },
+      );
+    if (descriptionError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No se pudo guardar la descripción del evento",
+        },
+        { status: 500 },
+      );
+  }
   return NextResponse.json({ success: true, id: eventId ?? null });
 }
 

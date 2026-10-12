@@ -133,14 +133,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     src={
                       !posterFailed && event.cover_image
                         ? event.cover_image
-                        : "/images/baby-club-cover.png"
+                        : "/images/baby-home-cover.jpg"
                     }
                     alt=""
                     loading="eager"
                     decoding="async"
                     onError={() => setPosterFailed(true)}
                   />
-                  <p className={styles.eyebrow}>La experiencia BABY</p>
                   <h1>{event.name || "Evento BABY"}</h1>
                   <div className={styles.meta}>
                     <p>
@@ -154,9 +153,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                       </p>
                     )}
                   </div>
-                  <p className={styles.description}>
-                    Una noche para perder la noción del tiempo.
-                  </p>
+                  {event.public_description && (
+                    <p className={styles.description}>
+                      {event.public_description}
+                    </p>
+                  )}
                   <p className={styles.conditions}>
                     Mayores de 18 años · Presenta tu documento al ingresar.
                   </p>

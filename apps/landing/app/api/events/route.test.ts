@@ -57,12 +57,36 @@ describe("GET /api/events soft delete filter", () => {
     expect(payload.warning).toBe("temporarily_unavailable");
   });
 
-  it("uses the existing event header_image and rejects executable image URLs", async () => {
+  it("uses the backoffice cover and public description, rejecting executable image URLs", async () => {
     const { supabase, calls } = createSupabaseMock({
       "events.select": {
         data: [
-          { id: "one", name: "One", header_image: "https://cdn.example.com/flyer.jpg" },
+          {
+            id: "one",
+            name: "One",
+            header_image: "https://cdn.example.com/flyer.jpg",
+          },
           { id: "two", name: "Two", header_image: "javascript:alert(1)" },
+        ],
+        error: null,
+      },
+      "event_messages.select": {
+        data: [
+          {
+            event_id: "one",
+            key: "cover_image",
+            value_text: "https://cdn.example.com/flyer.jpg",
+          },
+          {
+            event_id: "one",
+            key: "public_description",
+            value_text: "Descripción editable",
+          },
+          {
+            event_id: "two",
+            key: "cover_image",
+            value_text: "javascript:alert(1)",
+          },
         ],
         error: null,
       },
@@ -74,7 +98,10 @@ describe("GET /api/events soft delete filter", () => {
       "https://cdn.example.com/flyer.jpg",
     );
     expect(payload.events[1].cover_image).toBeNull();
-    expect(calls.find((call) => call.table === "events")?.selectClause).toContain("header_image");
+    expect(payload.events[0].public_description).toBe("Descripción editable");
+    expect(
+      calls.find((call) => call.table === "events")?.selectClause,
+    ).toContain("header_image");
     expect(calls.some((call) => call.table === "event_settings")).toBe(false);
   });
 
