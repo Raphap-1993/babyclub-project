@@ -16,7 +16,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
+  object-position: center 78%;
   z-index: -3;
 }
 .heroShade {
@@ -25,17 +25,17 @@
   z-index: -2;
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.12) 0%,
-    rgba(0, 0, 0, 0.12) 30%,
-    rgba(0, 0, 0, 0.35) 60%,
-    #000 100%
+    rgba(0, 0, 0, 0.06) 0%,
+    rgba(0, 0, 0, 0.06) 45%,
+    rgba(0, 0, 0, 0.12) 75%,
+    rgba(0, 0, 0, 0.25) 94%, #000 100%
   );
 }
 .logo {
   position: absolute;
   top: clamp(28px, 4.5vw, 64px);
   left: clamp(24px, 5.2vw, 80px);
-  width: clamp(130px, 15vw, 240px);
+  width: calc(clamp(130px, 15vw, 240px) - 2px);
   height: auto;
   max-height: 80px;
   object-fit: contain;
@@ -45,7 +45,7 @@
   position: absolute;
   left: clamp(24px, 5.2vw, 80px);
   bottom: clamp(52px, 9svh, 110px);
-  font-size: clamp(64px, 6.3vw, 100px);
+  font-size: calc(clamp(64px, 6.3vw, 100px) - 2px);
   line-height: 0.93;
   letter-spacing: -0.055em;
   font-weight: 800;
@@ -58,7 +58,7 @@
   scroll-margin-top: 24px;
 }
 .events h2 {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 400;
   margin: 0 0 16px;
 }
@@ -80,7 +80,7 @@
   height: 100%;
   min-height: 240px;
   max-height: 340px;
-  object-fit: cover;
+  object-fit: contain;
   background: #151515;
 }
 .cardBody {
@@ -98,20 +98,20 @@
   flex-wrap: wrap;
 }
 .date {
-  font-size: 13px;
+  font-size: 11px;
   letter-spacing: 0.15em;
 }
 .status {
   border-radius: 99px;
   background: #f5f5f5;
   color: #111;
-  font-size: 10px;
+  font-size: 8px;
   text-transform: uppercase;
   padding: 6px 14px;
   white-space: nowrap;
 }
 .card h3 {
-  font-size: clamp(20px, 2vw, 28px);
+  font-size: calc(clamp(20px, 2vw, 28px) - 2px);
   line-height: 1.2;
   font-weight: 800;
   letter-spacing: -0.025em;
@@ -119,17 +119,17 @@
 }
 .venue {
   color: #bcbcbc;
-  font-size: 17px;
+  font-size: 15px;
   margin-top: 6px;
 }
 .price {
-  font-size: 14px;
+  font-size: 12px;
   color: #ddd;
   margin-top: 14px;
 }
 .saleMessage {
   color: #ccc;
-  font-size: 14px;
+  font-size: 12px;
   margin-top: 16px;
   line-height: 1.5;
 }
@@ -140,7 +140,7 @@
   gap: 20px;
   margin-top: auto;
   padding-top: 34px;
-  font-size: 16px;
+  font-size: 14px;
 }
 .details:hover {
   color: #ff1744;
@@ -152,7 +152,7 @@
   text-align: center;
 }
 .copyright {
-  font-size: 12px;
+  font-size: 10px;
   color: #bcbcbc;
 }
 .accessLinks {
@@ -161,7 +161,7 @@
   gap: 48px;
   flex-wrap: wrap;
   margin: 18px 0 40px;
-  font-size: 15px;
+  font-size: 13px;
 }
 .accessLinks a {
   color: #ff1744;
@@ -180,7 +180,7 @@
   border-radius: 14px;
   padding: 30px 24px;
   color: #ccc;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.6;
 }
 .retry {
@@ -222,7 +222,7 @@
   align-items: center;
   gap: 10px;
   color: #ccc;
-  font-size: 14px;
+  font-size: 12px;
   margin-bottom: 36px;
 }
 .back:hover {
@@ -246,7 +246,7 @@
   padding-top: 16px;
 }
 .detailBody h1 {
-  font-size: clamp(32px, 4vw, 52px);
+  font-size: calc(clamp(32px, 4vw, 52px) - 2px);
   letter-spacing: -0.04em;
   line-height: 1.08;
   margin: 24px 0;
@@ -257,7 +257,7 @@
   align-items: center;
   gap: 12px;
   color: #bcbcbc;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.5;
   margin-top: 16px;
 }
@@ -268,7 +268,7 @@
   border-top: 1px solid #333;
   padding-top: 28px;
   margin-top: 32px;
-  font-size: 20px;
+  font-size: 18px;
 }
 .buyButton {
   display: flex;
@@ -280,7 +280,7 @@
   margin-top: 24px;
   color: #111;
   background: #f2f2f2;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 .buyButton:hover {
@@ -293,10 +293,10 @@
 }
 @media (max-width: 640px) {
   .heroImage {
-    object-position: 68% center;
+    object-position: 52% 70%;
   }
   .headline {
-    font-size: clamp(58px, 15vw, 78px);
+    font-size: calc(clamp(58px, 15vw, 78px) - 2px);
     bottom: 64px;
   }
   .events {
@@ -319,18 +319,18 @@
     margin-bottom: 12px;
   }
   .date {
-    font-size: 11px;
+    font-size: 9px;
     letter-spacing: 0.08em;
   }
   .status {
-    font-size: 9px;
+    font-size: 7px;
     padding: 5px 10px;
   }
   .venue {
-    font-size: 14px;
+    font-size: 12px;
   }
   .details {
-    font-size: 14px;
+    font-size: 12px;
     padding-top: 24px;
   }
   .footer {
@@ -338,10 +338,10 @@
     margin: 0 20px;
   }
   .copyright {
-    font-size: 10px;
+    font-size: 8px;
   }
   .accessLinks {
-    font-size: 13px;
+    font-size: 11px;
     gap: 32px;
     margin-bottom: 40px;
   }
@@ -360,16 +360,16 @@
     padding-top: 0;
   }
   .detailBody h1 {
-    font-size: 34px;
+    font-size: 32px;
   }
 }
 @media (max-height: 500px) and (min-width: 641px) {
   .headline {
-    font-size: 58px;
+    font-size: 56px;
     bottom: 30px;
   }
   .logo {
     top: 24px;
-    width: 150px;
+    width: 148px;
   }
 }
