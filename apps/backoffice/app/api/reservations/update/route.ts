@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
   const { data: reservation } = await supabase
     .from("table_reservations")
     .select(
-      "id,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,total_ticket_units,package_quantity,ticket_type_label,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location,event_prefix),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location,event_prefix))",
+      "id,online_checkout_key,table_id,product_id,sale_origin,full_name,email,phone,doc_type,document,codes,ticket_quantity,total_ticket_units,package_quantity,ticket_type_label,attendees,event_id,promoter_id,event:event_id(id,name,starts_at,location,event_prefix),table:tables(id,name,event_id,ticket_count,event:events(id,name,starts_at,location,event_prefix))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -146,6 +146,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Reserva no encontrada" },
       { status: 404 },
+    );
+  }
+
+  if (reservation.online_checkout_key && status) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "Mercado Pago confirma esta compra automáticamente. Gestiona las devoluciones en su panel; el webhook actualizará la reserva y sus QR.",
+      },
+      { status: 409 },
     );
   }
 
@@ -289,7 +300,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: err?.message || "No se pudo preparar el ticket del comprador",
+            error:
+              err?.message || "No se pudo preparar el ticket del comprador",
             trace,
           },
           { status: 400 },
@@ -383,7 +395,8 @@ export async function POST(req: NextRequest) {
       if (reusableCodes.length === 0 && ticketQuantity > 0) {
         const generatedCodes = await createReservationCodes(supabase, {
           eventId,
-          eventPrefix: eventRel?.event_prefix || eventDirectRel?.event_prefix || "BC",
+          eventPrefix:
+            eventRel?.event_prefix || eventDirectRel?.event_prefix || "BC",
           tableName,
           reservationId: id,
           quantity: ticketQuantity,
@@ -466,8 +479,7 @@ export async function POST(req: NextRequest) {
             email: resolvedEmail,
             phone: resolvedPhone || null,
             codes: mergedCodes,
-            ticketIds:
-              issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
+            ticketIds: issuedTicketIds.length > 0 ? issuedTicketIds : undefined,
             tableName,
             event: eventRel || eventDirectRel || null,
             resourceLabel: "Mesa",
@@ -486,7 +498,12 @@ export async function POST(req: NextRequest) {
           trace.push(`approvalEmailError:${emailError}`);
         }
 
-        return NextResponse.json({ success: true, emailSent, emailError, trace });
+        return NextResponse.json({
+          success: true,
+          emailSent,
+          emailError,
+          trace,
+        });
       }
       const plannedAttendees = reservationAttendees.slice(0, ticketQuantity);
       const seenIdentityKeys = new Map<string, string>();
@@ -508,10 +525,7 @@ export async function POST(req: NextRequest) {
                 error:
                   "No puedes emitir dos QR para la misma persona en este evento. Revisa los asistentes repetidos antes de aprobar.",
                 trace,
-                duplicateAttendees: [
-                  previousLabel,
-                  `asistente ${i + 1}`,
-                ],
+                duplicateAttendees: [previousLabel, `asistente ${i + 1}`],
               },
               { status: 409 },
             );
@@ -521,7 +535,7 @@ export async function POST(req: NextRequest) {
         const existingConflict = await findActiveEventTicketConflict(
           supabase as any,
           {
-        allowExpiredGeneralReplacement: true,
+            allowExpiredGeneralReplacement: true,
             eventId,
             fullName: attendee.fullName,
             email: attendee.email || resolvedEmail,

@@ -41,6 +41,32 @@ describe("POST /api/reservations/update", () => {
     });
   });
 
+  it.each(["approved", "rejected", "pending"])(
+    "no permite cambiar manualmente a %s una compra de Mercado Pago",
+    async (status) => {
+      const { supabase, calls } = createSupabaseMock({
+        "table_reservations.select": [
+          {
+            data: { id: "mp-res", online_checkout_key: "mp-key" },
+            error: null,
+          },
+        ],
+      });
+      (createClient as any).mockReturnValue(supabase);
+      const { POST } = await import("./route");
+      const response = await POST(
+        new Request("http://localhost/api/reservations/update", {
+          method: "POST",
+          body: JSON.stringify({ id: "mp-res", status }),
+        }) as any,
+      );
+      expect(response.status).toBe(409);
+      expect(calls.some((call: any) => call.op === "update")).toBe(false);
+      expect(createTicketForReservation).not.toHaveBeenCalled();
+      expect(sendApprovalEmail).not.toHaveBeenCalled();
+    },
+  );
+
   it("aprueba ticket-only y envía correo de nominación aunque aún no haya QR emitidos", async () => {
     const { supabase, calls } = createSupabaseMock({
       "table_reservations.select": [
@@ -425,7 +451,10 @@ describe("POST /api/reservations/update", () => {
       new Request("http://localhost/api/reservations/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: "res-ticket-partial-1", status: "approved" }),
+        body: JSON.stringify({
+          id: "res-ticket-partial-1",
+          status: "approved",
+        }),
       }) as any,
     );
     const payload = await res.json();

@@ -6,6 +6,7 @@ import {
   mercadoPagoBody,
 } from "lib/mercadopagoRoute";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 export async function POST(request: Request) {
   try {
     const result = await processMercadoPagoWebhook(mercadoPagoDatabase(), {

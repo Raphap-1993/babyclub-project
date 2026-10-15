@@ -15,7 +15,7 @@ El archivo privado `D:\RAPHA\PROJECTS\BABYCLUB\.local\mercadopago.env` contiene 
 
 Variables de servidor: `MERCADOPAGO_ENVIRONMENT=test`, `MERCADOPAGO_APPLICATION_ID`, `MERCADOPAGO_TEST_APPLICATION_ID`, `MERCADOPAGO_COLLECTOR_ID`, `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADOPAGO_WORKER_SECRET`, `ENABLE_MERCADOPAGO_PAYMENTS=true`. Correo: `BABY_EMAIL_TRANSPORT=mailpit`, `MAILPIT_URL=http://127.0.0.1:64324`.
 
-La Public Key se entrega al formulario. Access Token, firma del webhook, llave del worker y Service Role permanecen en servidor. Este corte rechaza bases remotas y modo live aunque se active la bandera. El prefijo `APP_USR` no distingue credenciales reales de las del vendedor de prueba.
+La Public Key se entrega al formulario. Access Token, firma del webhook, llave del worker y Service Role permanecen en servidor. Sandbox rechaza bases remotas; el modo live exige un despliegue productivo y destinos explícitos según `mercadopago-production.md`. El prefijo `APP_USR` no distingue credenciales reales de las del vendedor de prueba.
 
 ## Funcionamiento
 

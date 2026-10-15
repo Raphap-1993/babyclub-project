@@ -3,20 +3,46 @@ import { PaymentServiceError } from "./errors";
 
 export function getMercadoPagoConfig(checkout = false) {
   const env = process.env;
-  // This release is deliberately limited to sandbox + the isolated database.
+  const environment = env.MERCADOPAGO_ENVIRONMENT;
   let localDatabase = false;
+  let liveDeployment = false;
   try {
+    const database = new URL(env.SUPABASE_URL || "");
     localDatabase = ["localhost", "127.0.0.1", "[::1]"].includes(
-      new URL(env.SUPABASE_URL || "").hostname,
+      database.hostname,
     );
+    const site = new URL(env.NEXT_PUBLIC_APP_URL || "");
+    // Explicit targets prevent a preview or a developer laptop from charging
+    // against the real merchant/database by accidentally copying an env file.
+    liveDeployment =
+      env.VERCEL_ENV === "production" &&
+      !localDatabase &&
+      database.protocol === "https:" &&
+      !database.username &&
+      !database.password &&
+      database.origin === env.MERCADOPAGO_PRODUCTION_SUPABASE_URL &&
+      site.protocol === "https:" &&
+      !site.username &&
+      !site.password &&
+      site.origin === env.MERCADOPAGO_PRODUCTION_ORIGIN &&
+      env.BABY_EMAIL_TRANSPORT !== "mailpit" &&
+      Boolean(env.RESEND_API_KEY?.trim()) &&
+      (env.MERCADOPAGO_WEBHOOK_SECRET?.trim().length || 0) >= 32 &&
+      (env.MERCADOPAGO_WORKER_SECRET?.trim().length || 0) >= 32;
   } catch {}
+  const applicationId =
+    environment === "live"
+      ? env.MERCADOPAGO_APPLICATION_ID?.trim()
+      : env.MERCADOPAGO_TEST_APPLICATION_ID?.trim();
   if (
-    !localDatabase ||
-    env.MERCADOPAGO_ENVIRONMENT !== "test" ||
+    !(
+      (environment === "test" && localDatabase && !env.VERCEL_ENV) ||
+      (environment === "live" && liveDeployment)
+    ) ||
     !env.MERCADOPAGO_ACCESS_TOKEN?.trim() ||
     !env.MERCADOPAGO_PUBLIC_KEY?.trim() ||
     !env.MERCADOPAGO_COLLECTOR_ID?.trim() ||
-    !env.MERCADOPAGO_TEST_APPLICATION_ID?.trim() ||
+    !applicationId ||
     (checkout && env.ENABLE_MERCADOPAGO_PAYMENTS !== "true")
   ) {
     throw new PaymentServiceError(
@@ -26,11 +52,11 @@ export function getMercadoPagoConfig(checkout = false) {
     );
   }
   return {
-    environment: "test" as const,
+    environment: environment as "test" | "live",
     accessToken: env.MERCADOPAGO_ACCESS_TOKEN.trim(),
     publicKey: env.MERCADOPAGO_PUBLIC_KEY.trim(),
     collectorId: env.MERCADOPAGO_COLLECTOR_ID.trim(),
-    applicationId: env.MERCADOPAGO_TEST_APPLICATION_ID.trim(),
+    applicationId,
     primaryApplicationId: env.MERCADOPAGO_APPLICATION_ID?.trim() || "",
     webhookSecret: env.MERCADOPAGO_WEBHOOK_SECRET?.trim() || "",
   };
@@ -39,9 +65,13 @@ export function getMercadoPagoConfig(checkout = false) {
 export function getMercadoPagoPublicStatus() {
   try {
     const config = getMercadoPagoConfig(true);
-    return { enabled: true, environment: "test", publicKey: config.publicKey };
+    return {
+      enabled: true,
+      environment: config.environment,
+      publicKey: config.publicKey,
+    };
   } catch {
-    return { enabled: false, environment: "test", publicKey: "" };
+    return { enabled: false, environment: null, publicKey: "" };
   }
 }
 

@@ -21,6 +21,20 @@ import { ensureReservationUnitCodes } from "../app/api/ticket-reservations/lib/r
 type DB = any;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function assertCheckoutEnvironment(session: any) {
+  const config = getMercadoPagoConfig();
+  if (
+    session.environment !== config.environment ||
+    session.collector_id !== config.collectorId ||
+    session.application_id !== config.applicationId
+  ) {
+    throw new PaymentServiceError(
+      "El ambiente del pago no coincide con la compra",
+      409,
+    );
+  }
+}
+
 function databaseError(error: any) {
   if (error)
     throw new PaymentServiceError(
@@ -125,6 +139,7 @@ export async function authorizeMercadoPagoCheckout(
   databaseError(error);
   if (!data)
     throw new PaymentServiceError("No se encontró tu sesión de compra", 404);
+  assertCheckoutEnvironment(data);
   return data;
 }
 
@@ -237,6 +252,7 @@ export async function submitMercadoPagoPayment(
   body: any,
 ) {
   const config = getMercadoPagoConfig(true);
+  assertCheckoutEnvironment(session);
   const reservationResult = await db
     .from("table_reservations")
     .select("email")
@@ -607,7 +623,7 @@ export async function processMercadoPagoWebhook(
   const id = input.search.get("data.id") || "";
   if (input.body?.type !== "order") return { success: true, ignored: true };
   // The developer simulator sends live_mode=true even to the test URL. The
-  // signed envelope is only a pointer. Canonical collector + test application
+  // signed envelope is only a pointer. Canonical collector + application
   // checks above determine the environment and amount, never this body.
   if (!config.webhookSecret || !id || input.body?.data?.id !== id) {
     throw new PaymentServiceError(

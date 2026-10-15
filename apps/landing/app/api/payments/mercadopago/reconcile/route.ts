@@ -10,6 +10,7 @@ import { mercadoPagoDatabase, mercadoPagoFailure } from "lib/mercadopagoRoute";
 import { PaymentServiceError } from "shared/payments/errors";
 import { getMercadoPagoConfig } from "shared/payments/mercadopagoConfig";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 export async function POST(request: Request) {
   try {
     getMercadoPagoConfig();
@@ -65,29 +66,35 @@ export async function POST(request: Request) {
       .from("mp_checkout_sessions")
       .select("id")
       .eq("status", "paid")
-      .limit(20);
+      .limit(5);
     if (paid.error) throw new Error("fulfillment_failed");
-    for (const session of paid.data || []) {
-      try {
-        await fulfillMercadoPagoCheckout(db, session.id);
-      } catch {
-        errors++;
-      }
-    }
+    await Promise.all(
+      (paid.data || []).map(async (session) => {
+        try {
+          await fulfillMercadoPagoCheckout(db, session.id);
+        } catch {
+          errors++;
+        }
+      }),
+    );
     const jobs = await db
       .from("mp_notification_jobs")
       .select("session_id")
       .neq("status", "sent")
+      .or(`locked_until.is.null,locked_until.lte.${new Date().toISOString()}`)
+      .order("attempts")
       .order("created_at")
-      .limit(20);
+      .limit(5);
     if (jobs.error) throw new Error("notification_failed");
-    for (const job of jobs.data || []) {
-      try {
-        await notifyMercadoPagoCheckout(db, job.session_id);
-      } catch {
-        errors++;
-      }
-    }
+    await Promise.all(
+      (jobs.data || []).map(async (job) => {
+        try {
+          await notifyMercadoPagoCheckout(db, job.session_id);
+        } catch {
+          errors++;
+        }
+      }),
+    );
     return NextResponse.json({
       success: true,
       checked,

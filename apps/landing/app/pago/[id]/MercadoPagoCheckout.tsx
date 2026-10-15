@@ -15,6 +15,7 @@ import {
 type Checkout = {
   id: string;
   status: string;
+  environment: "test" | "live";
   amountCents: number;
   publicKey: string;
   email: string;
@@ -169,7 +170,9 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
         <div className="grid items-start gap-7 md:grid-cols-[.8fr_1.2fr]">
           <aside className="rounded-2xl border border-white/15 bg-[#0b0b0b] p-6 md:sticky md:top-8">
             <span className="text-xs uppercase tracking-[.22em] text-red-400">
-              Compra de prueba
+              {checkout?.environment === "test"
+                ? "Compra de prueba"
+                : "Tu compra"}
             </span>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight">
               {checkout?.event?.name || "Tu noche en BABY"}
@@ -261,7 +264,9 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                   <CreditCard size={20} /> Paga con Mercado Pago
                 </h2>
                 <p className="mb-5 text-sm text-white/55">
-                  Completa los datos de tu tarjeta de prueba.
+                  {checkout.environment === "test"
+                    ? "Completa los datos de tu tarjeta de prueba."
+                    : "Completa los datos de tu tarjeta para confirmar tu compra."}
                 </p>
                 {sdkReady ? (
                   <MercadoPagoCardForm

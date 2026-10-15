@@ -214,6 +214,30 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
       expect(
         (await anon.from("mp_checkout_sessions").select("*")).error,
       ).toBeTruthy();
+      for (const table of [
+        "payments",
+        "payment_webhook_events",
+        "ticket_reservation_units",
+      ]) {
+        expect(
+          (await anon.from(table).select("*").limit(1)).error,
+        ).toBeTruthy();
+      }
+      check(
+        await db
+          .from("mp_checkout_sessions")
+          .update({ environment: "live" })
+          .eq("id", s.id),
+      );
+      await expect(
+        authorizeMercadoPagoCheckout(db, s.id, "Bearer " + s.token),
+      ).rejects.toMatchObject({ status: 409 });
+      check(
+        await db
+          .from("mp_checkout_sessions")
+          .update({ environment: "test" })
+          .eq("id", s.id),
+      );
       expect(
         (
           await anon.rpc("mp_claim_attempt", {
@@ -444,7 +468,9 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
       let canonical = order(s, a, "pending");
       const canonicalRequestUrls: string[] = [];
       vi.stubGlobal("fetch", async (input: any, init: any) => {
-        if (String(input).startsWith("https://api.mercadopago.com/v1/orders/")) {
+        if (
+          String(input).startsWith("https://api.mercadopago.com/v1/orders/")
+        ) {
           canonicalRequestUrls.push(String(input));
           return Response.json(canonical);
         }
@@ -469,7 +495,9 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         "sha256",
         process.env.MERCADOPAGO_WEBHOOK_SECRET!,
       )
-        .update(`id:${canonical.id.toLowerCase()};request-id:${requestId};ts:${ts};`)
+        .update(
+          `id:${canonical.id.toLowerCase()};request-id:${requestId};ts:${ts};`,
+        )
         .digest("hex");
       const input = {
         body,
@@ -500,7 +528,10 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
       await expect(
         processMercadoPagoWebhook(db, {
           ...input,
-          body: { ...body, data: { ...body.data, id: canonical.id.toLowerCase() } },
+          body: {
+            ...body,
+            data: { ...body.data, id: canonical.id.toLowerCase() },
+          },
         }),
       ).rejects.toMatchObject({ code: "webhook_envelope_invalid" });
       await processMercadoPagoWebhook(db, input);
