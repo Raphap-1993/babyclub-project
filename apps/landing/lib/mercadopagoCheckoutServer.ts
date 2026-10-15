@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { safeMercadoPagoChallengeUrl } from "shared/payments/mercadopagoChallenge";
 import {
   getMercadoPagoConfig,
   hashCheckoutToken,
@@ -199,6 +200,33 @@ export async function applyMercadoPagoCanonicalOrder(
     p_charge: order.transactions?.payments?.[0]?.id || null,
   });
   databaseError(error);
+  const payment = order.transactions?.payments?.[0];
+  const challengeUrl =
+    status === "pending" &&
+    order.status === "action_required" &&
+    order.status_detail === "pending_challenge" &&
+    order.transactions?.payments?.length === 1 &&
+    payment?.status === "action_required"
+      ? safeMercadoPagoChallengeUrl(
+          payment.payment_method?.transaction_security?.url,
+        )
+      : null;
+  databaseError(
+    (
+      await db
+        .from("mp_payment_attempts")
+        .update({
+          challenge_url: challengeUrl,
+          provider_status_detail: /^[a-z0-9_]{1,100}$/.test(
+            order.status_detail || "",
+          )
+            ? order.status_detail
+            : null,
+        })
+        .eq("id", attempt.id)
+        .eq("status", status)
+    ).error,
+  );
   if (data.status === "paid") await fulfillMercadoPagoCheckout(db, data.id);
   return data;
 }
@@ -476,7 +504,10 @@ export async function readMercadoPagoCheckout(
   session: any,
   refresh = true,
 ) {
-  if (session.status === "awaiting_payment" && Date.parse(session.expires_at) <= Date.now()) {
+  if (
+    session.status === "awaiting_payment" &&
+    Date.parse(session.expires_at) <= Date.now()
+  ) {
     databaseError((await db.rpc("mp_expire_checkouts")).error);
   }
   if (refresh && session.current_attempt_id) {
@@ -521,7 +552,7 @@ export async function readMercadoPagoCheckout(
   const attempt = s.data.current_attempt_id
     ? await db
         .from("mp_payment_attempts")
-        .select("status")
+        .select("status,challenge_url,provider_status_detail,created_at")
         .eq("id", s.data.current_attempt_id)
         .maybeSingle()
     : { data: null };
@@ -537,6 +568,19 @@ export async function readMercadoPagoCheckout(
     email: r.data.email,
     event: r.data.event,
     attemptStatus: attempt.data?.status || null,
+    paymentDetail: attempt.data?.provider_status_detail || null,
+    challenge:
+      s.data.status === "processing" &&
+      attempt.data?.status === "pending" &&
+      attempt.data.provider_status_detail === "pending_challenge" &&
+      safeMercadoPagoChallengeUrl(attempt.data.challenge_url)
+        ? {
+            url: safeMercadoPagoChallengeUrl(attempt.data.challenge_url),
+            expiresAt: new Date(
+              Date.parse(attempt.data.created_at) + 40 * 60_000,
+            ).toISOString(),
+          }
+        : null,
     concept: r.data.table?.name
       ? `Mesa / box ${r.data.table.name}`
       : r.data.ticket_type_label || "Entradas",

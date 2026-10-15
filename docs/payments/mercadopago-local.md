@@ -1,6 +1,6 @@
 # Mercado Pago: checkout local de entradas y mesas
 
-Estado: implementación de prueba, sin publicación ni cobros reales. Rama `codex/mercadopago-orders`.
+Estado al 2026-10-15: checkout y 3DS probados en sandbox. La firma de los webhooks automáticos tiene una incidencia pendiente; no liberar a producción. Rama `codex/mercadopago-orders`, sin publicación ni cobros reales.
 
 ## Entorno
 
@@ -29,6 +29,14 @@ La Public Key se entrega al formulario. Access Token, firma del webhook, llave d
 Las guardas de PostgreSQL serializan reservas por evento, bloquean dos reservas de la misma mesa y dos compras activas del mismo comprador, verifican aforo incluyendo tickets fuera de reservas y evitan emitir o reactivar tickets de una sesión impaga/devuelta. Una devolución completa desactiva los tickets y códigos.
 
 Las sesiones abandonadas vencen y liberan su reserva. Los intentos pendientes o desconocidos conservan su lugar hasta resolver el pago: un timeout no autoriza un nuevo cobro. La conciliación puede recuperar una orden por referencia y fechas incluso si el navegador se cerró sin recibir su ID. Un resultado vacío de búsqueda conserva la verificación.
+
+## Autenticación bancaria 3DS
+
+Orders recibe `config.online.transaction_security` con `validation=on_fraud_risk` y `liability_shift=required`. Cuando la orden canónica devuelve `action_required / pending_challenge`, se guarda la URL bancaria en la tabla privada de intentos y se muestra en el checkout autorizado. Solo se aceptan URLs HTTPS del proveedor y de la ruta de autenticación esperada; nunca URLs enviadas por el comprador.
+
+El recuadro puede reanudarse con el mismo enlace de compra. Un mensaje `COMPLETE` solo dispara una nueva consulta al servidor: exige origen y ventana correctos, y nunca emite un QR por sí mismo. El plazo visible del desafío es de cuarenta minutos desde la creación del intento. Al terminar el plazo se espera el estado canónico antes de liberar o permitir otro cobro. Los estados fallido/cancelado permiten otro intento únicamente si la reserva sigue vigente; una respuesta pendiente tardía no recupera un desafío de una compra ya pagada.
+
+La URL del desafío contiene una capacidad de invitado: no incluirla en logs, capturas de la barra de direcciones, commits ni reportes.
 
 ## Webhooks y conciliación
 
@@ -61,9 +69,22 @@ Para probar entrega externa se autorizó un túnel temporal, apuntando al proxy 
 - Pruebas locales de notificaciones repetidas, estados falsos en el body, importe distinto, capacidad, reserva simultánea, credencial incorrecta, reanudación de emisión y devolución.
 - Flujo público hasta checkout y vista móvil de 390 px sin desbordamiento horizontal.
 - Nominación de un acompañante en una mesa pagada: segundo QR independiente, sin volver a cobrar.
-- 67 pruebas aprobadas entre pagos, reservas, emisión y correo; tipos de backoffice y compilación de landing correctos.
+- 3DS real de sandbox con titular `APRO-CHOK`: desafío, aprobación y un QR de entrada.
+- 3DS real con `OTHE-CHNO`: desafío rechazado, cero QR y formulario disponible para reintentar.
+- Mesa / box 2, S/ 600 y ocho unidades: desafío reanudado tras recargar, cero QR antes de acreditar y QR del comprador después de aprobar.
+- Desafío de mesa en viewport de 390 px: formulario bancario y botón Confirmar visibles, sin desbordamiento horizontal.
+- Compra 3DS con la página cerrada: la API del proveedor ya estaba acreditada, la base local seguía pendiente; una pasada del worker la pasó a `fulfilled`, con un QR y cero errores. El webhook de esa orden seguía rechazado; esta evidencia corresponde a conciliación, no a entrega automática válida.
+- 41 pruebas aprobadas en diez archivos en esta iteración, comprobación de tipos y build de landing correctos. Cubren, entre otros, firma falsa, duplicados, aforo, exclusividad de mesa, rechazo, devolución, desafío persistente y mensajes de otras ventanas/orígenes. El vencimiento y la cancelación se cubrieron con fixtures locales; no se esperó un vencimiento real de cuarenta minutos en Mercado Pago.
 
-La entrega espontánea de eventos de órdenes sandbox no se da por verificada por la prueba del simulador. La compra aprobada se confirma además por respuesta canónica y conciliación. Antes de liberar, comprobar la suscripción de la aplicación/vendedor correspondiente con un endpoint estable y un evento automático de una nueva orden.
+### Incidencia reproducida: firma de eventos automáticos
+
+Las notificaciones espontáneas sí llegan al túnel, pero la firma falla con `SignatureMismatch` del SDK oficial `mercadopago@3.6.1`. El simulador del mismo panel, URL y clave obtiene HTTP 200. Se comprobó la coincidencia exacta entre la clave del panel y los archivos privados, sin imprimir valores. No se desactivó la validación.
+
+El titular restableció la configuración; se volvió a guardar únicamente la URL de prueba y el evento Order, se generó una firma distinta y se actualizó el servidor local. La nueva orden `ORDTST01M50VRTAYZGFVW0ARWCWFPER1` reprodujo HTTP 401 a las 22:43:53 y 22:45:47 UTC del 15 de octubre. El simulador con la firma nueva obtuvo HTTP 200 a las 22:46:15 UTC. El body y query coinciden en el ID; están presentes `x-request-id`, `ts` y `v1`. La causa de la diferencia de firma aún no está confirmada.
+
+Datos para una revisión con soporte de Mercado Pago, sin adjuntar credenciales: aplicación principal `2226437819713`, aplicación generada de prueba `6682958408134086`, vendedor sandbox `3765564505`, tópico `order`, orden y horarios anteriores, SDK 3.6.1. Solicitar que contrasten la firma usada por el emisor automático del vendedor de prueba con la firma del panel principal. No se envió ningún reporte a terceros.
+
+Antes de liberar, obtener HTTP 200 de un evento automático nuevo y confirmar la emisión con navegador y worker detenidos. La prueba del simulador y la recuperación por worker no sustituyen esa comprobación.
 
 ```powershell
 $env:BABY_MP_LOCAL_TESTS='1'
@@ -71,17 +92,18 @@ node node_modules/vitest/vitest.mjs run --maxWorkers=1 --minWorkers=1 --testTime
 node node_modules/vitest/vitest.mjs run packages/shared/payments/mercadopagoOrders.test.ts packages/shared/payments/mercadopagoConfig.test.ts apps/landing/lib/mercadopagoCard.test.ts
 ```
 
-La suite de base exige loopback, crea registros sintéticos en un evento propio y los da de baja al terminar. No ejecutar contra producción. La migración `20261015210000_mercadopago_checkout.sql` se aplicó exclusivamente en la base local, sin reinicializarla.
+La suite de base exige loopback, crea registros sintéticos en un evento propio y los da de baja al terminar. No ejecutar contra producción. Las migraciones `20261015210000_mercadopago_checkout.sql` y `20261015223000_mercadopago_3ds.sql` se aplicaron exclusivamente en la base local, sin reinicializarla.
 
 ## Paso productivo pendiente
 
-Esta rama no habilita live ni fue publicada. Antes de un release deben prepararse credenciales productivas separadas, endpoint HTTPS estable y entrega automática observada, worker duradero con alertas/revisión de intentos sin resolver, correo real y prueba de autenticación bancaria 3DS cuando sea requerida. El checkout actual cubre tarjetas; Yape dentro de Mercado Pago es otra integración. Los cambios se revisan antes de migrar datos reales o activar cobros.
+Esta rama no habilita live ni fue publicada. Antes de un release deben resolverse la firma automática anterior y la prueba independiente del webhook, prepararse credenciales productivas separadas, endpoint HTTPS estable, worker duradero con alertas/revisión de intentos sin resolver y correo real. 3DS está validado con los casos oficiales de sandbox. El checkout actual cubre tarjetas; Yape dentro de Mercado Pago es otra integración. Los cambios se revisan antes de migrar datos reales o activar cobros.
 
 ## Referencias
 
 - [Tarjetas / Checkout API Orders](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/payment-integration/websites/cards).
 - [Campos seguros oficiales](https://github.com/mercadopago/sdk-js/blob/main/docs/fields.md).
 - [Webhooks de Orders](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/notifications).
+- [3DS para Orders](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/payment-management/integrate-3ds).
 - [Búsqueda de órdenes](https://www.mercadopago.com.pe/developers/es/reference/online-payments/checkout-api/search-order/get).
 - [Tarjetas ficticias y estados de prueba](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/integration-test/cards).
 - Memoria contrastada: `20_Projects/babyclub-monorepo/00 Context.md`, `01 Status.md`, `02 Decisions.md`, `06 Requirements.md`. La decisión de tipos/precios por evento se mantiene en `docs/adr/2026-04-25-008-event-ticket-types-per-event.md`; el código y las migraciones prevalecen ante diferencias históricas.

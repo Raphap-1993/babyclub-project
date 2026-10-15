@@ -59,7 +59,7 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         ...seed.data,
         id: eventId,
         name: "QA MP aislado " + eventId.slice(0, 8),
-        capacity: 10,
+        capacity: 20,
         created_at: new Date().toISOString(),
       };
       check(await db.from("events").insert(event));
@@ -70,14 +70,12 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         .single();
       tableId = randomUUID();
       check(
-        await db
-          .from("tables")
-          .insert({
-            ...table.data,
-            id: tableId,
-            event_id: eventId,
-            name: "QA MP",
-          }),
+        await db.from("tables").insert({
+          ...table.data,
+          id: tableId,
+          event_id: eventId,
+          name: "QA MP",
+        }),
       );
     });
     afterEach(() => vi.stubGlobal("fetch", realFetch));
@@ -135,28 +133,26 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
       const token = randomBytes(32).toString("hex");
       const reservationId = randomUUID();
       check(
-        await db
-          .from("table_reservations")
-          .insert({
-            id: reservationId,
-            event_id: eventId,
-            table_id: table ? tableId : null,
-            full_name: "QA Pago " + reservationId.slice(0, 8),
-            email: `qa.${reservationId}@example.com`,
-            phone: null,
-            doc_type: "dni",
-            document: String(90000000 + sessions.length),
-            sale_origin: table ? "table" : "ticket",
-            status: "pending",
-            ticket_quantity: quantity,
-            total_ticket_units: quantity,
-            online_checkout_key: randomUUID(),
-            online_checkout_token_hash: hashCheckoutToken(token),
-            online_amount_cents: 4000,
-            online_checkout_expires_at: new Date(
-              Date.now() + 1200000,
-            ).toISOString(),
-          }),
+        await db.from("table_reservations").insert({
+          id: reservationId,
+          event_id: eventId,
+          table_id: table ? tableId : null,
+          full_name: "QA Pago " + reservationId.slice(0, 8),
+          email: `qa.${reservationId}@example.com`,
+          phone: null,
+          doc_type: "dni",
+          document: String(90000000 + sessions.length),
+          sale_origin: table ? "table" : "ticket",
+          status: "pending",
+          ticket_quantity: quantity,
+          total_ticket_units: quantity,
+          online_checkout_key: randomUUID(),
+          online_checkout_token_hash: hashCheckoutToken(token),
+          online_amount_cents: 4000,
+          online_checkout_expires_at: new Date(
+            Date.now() + 1200000,
+          ).toISOString(),
+        }),
       );
       const opened = await openMercadoPagoCheckout(db, reservationId, token);
       const session = check(
@@ -252,6 +248,64 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         }),
       ).rejects.toThrow("online_payment_not_accredited");
     });
+    it("keeps a 3DS hold without QR, recovers its challenge, then fulfills only canonical approval", async () => {
+      const s = await fixture();
+      const a = (await claim(s)).attempt;
+      const challenge = order(s, a, "pending");
+      challenge.status = "action_required";
+      challenge.status_detail = "pending_challenge";
+      Object.assign(challenge.transactions.payments[0], {
+        status: "action_required",
+        status_detail: "pending_challenge",
+        payment_method: {
+          transaction_security: {
+            url: "https://www.mercadopago.com.pe/auth/card/validation/pages/remedies/qa-3ds?guest_token=synthetic",
+          },
+        },
+      });
+      await applyMercadoPagoCanonicalOrder(db, a, challenge);
+      const pending = await readMercadoPagoCheckout(db, s, false);
+      expect(pending.status).toBe("processing");
+      expect(pending.buyerTicketId).toBeNull();
+      expect(pending.challenge?.url).toContain("/qa-3ds?");
+      expect((await claim(s)).action).toBe("reconcile");
+      // The normal twenty-minute hold must not release an unresolved challenge.
+      check(
+        await db
+          .from("mp_checkout_sessions")
+          .update({ expires_at: new Date(Date.now() - 1000).toISOString() })
+          .eq("id", s.id),
+      );
+      check(await db.rpc("mp_expire_checkouts"));
+      expect((await readMercadoPagoCheckout(db, s, false)).status).toBe(
+        "processing",
+      );
+      await applyMercadoPagoCanonicalOrder(db, a, order(s, a));
+      const paid = await readMercadoPagoCheckout(db, s, false);
+      expect(paid.status).toBe("fulfilled");
+      expect(paid.challenge).toBeNull();
+      expect(paid.buyerTicketId).toBeTruthy();
+      await applyMercadoPagoCanonicalOrder(db, a, challenge); // stale notification
+      expect(
+        (await readMercadoPagoCheckout(db, s, false)).challenge,
+      ).toBeNull();
+    });
+    it("releases a rejected or expired 3DS attempt without issuing a QR", async () => {
+      for (const state of ["failed", "canceled"]) {
+        const s = await fixture();
+        const a = (await claim(s)).attempt;
+        const rejected = order(s, a, "failed");
+        rejected.status = state;
+        rejected.status_detail =
+          state === "failed" ? "cc_rejected_3ds_challenge" : "expired";
+        await applyMercadoPagoCanonicalOrder(db, a, rejected);
+        const result = await readMercadoPagoCheckout(db, s, false);
+        expect(result.buyerTicketId).toBeNull();
+        expect(result.challenge).toBeNull();
+        expect(result.paymentDetail).toBe(rejected.status_detail);
+        expect((await claim(s)).action).toBe("submit");
+      }
+    });
     it("serializes attempts and reuses the same key after an unknown result", async () => {
       const s = await fixture();
       const one = await claim(s);
@@ -311,7 +365,7 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         1,
       );
       expect(contenders.filter((r) => r.status === "rejected")).toHaveLength(1);
-      await expect(fixture(20)).rejects.toThrow("event_capacity_exceeded");
+      await expect(fixture(30)).rejects.toThrow("event_capacity_exceeded");
     });
     it("blocks a second checkout for the same buyer before a second charge", async () => {
       const s = await fixture();
@@ -322,14 +376,12 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
           .eq("id", s.reservation_id)
           .single(),
       );
-      const duplicate = await db
-        .from("table_reservations")
-        .insert({
-          ...row,
-          id: randomUUID(),
-          online_checkout_key: randomUUID(),
-          online_checkout_token_hash: randomBytes(32).toString("hex"),
-        });
+      const duplicate = await db.from("table_reservations").insert({
+        ...row,
+        id: randomUUID(),
+        online_checkout_key: randomUUID(),
+        online_checkout_token_hash: randomBytes(32).toString("hex"),
+      });
       expect(duplicate.error?.message).toContain("reservation_buyer_active");
     });
     it("expires abandoned checkout holds but keeps unknown payment attempts reserved", async () => {
@@ -357,8 +409,16 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
             .eq("id", s.id),
         );
       }
-    expect((await readMercadoPagoCheckout(db,{...abandoned,expires_at:past},false)).status).toBe("expired");
-    check(await db.rpc("mp_expire_checkouts"));
+      expect(
+        (
+          await readMercadoPagoCheckout(
+            db,
+            { ...abandoned, expires_at: past },
+            false,
+          )
+        ).status,
+      ).toBe("expired");
+      check(await db.rpc("mp_expire_checkouts"));
       expect(
         check(
           await db

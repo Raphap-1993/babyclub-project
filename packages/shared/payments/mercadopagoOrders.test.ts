@@ -138,6 +138,9 @@ describe("Mercado Pago Orders", () => {
     expect(payload.transactions.payments[0].amount).toBe("40.01");
     expect(payload).not.toHaveProperty("metadata");
     expect(payload.processing_mode).toBe("automatic");
+    expect(payload.config.online.transaction_security).toEqual({
+      validation: "on_fraud_risk", liability_shift: "required",
+    });
     expect(() =>
       buildMercadoPagoCardOrder({
         ...input,

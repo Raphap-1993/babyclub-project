@@ -21,6 +21,9 @@ export type MercadoPagoOrder = {
       status_detail: string;
       amount: string;
       paid_amount?: string;
+      payment_method?: {
+        transaction_security?: { url?: string; status?: string };
+      };
     }>;
   };
 };
@@ -112,6 +115,14 @@ export function buildMercadoPagoCardOrder(input: MercadoPagoCardOrderInput) {
   return {
     type: "online",
     processing_mode: "automatic",
+    config: {
+      online: {
+        transaction_security: {
+          validation: "on_fraud_risk",
+          liability_shift: "required",
+        },
+      },
+    },
     total_amount: amount,
     external_reference: input.externalReference,
     payer: {

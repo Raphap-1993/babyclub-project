@@ -36,16 +36,23 @@ http
         redirect: "error",
         signal: AbortSignal.timeout(20_000),
       });
+      const responseText = await result.text();
+      let errorCode;
+      try {
+        const parsed = JSON.parse(responseText);
+        if (/^[a-z_]{1,80}$/.test(parsed.code || "")) errorCode = parsed.code;
+      } catch {}
       response
         .writeHead(result.status, {
           "Content-Type": "application/json",
           "Cache-Control": "no-store",
         })
-        .end(await result.text());
+        .end(responseText);
       console.log(
         JSON.stringify({
           time: new Date().toISOString(),
           status: result.status,
+          errorCode,
         }),
       );
     } catch {

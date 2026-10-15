@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import MercadoPagoCardForm from "./MercadoPagoCardForm";
+import MercadoPagoChallenge from "./MercadoPagoChallenge";
 import Script from "next/script";
 import {
   ArrowLeft,
@@ -23,6 +24,8 @@ type Checkout = {
   buyerTicketId: string | null;
   nominationUrl: string | null;
   attemptStatus?: string | null;
+  paymentDetail?: string | null;
+  challenge?: { url: string; expiresAt: string } | null;
   event?: { name: string };
 };
 export default function MercadoPagoCheckout({ id }: { id: string }) {
@@ -56,10 +59,14 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
       setCheckout(data.checkout);
       if (
         data.checkout.status === "awaiting_payment" &&
-        data.checkout.attemptStatus === "failed"
+        ["failed", "canceled"].includes(data.checkout.attemptStatus)
       )
         setMessage(
-          "El pago no fue aprobado. Revisa los datos o utiliza otra tarjeta.",
+          data.checkout.paymentDetail === "cc_rejected_3ds_challenge"
+            ? "El banco no pudo verificar tu tarjeta. Inténtalo de nuevo o utiliza otra tarjeta."
+            : data.checkout.paymentDetail === "expired"
+              ? "La verificación bancaria venció. El intento anterior quedó cerrado."
+              : "El pago no fue aprobado. Revisa los datos o utiliza otra tarjeta.",
         );
       return data.checkout as Checkout;
     },
@@ -113,7 +120,8 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
     checkout?.status === "awaiting_payment" &&
     Date.parse(checkout.expiresAt) > Date.now();
   useEffect(() => {
-    if (checkout?.status !== "fulfilled" && checkout?.status !== "expired") return;
+    if (checkout?.status !== "fulfilled" && checkout?.status !== "expired")
+      return;
     for (const key of Object.keys(sessionStorage)) {
       if (key.startsWith("baby-mp-request:")) {
         try {
@@ -129,6 +137,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
   const completed = checkout?.status === "fulfilled";
   const pending =
     checkout?.status === "processing" || checkout?.status === "paid";
+  const checkChallenge = useCallback(() => request(), [request]);
   return (
     <main className="min-h-screen bg-black px-4 py-7 text-white md:px-8 md:py-10">
       <Script
@@ -216,6 +225,13 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                   Mis entradas y acompañantes
                 </Link>
               </>
+            ) : checkout?.challenge ? (
+              <MercadoPagoChallenge
+                key={checkout.challenge.url}
+                url={checkout.challenge.url}
+                expiresAt={checkout.challenge.expiresAt}
+                onCheck={checkChallenge}
+              />
             ) : pending ? (
               <>
                 <LoaderCircle className="mb-5 animate-spin text-red-400" />
