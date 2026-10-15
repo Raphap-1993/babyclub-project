@@ -6,7 +6,8 @@ import {
 } from "./address";
 
 const DEFAULT_FROM_RAW = (
-  process.env.RESEND_FROM ?? "BabyClub Access <no-reply@babyclubaccess.com>"
+  process.env.RESEND_FROM?.trim() ||
+  "BabyClub Access <no-reply@babyclubaccess.com>"
 ).trim();
 const EXPECTED_DOMAIN = "@babyclubaccess.com";
 
@@ -29,14 +30,15 @@ export async function sendEmail({
   html,
   text,
   replyTo,
+  idempotencyKey,
 }: {
   to: string | string[];
   subject: string;
   html?: string;
   text?: string;
   replyTo?: string;
+  idempotencyKey?: string;
 }): Promise<CreateEmailResponse> {
-  const resend = getResendClient();
   validateFromAddress(DEFAULT_FROM_RAW);
   const normalizedTo = normalizeEmailRecipients(to);
   const recipientList = Array.isArray(normalizedTo)
@@ -62,7 +64,43 @@ export async function sendEmail({
     }
     (payload as any).reply_to = normalizedReplyTo;
   }
-  const result = await resend.emails.send(payload);
+  if (process.env.BABY_EMAIL_TRANSPORT === "mailpit") {
+    const url = new URL(process.env.MAILPIT_URL || "http://127.0.0.1:64324");
+    const dbUrl = new URL(process.env.SUPABASE_URL || "http://invalid");
+    const local = (host: string) =>
+      ["localhost", "127.0.0.1", "[::1]"].includes(host);
+    if (!local(url.hostname) || !local(dbUrl.hostname))
+      throw new Error("Mailpit requires local services");
+    const recipients = Array.isArray(normalizedTo)
+      ? normalizedTo
+      : [normalizedTo];
+    const response = await fetch(new URL("/api/v1/send", url), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        From: { Email: "no-reply@babyclubaccess.com", Name: "BabyClub local" },
+        To: recipients.map((Email) => ({ Email })),
+        Subject: subject,
+        HTML: html,
+        Text: text,
+        ...(idempotencyKey
+          ? { Headers: { "Message-ID": `<${idempotencyKey}@babyclub.local>` } }
+          : {}),
+      }),
+      signal: AbortSignal.timeout(10_000),
+      redirect: "error",
+    });
+    if (!response.ok)
+      throw new Error("Mailpit did not accept the local message");
+    const sent = await response.json();
+    if (!sent.ID) throw new Error("Mailpit did not confirm the local message");
+    return { data: { id: sent.ID }, error: null, headers: null };
+  }
+  const resend = getResendClient();
+  const result = await resend.emails.send(
+    payload,
+    idempotencyKey ? { idempotencyKey } : undefined,
+  );
   if (result.error) {
     throw new Error(result.error.message || "No se pudo enviar el correo");
   }

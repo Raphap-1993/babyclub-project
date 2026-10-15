@@ -103,7 +103,7 @@ type EventOption = {
   ticket_types?: TicketTypeOption[];
 };
 
-type PaymentMethod = "yape" | "culqi";
+type PaymentMethod = "yape" | "culqi" | "mercadopago";
 
 export default function CompraPage() {
   return (
@@ -284,18 +284,22 @@ function CompraContent({
     CULQI_ENABLED,
     CULQI_PUBLIC_KEY,
   );
+  const mpEnabled = Boolean(culqiAvailability.mercadopago);
   const culqiEnabled = culqiAvailability.enabled;
   const culqiPublicKey = culqiAvailability.publicKey;
 
   useEffect(() => {
-    if (culqiEnabled) {
+    if (mpEnabled) {
+      setSelectedPaymentMethod("mercadopago");
+      setSelectedPaymentMethodTicket("mercadopago");
+    } else if (culqiEnabled) {
       setSelectedPaymentMethod("culqi");
       setSelectedPaymentMethodTicket("culqi");
     } else {
       setSelectedPaymentMethod("yape");
       setSelectedPaymentMethodTicket("yape");
     }
-  }, [culqiEnabled]);
+  }, [culqiEnabled, mpEnabled]);
 
   const friendlyCulqiError = (raw: string | undefined): string => {
     if (!raw) return "No se pudo iniciar el pago online";
@@ -830,7 +834,7 @@ function CompraContent({
   // header text tweak
   const headerSubtitle = culqiEnabled
     ? "Genera tu entrada o reserva tu mesa pagando online con Culqi."
-    : "Compra tus entradas o reserva tu mesa con Yape o Plin.";
+    : mpEnabled ? "Compra tus entradas o reserva tu mesa con Mercado Pago." : "Compra tus entradas o reserva tu mesa con Yape o Plin.";
   const ticketPrice = activeTicketSelection?.price ?? 0;
   const ticketTotalUnits = activeTicketSelection?.totalUnits ?? 0;
   const ticketTotalPrice = activeTicketSelection?.totalPrice ?? 0;
@@ -965,7 +969,7 @@ function CompraContent({
       }
     }
 
-    if (canUseCulqiForMesa && selectedPaymentMethod === "culqi") {
+    if ((mpEnabled && selectedPaymentMethod === "mercadopago") || (canUseCulqiForMesa && selectedPaymentMethod === "culqi")) {
       await confirmReservation();
       return;
     }
@@ -978,18 +982,20 @@ function CompraContent({
     setError(null);
     setReservationSubmitted(false);
 
+    const useMP = mpEnabled && selectedPaymentMethod === "mercadopago";
+
     const useCulqi =
       culqiEnabled &&
       typeof totalPrice === "number" &&
       totalPrice > 0 &&
       selectedPaymentMethod === "culqi";
 
-    if (!useCulqi && !form.voucher_url) {
+    if (!useMP && !useCulqi && !form.voucher_url) {
       setModalError("Sube tu comprobante de pago para continuar.");
       setError("Sube tu comprobante de pago para continuar.");
       return;
     }
-    if (useCulqi && !form.email.trim()) {
+    if ((useMP || useCulqi) && !form.email.trim()) {
       setModalError("Ingresa un email para continuar con el pago online.");
       setError("Ingresa un email para continuar con el pago online.");
       return;
@@ -1034,7 +1040,8 @@ function CompraContent({
           event_id: selectedEventId || tableInfo?.event_id || null,
           code: defaultCode,
           voucher_url: form.voucher_url || undefined,
-          payment_method: useCulqi ? "culqi" : "yape",
+          payment_method: useMP ? "mercadopago" : useCulqi ? "culqi" : "yape",
+          ...(useMP ? getOnlineCheckoutIdentity(`mesa:${selectedEventId}:${selected}:${selectedProduct}:${form.document}:${form.email}:${totalPrice}`) : {}),
           promoter_ref: promoterRefFromUrl || undefined,
         promoter_id: promoterIdFromUrl || undefined,
           promoter_link_code_id: promoterLinkCodeIdFromUrl || undefined,
@@ -1046,6 +1053,8 @@ function CompraContent({
         const message = data?.error || "No se pudo registrar la reserva";
         setModalError(message);
         setError(message);
+      } else if (useMP && data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl);
       } else if (useCulqi && data.reservationId) {
         const amountCentavos = Math.round((totalPrice as number) * 100);
         const orderRes = await fetch("/api/payments/culqi/create-order", {
@@ -1218,7 +1227,7 @@ function CompraContent({
         // No bloquear por fallo del pre-check; el API final igual corta el caso.
       }
     }
-    if (canUseCulqiForTicket && selectedPaymentMethodTicket === "culqi") {
+    if ((mpEnabled && selectedPaymentMethodTicket === "mercadopago") || (canUseCulqiForTicket && selectedPaymentMethodTicket === "culqi")) {
       await confirmTicketPurchase();
       return;
     }
@@ -1263,13 +1272,14 @@ function CompraContent({
       setTicketError(message);
       return;
     }
+    const useMP = mpEnabled && selectedPaymentMethodTicket === "mercadopago";
     const useCulqi = culqiEnabled && selectedPaymentMethodTicket === "culqi";
-    if (!useCulqi && !ticketVoucherUrl) {
+    if (!useMP && !useCulqi && !ticketVoucherUrl) {
       setTicketModalError("Sube tu comprobante de pago para continuar.");
       setTicketError("Sube tu comprobante de pago para continuar.");
       return;
     }
-    if (useCulqi && !ticketForm.email.trim()) {
+    if ((useMP || useCulqi) && !ticketForm.email.trim()) {
       setTicketModalError(
         "Ingresa un email para continuar con el pago online.",
       );
@@ -1294,7 +1304,8 @@ function CompraContent({
           activeTicketSelection.ticketTypeId || undefined,
         expected_ticket_quantity: activeTicketSelection.ticketQuantity,
         expected_ticket_total_amount: activeTicketSelection.totalPrice,
-        payment_method: useCulqi ? "culqi" : "yape",
+        payment_method: useMP ? "mercadopago" : useCulqi ? "culqi" : "yape",
+          ...(useMP ? getOnlineCheckoutIdentity(`ticket:${ticketEventId}:${activeTicketSelection.ticketTypeCode}:${activeTicketSelection.packageQuantity}:${ticketForm.document}:${ticketForm.email}:${activeTicketSelection.totalPrice}`) : {}),
         promoter_ref: promoterRefFromUrl || undefined,
         promoter_id: promoterIdFromUrl || undefined,
         promoter_link_code_id: promoterLinkCodeIdFromUrl || undefined,
@@ -1310,6 +1321,8 @@ function CompraContent({
         const message = data?.error || "No se pudo registrar la reserva";
         setTicketModalError(message);
         setTicketError(message);
+      } else if (useMP && data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl);
       } else if (useCulqi && data.reservationId && data.amount) {
         const amountCentavos =
           typeof data.amount_cents === "number"
@@ -1380,10 +1393,10 @@ function CompraContent({
   const canUseCulqiForMesa =
     culqiEnabled && typeof totalPrice === "number" && totalPrice > 0;
   const canUseCulqiForTicket = culqiEnabled && ticketTotalPrice > 0;
-  const isMesaCulqiSelected =
-    canUseCulqiForMesa && selectedPaymentMethod === "culqi";
-  const isTicketCulqiSelected =
-    canUseCulqiForTicket && selectedPaymentMethodTicket === "culqi";
+  const isMesaOnlineSelected =
+    (mpEnabled && selectedPaymentMethod === "mercadopago") || (canUseCulqiForMesa && selectedPaymentMethod === "culqi");
+  const isTicketOnlineSelected =
+    (mpEnabled && selectedPaymentMethodTicket === "mercadopago") || (canUseCulqiForTicket && selectedPaymentMethodTicket === "culqi");
   const reservationDone = !!(successCodes && successCodes.length > 0);
   const totalLabel = formatPrice(totalPrice);
   const ticketConfirmationView =
@@ -1458,14 +1471,16 @@ function CompraContent({
   }, [mesaEventOptions, mode, selectedEventId]);
 
   useEffect(() => {
+    if (mpEnabled) { setSelectedPaymentMethod("mercadopago"); return; }
     if (canUseCulqiForMesa && selectedPaymentMethod !== "culqi") {
       setSelectedPaymentMethod("culqi");
     } else if (!canUseCulqiForMesa && selectedPaymentMethod === "culqi") {
       setSelectedPaymentMethod("yape");
     }
-  }, [canUseCulqiForMesa, selectedPaymentMethod]);
+  }, [canUseCulqiForMesa, selectedPaymentMethod, mpEnabled]);
 
   useEffect(() => {
+    if (mpEnabled) { setSelectedPaymentMethodTicket("mercadopago"); return; }
     if (canUseCulqiForTicket && selectedPaymentMethodTicket !== "culqi") {
       setSelectedPaymentMethodTicket("culqi");
     } else if (
@@ -1474,7 +1489,7 @@ function CompraContent({
     ) {
       setSelectedPaymentMethodTicket("yape");
     }
-  }, [canUseCulqiForTicket, selectedPaymentMethodTicket]);
+  }, [canUseCulqiForTicket, selectedPaymentMethodTicket, mpEnabled]);
 
   const activeStep = mode === "ticket" ? ticketStep : mesaStep;
   const setActiveStep = (step: PurchaseStepId) => {
@@ -1988,12 +2003,13 @@ function CompraContent({
                   title="Método de pago"
                   value={selectedPaymentMethodTicket}
                   onChange={setSelectedPaymentMethodTicket}
+                  mercadopagoAvailable={mpEnabled}
                   culqiAvailable={canUseCulqiForTicket}
                   amountLabel={
                     ticketTotalPrice > 0 ? `S/ ${ticketTotalPrice}` : null
                   }
                 />
-                {!isTicketCulqiSelected && (
+                {!isTicketOnlineSelected && (
                   <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -2028,7 +2044,7 @@ function CompraContent({
                     </div>
                   </div>
                 )}
-                {!isTicketCulqiSelected && (
+                {!isTicketOnlineSelected && (
                   <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                     <label className="text-sm font-semibold text-white">
                       Comprobante de pago
@@ -2184,7 +2200,7 @@ function CompraContent({
                   ? "Continuar"
                   : ticketLoading
                     ? "Enviando..."
-                    : isTicketCulqiSelected
+                    : isTicketOnlineSelected
                       ? "Continuar al pago"
                       : "Enviar solicitud"}
               </button>
@@ -2562,7 +2578,7 @@ function CompraContent({
                 {mesaStep === 4 && (
                   <div className="space-y-3 p-3">
                     <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/70">
-                      {isMesaCulqiSelected
+                      {isMesaOnlineSelected
                         ? "Verás el recuento y luego continuarás al pago online."
                         : "Subirás el comprobante y verás el recuento antes de enviar la reserva."}
                     </div>
@@ -2570,7 +2586,8 @@ function CompraContent({
                       title="Método de pago"
                       value={selectedPaymentMethod}
                       onChange={setSelectedPaymentMethod}
-                      culqiAvailable={canUseCulqiForMesa}
+                      mercadopagoAvailable={mpEnabled}
+                  culqiAvailable={canUseCulqiForMesa}
                       amountLabel={totalLabel}
                       compact
                     />
@@ -2579,7 +2596,7 @@ function CompraContent({
                       checked={mesaLegalAccepted}
                       onChange={setMesaLegalAccepted}
                     />
-                    {!isMesaCulqiSelected && (
+                    {!isMesaOnlineSelected && (
                       <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
@@ -2619,7 +2636,7 @@ function CompraContent({
                         )}
                       </div>
                     )}
-                    {!isMesaCulqiSelected && (
+                    {!isMesaOnlineSelected && (
                       <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                         <label className="text-sm font-semibold text-white">
                           Comprobante de pago
@@ -2745,7 +2762,7 @@ function CompraContent({
                         ? "Procesando..."
                         : mesaSaleBlock
                           ? "Reserva bloqueada"
-                          : isMesaCulqiSelected
+                          : isMesaOnlineSelected
                             ? "Continuar al pago"
                             : "Enviar reserva"}
                   </button>
@@ -2849,12 +2866,13 @@ function CompraContent({
               <PaymentMethodSelector
                 value={selectedPaymentMethod}
                 onChange={setSelectedPaymentMethod}
-                culqiAvailable={canUseCulqiForMesa}
+                mercadopagoAvailable={mpEnabled}
+                  culqiAvailable={canUseCulqiForMesa}
                 amountLabel={totalLabel}
                 compact
               />
             </div>
-            {!isMesaCulqiSelected && (
+            {!isMesaOnlineSelected && (
               <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -2892,7 +2910,7 @@ function CompraContent({
                 )}
               </div>
             )}
-            {!isMesaCulqiSelected && (
+            {!isMesaOnlineSelected && (
               <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                 <label className="text-sm font-semibold text-white">
                   Comprobante de pago
@@ -3048,7 +3066,7 @@ function CompraContent({
                   </>
                 )}
               </div>
-            ) : isMesaCulqiSelected ? (
+            ) : isMesaOnlineSelected ? (
               <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-4 text-base font-semibold text-white/80">
                 Al confirmar, abriremos el pago online con tarjeta. Tu reserva
                 se confirmará cuando el pago sea aprobado.
@@ -3079,7 +3097,7 @@ function CompraContent({
                   ? "Enviando..."
                   : reservationSubmitted
                     ? "Reserva enviada"
-                    : isMesaCulqiSelected
+                    : isMesaOnlineSelected
                       ? "Continuar al pago"
                       : "Enviar reserva"}
               </button>
@@ -3178,7 +3196,8 @@ function CompraContent({
               <PaymentMethodSelector
                 value={selectedPaymentMethodTicket}
                 onChange={setSelectedPaymentMethodTicket}
-                culqiAvailable={canUseCulqiForTicket}
+                mercadopagoAvailable={mpEnabled}
+                  culqiAvailable={canUseCulqiForTicket}
                 amountLabel={
                   ticketTotalPrice > 0 ? `S/ ${ticketTotalPrice}` : null
                 }
@@ -3186,7 +3205,7 @@ function CompraContent({
               />
             </div>
 
-            {!isTicketCulqiSelected && (
+            {!isTicketOnlineSelected && (
               <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -3220,7 +3239,7 @@ function CompraContent({
               </div>
             )}
 
-            {!isTicketCulqiSelected && (
+            {!isTicketOnlineSelected && (
               <div className="space-y-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4">
                 <label className="text-sm font-semibold text-white">
                   Comprobante de pago
@@ -3352,13 +3371,13 @@ function CompraContent({
               </p>
             )}
 
-            {!isTicketCulqiSelected && (
+            {!isTicketOnlineSelected && (
               <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
                 Recibimos tu solicitud de compra. El equipo BABY validará el
                 pago y te enviaremos la confirmación a tu bandeja de correo.
               </div>
             )}
-            {isTicketCulqiSelected && (
+            {isTicketOnlineSelected && (
               <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-3 text-xs font-semibold text-white/80">
                 Al confirmar, abriremos el pago online con tarjeta. Tu entrada
                 se confirmará cuando el pago sea aprobado.
@@ -3383,7 +3402,7 @@ function CompraContent({
               >
                 {ticketLoading
                   ? "Enviando..."
-                  : isTicketCulqiSelected
+                  : isTicketOnlineSelected
                     ? "Continuar al pago"
                     : "Enviar solicitud"}
               </button>
@@ -3679,6 +3698,7 @@ function PaymentMethodSelector({
   value,
   onChange,
   culqiAvailable,
+  mercadopagoAvailable,
   amountLabel,
   compact = false,
 }: {
@@ -3686,6 +3706,7 @@ function PaymentMethodSelector({
   value: PaymentMethod;
   onChange: (value: PaymentMethod) => void;
   culqiAvailable: boolean;
+  mercadopagoAvailable: boolean;
   amountLabel?: string | null;
   compact?: boolean;
 }) {
@@ -3707,7 +3728,12 @@ function PaymentMethodSelector({
         ) : null}
       </div>
 
-      {culqiAvailable ? (
+      {mercadopagoAvailable ? (
+        <button type="button" aria-pressed={value === "mercadopago"} onClick={() => onChange("mercadopago")} className={`${cardBase} ${value === "mercadopago" ? activeClass : idleClass}`}>
+          <CreditCard className="h-5 w-5 shrink-0" />
+          <span><span className="block text-sm font-semibold">Mercado Pago</span><span className="block text-xs text-white/60">Tarjeta de débito o crédito. QR al confirmar el pago.</span></span>
+        </button>
+      ) : culqiAvailable ? (
         <div className="grid gap-2">
           <button
             type="button"
@@ -3827,4 +3853,14 @@ function Field({
       {error && <p className="text-xs font-semibold text-[#ff9a9a]">{error}</p>}
     </label>
   );
+}
+
+function getOnlineCheckoutIdentity(scope: string) {
+  const key = "baby-mp-request:" + scope;
+  const previous = sessionStorage.getItem(key);
+  if (previous) return JSON.parse(previous);
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const identity = { checkout_request_id: crypto.randomUUID(), checkout_token: Array.from(bytes, b => b.toString(16).padStart(2,"0")).join("") };
+  sessionStorage.setItem(key, JSON.stringify(identity));
+  return identity;
 }

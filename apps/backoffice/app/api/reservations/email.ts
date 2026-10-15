@@ -20,6 +20,7 @@ export async function sendApprovalEmail({
   resourceLabel = "Mesa",
   callToAction,
   logAction = "reservation_approved",
+  idempotencyKey,
 }: {
   supabase?: Supabase | null;
   id: string;
@@ -37,6 +38,7 @@ export async function sendApprovalEmail({
   resourceLabel?: string;
   callToAction?: { label: string; url: string } | null;
   logAction?: "reservation_approved" | "reservation_confirmed";
+  idempotencyKey?: string;
 }) {
   const safeName = escape(full_name || "");
   const safeTable = escape(tableName || resourceLabel);
@@ -113,6 +115,7 @@ export async function sendApprovalEmail({
       subject,
       html,
       text: textBody,
+      idempotencyKey,
     });
     providerId = result?.data?.id || null;
     if (result?.error) {
@@ -130,6 +133,7 @@ export async function sendApprovalEmail({
       reservationId: id,
       meta: { codes_count: codes.length, recipient_domain: recipientDomain },
     });
+    return { providerId };
   } catch (err: any) {
     await logProcessEvent({
       supabase: supabase || null,
@@ -452,8 +456,6 @@ export async function sendTicketEmail({
   let providerId: string | null = null;
 
   try {
-    if (!process.env.RESEND_API_KEY)
-      throw new Error("Correo no disponible: configura RESEND_API_KEY");
     const result: any = await sendEmail({
       to: recipientEmail,
       subject,

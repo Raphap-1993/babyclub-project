@@ -5,6 +5,7 @@ import {
   evaluateMercadoPagoOrder,
   formatMercadoPagoAmount,
   getMercadoPagoOrder,
+  findMercadoPagoOrder,
   parseMercadoPagoAmount,
   type MercadoPagoOrder,
 } from "./mercadopagoOrders";
@@ -54,6 +55,70 @@ const paid: MercadoPagoOrder = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Mercado Pago Orders", () => {
+  it("recupera la orden por la referencia persistida sin volver a cobrar", async () => {
+    const reference = "a0000000-0000-4000-8000-000000000001";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({
+          data: [{ id: "ORDRECOVERED", external_reference: reference }],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(
+      await findMercadoPagoOrder(
+        reference,
+        new Date().toISOString(),
+        "synthetic-access",
+      ),
+    ).toBe("ORDRECOVERED");
+    expect(
+      new URL(fetchMock.mock.calls[0][0]).searchParams.get(
+        "external_reference",
+      ),
+    ).toBe(reference);
+    expect(fetchMock.mock.calls[0][1].method).toBeUndefined();
+    fetchMock.mockResolvedValue(Response.json({ data: [] }));
+    expect(
+      await findMercadoPagoOrder(
+        reference,
+        new Date().toISOString(),
+        "synthetic-access",
+      ),
+    ).toBeNull();
+    fetchMock.mockResolvedValue(
+      Response.json({ data: [{ id: "wrong", external_reference: "another" }] }),
+    );
+    await expect(
+      findMercadoPagoOrder(
+        reference,
+        new Date().toISOString(),
+        "synthetic-access",
+      ),
+    ).rejects.toThrow("no coincide");
+  });
+  it("normaliza C.E del Brick al CE admitido por Orders Perú", () => {
+    const payload = buildMercadoPagoCardOrder({
+      ...input,
+      payer: {
+        email: input.payer.email,
+        identification: { type: "C.E", number: "123456789" },
+      },
+    });
+    expect(payload.payer.identification).toEqual({
+      type: "CE",
+      number: "123456789",
+    });
+    expect(() =>
+      buildMercadoPagoCardOrder({
+        ...input,
+        payer: {
+          email: input.payer.email,
+          identification: { type: "Otro", number: "123456789" },
+        },
+      }),
+    ).toThrow("Usa DNI, C.E o RUC");
+  });
   it("convierte céntimos sin redondeos de punto flotante", () => {
     expect(formatMercadoPagoAmount(4001)).toBe("40.01");
     expect(formatMercadoPagoAmount(1)).toBe("0.01");

@@ -1,3 +1,4 @@
+import { getMercadoPagoPublicStatus } from "shared/payments/mercadopagoConfig";
 import { NextResponse } from "next/server";
 import { getPaymentGateway } from "shared/payments/registry";
 
@@ -20,6 +21,7 @@ export async function GET() {
     success: true,
     providers: {
       culqi: getCulqiStatus(),
+      mercadopago: getMercadoPagoPublicStatus(),
     },
   });
 }

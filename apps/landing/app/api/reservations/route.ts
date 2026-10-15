@@ -1,3 +1,6 @@
+import { readOnlineCheckoutRequest } from "shared/payments/mercadopagoConfig";
+import { toPaymentServiceError } from "shared/payments/errors";
+import { checkoutDatabaseError, recoverMercadoPagoCheckout, openMercadoPagoCheckout } from "../../../lib/mercadopagoCheckoutServer";
 import { PurchaseAttributionError, resolvePurchaseAttribution } from "shared/promoterAttribution";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -117,7 +120,19 @@ export async function POST(req: NextRequest) {
   const paymentMethod =
     typeof body?.payment_method === "string" ? body.payment_method : "yape";
 
-  if (!table_id || !full_name || (paymentMethod !== "culqi" && !voucher_url)) {
+  let onlineMetadata: Record<string, any> = {};
+  if (paymentMethod === "mercadopago") {
+    try {
+      onlineMetadata = readOnlineCheckoutRequest(body);
+      const previous = await recoverMercadoPagoCheckout(supabase, body);
+      if (previous) return NextResponse.json(previous);
+    } catch (error) {
+      const failure = toPaymentServiceError(error);
+      return NextResponse.json({ success: false, error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
+
+  if (!table_id || !full_name || (paymentMethod !== "culqi" && paymentMethod !== "mercadopago" && !voucher_url)) {
     return NextResponse.json(
       {
         success: false,
@@ -164,7 +179,7 @@ export async function POST(req: NextRequest) {
   const activeProductsQuery = applyNotDeleted(
     supabase
       .from("table_products")
-      .select("id,table_id,is_active")
+      .select("id,table_id,is_active,price")
       .eq("table_id", table_id)
       .eq("is_active", true),
   );
@@ -303,6 +318,10 @@ export async function POST(req: NextRequest) {
   }
 
   // No permitir doble solicitud sobre la misma mesa para el mismo evento en estados activos.
+  if (paymentMethod === "mercadopago") {
+    const expiry = await supabase.rpc("mp_expire_checkouts");
+    if (expiry.error) return NextResponse.json({ success: false, error: "No se pudo comprobar la disponibilidad" }, { status: 503 });
+  }
   let reservationTakenQuery = applyNotDeleted(
     supabase
       .from("table_reservations")
@@ -420,6 +439,8 @@ export async function POST(req: NextRequest) {
     friendlyCode = `${friendlyBase}${randomNum}`;
 
     const reservationPayload: Record<string, any> = {
+      ...onlineMetadata,
+      ...(paymentMethod === "mercadopago" ? { online_amount_cents: Math.round(Number(selectedProduct.price) * 100) } : {}),
       table_id,
       event_id: effectiveEventId,
       sale_origin: "table",
@@ -434,6 +455,7 @@ export async function POST(req: NextRequest) {
       status: "pending",
       friendly_code: friendlyCode,
       ticket_quantity: ticketCount,
+      ...(paymentMethod === "mercadopago" ? { total_ticket_units: ticketCount, package_quantity: 1 } : {}),
       promoter_id,
       promoter_link_code_id: promoterLinkCodeId,
       promoter_link_code: promoterLinkCode,
@@ -463,6 +485,12 @@ export async function POST(req: NextRequest) {
       break;
     }
 
+    if (paymentMethod === "mercadopago" && (resError.code === "23505" || resError.code === "23514")) {
+      const previous = await recoverMercadoPagoCheckout(supabase, body);
+      if (previous) return NextResponse.json(previous);
+      const failure = checkoutDatabaseError(resError);
+      return NextResponse.json({ success: false, error: failure.message }, { status: failure.status });
+    }
     // If it's a unique constraint violation, retry with a new code
     if (resError.code !== "23505" || insertAttempts >= 5) {
       return NextResponse.json(
@@ -482,6 +510,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (paymentMethod === "mercadopago") {
+    try { return NextResponse.json({ success: true, reservationId, ...await openMercadoPagoCheckout(supabase, reservationId, body.checkout_token) }); }
+    catch (error) { const failure = toPaymentServiceError(error); return NextResponse.json({ success: false, error: failure.message }, { status: failure.status }); }
+  }
   let codesList: string[] = [];
   if (codesToGenerate > 0 && effectiveEventId) {
     const buildCodes = (typeValue: "table" | "courtesy") =>

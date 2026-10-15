@@ -55,6 +55,22 @@ export type MercadoPagoCardOrderInput = {
 
 export function buildMercadoPagoCardOrder(input: MercadoPagoCardOrderInput) {
   const amount = formatMercadoPagoAmount(input.amountCents);
+  // MP.js labels the Peruvian foreign-resident document "C.E" while Orders
+  // accepts "CE". Keep the normalization at the provider boundary.
+  const identification = input.payer.identification
+    ? {
+        type:
+          typeof input.payer.identification.type === "string"
+            ? input.payer.identification.type
+                .replace(/[.\s]/g, "")
+                .toUpperCase()
+            : "",
+        number:
+          typeof input.payer.identification.number === "string"
+            ? input.payer.identification.number.trim()
+            : "",
+      }
+    : undefined;
   if (
     !/^[\w-]{1,64}$/.test(input.externalReference) ||
     !/^[\w-]{16,64}$/.test(input.idempotencyKey)
@@ -66,7 +82,8 @@ export function buildMercadoPagoCardOrder(input: MercadoPagoCardOrderInput) {
   }
   const method = input.paymentMethod;
   if (
-    !method.token?.trim() ||
+    typeof method.token !== "string" ||
+    !method.token.trim() ||
     method.token.length > 512 ||
     !/^[a-z0-9_]{1,64}$/.test(method.id) ||
     method.id === "yape" ||
@@ -80,6 +97,16 @@ export function buildMercadoPagoCardOrder(input: MercadoPagoCardOrderInput) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.payer.email)) {
     throw new PaymentServiceError("Correo del pagador inválido", 400);
   }
+  if (
+    identification &&
+    (!["DNI", "CE", "RUC"].includes(identification.type) ||
+      !/^[a-zA-Z0-9-]{3,32}$/.test(identification.number))
+  ) {
+    throw new PaymentServiceError(
+      "Usa DNI, C.E o RUC como documento del pagador",
+      400,
+    );
+  }
   // Explicit fields prevent browser-supplied amounts or arbitrary metadata from
   // reaching Orders. This payload is transient and must never be logged/stored.
   return {
@@ -89,11 +116,11 @@ export function buildMercadoPagoCardOrder(input: MercadoPagoCardOrderInput) {
     external_reference: input.externalReference,
     payer: {
       email: input.payer.email,
-      ...(input.payer.identification
+      ...(identification
         ? {
             identification: {
-              type: input.payer.identification.type,
-              number: input.payer.identification.number,
+              type: identification.type,
+              number: identification.number,
             },
           }
         : {}),
@@ -143,10 +170,65 @@ async function ordersRequest(
     );
   }
   if (!response.ok) {
+    const failure = await response.json().catch(() => ({}));
+    const codes = [
+      failure.error,
+      failure.code,
+      ...(Array.isArray(failure.errors)
+        ? failure.errors.map((item: any) => item.code)
+        : []),
+    ].filter(
+      (code: unknown) =>
+        typeof code === "string" &&
+        /^[a-zA-Z0-9_.-]{1,100}$/.test(code as string),
+    );
+    const fields = (Array.isArray(failure.errors) ? failure.errors : [])
+      .flatMap((item: any) => [
+        item.field,
+        item.property,
+        item.path,
+        ...(Array.isArray(item.details)
+          ? item.details.map(
+              (detail: any) => detail.field || detail.path || detail.property,
+            )
+          : []),
+      ])
+      .filter(
+        (field: unknown) =>
+          typeof field === "string" &&
+          /^(transactions|payments|payer|total_amount|external_reference|processing_mode|type)[a-zA-Z0-9_.\[\]]*$/.test(
+            field as string,
+          ),
+      );
+    const invalidFields =
+      JSON.stringify(failure.errors || []).match(
+        /(?:payer|transactions|total_amount|external_reference|processing_mode)(?:\.[a-zA-Z_]+|\[\d\])*/g,
+      ) || [];
+    const sentType =
+      typeof init.body === "string"
+        ? JSON.parse(init.body).payer?.identification?.type
+        : undefined;
+    console.warn(
+      JSON.stringify({
+        event: "mercadopago_orders_rejected",
+        status: response.status,
+        codes,
+        fields,
+        invalidFields,
+        sentDocumentType:
+          typeof sentType === "string" && /^[a-zA-Z. ]{1,8}$/.test(sentType)
+            ? sentType
+            : undefined,
+      }),
+    );
     throw new PaymentServiceError(
-      `Mercado Pago devolvió HTTP ${response.status}`,
+      [400, 422].includes(response.status)
+        ? "Mercado Pago no aprobó este intento. Revisa los datos o utiliza otra tarjeta."
+        : "Mercado Pago no está disponible para procesar este intento en este momento.",
       502,
-      "mercadopago_api_error",
+      [400, 401, 403, 404, 422].includes(response.status)
+        ? "mercadopago_request_rejected"
+        : "mercadopago_api_error",
     );
   }
   let data: MercadoPagoOrder;
@@ -195,6 +277,61 @@ export async function getMercadoPagoOrder(
   if (order.id !== orderId)
     throw new PaymentServiceError("La orden recibida no coincide", 502);
   return order;
+}
+
+export async function findMercadoPagoOrder(
+  externalReference: string,
+  createdAt: string,
+  accessToken: string,
+): Promise<string | null> {
+  if (
+    !/^[a-f0-9-]{36}$/i.test(externalReference) ||
+    !Number.isFinite(Date.parse(createdAt))
+  )
+    throw new PaymentServiceError("Referencia de compra inválida", 400);
+  const query = new URLSearchParams({
+    external_reference: externalReference,
+    type: "online",
+    page_size: "2",
+    begin_date: new Date(Date.parse(createdAt) - 300_000).toISOString(),
+    end_date: new Date(Date.now() + 60_000).toISOString(),
+  });
+  let response: Response;
+  try {
+    response = await fetch(`https://api.mercadopago.com/v1/orders?${query}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new PaymentServiceError(
+      "El pago continúa en verificación",
+      502,
+      "payment_result_unknown",
+    );
+  }
+  if (!response.ok)
+    throw new PaymentServiceError(
+      "El pago continúa en verificación",
+      502,
+      "payment_result_unknown",
+    );
+  const result = await response.json();
+  if (!Array.isArray(result.data) || result.data.length > 1)
+    throw new PaymentServiceError(
+      "La compra requiere revisión",
+      409,
+      "payment_result_unknown",
+    );
+  const order = result.data[0];
+  if (!order) return null; // Absence is NOT evidence that charging again is safe.
+  if (
+    order.external_reference !== externalReference ||
+    typeof order.id !== "string"
+  )
+    throw new PaymentServiceError("La orden no coincide con la compra", 409);
+  return order.id;
 }
 
 export function evaluateMercadoPagoOrder(

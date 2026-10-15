@@ -1,3 +1,6 @@
+import { readOnlineCheckoutRequest } from "shared/payments/mercadopagoConfig";
+import { toPaymentServiceError } from "shared/payments/errors";
+import { checkoutDatabaseError, recoverMercadoPagoCheckout, openMercadoPagoCheckout } from "../../../lib/mercadopagoCheckoutServer";
 import { PurchaseAttributionError, resolvePurchaseAttribution } from "shared/promoterAttribution";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -408,7 +411,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (paymentMethod !== "culqi" && !voucher_url) {
+  if (paymentMethod !== "culqi" && paymentMethod !== "mercadopago" && !voucher_url) {
     return NextResponse.json(
       { success: false, error: "voucher_url es requerido" },
       { status: 400 },
@@ -430,6 +433,18 @@ export async function POST(req: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+
+  let onlineMetadata: Record<string, any> = {};
+  if (paymentMethod === "mercadopago") {
+    try {
+      onlineMetadata = readOnlineCheckoutRequest(body);
+      const previous = await recoverMercadoPagoCheckout(supabase, body);
+      if (previous) return NextResponse.json(previous);
+    } catch (error) {
+      const failure = toPaymentServiceError(error);
+      return NextResponse.json({ success: false, error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
 
   const eventQuery = applyNotDeleted(
     supabase
@@ -626,6 +641,8 @@ export async function POST(req: NextRequest) {
   const { promoterId: promoter_id, promoterLinkCodeId, promoterLinkCode } = attribution;
 
   const insertPayload: Record<string, any> = {
+    ...onlineMetadata,
+    ...(paymentMethod === "mercadopago" ? { online_amount_cents: Math.round(totalAmount * 100) } : {}),
     table_id: null,
     event_id: event_id,
     sale_origin: "ticket",
@@ -673,12 +690,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (resError) {
+    if (paymentMethod === "mercadopago") {
+      const previous = await recoverMercadoPagoCheckout(supabase, body);
+      if (previous) return NextResponse.json(previous);
+      const failure = checkoutDatabaseError(resError);
+      return NextResponse.json({ success: false, error: failure.message }, { status: failure.status });
+    }
     return NextResponse.json(
       { success: false, error: resError.message },
       { status: 500 },
     );
   }
 
+  if (paymentMethod === "mercadopago") {
+    try { return NextResponse.json({ success: true, reservationId: reservation.id, ...await openMercadoPagoCheckout(supabase, reservation.id, body.checkout_token) }); }
+    catch (error) { const failure = toPaymentServiceError(error); return NextResponse.json({ success: false, error: failure.message }, { status: failure.status }); }
+  }
   try {
     const unitRows = buildReservationUnits({
       reservationId: reservation.id,

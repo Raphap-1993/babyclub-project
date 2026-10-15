@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 type CulqiAvailability = {
+  mercadopago?: boolean;
   checked: boolean;
   enabled: boolean;
   publicKey: string;
@@ -42,6 +43,7 @@ export function useCulqiAvailability(
 
         if (active) {
           setState({
+            mercadopago: Boolean(data?.providers?.mercadopago?.enabled),
             checked: true,
             enabled,
             publicKey: enabled ? publicKey : "",
