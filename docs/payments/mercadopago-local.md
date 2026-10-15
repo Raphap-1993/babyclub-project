@@ -1,6 +1,6 @@
 # Mercado Pago: checkout local de entradas y mesas
 
-Estado al 2026-10-15: checkout y 3DS probados en sandbox. La firma de los webhooks automáticos tiene una incidencia pendiente; no liberar a producción. Rama `codex/mercadopago-orders`, sin publicación ni cobros reales.
+Estado al 2026-10-15 18:06 America/Lima: checkout, 3DS y webhooks automáticos probados en sandbox. Incidencia de firma resuelta y emisión independiente de QR comprobada para entrada y mesa. Rama `codex/mercadopago-orders`, sin publicación ni cobros reales; todavía falta preparar el entorno productivo.
 
 ## Entorno
 
@@ -40,7 +40,9 @@ La URL del desafío contiene una capacidad de invitado: no incluirla en logs, ca
 
 ## Webhooks y conciliación
 
-Endpoint: `POST /api/payments/mercadopago/webhook`. Valida firma con `WebhookSignatureValidator` del SDK oficial, exige que coincidan query y body, persiste el evento y consulta el recurso canónico. Nunca aprueba a partir del importe o estado del body.
+Endpoint: `POST /api/payments/mercadopago/webhook`. Valida firma con `WebhookSignatureValidator` del SDK oficial. Pasa el ID en minúsculas al validador, como lo firma el emisor automático de Orders; el SDK Node 3.6.1 solo recorta espacios y no realiza esa conversión. Conserva el ID original para comprobar la coincidencia exacta entre query y body, persistir el evento y consultar el recurso canónico. Nunca aprueba a partir del importe o estado del body.
+
+La clave local debe pertenecer a la aplicación sandbox `6682958408134086`, no a la principal `2226437819713`. Para obtenerla, iniciar sesión en Developers con **Seller Test User** (cuenta ficticia de la aplicación principal), abrir la aplicación sandbox y consultar Webhooks > Configurar notificaciones. La URL de prueba puede propagarse desde la principal, pero su firma es distinta. Leer y guardar la clave existente en los dos archivos privados; no restablecer firmas para intentar corregir esta diferencia de cuentas. No imprimir ni adjuntar claves.
 
 El simulador del panel envía `live_mode=true` incluso a la URL de prueba. El ambiente se comprueba contra el vendedor y la aplicación canónicos, no contra ese indicador del simulador.
 
@@ -65,7 +67,7 @@ Para probar entrega externa se autorizó un túnel temporal, apuntando al proxy 
 - Compra con C.E acreditada usando los campos seguros y sin duplicar identificación en Orders.
 - Rechazo `OTHE`: la orden puede llegar con HTTP 402 aunque exista. Se recupera y registra como fallida, permitiendo otro intento sin otra reserva ni QR.
 - Pendiente `CONT`: conserva la compra en verificación, con cero QR.
-- Webhook enviado desde el simulador oficial: firma válida y HTTP 200, sin duplicar la entrada existente.
+- Webhooks automáticos de entrada y mesa: firma válida y HTTP 200, con checkout cerrado y worker detenido. Acreditaron las compras y emitieron el QR de cada comprador.
 - Pruebas locales de notificaciones repetidas, estados falsos en el body, importe distinto, capacidad, reserva simultánea, credencial incorrecta, reanudación de emisión y devolución.
 - Flujo público hasta checkout y vista móvil de 390 px sin desbordamiento horizontal.
 - Nominación de un acompañante en una mesa pagada: segundo QR independiente, sin volver a cobrar.
@@ -76,15 +78,28 @@ Para probar entrega externa se autorizó un túnel temporal, apuntando al proxy 
 - Compra 3DS con la página cerrada: la API del proveedor ya estaba acreditada, la base local seguía pendiente; una pasada del worker la pasó a `fulfilled`, con un QR y cero errores. El webhook de esa orden seguía rechazado; esta evidencia corresponde a conciliación, no a entrega automática válida.
 - 41 pruebas aprobadas en diez archivos en esta iteración, comprobación de tipos y build de landing correctos. Cubren, entre otros, firma falsa, duplicados, aforo, exclusividad de mesa, rechazo, devolución, desafío persistente y mensajes de otras ventanas/orígenes. El vencimiento y la cancelación se cubrieron con fixtures locales; no se esperó un vencimiento real de cuarenta minutos en Mercado Pago.
 
-### Incidencia reproducida: firma de eventos automáticos
+### Firma automática: causa y corrección verificadas
 
-Las notificaciones espontáneas sí llegan al túnel, pero la firma falla con `SignatureMismatch` del SDK oficial `mercadopago@3.6.1`. El simulador del mismo panel, URL y clave obtiene HTTP 200. Se comprobó la coincidencia exacta entre la clave del panel y los archivos privados, sin imprimir valores. No se desactivó la validación.
+El primer diagnóstico reprodujo `SignatureMismatch` con notificaciones espontáneas y HTTP 200 con el simulador de la aplicación principal. La clave del panel principal sí coincidía con los archivos privados, pero **no era la clave de la aplicación que emitía los eventos automáticos**. Restablecer la clave principal no resolvía esa diferencia.
 
-El titular restableció la configuración; se volvió a guardar únicamente la URL de prueba y el evento Order, se generó una firma distinta y se actualizó el servidor local. La nueva orden `ORDTST01M50VRTAYZGFVW0ARWCWFPER1` reprodujo HTTP 401 a las 22:43:53 y 22:45:47 UTC del 15 de octubre. El simulador con la firma nueva obtuvo HTTP 200 a las 22:46:15 UTC. El body y query coinciden en el ID; están presentes `x-request-id`, `ts` y `v1`. La causa de la diferencia de firma aún no está confirmada.
+Se accedió a la aplicación del vendedor ficticio con su propia cuenta y se comprobó que tenía otra firma. Al combinar esa firma con `data.id.toLowerCase()`, coincidieron exactamente los HMAC de tres notificaciones automáticas ya capturadas. Con la firma principal o con el ID en mayúsculas no coincidían. La corrección mantiene HMAC obligatorio y la consulta canónica; no añade excepciones para sandbox ni acepta firmas inválidas.
 
-Datos para una revisión con soporte de Mercado Pago, sin adjuntar credenciales: aplicación principal `2226437819713`, aplicación generada de prueba `6682958408134086`, vendedor sandbox `3765564505`, tópico `order`, orden y horarios anteriores, SDK 3.6.1. Solicitar que contrasten la firma usada por el emisor automático del vendedor de prueba con la firma del panel principal. No se envió ningún reporte a terceros.
+Prueba independiente el 15 de octubre, con el formulario bancario 3DS abierto por separado, la página BABY cerrada y el worker detenido antes de aprobar:
 
-Antes de liberar, obtener HTTP 200 de un evento automático nuevo y confirmar la emisión con navegador y worker detenidos. La prueba del simulador y la recuperación por worker no sustituyen esa comprobación.
+| Compra sandbox | Orden | Notificación procesada (America/Lima) | Resultado |
+| --- | --- | --- | --- |
+| Entrada S/ 40 | `ORDTST01M50WJ10ZQMSH2YMK46WRS4VC` | 18:03:44 | HTTP 200, `fulfilled`, un QR activo |
+| Mesa / box 3 S/ 600 | `ORDTST01M50WYKFA4A23HEAHVXE1F9T7` | 18:05:38 | HTTP 200, `fulfilled`, QR del comprador y diez unidades |
+
+El box 3 tiene `tables.ticket_count=10`; esa es la cantidad que usa la reserva, aunque la descripción de su producto local menciona ocho. Se preservó la regla existente y no se alteró su configuración en este arreglo. Antes de acreditar, ambas compras tenían cero QR. La mesa quedó con una unidad emitida y nueve pendientes de nominación, según la regla de un QR por persona identificada.
+
+Reenviar cinco veces en paralelo el evento automático capturado de la mesa devolvió HTTP 200 con `duplicated=true`, conservando el mismo QR. Alterar su firma devolvió HTTP 401. La regresión local comprueba además que el body/query deben coincidir exactamente y que el ID original llega a la API canónica. 41 pruebas en diez archivos y build de landing aprobados.
+
+Desde Mis entradas se nominó un acompañante ficticio y se emitió su QR independiente: la mesa pasó a dos de diez entradas listas, sin otro pago. Se extrajeron los tres PNG realmente servidos por las páginas de ticket (entrada, comprador de mesa y acompañante), de 520 × 520 px, y se decodificaron localmente con ZXing. Cada contenido coincidió con su `tickets.qr_token` activo y los tres fueron distintos. El correo de prueba se capturó en Mailpit.
+
+Evidencia local, excluida de Git: `../mercadopago/webhook-mesa-confirmada.png`, `../mercadopago/webhook-mesa-acompanante.png` y `../mercadopago/webhook-entrada-qr-visible.png` (rutas relativas a este checkout). El túnel y el proxy de diagnóstico se cierran al terminar; se conserva la aplicación local y se reactiva el worker de recuperación.
+
+La comprobación independiente del webhook quedó satisfecha; los resultados anteriores no dependen del simulador ni de la conciliación. No se envió ningún reporte a terceros.
 
 ```powershell
 $env:BABY_MP_LOCAL_TESTS='1'
@@ -96,7 +111,7 @@ La suite de base exige loopback, crea registros sintéticos en un evento propio 
 
 ## Paso productivo pendiente
 
-Esta rama no habilita live ni fue publicada. Antes de un release deben resolverse la firma automática anterior y la prueba independiente del webhook, prepararse credenciales productivas separadas, endpoint HTTPS estable, worker duradero con alertas/revisión de intentos sin resolver y correo real. 3DS está validado con los casos oficiales de sandbox. El checkout actual cubre tarjetas; Yape dentro de Mercado Pago es otra integración. Los cambios se revisan antes de migrar datos reales o activar cobros.
+Esta rama no habilita live ni fue publicada. Antes de un release deben prepararse credenciales productivas separadas (incluida la firma de la aplicación productiva), endpoint HTTPS estable, worker duradero con alertas/revisión de intentos sin resolver y correo real. 3DS y webhook automático están validados en sandbox. El checkout actual cubre tarjetas; Yape dentro de Mercado Pago es otra integración. Los cambios se revisan antes de migrar datos reales o activar cobros.
 
 ## Referencias
 

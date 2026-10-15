@@ -621,7 +621,10 @@ export async function processMercadoPagoWebhook(
     WebhookSignatureValidator.validate({
       xSignature: input.headers.get("x-signature"),
       xRequestId: input.headers.get("x-request-id"),
-      dataId: id,
+      // Automatic Orders notifications sign the lowercase ID. Keep the exact
+      // original ID for the envelope check and subsequent canonical API lookup.
+      // mercadopago@3.6.1 trims this input but does not lowercase it itself.
+      dataId: id.toLowerCase(),
       secret: config.webhookSecret,
     });
   } catch {
