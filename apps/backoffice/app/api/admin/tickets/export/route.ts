@@ -1,3 +1,4 @@
+import { matchesTicketSaleFilter } from "shared/salePayment";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
@@ -138,7 +139,7 @@ export async function GET(req: NextRequest) {
           supabase
             .from("tickets")
             .select(
-              "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,promoter_id,table_reservation_id)",
+              "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,payment_status,table_reservation_id,code:codes(id,code,promoter_id,table_reservation_id)",
             )
             .eq("is_active", true)
             .order("created_at", { ascending: false })
@@ -167,7 +168,9 @@ export async function GET(req: NextRequest) {
         if (promoter_id) {
           const promoterFilters = [`promoter_id.eq.${promoter_id}`];
           if (codeIdsForPromoter.length > 0) {
-            promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
+            promoterFilters.push(
+              `code_id.in.(${codeIdsForPromoter.join(",")})`,
+            );
           }
           batchQuery = batchQuery.or(promoterFilters.join(","));
         }
@@ -193,6 +196,10 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
+
+  visibleTickets = visibleTickets.filter((ticket) =>
+    matchesTicketSaleFilter(ticket, search.get("kind") || "all"),
+  );
 
   const eventIds = Array.from(
     new Set(visibleTickets.map((t) => t.event_id).filter(Boolean)),

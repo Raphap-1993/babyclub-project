@@ -1,3 +1,4 @@
+import { ticketPaymentLabel } from "shared/salePayment";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -26,6 +27,7 @@ type TicketDetail = {
   product_name?: string | null;
   product_items?: string[] | null;
   sale_origin?: string | null;
+  payment_status?: string | null;
   ticket_type_label?: string | null;
 };
 
@@ -38,7 +40,7 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
   const ticketQuery = applyNotDeleted(
     supabase
       .from("tickets")
-      .select("id,created_at,dni,full_name,email,phone,qr_token,event_id,code_id,promoter_id,table_reservation_id")
+      .select("id,created_at,dni,full_name,email,phone,qr_token,event_id,code_id,promoter_id,payment_status,table_reservation_id")
       .eq("id", id)
       .limit(1)
   );
@@ -141,6 +143,7 @@ async function getTicket(id: string): Promise<{ ticket: TicketDetail | null; err
       email: data.email ?? null,
       phone: data.phone ?? null,
       qr_token: data.qr_token ?? null,
+      payment_status: data.payment_status ?? null,
       event_id: data.event_id ?? null,
       code_id: data.code_id ?? null,
       event_name: eventRes.data?.name ?? null,
@@ -252,6 +255,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             <Info label="Email" value={ticket.email || "—"} />
             <Info label="Teléfono" value={ticket.phone || "—"} />
             <Info label="Evento" value={ticket.event_name || "—"} />
+            <Info label="Pago / origen" value={ticketPaymentLabel(ticket.payment_status, ticket.sale_origin)} />
             <div className="space-y-1 min-w-0 break-words">
               <p className="text-xs uppercase tracking-wider text-neutral-400">Tipo</p>
               <TicketKindBadge

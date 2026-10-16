@@ -211,6 +211,85 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         },
       };
     }
+    it("records both ticket and box approvals as paid, preserving nomination and one buyer QR", async () => {
+      for (const table of [false, true]) {
+        const s = await fixture(2, table);
+        try {
+          expect(
+            check(
+              await db
+                .from("tickets")
+                .select("id")
+                .eq("table_reservation_id", s.reservation_id),
+            ),
+          ).toHaveLength(0);
+          const a = (await claim(s)).attempt;
+          await applyMercadoPagoCanonicalOrder(db, a, order(s, a));
+          await fulfillMercadoPagoCheckout(db, s.id);
+          await fulfillMercadoPagoCheckout(db, s.id);
+          const reservation = check(
+            await db
+              .from("table_reservations")
+              .select("status,sale_origin")
+              .eq("id", s.reservation_id)
+              .single(),
+          );
+          expect(reservation).toMatchObject({
+            status: "approved",
+            sale_origin: table ? "table" : "ticket",
+          });
+          const tickets = check(
+            await db
+              .from("tickets")
+              .select("id,payment_status,mp_checkout_session_id")
+              .eq("table_reservation_id", s.reservation_id),
+          );
+          expect(tickets).toHaveLength(1);
+          expect(tickets[0]).toMatchObject({
+            payment_status: "paid",
+            mp_checkout_session_id: s.id,
+          });
+          const payments = check(
+            await db
+              .from("payments")
+              .select("provider,status,amount")
+              .eq("reservation_id", s.reservation_id),
+          );
+          expect(payments).toEqual([
+            expect.objectContaining({
+              provider: "mercadopago",
+              status: "paid",
+              amount: 4000,
+            }),
+          ]);
+          const units = check(
+            await db
+              .from("ticket_reservation_units")
+              .select("status")
+              .eq("reservation_id", s.reservation_id),
+          );
+          expect(units.filter((u: any) => u.status === "issued")).toHaveLength(
+            1,
+          );
+          expect(
+            units.filter((u: any) => u.status === "pending_nomination"),
+          ).toHaveLength(1);
+        } finally {
+          check(
+            await db
+              .from("tickets")
+              .update({ is_active: false })
+              .eq("table_reservation_id", s.reservation_id),
+          );
+          check(
+            await db
+              .from("table_reservations")
+              .update({ status: "rejected" })
+              .eq("id", s.reservation_id),
+          );
+        }
+      }
+    });
     it("keeps session details and RPCs inaccessible to anonymous clients", async () => {
       const s = await fixture();
       await expect(

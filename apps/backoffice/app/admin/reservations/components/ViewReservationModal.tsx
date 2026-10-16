@@ -31,6 +31,7 @@ interface ConflictingTicket {
 }
 
 interface ReservationDetail {
+  payment?: { state: string; source: string; amountCents: number | null };
   id: string;
   full_name: string;
   email: string | null;
@@ -268,6 +269,32 @@ export default function ViewReservationModal({
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-xl border border-neutral-700 p-4 text-sm">
+                <p
+                  className={
+                    reservation.payment?.state === "paid"
+                      ? "font-semibold text-emerald-300"
+                      : "text-amber-300"
+                  }
+                >
+                  {reservation.payment?.state === "paid"
+                    ? "Pagada"
+                    : reservation.payment?.state === "refunded"
+                      ? "Pago devuelto"
+                      : "Sin pago acreditado"}
+                </p>
+                <p className="mt-1 text-neutral-400">
+                  {reservation.payment?.source}
+                  {reservation.payment?.amountCents != null
+                    ? " · " +
+                      new Intl.NumberFormat("es-PE", {
+                        style: "currency",
+                        currency: "PEN",
+                      }).format(reservation.payment.amountCents / 100)
+                    : ""}
+                </p>
               </div>
 
               {/* Warning: entradas previas del mismo cliente para este evento */}

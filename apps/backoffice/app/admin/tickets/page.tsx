@@ -1,3 +1,4 @@
+import { matchesTicketSaleFilter } from "shared/salePayment";
 import ModernTicketsClient from "./ModernTicketsClient";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
@@ -22,6 +23,7 @@ type TicketRow = {
   promoter_name: string | null;
   table_name: string | null;
   sale_origin: string | null;
+  payment_status?: string | null;
   ticket_type_label: string | null;
 };
 
@@ -31,6 +33,7 @@ async function getTickets(params: {
   event_id?: string;
   q?: string;
   promoter_id?: string;
+  kind?: string;
   page: number;
   pageSize: number;
 }): Promise<{ tickets: TicketRow[]; total: number; error?: string }> {
@@ -79,7 +82,7 @@ async function getTickets(params: {
           supabase
             .from("tickets")
             .select(
-              "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,table_reservation_id,code:codes(id,code,type,promoter_id,table_reservation_id)",
+              "id,created_at,dni,full_name,email,phone,event_id,code_id,promoter_id,payment_status,table_reservation_id,code:codes(id,code,type,promoter_id,table_reservation_id)",
             )
             .eq("is_active", true)
             .order("created_at", { ascending: false })
@@ -102,7 +105,9 @@ async function getTickets(params: {
         if (params.promoter_id) {
           const promoterFilters = [`promoter_id.eq.${params.promoter_id}`];
           if (codeIdsForPromoter.length > 0) {
-            promoterFilters.push(`code_id.in.(${codeIdsForPromoter.join(",")})`);
+            promoterFilters.push(
+              `code_id.in.(${codeIdsForPromoter.join(",")})`,
+            );
           }
           batchQuery = batchQuery.or(promoterFilters.join(","));
         }
@@ -121,6 +126,10 @@ async function getTickets(params: {
       error: error?.message || "No se pudieron cargar tickets",
     };
   }
+
+  visibleTickets = visibleTickets.filter((ticket) =>
+    matchesTicketSaleFilter(ticket, params.kind),
+  );
 
   const pageStart = (params.page - 1) * params.pageSize;
   const pageEnd = pageStart + params.pageSize;
@@ -239,7 +248,8 @@ async function getTickets(params: {
     reservationMetaMap.set(reservation.id, {
       table_name: tableRel?.name || null,
       sale_origin:
-        reservation.sale_origin === "ticket" || reservation.sale_origin === "table"
+        reservation.sale_origin === "ticket" ||
+        reservation.sale_origin === "table"
           ? reservation.sale_origin
           : null,
       ticket_type_label:
@@ -263,6 +273,7 @@ async function getTickets(params: {
 
     return {
       id: t.id,
+      payment_status: t.payment_status || null,
       created_at: t.created_at,
       code_id: t.code_id ?? codeRel?.id ?? null,
       dni: t.dni ?? null,
@@ -295,6 +306,7 @@ export default async function TicketsPage({
   const params = await searchParams;
   const event_id = (params?.event_id as string) || "";
   const q = (params?.q as string) || "";
+  const kind = (params?.kind as string) || "all";
   const promoter_id = (params?.promoter_id as string) || "";
   const page = Math.max(1, parseInt((params?.page as string) || "1", 10) || 1);
   const pageSize = Math.min(
@@ -308,6 +320,7 @@ export default async function TicketsPage({
     promoter_id,
     page,
     pageSize,
+    kind,
   });
   const supabaseForFilters =
     supabaseUrl && supabaseServiceKey
@@ -354,7 +367,7 @@ export default async function TicketsPage({
     <ModernTicketsClient
       initialTickets={tickets || []}
       error={error || null}
-      filters={{ event_id, q, promoter_id, page, pageSize, total }}
+      filters={{ event_id, q, promoter_id, page, pageSize, total, kind }}
       promoterOptions={promoterFilters}
       eventOptions={eventFilters}
     />

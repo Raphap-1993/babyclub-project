@@ -1,3 +1,4 @@
+import { summarizeSalePayment } from "shared/salePayment";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireStaffRole } from "shared/auth/requireStaff";
@@ -104,7 +105,18 @@ export async function GET(
         : Promise.resolve({ data: null }),
     ]);
 
+  const paymentRows = await supabase
+    .from("payments")
+    .select("provider,status,amount,created_at")
+    .eq("reservation_id", id);
+  if (paymentRows.error)
+    return NextResponse.json(
+      { success: false, error: "No se pudo verificar el pago." },
+      { status: 500 },
+    );
+
   const reservation = {
+    payment: summarizeSalePayment(paymentRows.data || []),
     id: data.id,
     friendly_code: data.friendly_code,
     full_name: data.full_name,

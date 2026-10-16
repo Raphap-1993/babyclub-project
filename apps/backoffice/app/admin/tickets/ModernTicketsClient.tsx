@@ -1,4 +1,5 @@
 "use client";
+import { ticketPaymentLabel } from "shared/salePayment";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -39,6 +40,7 @@ type TicketRow = {
   promoter_name: string | null;
   table_name: string | null;
   sale_origin: string | null;
+  payment_status?: string | null;
   ticket_type_label: string | null;
 };
 
@@ -91,7 +93,9 @@ function TicketFilters({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-neutral-300">Evento</label>
+          <label className="text-xs font-semibold text-neutral-300">
+            Evento
+          </label>
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
             <SelectNative
@@ -142,11 +146,7 @@ function TicketFilters({
         </Button>
 
         {hasActiveFilters && (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onClear}
-          >
+          <Button type="button" variant="ghost" onClick={onClear}>
             ✨ Limpiar
           </Button>
         )}
@@ -251,6 +251,24 @@ const createTicketsColumns = (): ColumnDef<TicketRow>[] => [
     },
   },
   {
+    id: "payment_status",
+    header: "Pago / origen",
+    cell: ({ row }) => (
+      <span
+        className={
+          row.original.payment_status === "paid"
+            ? "text-xs font-semibold text-emerald-300"
+            : "text-xs text-neutral-400"
+        }
+      >
+        {ticketPaymentLabel(
+          row.original.payment_status,
+          row.original.sale_origin,
+        )}
+      </span>
+    ),
+  },
+  {
     accessorKey: "code_value",
     header: "Código QR",
     size: 150,
@@ -275,7 +293,10 @@ const createTicketsColumns = (): ColumnDef<TicketRow>[] => [
     cell: ({ getValue }) => {
       const promoter = getValue() as string | null;
       return (
-        <div className="text-xs text-neutral-300 truncate" title={promoter || ""}>
+        <div
+          className="text-xs text-neutral-300 truncate"
+          title={promoter || ""}
+        >
           {promoter ? (
             <span className="inline-flex items-center gap-1">
               <User className="h-3 w-3 text-neutral-500" />
@@ -330,6 +351,7 @@ export default function ModernTicketsClient({
   initialTickets: TicketRow[];
   error: string | null;
   filters: {
+    kind?: string;
     event_id: string;
     q: string;
     promoter_id: string;
@@ -340,7 +362,15 @@ export default function ModernTicketsClient({
   promoterOptions: Array<{ id: string; label: string }>;
   eventOptions: Array<{ id: string; label: string }>;
 }) {
-  const { event_id, q, promoter_id, page, pageSize, total } = filters;
+  const {
+    event_id,
+    q,
+    promoter_id,
+    page,
+    pageSize,
+    total,
+    kind = "all",
+  } = filters;
   const [eventId, setEventId] = useState(event_id);
   const [searchValue, setSearchValue] = useState(q);
   const [promoterId, setPromoterId] = useState(promoter_id);
@@ -351,16 +381,18 @@ export default function ModernTicketsClient({
 
   const exportHref = useMemo(() => {
     const params = new URLSearchParams();
+    if (kind !== "all") params.set("kind", kind);
     if (eventId) params.set("event_id", eventId);
     if (searchValue) params.set("q", searchValue);
     if (promoterId) params.set("promoter_id", promoterId);
     return `/api/admin/tickets/export?${params.toString()}`;
-  }, [eventId, searchValue, promoterId]);
+  }, [eventId, searchValue, promoterId, kind]);
 
   const hasActiveFilters = Boolean(eventId || searchValue || promoterId);
 
   const handleSubmit = () => {
     const params = new URLSearchParams();
+    if (kind !== "all") params.set("kind", kind);
     if (eventId) params.set("event_id", eventId);
     if (searchValue) params.set("q", searchValue);
     if (promoterId) params.set("promoter_id", promoterId);
@@ -381,7 +413,9 @@ export default function ModernTicketsClient({
     setExporting(true);
     setClientError(null);
     try {
-      const res = await authedFetch(exportHref, { cache: "no-store" as RequestCache });
+      const res = await authedFetch(exportHref, {
+        cache: "no-store" as RequestCache,
+      });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
         throw new Error(payload?.error || "No se pudo exportar");
@@ -407,6 +441,7 @@ export default function ModernTicketsClient({
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams();
+    if (kind !== "all") params.set("kind", kind);
     if (event_id) params.set("event_id", event_id);
     if (q) params.set("q", q);
     if (promoter_id) params.set("promoter_id", promoter_id);
@@ -418,6 +453,7 @@ export default function ModernTicketsClient({
 
   const handlePageSizeChange = (newPageSize: number) => {
     const params = new URLSearchParams();
+    if (kind !== "all") params.set("kind", kind);
     if (event_id) params.set("event_id", event_id);
     if (q) params.set("q", q);
     if (promoter_id) params.set("promoter_id", promoter_id);
@@ -446,6 +482,35 @@ export default function ModernTicketsClient({
         }
       />
 
+      <nav aria-label="Origen de las entradas" className="flex flex-wrap gap-2">
+        {[
+          ["all", "Todas"],
+          ["sales", "Compras: entradas y boxes"],
+          ["invitations", "Invitaciones por código"],
+        ].map(([value, label]) => {
+          const query = new URLSearchParams({
+            ...(event_id ? { event_id } : {}),
+            ...(q ? { q } : {}),
+            ...(promoter_id ? { promoter_id } : {}),
+            kind: value,
+          });
+          return (
+            <Link
+              key={value}
+              aria-current={kind === value ? "page" : undefined}
+              href={pathname + "?" + query.toString()}
+              className={
+                "rounded-lg border px-3 py-2 text-sm " +
+                (kind === value
+                  ? "border-red-500 bg-red-500/10 text-white"
+                  : "border-neutral-700 text-neutral-400")
+              }
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
       {/* Sistema de filtros */}
       <TicketFilters
         eventId={eventId}
@@ -466,7 +531,9 @@ export default function ModernTicketsClient({
       {/* Error handling */}
       {(error || clientError) && (
         <div className="rounded-lg bg-red-500/20 border border-red-500/30 p-3 backdrop-blur-sm">
-          <p className="text-sm text-red-400">⚠️ Error: {clientError || error}</p>
+          <p className="text-sm text-red-400">
+            ⚠️ Error: {clientError || error}
+          </p>
         </div>
       )}
 
@@ -476,69 +543,95 @@ export default function ModernTicketsClient({
           <div className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-8 text-center text-sm text-neutral-400">
             🎫 No hay tickets que coincidan con los filtros aplicados
           </div>
-        ) : initialTickets.map((ticket) => (
-          <div
-            key={ticket.id}
-            className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-4 space-y-3"
-          >
-            {/* Nombre + evento */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-semibold text-neutral-100 truncate">{ticket.full_name || "Sin nombre"}</p>
-                <p className="text-xs text-neutral-500 font-mono">{ticket.dni || "—"}</p>
+        ) : (
+          initialTickets.map((ticket) => (
+            <div
+              key={ticket.id}
+              className="rounded-xl border border-neutral-700/60 bg-neutral-900/90 p-4 space-y-3"
+            >
+              {/* Nombre + evento */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-neutral-100 truncate">
+                    {ticket.full_name || "Sin nombre"}
+                  </p>
+                  <p className="text-xs text-neutral-500 font-mono">
+                    {ticket.dni || "—"}
+                  </p>
+                </div>
+                {ticket.event_name && (
+                  <span className="flex-shrink-0 text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-full px-2.5 py-1 font-medium truncate max-w-[130px]">
+                    {ticket.event_name}
+                  </span>
+                )}
               </div>
-              {ticket.event_name && (
-                <span className="flex-shrink-0 text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-full px-2.5 py-1 font-medium truncate max-w-[130px]">
-                  {ticket.event_name}
-                </span>
-              )}
-            </div>
 
-            {/* Contacto + código */}
-            <div className="space-y-1 text-xs text-neutral-300">
-              {ticket.email && (
-                <div className="flex items-center gap-1.5">
-                  <Mail className="h-3 w-3 text-neutral-500 flex-shrink-0" />
-                  <span className="truncate">{ticket.email}</span>
+              {/* Contacto + código */}
+              <div className="space-y-1 text-xs text-neutral-300">
+                {ticket.email && (
+                  <div className="flex items-center gap-1.5">
+                    <Mail className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                    <span className="truncate">{ticket.email}</span>
+                  </div>
+                )}
+                {ticket.phone && (
+                  <div className="flex items-center gap-1.5">
+                    <Phone className="h-3 w-3 text-neutral-500 flex-shrink-0" />
+                    <span>{ticket.phone}</span>
+                  </div>
+                )}
+                {ticket.code_value && (
+                  <div className="flex items-start gap-1.5">
+                    <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0 mt-0.5" />
+                    <code className="font-mono bg-neutral-700/30 border border-neutral-600/30 px-1.5 py-0.5 rounded text-neutral-300 break-all">
+                      {ticket.code_value}
+                    </code>
+                  </div>
+                )}
+                {ticket.created_at && (
+                  <div className="flex items-center gap-1.5 text-neutral-500">
+                    <Calendar className="h-3 w-3 flex-shrink-0" />
+                    <span>
+                      {new Date(ticket.created_at).toLocaleDateString("es-PE", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                )}
+                <p
+                  className={
+                    ticket.payment_status === "paid"
+                      ? "text-emerald-300"
+                      : "text-neutral-400"
+                  }
+                >
+                  {ticketPaymentLabel(
+                    ticket.payment_status,
+                    ticket.sale_origin,
+                  )}
+                </p>
+                <div>
+                  <TicketKindBadge
+                    codeType={ticket.code_type}
+                    reservationSaleOrigin={ticket.sale_origin}
+                    ticketTypeLabel={ticket.ticket_type_label}
+                    tableName={ticket.table_name}
+                    promoterName={ticket.promoter_name}
+                  />
                 </div>
-              )}
-              {ticket.phone && (
-                <div className="flex items-center gap-1.5">
-                  <Phone className="h-3 w-3 text-neutral-500 flex-shrink-0" />
-                  <span>{ticket.phone}</span>
-                </div>
-              )}
-              {ticket.code_value && (
-                <div className="flex items-start gap-1.5">
-                  <QrCode className="h-3 w-3 text-neutral-500 flex-shrink-0 mt-0.5" />
-                  <code className="font-mono bg-neutral-700/30 border border-neutral-600/30 px-1.5 py-0.5 rounded text-neutral-300 break-all">
-                    {ticket.code_value}
-                  </code>
-                </div>
-              )}
-              {ticket.created_at && (
-                <div className="flex items-center gap-1.5 text-neutral-500">
-                  <Calendar className="h-3 w-3 flex-shrink-0" />
-                  <span>{new Date(ticket.created_at).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                </div>
-              )}
-              <div>
-                <TicketKindBadge
-                  codeType={ticket.code_type}
-                  reservationSaleOrigin={ticket.sale_origin}
-                  ticketTypeLabel={ticket.ticket_type_label}
-                  tableName={ticket.table_name}
-                  promoterName={ticket.promoter_name}
-                />
+              </div>
+
+              {/* Acciones */}
+              <div className="pt-1">
+                <TicketActions id={ticket.id} compact={false} />
               </div>
             </div>
-
-            {/* Acciones */}
-            <div className="pt-1">
-              <TicketActions id={ticket.id} compact={false} />
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Tabla para desktop */}
@@ -564,7 +657,6 @@ export default function ModernTicketsClient({
         onPageSizeChange={handlePageSizeChange}
         itemLabel="tickets"
       />
-
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import type { PaymentSummary } from "shared/salePayment";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -20,7 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
-import CreateReservationModal from "./components/CreateReservationModal";
+import CreateReservationModal from "./components/ManualSaleModal";
 import ViewReservationModal from "./components/ViewReservationModal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,8 @@ type ReservationRow = {
   email: string | null;
   phone: string | null;
   status: string;
+  sale_origin?: string;
+  payment?: PaymentSummary;
   codes: string[] | null;
   ticket_quantity: number | null;
   total_ticket_units?: number | null;
@@ -227,6 +230,11 @@ const createColumns = (
         </div>
       );
     },
+  },
+  {
+    id: "payment",
+    header: "Venta y pago",
+    cell: ({ row }) => <SalePaymentBadge reservation={row.original} />,
   },
   {
     accessorKey: "status",
@@ -683,7 +691,7 @@ export default function ModernReservationsClient({
         icon={Calendar}
         kicker="Reservations Management"
         title="Gestión de Reservas"
-        description="Gestiona reservas de mesa, estados y notificaciones a clientes."
+        description="Gestiona ventas de entradas y mesas, pagos y notificaciones."
         actions={
           <>
             <Link
@@ -697,7 +705,7 @@ export default function ModernReservationsClient({
               className="bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-400 hover:to-pink-500"
             >
               <Calendar className="h-4 w-4" />
-              Nueva reserva
+              Registrar venta manual
             </Button>
           </>
         }
@@ -764,6 +772,8 @@ export default function ModernReservationsClient({
                     {statusCfg.label}
                   </span>
                 </div>
+
+                <SalePaymentBadge reservation={reservation} />
 
                 {/* Info secundaria */}
                 <div className="grid grid-cols-2 gap-2 text-xs text-neutral-300">
@@ -970,6 +980,7 @@ export default function ModernReservationsClient({
 
       {/* Modal de creación */}
       <CreateReservationModal
+        key={String(isModalOpen)}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleReservationCreated}
@@ -983,5 +994,48 @@ export default function ModernReservationsClient({
         onUpdate={() => window.location.reload()}
       />
     </main>
+  );
+}
+
+function SalePaymentBadge({ reservation }: { reservation: ReservationRow }) {
+  const payment = reservation.payment;
+  const state = payment?.state;
+  return (
+    <div className="space-y-1 text-xs">
+      <p className="text-neutral-400">
+        {reservation.sale_origin === "ticket"
+          ? "Entrada comprada"
+          : "Mesa / Box"}
+      </p>
+      <span
+        className={
+          state === "paid"
+            ? "text-emerald-300 font-semibold"
+            : state === "refunded"
+              ? "text-red-300"
+              : "text-amber-300"
+        }
+      >
+        {state === "paid"
+          ? "Pagada"
+          : state === "refunded"
+            ? "Pago devuelto"
+            : state === "pending"
+              ? "Pago pendiente"
+              : state === "failed"
+                ? "Pago fallido"
+                : "Sin pago acreditado"}
+      </span>
+      <p className="text-neutral-400">
+        {payment?.source || "Sin pago acreditado"}
+        {payment?.amountCents != null
+          ? " · " +
+            new Intl.NumberFormat("es-PE", {
+              style: "currency",
+              currency: "PEN",
+            }).format(payment.amountCents / 100)
+          : ""}
+      </p>
+    </div>
   );
 }

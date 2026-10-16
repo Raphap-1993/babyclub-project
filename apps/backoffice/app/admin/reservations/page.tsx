@@ -1,3 +1,4 @@
+import { summarizeSalePayment, type PaymentSummary } from "shared/salePayment";
 import ModernReservationsClient from "./ModernReservationsClient";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
@@ -13,6 +14,8 @@ type ReservationRow = {
   email: string | null;
   phone: string | null;
   status: string;
+  sale_origin?: string;
+  payment?: PaymentSummary;
   codes: string[] | null;
   ticket_quantity: number | null;
   total_ticket_units: number | null;
@@ -84,6 +87,7 @@ async function getReservations(): Promise<{
             email,
             phone,
             status,
+            sale_origin,
             codes,
             ticket_quantity,
             total_ticket_units,
@@ -130,6 +134,28 @@ async function getReservations(): Promise<{
 
     if (!data || data.length === 0) {
       return { reservations: [] };
+    }
+
+    const paymentRows: any[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const result = await supabase
+        .from("payments")
+        .select("reservation_id,provider,status,amount,created_at")
+        .order("created_at", { ascending: false })
+        .range(offset, offset + 499);
+      if (result.error)
+        return {
+          reservations: [],
+          error: "No se pudo verificar el estado de los pagos.",
+        };
+      paymentRows.push(...(result.data || []));
+      if ((result.data || []).length < 500) break;
+    }
+    const paymentsByReservation = new Map<string, any[]>();
+    for (const payment of paymentRows) {
+      const rows = paymentsByReservation.get(payment.reservation_id) || [];
+      rows.push(payment);
+      paymentsByReservation.set(payment.reservation_id, rows);
     }
 
     // Obtener tablas, eventos y organizadores por separado
@@ -184,6 +210,8 @@ async function getReservations(): Promise<{
         email: res.email ?? null,
         phone: res.phone ?? null,
         status: res.status ?? "",
+        sale_origin: res.sale_origin,
+        payment: summarizeSalePayment(paymentsByReservation.get(res.id) || []),
         codes: res.codes ?? null,
         ticket_quantity: resolveReservationTicketQuantity({
           totalTicketUnits: res.total_ticket_units,
