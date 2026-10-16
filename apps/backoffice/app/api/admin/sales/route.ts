@@ -8,6 +8,9 @@ import {
   validateDocument,
 } from "shared/document";
 import { isValidEmailAddress } from "shared/email/address";
+import { notifyManualSale } from "shared/email/manualSale";
+
+export const maxDuration = 60;
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const errors: Record<string, string> = {
@@ -147,5 +150,12 @@ export async function POST(req: NextRequest) {
       },
     );
   }
-  return NextResponse.json({ success: true, ...result.data });
+  let emailStatus = "pending";
+  try {
+    emailStatus = await notifyManualSale(db, result.data.paymentId);
+  } catch {
+    // The durable job retries independently. Never report a committed sale as failed.
+    console.error("[manual-sales] notification_pending");
+  }
+  return NextResponse.json({ success: true, ...result.data, emailStatus });
 }

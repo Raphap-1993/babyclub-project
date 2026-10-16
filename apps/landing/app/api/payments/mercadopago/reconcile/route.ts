@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { retryManualSaleEmails } from "shared/email/manualSale";
 import { NextResponse } from "next/server";
 import {
   fulfillMercadoPagoCheckout,
@@ -28,6 +29,11 @@ export async function POST(request: Request) {
     if (expired.error) throw new Error("expiry_failed");
     let checked = 0,
       errors = 0;
+    try {
+      await retryManualSaleEmails(db);
+    } catch {
+      errors++;
+    }
     const events = await db
       .from("mp_webhook_events")
       .select("event_key,order_id")

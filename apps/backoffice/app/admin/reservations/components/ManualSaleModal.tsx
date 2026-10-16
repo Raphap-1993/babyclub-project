@@ -43,6 +43,7 @@ export default function ManualSaleModal({
   const [result, setResult] = useState<{
     reservationId: string;
     ticketId: string;
+    emailStatus?: string;
   } | null>(null);
   const [received, setReceived] = useState(false);
   const [buyer, setBuyer] = useState({
@@ -220,6 +221,13 @@ export default function ManualSaleModal({
             <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-emerald-200">
               Venta pagada registrada. El QR del comprador está emitido; los
               acompañantes se completan desde la reserva.
+            </p>
+            <p className="text-sm text-neutral-300">
+              {result.emailStatus === "sent"
+                ? "Correo con el QR enviado al comprador."
+                : result.emailStatus === "failed"
+                  ? "La venta está guardada. Revisa el correo del comprador y utiliza Reenviar correo desde el detalle."
+                  : "La venta está guardada. El correo con el QR está pendiente y se reintentará automáticamente."}
             </p>
             <Link
               className="block rounded-lg bg-red-600 p-3 text-center font-semibold text-white"

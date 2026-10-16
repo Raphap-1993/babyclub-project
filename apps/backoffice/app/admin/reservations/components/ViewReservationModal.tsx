@@ -33,6 +33,7 @@ interface ConflictingTicket {
 
 interface ReservationDetail {
   payment?: PaymentSummary;
+  emailDelivery?: { status: string; sent_at?: string | null } | null;
   id: string;
   full_name: string;
   email: string | null;
@@ -328,6 +329,16 @@ export default function ViewReservationModal({
                   </dl>
                 )}
               </div>
+
+              {reservation.emailDelivery && (
+                <p className="rounded-xl border border-neutral-700 p-4 text-sm text-neutral-300">
+                  {reservation.emailDelivery.status === "sent"
+                    ? "Correo con QR enviado al comprador."
+                    : reservation.emailDelivery.status === "failed"
+                      ? "El correo no pudo enviarse automáticamente. Revisa el correo del comprador y usa Reenviar correo."
+                      : "Correo con QR pendiente de envío; se reintentará automáticamente."}
+                </p>
+              )}
 
               {/* Warning: entradas previas del mismo cliente para este evento */}
               {reservation.sale_origin !== "ticket" &&

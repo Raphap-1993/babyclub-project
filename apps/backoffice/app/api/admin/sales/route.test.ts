@@ -1,6 +1,11 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  guard: vi.fn(),
+  rpc: vi.fn(),
+  notify: vi.fn(),
+}));
+vi.mock("shared/email/manualSale", () => ({ notifyManualSale: mocks.notify }));
 vi.mock("shared/auth/requireStaff", () => ({ requireStaffRole: mocks.guard }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({ rpc: mocks.rpc }),
@@ -27,6 +32,7 @@ const request = (body: any) =>
     headers: { "Content-Type": "application/json" },
   });
 beforeEach(() => {
+  mocks.notify.mockReset().mockResolvedValue("sent");
   vi.stubEnv("SUPABASE_URL", "http://127.0.0.1:64321");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-local");
   mocks.guard.mockReset().mockResolvedValue({
@@ -39,6 +45,16 @@ beforeEach(() => {
   });
 });
 describe("manual sale authorization and receipt", () => {
+  it("preserves a paid sale when email fails and reports it pending", async () => {
+    mocks.notify.mockRejectedValue(new Error("temporary mail failure"));
+    const response = await POST(request(payload));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      success: true,
+      emailStatus: "pending",
+      ticketId: "ticket",
+    });
+  });
   it("rejects unauthenticated staff and never uses the service client", async () => {
     mocks.guard.mockResolvedValue({
       ok: false,

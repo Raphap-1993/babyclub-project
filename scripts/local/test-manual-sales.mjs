@@ -378,6 +378,19 @@ try {
       .eq("id", staff.staff_role_id),
   );
   // Delete only fixtures belonging to this isolated run.
+  const ownPayments = checked(
+    await db.from("payments").select("id").eq("event_id", eventId),
+  );
+  if (ownPayments.length)
+    checked(
+      await db
+        .from("manual_sale_email_jobs")
+        .delete()
+        .in(
+          "payment_id",
+          ownPayments.map((p) => p.id),
+        ),
+    );
   checked(
     await db.from("ticket_reservation_units").delete().eq("event_id", eventId),
   );

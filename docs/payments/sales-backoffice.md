@@ -24,7 +24,11 @@ El bloqueo de inventario es el mismo que usa la reserva online. No permite vende
 
 El trigger `manual_ticket_guard` propaga el estado pagado a los QR posteriores de la reserva. Desactivar o archivar una entrada no implica devolver dinero; los recibos permanecen como evidencia. Las devoluciones de cobros externos requieren la operación financiera correspondiente, fuera del registro manual.
 
-El formulario muestra el QR emitido en el detalle del comprador. El correo se puede enviar con la acción existente «Reenviar correo»; el nuevo endpoint de registro no envía correos ni repite un cobro.
+El formulario muestra el QR emitido en el detalle del comprador y el resultado del envío automático. La venta registra un trabajo privado en `manual_sale_email_jobs` dentro de la misma transacción del recibo. Después del commit se envía una confirmación con el QR del comprador adjunto e integrado mediante CID, importe y comprobante, enlace al ticket y acceso a completar acompañantes. No se cobran importes adicionales ni se crean QR al notificar.
+
+La clave de idempotencia del proveedor es `manual-sale-<payment_id>`. La cola usa un bloqueo de dos minutos y token de propietario; los fallos no revierten una venta pagada. El proceso protegido de recuperación de la landing reintenta hasta diez veces dentro de 23 horas. Después queda `failed` para revisión y reenvío explícito. `sent` acredita aceptación del proveedor, no entrega en la bandeja del destinatario. No hay backfill masivo de ventas históricas.
+
+Validación del correo: `BABY_MANUAL_EMAIL_LOCAL_TESTS=1` con `packages/shared/email/manualSale.local.test.ts`, únicamente Supabase loopback y Mailpit. Comprueba entradas y box, reserva aprobada, recibo y ticket pagados, recepción local, decodificación del PNG contra `tickets.qr_token`, concurrencia, reintento y bloqueo del acceso público.
 
 ## Separación comercial
 

@@ -31,6 +31,7 @@ export async function sendEmail({
   text,
   replyTo,
   idempotencyKey,
+  attachments,
 }: {
   to: string | string[];
   subject: string;
@@ -38,6 +39,11 @@ export async function sendEmail({
   text?: string;
   replyTo?: string;
   idempotencyKey?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    contentId?: string;
+  }>;
 }): Promise<CreateEmailResponse> {
   validateFromAddress(DEFAULT_FROM_RAW);
   const normalizedTo = normalizeEmailRecipients(to);
@@ -57,6 +63,7 @@ export async function sendEmail({
   };
   if (html) payload.html = html;
   if (text) payload.text = text;
+  if (attachments?.length) payload.attachments = attachments;
   if (replyTo) {
     const normalizedReplyTo = normalizeEmailAddress(replyTo);
     if (!isValidEmailAddress(normalizedReplyTo)) {
@@ -83,6 +90,12 @@ export async function sendEmail({
         Subject: subject,
         HTML: html,
         Text: text,
+        Attachments: attachments?.map((a) => ({
+          Filename: a.filename,
+          Content: a.content,
+          ContentType: "image/png",
+          ContentID: a.contentId,
+        })),
         ...(idempotencyKey
           ? { Headers: { "Message-ID": `<${idempotencyKey}@babyclub.local>` } }
           : {}),

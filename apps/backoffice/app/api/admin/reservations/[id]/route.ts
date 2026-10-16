@@ -118,6 +118,14 @@ export async function GET(
     );
 
   const reservation = {
+    emailDelivery:
+      (
+        await supabase
+          .from("manual_sale_email_jobs")
+          .select("status,sent_at")
+          .eq("reservation_id", id)
+          .maybeSingle()
+      ).data || null,
     payment: summarizeSalePayment(paymentRows.data || []),
     id: data.id,
     friendly_code: data.friendly_code,
