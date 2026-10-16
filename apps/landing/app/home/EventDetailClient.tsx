@@ -197,69 +197,69 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                               Tipo de entrada
                             </legend>
                             {options.map((type) => (
-                              <label
+                              <div
                                 key={type.id || type.code}
                                 className={`${styles.option} ${selected.code === type.code ? styles.selected : ""}`}
                               >
-                                <input
-                                  type="radio"
-                                  name="event-ticket-type"
-                                  value={type.code}
-                                  checked={selected.code === type.code}
-                                  onChange={() => setSelectedCode(type.code)}
-                                />
-                                <span className={styles.optionText}>
-                                  <strong>{type.label}</strong>
-                                  <span>
-                                    {type.ticketQuantity}{" "}
-                                    {type.ticketQuantity === 1
-                                      ? "persona"
-                                      : "personas"}
+                                <label className={styles.optionChoice}>
+                                  <input
+                                    type="radio"
+                                    name="event-ticket-type"
+                                    value={type.code}
+                                    checked={selected.code === type.code}
+                                    onChange={() => setSelectedCode(type.code)}
+                                  />
+                                  <span className={styles.optionText}>
+                                    <strong>{type.label}</strong>
+                                    <span>
+                                      {type.ticketQuantity}{" "}
+                                      {type.ticketQuantity === 1
+                                        ? "persona"
+                                        : "personas"}
+                                    </span>
                                   </span>
-                                </span>
-                                <strong className={styles.price}>
-                                  {money(type.price)}
-                                </strong>
-                              </label>
+                                  <strong className={styles.price}>
+                                    {money(type.price)}
+                                  </strong>
+                                </label>
+                                {selected.code === type.code && (
+                                  <div
+                                    className={styles.stepper}
+                                    role="group"
+                                    aria-label={`Cantidad ${type.ticketQuantity > 1 ? "de packs " : "de entradas "}${type.label}`}
+                                  >
+                                    <button
+                                      type="button"
+                                      aria-label="Reducir cantidad"
+                                      disabled={quantity === 1}
+                                      onClick={() =>
+                                        setQuantity((value) =>
+                                          Math.max(1, value - 1),
+                                        )
+                                      }
+                                    >
+                                      <Minus size={18} />
+                                    </button>
+                                    <output aria-label="Cantidad seleccionada">
+                                      {quantity}
+                                    </output>
+                                    <button
+                                      type="button"
+                                      aria-label="Aumentar cantidad"
+                                      disabled={quantity === 10}
+                                      onClick={() =>
+                                        setQuantity((value) =>
+                                          Math.min(10, value + 1),
+                                        )
+                                      }
+                                    >
+                                      <Plus size={18} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             ))}
                           </fieldset>
-                          <div className={styles.quantity}>
-                            <p id="quantity-label">
-                              Cantidad
-                              {selected.ticketQuantity > 1 ? " de packs" : ""}
-                            </p>
-                            <div
-                              className={styles.stepper}
-                              role="group"
-                              aria-labelledby="quantity-label"
-                            >
-                              <button
-                                type="button"
-                                aria-label="Reducir cantidad"
-                                disabled={quantity === 1}
-                                onClick={() =>
-                                  setQuantity((value) => Math.max(1, value - 1))
-                                }
-                              >
-                                <Minus size={18} />
-                              </button>
-                              <output aria-label="Cantidad seleccionada">
-                                {quantity}
-                              </output>
-                              <button
-                                type="button"
-                                aria-label="Aumentar cantidad"
-                                disabled={quantity === 10}
-                                onClick={() =>
-                                  setQuantity((value) =>
-                                    Math.min(10, value + 1),
-                                  )
-                                }
-                              >
-                                <Plus size={18} />
-                              </button>
-                            </div>
-                          </div>
                           <div
                             className={styles.summary}
                             aria-live="polite"

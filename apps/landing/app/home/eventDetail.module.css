@@ -264,10 +264,18 @@
   border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 16px;
-  cursor: pointer;
+  gap: 10px;
+  padding: 12px 10px;
+  min-height: 76px;
   min-width: 0;
+}
+.optionChoice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
 }
 .option:hover {
   border-color: #777;
@@ -305,18 +313,8 @@
 }
 .price {
   white-space: nowrap;
-  font-size: 19px;
+  font-size: 17px;
   letter-spacing: -0.03em;
-}
-.quantity {
-  border-top: 1px solid #333;
-  margin-top: 30px;
-  padding-top: 20px;
-}
-.quantity p {
-  font-size: 12px;
-  color: #ccc;
-  margin: 0 0 10px;
 }
 .stepper {
   display: inline-flex;
@@ -325,11 +323,12 @@
   border-radius: 8px;
   overflow: hidden;
   background: #111;
+  flex-shrink: 0;
 }
 .stepper button {
   display: grid;
   place-items: center;
-  width: 44px;
+  width: 32px;
   height: 44px;
   background: transparent;
   border: 0;
@@ -344,10 +343,24 @@
   cursor: not-allowed;
 }
 .stepper output {
-  width: 44px;
+  width: 24px;
   text-align: center;
   font-size: 16px;
   font-weight: 600;
+}
+@media (max-width: 380px) {
+  .selected .optionChoice {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 6px 8px;
+  }
+  .selected .optionChoice input {
+    grid-row: 1 / span 2;
+  }
+  .selected .price {
+    grid-column: 2;
+    font-size: 15px;
+  }
 }
 .summary {
   border-top: 1px solid #333;
@@ -523,10 +536,6 @@
   .selection h2 {
     font-size: 22px;
     margin: 0 0 18px;
-  }
-  .quantity {
-    margin-top: 18px;
-    padding-top: 16px;
   }
   .summary {
     margin-top: 18px;

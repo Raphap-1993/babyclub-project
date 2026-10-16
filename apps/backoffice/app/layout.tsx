@@ -12,7 +12,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
+  ),
   title: {
     default: "BabyClub Access | Backoffice",
     template: "%s | BabyClub Access Backoffice",
@@ -31,9 +33,6 @@ export const metadata: Metadata = {
     title: "BabyClub Access | Backoffice",
     description: "Admin panel to manage events, codes, tables, and scans.",
   },
-  icons: {
-    icon: "/favicon.ico",
-  },
 };
 
 export default function RootLayout({
@@ -43,7 +42,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
+      >
         {children}
       </body>
     </html>

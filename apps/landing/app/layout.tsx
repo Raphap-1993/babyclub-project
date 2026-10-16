@@ -34,9 +34,6 @@ export const metadata: Metadata = {
     description:
       "Compra de entradas digitales y reservas de mesa para eventos BABY.",
   },
-  icons: {
-    icon: "/favicon.ico",
-  },
 };
 
 export default function RootLayout({
