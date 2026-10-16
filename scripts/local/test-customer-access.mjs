@@ -209,6 +209,7 @@ try {
   assert.match(lookup.response.headers.get("set-cookie"), /HttpOnly/);
   const originalChallenge = jar.get("baby_access_challenge");
   let otp;
+  let firstMailId;
   for (let attempt = 0; attempt < 40 && !otp; attempt++) {
     const inbox = await (await fetch(new URL("/api/v1/messages", mail))).json();
     const message = inbox.messages?.find(
@@ -217,6 +218,7 @@ try {
         message.To?.some((recipient) => recipient.Address === email),
     );
     if (message) {
+      firstMailId = message.ID;
       const content = await (
         await fetch(new URL(`/api/v1/message/${message.ID}`, mail))
       ).json();
@@ -333,6 +335,71 @@ try {
   assert.equal((await http(oldJar)).response.status, 401);
   checks.push(
     "Entrada utilizada no muestra QR; sesión vencida o cerrada no vuelve a acceder",
+  );
+  for (const event of events.slice(1)) {
+    const result = await db
+      .from("events")
+      .update({ starts_at: new Date(Date.now() - 72 * 3600000).toISOString() })
+      .eq("id", event.id);
+    assert.equal(result.error, null);
+  }
+  const cooldown = await db
+    .from("customer_access_challenges")
+    .update({ created_at: new Date(Date.now() - 120000).toISOString() })
+    .eq("document_hash", keyed("dni", dni));
+  assert.equal(cooldown.error, null);
+  const historicalJar = new Map();
+  assert.equal(
+    (await http(historicalJar, { action: "lookup", dni })).response.status,
+    202,
+  );
+  let historicalOtp;
+  for (let attempt = 0; attempt < 40 && !historicalOtp; attempt++) {
+    const inbox = await (await fetch(new URL("/api/v1/messages", mail))).json();
+    const message = inbox.messages?.find(
+      (message) =>
+        message.ID !== firstMailId &&
+        message.Subject === "Tu código para acceder a BABY" &&
+        message.To?.some((recipient) => recipient.Address === email),
+    );
+    if (message) {
+      const content = await (
+        await fetch(new URL("/api/v1/message/" + message.ID, mail))
+      ).json();
+      historicalOtp = content.Text.match(/\b\d{6}\b/)?.[0];
+    }
+    if (!historicalOtp)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  assert(historicalOtp, "Past-only customer must receive a new OTP in Mailpit");
+  assert.equal(
+    (
+      await http(historicalJar, {
+        action: "verify",
+        code: historicalOtp,
+        remember: true,
+      })
+    ).response.status,
+    200,
+  );
+  tokenHashes.push(hash(historicalJar.get("baby_access")));
+  const historicalWallet = await http(historicalJar);
+  assert.equal(historicalWallet.response.status, 200);
+  assert.deepEqual(historicalWallet.payload.wallet, {
+    event: null,
+    tickets: [],
+    reservations: [],
+  });
+  await http(historicalJar, { action: "logout" });
+  for (const event of events.slice(1)) {
+    const result = await db
+      .from("events")
+      .update({ starts_at: event.starts_at })
+      .eq("id", event.id);
+    assert.equal(result.error, null);
+  }
+  checks.push(
+    "Cliente solo con historial recibe código; cartera vacía sin QR pasados",
   );
   const race = await createChallenge();
   const raceResults = await Promise.all([claim(race), claim(race)]);

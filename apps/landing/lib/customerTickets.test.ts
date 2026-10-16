@@ -60,6 +60,82 @@ beforeEach(() => {
   queries = [];
 });
 describe("DNI ticket ownership and upcoming event", () => {
+  it("verifies a registered customer even when every purchase belongs to past events", async () => {
+    const results = [
+      [],
+      [],
+      [
+        {
+          document: "00001234",
+          doc_type: "dni",
+          email: "customer@example.com",
+          created_at: "2026-09-01T12:00:00Z",
+        },
+      ],
+      [],
+    ];
+    const historyQueries: any[] = [];
+    const historyDb = {
+      from: () => {
+        const q: any = {};
+        const value = results.shift();
+        for (const method of [
+          "select",
+          "or",
+          "eq",
+          "is",
+          "ilike",
+          "gte",
+          "order",
+        ])
+          q[method] = vi.fn(() => q);
+        q.limit = async () => ({ data: value, error: null });
+        historyQueries.push(q);
+        return q;
+      },
+    } as any;
+    expect(await findCustomerIdentity(historyDb, "00001234")).toEqual({
+      dni: "00001234",
+      email: "customer@example.com",
+    });
+    expect(historyQueries[2].gte).not.toHaveBeenCalled();
+    expect(historyQueries[3].gte).not.toHaveBeenCalled();
+    expect(historyQueries[2].eq).not.toHaveBeenCalledWith("is_active", true);
+  });
+  it("does not use a historical email belonging to a different document type", async () => {
+    const results = [
+      [],
+      [],
+      [
+        {
+          document: "00001234",
+          doc_type: "passport",
+          email: "foreign@example.com",
+          created_at: "2026-09-01T12:00:00Z",
+        },
+      ],
+      [],
+    ];
+    const historyDb = {
+      from: () => {
+        const q: any = {};
+        const value = results.shift();
+        for (const method of [
+          "select",
+          "or",
+          "eq",
+          "is",
+          "ilike",
+          "gte",
+          "order",
+        ])
+          q[method] = () => q;
+        q.limit = async () => ({ data: value, error: null });
+        return q;
+      },
+    } as any;
+    expect(await findCustomerIdentity(historyDb, "00001234")).toBeNull();
+  });
   it("preserves leading zeros and rejects passports or conflicting legacy documents", () => {
     expect(
       matchesCustomerDocument(

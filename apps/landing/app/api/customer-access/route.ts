@@ -205,6 +205,7 @@ export async function POST(req: NextRequest) {
     const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
     const codeHash = customerHash("otp", `${id}:${nonce}:${code}`);
     after(async () => {
+      let stage = "challenge";
       try {
         const created = await db.rpc("create_customer_access_challenge", {
           p_id: id,
@@ -214,15 +215,24 @@ export async function POST(req: NextRequest) {
           p_code_hash: codeHash,
         });
         if (created.error) throw new Error("Challenge unavailable");
-        if (!created.data) return;
+        if (!created.data) {
+          console.info("[customer-access] challenge_throttled");
+          return;
+        }
+        stage = "lookup";
         const owner = await findCustomerIdentity(db, dni);
-        if (!owner) return;
+        if (!owner) {
+          console.info("[customer-access] recipient_not_found");
+          return;
+        }
+        stage = "identity";
         const saved = await db
           .from("customer_access_challenges")
           .update({ identity_encrypted: sealIdentity(owner) })
           .eq("id", id)
           .is("consumed_at", null);
         if (saved.error) throw new Error("Challenge unavailable");
+        stage = "email";
         await sendEmail({
           to: owner.email,
           subject: "Tu código para acceder a BABY",
@@ -230,8 +240,9 @@ export async function POST(req: NextRequest) {
           text: `Tu código de verificación de BABY es: ${code}\n\nVence en 10 minutos y solo se puede usar una vez. Escríbelo en Mis entradas. No compartas el código. Si no solicitaste este acceso, ignora este mensaje.`,
           html: `<div lang="es" style="max-width:520px;margin:auto;padding:32px;font-family:Arial,sans-serif;background:#080808;color:#fff"><h1>Tu acceso a BABY</h1><p>Escribe este código en Mis entradas:</p><p style="font-family:monospace;font-size:32px;letter-spacing:8px">${code}</p><p>Vence en 10 minutos y solo se puede usar una vez.</p><p>No compartas el código. Si no solicitaste este acceso, ignora este mensaje.</p></div>`,
         });
+        console.info("[customer-access] verification_email_accepted");
       } catch {
-        console.error("[customer-access] challenge_delivery_failed");
+        console.error(`[customer-access] ${stage}_failed`);
       } finally {
         try {
           const cleanup = await db.rpc("cleanup_customer_access");
@@ -245,7 +256,7 @@ export async function POST(req: NextRequest) {
       {
         verified: false,
         message:
-          "Si el DNI tiene entradas para un próximo evento, enviaremos un código al correo registrado. Revisa también correo no deseado.",
+          "Si el DNI tiene un correo registrado en BABY, enviaremos allí un código. Revisa también correo no deseado.",
         resendAfter: 60,
       },
       202,

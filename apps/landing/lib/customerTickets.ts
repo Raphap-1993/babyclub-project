@@ -81,8 +81,35 @@ export async function findCustomerIdentity(
     (a, b) =>
       Date.parse(one(a.event).starts_at) - Date.parse(one(b.event).starts_at),
   );
-  return ordered[0]
-    ? { dni, email: ordered[0].email.trim().toLowerCase() }
+  if (ordered[0]) return { dni, email: ordered[0].email.trim().toLowerCase() };
+
+  // Identity verification is independent of ticket/event availability. A customer
+  // with only previous events must still be able to verify and see an empty wallet.
+  const [tickets, reservations] = await Promise.all([
+    db
+      .from("tickets")
+      .select("document,dni,doc_type,email,created_at")
+      .or(`document.eq.${dni},dni.eq.${dni}`)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    db
+      .from("table_reservations")
+      .select("document,doc_type,email,created_at")
+      .eq("document", dni)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+  if (tickets.error || reservations.error)
+    throw new Error("Customer identity lookup unavailable");
+  const registered = [...(tickets.data || []), ...(reservations.data || [])]
+    .filter((row) => matchesCustomerDocument(row, dni) && validEmail(row.email))
+    .sort(
+      (a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""),
+    );
+  return registered[0]
+    ? { dni, email: registered[0].email.trim().toLowerCase() }
     : null;
 }
 

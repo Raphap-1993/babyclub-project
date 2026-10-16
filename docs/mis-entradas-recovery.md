@@ -59,3 +59,7 @@ El endpoint `POST /api/tickets/recover` responde de forma uniforme, exista o no 
 Validación: pruebas unitarias de privacidad, destinatario, filtros, escape e idempotencia; envío HTTP real a Mailpit con compra ficticia y apertura local de enlaces de entrada y reserva (HTTP 200). Ningún envío a clientes reales y ninguna migración o escritura de datos productivos.
 
 Contexto consultado: Obsidian `20_Projects/babyclub-monorepo/00 Context.md`, `01 Status.md`, `02 Decisions.md`; contrastado con el código actual. Se aplicó la skill `email-best-practices` a este correo transaccional.
+
+## Corrección de clientes con historial (16 octubre 2026)
+
+La búsqueda del correo de verificación prioriza el próximo evento y recurre al registro histórico más reciente del mismo DNI y tipo de documento, sin registros eliminados. La ausencia de entradas próximas no impide recibir el código. La cartera sigue mostrando únicamente el próximo evento; si no existe, no muestra QR pasados. Los logs distinguen destinatario ausente, límite, correo aceptado y etapa del fallo sin datos personales. El ensayo local verifica el envío a Mailpit y la cartera vacía para clientes con historial exclusivamente pasado.
