@@ -1,6 +1,6 @@
 # Mis entradas: DNI y dispositivos verificados
 
-## Flujo vigente en desarrollo local
+## Flujo de acceso
 
 1. El cliente escribe su DNI (ocho dígitos, conservando ceros iniciales).
 2. Si el dispositivo tiene una sesión vigente para ese DNI, ve sus QR sin otro correo. También puede volver a abrir `/mis-entradas` directamente, sin volver a escribir DNI.
@@ -25,9 +25,13 @@ Se reutiliza el QR existente y la misma evaluación de validez del ticket: usado
 
 ## Prueba y despliegue
 
-Migración nueva: `supabase/migrations/20261016140000_customer_ticket_access.sql`. Aplicada **solo** a Supabase local. Configuración local: `CUSTOMER_ACCESS_SECRET`, secreto aleatorio de 32 bytes codificado como 64 caracteres hexadecimales, solo servidor y excluido de Git. No reutilizar tokens de Mercado Pago ni la service_role como secreto.
+Migración nueva: `supabase/migrations/20261016140000_customer_ticket_access.sql`. Aplicada a Supabase local y, el 16 de octubre de 2026, a producción `wtwnhqbbcocpnqqsybln` en una transacción con registro en `supabase_migrations.schema_migrations`. Integridad de la migración y permisos de las dos tablas y tres funciones comprobados en producción. No se modificaron las tablas de compras, entradas, pagos ni QR existentes.
+
+Configuración: `CUSTOMER_ACCESS_SECRET`, secreto aleatorio de 32 bytes codificado como 64 caracteres hexadecimales, solo servidor y excluido de Git. Producción tiene una clave independiente, guardada como Secret únicamente en Vercel `babyclub-landing/Production`. La clave provisional fue reemplazada antes del despliegue y antes de emitir sesiones. No reutilizar tokens de Mercado Pago ni la service_role como secreto.
 
 Antes de un despliegue productivo: aplicar la migración aditiva, configurar un secreto productivo independiente en landing/Production, conservar el correo transaccional configurado y comprobar tablas/permisos antes de activar la nueva página. La ausencia de configuración falla cerrada. Rotar el secreto invalida las identidades cifradas y exige verificar de nuevo; no afecta QR ni cobros. Para revertir, restaurar el release anterior y conservar las tablas nuevas hasta terminar el período de reversión; no se deben borrar registros reales para probar.
+
+Validación previa: 52 pruebas en siete archivos, compilación de landing y ensayo HTTP completo sobre PostgreSQL/Mailpit local, incluyendo decodificación del QR original, dispositivo recordado, límites y revocación. El smoke productivo utiliza solicitudes anónimas o inválidas, sin generar compras ni enviar códigos a clientes reales.
 
 Validación local reproducible, con la app en `http://127.0.0.1:3004`:
 
