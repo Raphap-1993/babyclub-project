@@ -367,7 +367,7 @@ describe.runIf(process.env.BABY_MP_YAPE_SANDBOX === "1")(
         ),
       ).toHaveLength(2);
     }, 90000);
-    it("offers only card for tables and rejects a forged Yape request before creating an attempt", async () => {
+    it("pays a S/600 box with Yape, confirms the webhook and issues only the buyer QR", async () => {
       const s = await fixture(true);
       const headers = {
         Authorization: `Bearer ${s.token}`,
@@ -375,22 +375,42 @@ describe.runIf(process.env.BABY_MP_YAPE_SANDBOX === "1")(
       };
       const endpoint = `${base}/api/payments/mercadopago/sessions/${s.id}`;
       const info = await (await fetch(endpoint, { headers })).json();
-      expect(info.checkout.paymentMethods).toEqual(["card"]);
-      // Changing the claimed type/amount in the body must not bypass the DB rule.
-      const response = await fetch(endpoint + "/pay", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          payment_method_id: "yape",
-          token: "synthetic-token",
-          phone_number: "111111111",
-          sale_origin: "ticket",
-          table_id: null,
-          amount: 40,
-        }),
-      });
-      expect(response.status).toBe(400);
-      expect((await response.json()).code).toBe("yape_tickets_only");
+      expect(info.checkout.paymentMethods).toEqual(["card", "yape"]);
+      const accepted = await pay(s, await payment());
+      expect(accepted.status).toBe("fulfilled");
+      expect(accepted.amountCents).toBe(60000);
+      const { order } = await canonical(s);
+      expect(order.total_paid_amount).toBe("600.00");
+      expect((await webhook(order.id)).ok).toBe(true);
+      expect(await assertQr(s)).toBe(accepted.buyerTicketId);
+      expect(
+        check(
+          await db
+            .from("table_reservations")
+            .select("status")
+            .eq("id", s.reservation_id)
+            .single(),
+        ).status,
+      ).toBe("approved");
+      expect(
+        check(
+          await db
+            .from("payments")
+            .select("status")
+            .eq("reservation_id", s.reservation_id)
+            .single(),
+        ).status,
+      ).toBe("paid");
+      const units = check(
+        await db
+          .from("ticket_reservation_units")
+          .select("status,ticket_id")
+          .eq("reservation_id", s.reservation_id),
+      );
+      expect(units).toHaveLength(4);
+      expect(
+        units.filter((u: any) => u.status === "pending_nomination"),
+      ).toHaveLength(3);
       expect(
         check(
           await db
@@ -398,8 +418,7 @@ describe.runIf(process.env.BABY_MP_YAPE_SANDBOX === "1")(
             .select("id")
             .eq("session_id", s.id),
         ),
-      ).toHaveLength(0);
-      expect(await tickets(s)).toHaveLength(0);
-    });
+      ).toHaveLength(1);
+    }, 90000);
   },
 );

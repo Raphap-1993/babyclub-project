@@ -19,18 +19,20 @@ const input = {
 };
 afterEach(() => vi.unstubAllGlobals());
 describe("Yape Orders Peru", () => {
-  it("offers Yape only for ticket reservations; tables, boxes and unknown origins require card", () => {
+  it("offers Yape for ticket and table/box purchases, without accepting unknown origins", () => {
     expect(
       isYapeReservationAllowed({ sale_origin: "ticket", table_id: null }),
     ).toBe(true);
     for (const reservation of [
-      { sale_origin: "table", table_id: "table-1" },
       { sale_origin: "ticket", table_id: "table-1" },
       { sale_origin: "table", table_id: null },
       {},
       { sale_origin: "legacy" },
     ])
       expect(isYapeReservationAllowed(reservation)).toBe(false);
+    expect(
+      isYapeReservationAllowed({ sale_origin: "table", table_id: "table-1" }),
+    ).toBe(true);
   });
   it("uses the server amount, phone and single-use token, without OTP, installments or 3DS", () => {
     const payload = buildMercadoPagoYapeOrder({

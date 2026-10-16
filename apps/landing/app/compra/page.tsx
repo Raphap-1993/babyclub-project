@@ -2639,6 +2639,7 @@ function CompraContent({
                       title="Método de pago"
                       value={selectedPaymentMethod}
                       onChange={setSelectedPaymentMethod}
+                      yapeAvailable
                       mercadopagoAvailable={mpEnabled}
                   culqiAvailable={canUseCulqiForMesa}
                       amountLabel={totalLabel}
@@ -2915,6 +2916,7 @@ function CompraContent({
               <PaymentMethodSelector
                 value={selectedPaymentMethod}
                 onChange={setSelectedPaymentMethod}
+                yapeAvailable
                 mercadopagoAvailable={mpEnabled}
                   culqiAvailable={canUseCulqiForMesa}
                 amountLabel={totalLabel}
@@ -3117,7 +3119,7 @@ function CompraContent({
               </div>
             ) : isMesaOnlineSelected ? (
               <div className="rounded-2xl border border-[#e60023]/30 bg-[#e60023]/10 p-4 text-base font-semibold text-white/80">
-                Al confirmar, abriremos el pago online con tarjeta. Tu reserva
+                Al confirmar, abriremos el pago online con tarjeta o Yape. Tu reserva
                 se confirmará cuando el pago sea aprobado.
               </div>
             ) : (
@@ -3428,7 +3430,7 @@ function CompraContent({
             )}
             {isTicketOnlineSelected && (
               <div className="rounded-2xl border border-[#e60023]/30 bg-[#e60023]/10 p-3 text-xs font-semibold text-white/80">
-                Al confirmar, abriremos el pago online con tarjeta. Tu entrada
+                Al confirmar, abriremos el pago online con tarjeta o Yape. Tu entrada
                 se confirmará cuando el pago sea aprobado.
               </div>
             )}

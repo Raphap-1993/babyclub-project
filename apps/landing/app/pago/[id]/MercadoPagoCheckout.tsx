@@ -268,8 +268,8 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                 </h2>
                 <p className="mb-4 text-sm text-white/65">
                   {yapeAvailable
-                    ? "Elige cómo pagar. Tus entradas se generan al confirmar el pago."
-                    : "Paga tu mesa o box con tarjeta de débito o crédito. Tus QR se generan al confirmar el pago."}
+                    ? "Elige tarjeta o Yape. Tus QR se generan al confirmar el pago."
+                    : "Paga con tarjeta de débito o crédito. Tus QR se generan al confirmar el pago."}
                 </p>
                 {yapeAvailable && (
                   <div

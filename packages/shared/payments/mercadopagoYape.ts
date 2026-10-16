@@ -2,12 +2,15 @@
 export const YAPE_MIN_CENTS = 100;
 export const YAPE_MAX_CENTS = 200_000;
 
-// Commercial rule: tables and boxes are paid by card, regardless of amount.
+// Both ticket and table/box purchases support Yape. Amount limits still apply.
 export function isYapeReservationAllowed(reservation: {
   table_id?: string | null;
   sale_origin?: string | null;
 }) {
-  return reservation.sale_origin === "ticket" && !reservation.table_id;
+  return (
+    (reservation.sale_origin === "ticket" && !reservation.table_id) ||
+    (reservation.sale_origin === "table" && Boolean(reservation.table_id))
+  );
 }
 
 export function isYapeAmountAllowed(amountCents: number) {

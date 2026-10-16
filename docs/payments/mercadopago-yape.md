@@ -5,8 +5,8 @@ Estado: implementado y validado en local el 15 de octubre de 2026; habilitación
 ## Regla comercial vigente
 
 - **Entradas:** tarjeta o Yape a través de Mercado Pago.
-- **Mesas y boxes:** únicamente tarjeta de débito/crédito, con 3DS cuando corresponda.
-- La reserva persistida (`sale_origin=ticket`, sin `table_id`) determina si se admite Yape. El cliente no puede habilitarlo cambiando el monto o tipo de compra en el body. Una solicitud de Yape para mesa devuelve `400 / yape_tickets_only` antes de crear un intento o contactar al proveedor.
+- **Mesas y boxes:** tarjeta o Yape, habilitado por solicitud del usuario el 16 de octubre de 2026. Las tarjetas mantienen 3DS cuando corresponda.
+- La reserva persistida determina si se admite Yape: entradas con `sale_origin=ticket` sin mesa, o mesas/boxes con `sale_origin=table` y mesa asociada. El importe se obtiene de la sesión guardada; cambiar el monto en el body no modifica el cobro. Los orígenes desconocidos o inconsistentes no habilitan Yape.
 - El resumen `/compra` y el formulario `/pago/[id]` muestran los medios correspondientes. La API de la sesión expone `paymentMethods`, sin exponer credenciales privadas.
 
 ## Pago y emisión
@@ -21,7 +21,7 @@ El QR generado es el **QR de ingreso a BABY**. Yape en esta integración se conf
 
 ## Límites y operación
 
-- Se comprueba el intervalo técnico de la cuenta consultada (S/ 1 a S/ 2,000 por pago); el límite configurado por el comprador en Yape puede ser inferior. Esto no modifica la regla comercial: las mesas siempre requieren tarjeta, cualquiera sea su precio.
+- Se comprueba el intervalo técnico de la cuenta consultada (S/ 1 a S/ 2,000 por pago); el límite configurado por el comprador en Yape puede ser inferior. Fuera de ese intervalo se mantiene tarjeta como alternativa.
 - El control de pausa de ventas del backoffice también bloquea nuevos intentos de Yape. Las confirmaciones de intentos previos siguen procesándose.
 - Los teléfonos ficticios `111111111` a `111111118` solo se admiten con configuración `test`. Producción exige un celular peruano de nueve dígitos que comience con 9.
 - Mercado Pago puede responder HTTP 402 y devolver después la orden fallida en la consulta. La pantalla espera la confirmación y no habilita otro cobro mientras el estado sea incierto.

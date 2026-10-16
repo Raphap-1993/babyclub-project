@@ -282,9 +282,9 @@ export async function submitMercadoPagoPayment(
     !isYapeReservationAllowed(reservationResult.data)
   ) {
     throw new PaymentServiceError(
-      "Las mesas y boxes se pagan únicamente con tarjeta. Yape está disponible para entradas.",
+      "Yape no está disponible para este tipo de reserva.",
       400,
-      "yape_tickets_only",
+      "yape_reservation_unavailable",
     );
   }
   const card: MercadoPagoCardOrderInput = {

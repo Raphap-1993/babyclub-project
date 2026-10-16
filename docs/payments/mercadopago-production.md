@@ -10,7 +10,7 @@ Vault; las primeras ejecuciones devolvieron HTTP 200, sin errores ni trabajos
 pendientes. Las migraciones y el respaldo privado están verificados; no se
 crearon compras ficticias ni se efectuaron cobros reales durante la activación.
 
-Entradas admiten tarjeta o Yape; mesas y boxes admiten únicamente tarjeta.
+Entradas, mesas y boxes admiten tarjeta o Yape. Yape permite S/ 1 a S/ 2,000 por operación y el comprador puede tener un límite menor en su aplicación. Los importes fuera del intervalo se pagan con tarjeta.
 Se usa Orders API, campos alojados de tarjeta, validación 3DS cuando corresponde,
 webhook firmado y emisión idempotente. El comprador recibe su QR al acreditarse
 el pago; los acompañantes reciben QR individuales al completar su nominación.
