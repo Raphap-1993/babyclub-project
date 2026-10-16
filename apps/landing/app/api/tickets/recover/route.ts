@@ -9,6 +9,7 @@ import {
   recoveryEmail,
   recoveryKey,
   recoveryMessage,
+  nextEventAccesses,
 } from "./recovery";
 
 export const maxDuration = 30;
@@ -70,25 +71,43 @@ export async function POST(req: NextRequest) {
         const [tickets, reservations] = await Promise.all([
           db
             .from("tickets")
-            .select("id,event:events(name)")
+            .select("id,event:events!inner(id,name,starts_at)")
             .ilike("email", emailLookup(email))
             .is("deleted_at", null)
             .eq("is_active", true)
             .or("payment_status.is.null,payment_status.eq.paid")
-            .order("created_at", { ascending: false })
+            .eq("event.is_active", true)
+            .is("event.closed_at", null)
+            .is("event.deleted_at", null)
+            .gte(
+              "event.starts_at",
+              new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+            )
+            .order("event(starts_at)", { ascending: true })
             .limit(20),
           db
             .from("table_reservations")
-            .select("id,event:events(name)")
+            .select("id,event:events!inner(id,name,starts_at)")
             .ilike("email", emailLookup(email))
             .is("deleted_at", null)
             .eq("status", "approved")
-            .order("created_at", { ascending: false })
+            .eq("event.is_active", true)
+            .is("event.closed_at", null)
+            .is("event.deleted_at", null)
+            .gte(
+              "event.starts_at",
+              new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+            )
+            .order("event(starts_at)", { ascending: true })
             .limit(20),
         ]);
         if (tickets.error || reservations.error)
           throw new Error("lookup_failed");
         const base = getPublicAppUrl();
+        const upcoming = nextEventAccesses(
+          tickets.data || [],
+          reservations.data || [],
+        );
         const eventName = (
           event: { name: string } | { name: string }[] | null,
         ) => {
@@ -96,11 +115,11 @@ export async function POST(req: NextRequest) {
           return name ? ` · ${name}` : "";
         };
         const links = [
-          ...(tickets.data || []).map((ticket, index) => ({
+          ...upcoming.tickets.map((ticket, index) => ({
             label: `Ver entrada ${index + 1}${eventName(ticket.event)}`,
             url: `${base}/ticket/${encodeURIComponent(ticket.id)}`,
           })),
-          ...(reservations.data || []).map((reservation, index) => ({
+          ...upcoming.reservations.map((reservation, index) => ({
             label: `Ver compra o reserva ${index + 1}${eventName(reservation.event)}`,
             url: `${base}/compra?reservationId=${encodeURIComponent(reservation.id)}`,
           })),

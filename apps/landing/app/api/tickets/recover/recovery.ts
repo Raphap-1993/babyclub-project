@@ -1,6 +1,38 @@
 import { createHash } from "node:crypto";
 import { escapeEmailHtml } from "shared/email/template";
 
+type UpcomingEvent = { id: string; name: string; starts_at: string };
+type EventAccess = {
+  id: string;
+  event: UpcomingEvent | UpcomingEvent[] | null;
+};
+export function nextEventAccesses<T extends EventAccess, R extends EventAccess>(
+  tickets: T[],
+  reservations: R[],
+) {
+  const eventOf = (row: EventAccess) =>
+    Array.isArray(row.event) ? row.event[0] : row.event;
+  const events = [...tickets, ...reservations]
+    .map(eventOf)
+    .filter((event): event is UpcomingEvent =>
+      Boolean(event && Number.isFinite(Date.parse(event.starts_at))),
+    );
+  events.sort(
+    (a, b) =>
+      Date.parse(a.starts_at) - Date.parse(b.starts_at) ||
+      a.id.localeCompare(b.id),
+  );
+  const next = events[0];
+  return {
+    tickets: tickets.filter((row) =>
+      Boolean(next && eventOf(row)?.id === next.id),
+    ),
+    reservations: reservations.filter((row) =>
+      Boolean(next && eventOf(row)?.id === next.id),
+    ),
+  };
+}
+
 export const recoveryMessage =
   "Si hay entradas o reservas asociadas a este correo, recibirás un mensaje con tus accesos. Revisa también correo no deseado.";
 export const emailLookup = (email: string) => email.replace(/[\\%_]/g, "\\$&");

@@ -34,7 +34,7 @@ beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = "local-test-key";
   mocks.from.mockImplementation((table: string) => {
     const query: any = { data: [], error: null };
-    for (const method of ["select", "ilike", "is", "eq", "or", "order"])
+    for (const method of ["select", "ilike", "is", "eq", "or", "order", "gte"])
       query[method] = vi.fn(() => query);
     query.limit = vi.fn(async () => ({ data: query.data, error: query.error }));
     mocks.queries.push({ table, query });
@@ -86,16 +86,42 @@ describe("private ticket recovery", () => {
     for (const { query } of mocks.queries) {
       expect(query.ilike).toHaveBeenCalledWith("email", "customer@example.com");
       expect(query.is).toHaveBeenCalledWith("deleted_at", null);
+      expect(query.eq).toHaveBeenCalledWith("event.is_active", true);
+      expect(query.is).toHaveBeenCalledWith("event.closed_at", null);
+      expect(query.is).toHaveBeenCalledWith("event.deleted_at", null);
+      expect(query.gte).toHaveBeenCalledWith(
+        "event.starts_at",
+        expect.any(String),
+      );
+      expect(query.order).toHaveBeenCalledWith("event(starts_at)", {
+        ascending: true,
+      });
     }
   });
   it("sends only matching ticket and buyer reservation links to the registered recipient", async () => {
     mocks.from.mockImplementationOnce(() => {
       const q: any = {};
-      for (const method of ["select", "ilike", "is", "eq", "or", "order"])
+      for (const method of [
+        "select",
+        "ilike",
+        "is",
+        "eq",
+        "or",
+        "order",
+        "gte",
+      ])
         q[method] = () => q;
       q.limit = async () => ({
         data: [
-          { id: "ticket-1", table_reservation_id: "someone-elses-purchase" },
+          {
+            id: "ticket-1",
+            table_reservation_id: "someone-elses-purchase",
+            event: {
+              id: "event-next",
+              name: "Next",
+              starts_at: "2026-10-31T03:00:00Z",
+            },
+          },
         ],
         error: null,
       });
