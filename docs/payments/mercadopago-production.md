@@ -10,7 +10,8 @@ Vault; las primeras ejecuciones devolvieron HTTP 200, sin errores ni trabajos
 pendientes. Las migraciones y el respaldo privado están verificados; no se
 crearon compras ficticias ni se efectuaron cobros reales durante la activación.
 
-Entradas y mesas usan Orders API, campos alojados de tarjeta, validación 3DS,
+Entradas admiten tarjeta o Yape; mesas y boxes admiten únicamente tarjeta.
+Se usa Orders API, campos alojados de tarjeta, validación 3DS cuando corresponde,
 webhook firmado y emisión idempotente. El comprador recibe su QR al acreditarse
 el pago; los acompañantes reciben QR individuales al completar su nominación.
 No se convierten reservas históricas a Mercado Pago ni se regeneran sus QR.
@@ -159,6 +160,38 @@ builds de landing/backoffice correctos. Pausa y reanudación comprobadas desde
 el navegador únicamente en la base local.
 
 ## Evidencia y fuentes
+
+### Publicación de Yape para entradas — 2026-10-15
+
+La integración validada en `f61270a` y `cf77a15` se publica mediante `master`.
+La cuenta productiva peruana se comprobó de nuevo con `/users/me`: vendedor
+esperado, sin etiqueta `test_user`; `/v1/payment_methods` devolvió Yape activo.
+El endpoint público confirmó `live`, ventas habilitadas, control de ventas
+disponible y Public Key correspondiente a las credenciales productivas.
+
+La regla se aplica tanto en la interfaz como en el servidor: solo una reserva
+de entradas (`sale_origin=ticket`, sin `table_id`) puede pagar con Yape. Una
+solicitud manipulada para una mesa o box se rechaza antes de crear un intento.
+Tarjetas conservan los campos seguros y 3DS. No se agregan migraciones,
+permisos, llaves o cambios en datos históricos; tampoco se copia la base local.
+
+Se conserva el webhook productivo de la aplicación real y el worker existente.
+Los webhooks verifican la firma y consultan la Order canónica antes de emitir.
+El QR del comprador se emite al acreditar; cada acompañante obtiene su QR al
+completar la nominación. La pausa del backoffice también bloquea intentos nuevos
+de Yape y mantiene la conciliación de compras anteriores.
+
+Validación previa: 134 pruebas, comprobación de tipos y build de landing;
+webhooks espontáneos de Yape para dos compras aprobadas y una rechazada, con
+worker detenido y páginas cerradas. Tres QR distintos decodificados, cinco
+reenvíos sin duplicados, firma alterada rechazada y correos capturados en
+Mailpit. Evidencia y procedimiento en `mercadopago-yape.md`.
+
+La comprobación productiva se limita a disponibilidad pública, artefactos del
+despliegue y guardas de acceso. No crear compras sintéticas, usar teléfonos de
+prueba, nominar personas ficticias o hacer cobros desde el agente en producción.
+La primera compra real de aceptación de Yape queda a cargo del titular; no
+confundir la prueba sandbox con un movimiento de dinero real.
 
 Sandbox: pruebas reales de 3DS y webhook automático para entrada y mesa,
 duplicados en paralelo, firmas alteradas rechazadas y PNG de QR decodificados.

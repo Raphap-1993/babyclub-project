@@ -1,6 +1,6 @@
 # Yape en el checkout de BABY
 
-Estado: implementado y validado en local el 15 de octubre de 2026. Este cambio todavía no se ha publicado en producción.
+Estado: implementado y validado en local el 15 de octubre de 2026; habilitación productiva solicitada y registrada en `mercadopago-production.md`. El cierre productivo se comprueba con el estado de Vercel y los endpoints públicos, sin compras ficticias en la base real.
 
 ## Regla comercial vigente
 
@@ -59,7 +59,7 @@ Después se exportó el cuerpo visible del evento automático original y se repi
 
 Se nominó al acompañante de la compra doble y se repitió su emisión: quedaron dos entradas individuales y un solo intento de pago. Los tres PNG realmente servidos por las páginas de entrada, de 520 × 520 px, se decodificaron con ZXing y coincidieron con sus `tickets.qr_token` activos; los tres fueron distintos. Mis entradas mostró “2 de 2 entradas listas”.
 
-Solo después de acreditar y comprobar los QR se reactivó el worker. Las dos confirmaciones de compra quedaron `sent` y capturadas en Mailpit. Se retiró el túnel y el proxy y se restauraron los destinos anteriores de la aplicación ficticia. La aplicación real, sus credenciales y los datos de clientes no se modificaron. Este cierre no publica la integración Yape en producción.
+Solo después de acreditar y comprobar los QR se reactivó el worker. Las dos confirmaciones de compra quedaron `sent` y capturadas en Mailpit. Se retiró el túnel y el proxy y se restauraron los destinos anteriores de la aplicación ficticia. La aplicación real, sus credenciales y los datos de clientes no se modificaron durante estas pruebas. La publicación posterior se documenta en `mercadopago-production.md`.
 
 La evidencia privada está en `.local/yape-webhook-run.json`, `.local/yape-webhook-evidence/*.png` y `.local/yape-original-event.json` del checkout. Capturas en `D:/RAPHA/PROJECTS/BABYCLUB/.local/evidence/`: `yape-automatic-webhooks-200.png`, `yape-automatic-event-detail.png`, `yape-automatic-checkout-confirmed.png` y `yape-webhook-two-qrs-ready.png`.
 
