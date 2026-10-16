@@ -7,7 +7,13 @@ import { authedFetch } from "@/lib/authedFetch";
 import TicketDetailModal from "./TicketDetailModal";
 import { Button } from "@/components/ui/button";
 
-export default function TicketActions({ id, compact = true }: { id: string; compact?: boolean }) {
+export default function TicketActions({
+  id,
+  compact = true,
+}: {
+  id: string;
+  compact?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +34,7 @@ export default function TicketActions({ id, compact = true }: { id: string; comp
         setError(data?.error || "No se pudo eliminar");
         return;
       }
+      window.dispatchEvent(new Event("baby-sales-updated"));
       router.refresh();
     });
   };
@@ -86,13 +93,15 @@ export default function TicketActions({ id, compact = true }: { id: string; comp
             <Trash2 className="h-3.5 w-3.5" />
             Eliminar
           </Button>
-          {error && (
-            <p className="col-span-2 text-xs text-red-400">{error}</p>
-          )}
+          {error && <p className="col-span-2 text-xs text-red-400">{error}</p>}
         </div>
       )}
 
-      <TicketDetailModal ticketId={id} open={modalOpen} onOpenChange={setModalOpen} />
+      <TicketDetailModal
+        ticketId={id}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </>
   );
 }

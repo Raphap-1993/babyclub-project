@@ -1,3 +1,4 @@
+import { ticketQrDataUrl } from "shared/ticketQr";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyNotDeleted } from "shared/db/softDelete";
@@ -8,11 +9,14 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const guard = await requireStaffRole(request);
   if (!guard.ok) {
-    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+    return NextResponse.json(
+      { success: false, error: guard.error },
+      { status: guard.status },
+    );
   }
 
   const startTime = Date.now();
@@ -22,7 +26,7 @@ export async function GET(
     if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(
         { error: "Falta configuración de Supabase" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -36,7 +40,8 @@ export async function GET(
     const ticketQuery = applyNotDeleted(
       supabase
         .from("tickets")
-        .select(`
+        .select(
+          `
           id,
           created_at,
           dni,
@@ -44,6 +49,7 @@ export async function GET(
           email,
           phone,
           qr_token,
+          payment_status,
           event_id,
           code_id,
           promoter_id,
@@ -51,36 +57,53 @@ export async function GET(
           event:events(name),
           code:codes(id,code,type,promoter_id,table_reservation_id),
           promoter:promoters(code,person:persons(first_name,last_name))
-        `)
+        `,
+        )
         .eq("id", id)
-        .limit(1)
+        .limit(1),
     );
     const { data, error } = await ticketQuery.maybeSingle();
 
-    console.log("[GET /api/tickets/:id] Ticket + relaciones en:", Date.now() - startTime, "ms");
+    console.log(
+      "[GET /api/tickets/:id] Ticket + relaciones en:",
+      Date.now() - startTime,
+      "ms",
+    );
 
     if (error || !data) {
       console.error("[GET /api/tickets/:id] Error:", error);
       return NextResponse.json(
         { error: error?.message || "Ticket no encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Normalizar relaciones
-    const eventRel = Array.isArray((data as any).event) ? (data as any).event[0] : (data as any).event;
-    const codeRel = Array.isArray((data as any).code) ? (data as any).code[0] : (data as any).code;
-    const promoterRel = Array.isArray((data as any).promoter) ? (data as any).promoter[0] : (data as any).promoter;
+    const eventRel = Array.isArray((data as any).event)
+      ? (data as any).event[0]
+      : (data as any).event;
+    const codeRel = Array.isArray((data as any).code)
+      ? (data as any).code[0]
+      : (data as any).code;
+    const promoterRel = Array.isArray((data as any).promoter)
+      ? (data as any).promoter[0]
+      : (data as any).promoter;
 
     const promoterPerson = Array.isArray(promoterRel?.person)
       ? promoterRel.person[0]
       : promoterRel?.person;
     const promoterName =
-      [promoterPerson?.first_name, promoterPerson?.last_name].filter(Boolean).join(" ").trim() ||
+      [promoterPerson?.first_name, promoterPerson?.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim() ||
       promoterRel?.code ||
       null;
 
-    const tableReservationId = (data as any).table_reservation_id || codeRel?.table_reservation_id || null;
+    const tableReservationId =
+      (data as any).table_reservation_id ||
+      codeRel?.table_reservation_id ||
+      null;
     let tableCodes: string[] = [];
     let tableName: string | null = null;
     let productName: string | null = null;
@@ -92,14 +115,18 @@ export async function GET(
       const reservationQuery = applyNotDeleted(
         supabase
           .from("table_reservations")
-          .select("codes,sale_origin,ticket_type_label,table:tables(name),product:table_products(name,items)")
+          .select(
+            "codes,sale_origin,ticket_type_label,table:tables(name),product:table_products(name,items)",
+          )
           .eq("id", tableReservationId)
-          .limit(1)
+          .limit(1),
       );
       const { data: reservationRow } = await reservationQuery.maybeSingle();
       if (reservationRow) {
         tableCodes = Array.isArray((reservationRow as any).codes)
-          ? ((reservationRow as any).codes as any[]).map((value) => String(value || "").trim()).filter(Boolean)
+          ? ((reservationRow as any).codes as any[])
+              .map((value) => String(value || "").trim())
+              .filter(Boolean)
           : [];
 
         const tableRel = Array.isArray((reservationRow as any).table)
@@ -111,7 +138,9 @@ export async function GET(
 
         tableName = tableRel?.name || null;
         productName = productRel?.name || null;
-        productItems = Array.isArray(productRel?.items) ? productRel.items : null;
+        productItems = Array.isArray(productRel?.items)
+          ? productRel.items
+          : null;
         reservationSaleOrigin =
           reservationRow.sale_origin === "ticket" ||
           reservationRow.sale_origin === "table"
@@ -132,6 +161,8 @@ export async function GET(
       email: data.email ?? null,
       phone: data.phone ?? null,
       qr_token: data.qr_token ?? null,
+      qr_image: data.qr_token ? await ticketQrDataUrl(data.qr_token) : null,
+      payment_status: data.payment_status ?? null,
       event_id: data.event_id ?? null,
       code_id: data.code_id ?? null,
       event_name: eventRel?.name ?? null,
@@ -147,13 +178,25 @@ export async function GET(
       ticket_type_label: ticketTypeLabel,
     };
 
-    console.log("[GET /api/tickets/:id] Tiempo total:", Date.now() - startTime, "ms");
+    console.log(
+      "[GET /api/tickets/:id] Tiempo total:",
+      Date.now() - startTime,
+      "ms",
+    );
 
-    return NextResponse.json({ ticket });
+    return NextResponse.json(
+      { ticket },
+      {
+        headers: {
+          "Cache-Control": "private, no-store",
+          Vary: "Authorization",
+        },
+      },
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || "Error al obtener el ticket" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,7 +1,14 @@
 "use client";
+import { ticketPaymentLabel } from "shared/salePayment";
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@repo/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@repo/ui";
 import { X, Download, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +23,8 @@ type TicketDetail = {
   email: string | null;
   phone: string | null;
   qr_token: string | null;
+  qr_image?: string | null;
+  payment_status?: string | null;
   event_name: string | null;
   code_value: string | null;
   code_type: string | null;
@@ -52,7 +61,7 @@ export default function TicketDetailModal({
       setEmailSuccess(null);
       setShowEmailInput(false);
       setCustomEmail("");
-      
+
       authedFetch(`/api/tickets/${ticketId}`)
         .then((res) => {
           if (!res.ok) throw new Error("Error al cargar el ticket");
@@ -74,16 +83,20 @@ export default function TicketDetailModal({
     if (!ticket) return;
     // En desarrollo, landing corre en puerto 3001, backoffice en 3000
     // En producción, usar el dominio de producción
-    const landingUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-      ? 'http://localhost:3001'
-      : 'https://babyclubaccess.com';
+    const landingUrl =
+      typeof window !== "undefined" && window.location.hostname === "localhost"
+        ? "http://localhost:3001"
+        : "https://babyclubaccess.com";
     // El parámetro ?download=1 activará la descarga automática en la página del ticket
-    window.open(`${landingUrl}/ticket/${encodeURIComponent(ticket.id)}?download=1`, '_blank');
+    window.open(
+      `${landingUrl}/ticket/${encodeURIComponent(ticket.id)}?download=1`,
+      "_blank",
+    );
   };
 
   const handleSendEmail = async (email: string) => {
     if (!ticket || !email) return;
-    
+
     setSending(true);
     setEmailSuccess(null);
     setError(null);
@@ -92,9 +105,9 @@ export default function TicketDetailModal({
       const res = await authedFetch("/api/tickets/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           ticketId: ticket.id,
-          email: email 
+          email: email,
         }),
       });
 
@@ -157,9 +170,9 @@ export default function TicketDetailModal({
           <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
             {/* QR Code */}
             <div className="flex items-center justify-center rounded-xl border border-neutral-600/50 bg-neutral-900/50 p-4">
-              {ticket.qr_token ? (
+              {ticket.qr_image ? (
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(ticket.qr_token)}`}
+                  src={ticket.qr_image}
                   alt="QR"
                   className="h-56 w-56 max-w-full rounded-lg bg-white p-3 object-contain shadow-lg"
                 />
@@ -171,6 +184,13 @@ export default function TicketDetailModal({
             {/* Información del ticket */}
             <dl className="grid min-w-0 gap-4 text-sm md:grid-cols-2">
               <Info label="ID" value={ticket.id} mono />
+              <Info
+                label="Pago / origen"
+                value={ticketPaymentLabel(
+                  ticket.payment_status,
+                  ticket.sale_origin,
+                )}
+              />
               <Info
                 label="Fecha de creación"
                 value={new Date(ticket.created_at).toLocaleString("es-PE", {
@@ -187,7 +207,9 @@ export default function TicketDetailModal({
               <Info label="Teléfono" value={ticket.phone || "—"} />
               <Info label="Evento" value={ticket.event_name || "—"} />
               <div className="space-y-1 min-w-0 break-words">
-                <p className="text-xs uppercase tracking-wider text-neutral-400">Tipo</p>
+                <p className="text-xs uppercase tracking-wider text-neutral-400">
+                  Tipo
+                </p>
                 <TicketKindBadge
                   codeType={ticket.code_type}
                   reservationSaleOrigin={ticket.sale_origin}
@@ -201,12 +223,18 @@ export default function TicketDetailModal({
               <Info label="Promotor" value={ticket.promoter_name || "—"} />
               <Info label="QR token" value={ticket.qr_token || "—"} mono />
 
-              {ticket.table_name && <Info label="Mesa" value={ticket.table_name} />}
+              {ticket.table_name && (
+                <Info label="Mesa" value={ticket.table_name} />
+              )}
 
               {ticket.product_name && (
                 <div className="md:col-span-2 space-y-2 rounded-lg bg-neutral-700/30 border border-neutral-600/30 p-4">
-                  <p className="text-xs uppercase tracking-wider text-neutral-400">📦 Pack</p>
-                  <p className="text-base font-semibold text-neutral-100">{ticket.product_name}</p>
+                  <p className="text-xs uppercase tracking-wider text-neutral-400">
+                    📦 Pack
+                  </p>
+                  <p className="text-base font-semibold text-neutral-100">
+                    {ticket.product_name}
+                  </p>
                   {ticket.product_items && ticket.product_items.length > 0 && (
                     <ul className="list-disc pl-5 text-sm text-neutral-300 space-y-1">
                       {ticket.product_items.map((item) => (
@@ -219,7 +247,9 @@ export default function TicketDetailModal({
 
               {ticket.table_codes && ticket.table_codes.length > 0 && (
                 <div className="md:col-span-2 space-y-2 rounded-lg bg-neutral-700/30 border border-neutral-600/30 p-4">
-                  <p className="text-xs uppercase tracking-wider text-neutral-400">🔖 Códigos de mesa</p>
+                  <p className="text-xs uppercase tracking-wider text-neutral-400">
+                    🔖 Códigos de mesa
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {ticket.table_codes.map((c) => (
                       <span
@@ -316,11 +346,23 @@ export default function TicketDetailModal({
   );
 }
 
-function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Info({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div className="space-y-1 min-w-0 break-words">
-      <p className="text-xs uppercase tracking-wider text-neutral-400">{label}</p>
-      <p className={`text-base font-semibold text-neutral-100 break-words ${mono ? "font-mono break-all text-xs" : ""}`}>
+      <p className="text-xs uppercase tracking-wider text-neutral-400">
+        {label}
+      </p>
+      <p
+        className={`text-base font-semibold text-neutral-100 break-words ${mono ? "font-mono break-all text-xs" : ""}`}
+      >
         {value}
       </p>
     </div>

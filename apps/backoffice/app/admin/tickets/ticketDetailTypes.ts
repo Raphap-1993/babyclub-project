@@ -1,0 +1,24 @@
+export type TicketDetail = {
+  id: string;
+  created_at: string;
+  dni: string | null;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  qr_token: string | null;
+  qr_image?: string | null;
+  public_ticket_url?: string;
+  event_id: string | null;
+  code_id: string | null;
+  event_name: string | null;
+  code_value: string | null;
+  code_type: string | null;
+  promoter_name: string | null;
+  table_codes: string[];
+  table_name?: string | null;
+  product_name?: string | null;
+  product_items?: string[] | null;
+  sale_origin?: string | null;
+  payment_status?: string | null;
+  ticket_type_label?: string | null;
+};
