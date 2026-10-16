@@ -154,7 +154,7 @@ end $$;
 -- Serialize with the online reservation inventory lock: a manual receipt cannot
 -- race a second checkout for the same buyer, or convert an invitation in place.
 create function public.manual_guard_online_buyer() returns trigger language plpgsql
-security definer set search_path='' as $
+security definer set search_path='' as $$
 begin
   if new.online_checkout_key is null then return new; end if;
   perform pg_advisory_xact_lock(hashtextextended('baby-inventory:'||new.event_id::text,0));
@@ -164,7 +164,7 @@ begin
     raise exception 'buyer_manual_sale_exists';
   end if;
   return new;
-end $;
+end $$;
 create trigger manual_online_buyer_guard before insert on public.table_reservations
   for each row execute function public.manual_guard_online_buyer();
 revoke all on function public.manual_guard_online_buyer() from public,anon,authenticated;
