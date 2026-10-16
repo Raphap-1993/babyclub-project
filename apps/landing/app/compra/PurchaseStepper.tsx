@@ -35,7 +35,7 @@ export function PurchaseStepper({
                   isActive
                     ? "bg-white text-black"
                     : isComplete
-                      ? "bg-[#e91e63] text-white"
+                      ? "bg-[#e60023] text-white"
                       : "bg-white/10 text-white/55"
                 }`}
               >
@@ -58,7 +58,7 @@ export function PurchaseStepper({
                   type="button"
                   aria-current={isActive ? "step" : undefined}
                   onClick={() => onStepSelect(step.id)}
-                  className="flex w-full min-w-0 flex-col items-center rounded-xl px-1 py-1 text-center transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e91e63]"
+                  className="flex w-full min-w-0 flex-col items-center rounded-xl px-1 py-1 text-center transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e60023]"
                 >
                   {content}
                 </button>

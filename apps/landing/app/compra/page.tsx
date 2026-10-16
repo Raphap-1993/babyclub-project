@@ -1813,7 +1813,7 @@ function CompraContent({
                             key={option.code}
                             className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
                               selected
-                                ? "border-[#e91e63]/60 bg-[#e91e63]/10 text-white"
+                                ? "border-[#e60023]/60 bg-[#e60023]/10 text-white"
                                 : "border-white/10 bg-[#0a0a0a] text-white"
                             }`}
                           >
@@ -1825,12 +1825,12 @@ function CompraContent({
                                 setTicketTypeSelectionTouched(true);
                                 setSelectedTicketTypeCode(option.code);
                               }}
-                              className="mt-1 h-4 w-4 shrink-0 accent-[#e91e63]"
+                              className="mt-1 h-4 w-4 shrink-0 accent-[#e60023]"
                             />
                             <span className="flex min-w-0 flex-1 flex-col gap-1">
                               <span className="flex flex-wrap items-baseline justify-between gap-2">
                                 <span>{option.label}</span>
-                                <span className="text-[#e91e63]">
+                                <span className="text-[#e60023]">
                                   S/ {option.price}
                                 </span>
                               </span>
@@ -1887,7 +1887,7 @@ function CompraContent({
                           {ticketTotalUnits || 0} QR en total
                         </p>
                       </div>
-                      <p className="text-2xl font-semibold text-[#e91e63]">
+                      <p className="text-2xl font-semibold text-[#e60023]">
                         S/ {ticketTotalPrice}
                       </p>
                     </div>
@@ -1995,9 +1995,6 @@ function CompraContent({
             )}
             {ticketStep === 3 && (
               <div className="space-y-3">
-                {mpEnabled && selectedPaymentMethodTicket === "mercadopago" && (
-                  <LegalAcceptance checked={ticketLegalAccepted} onChange={setTicketLegalAccepted} />
-                )}
                 <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
                   <div className="flex items-center justify-between text-white">
                     <span className="font-semibold">Documento</span>
@@ -2046,6 +2043,9 @@ function CompraContent({
                     </span>
                   </div>
                 </div>
+                {mpEnabled && selectedPaymentMethodTicket === "mercadopago" && (
+                  <LegalAcceptance checked={ticketLegalAccepted} onChange={setTicketLegalAccepted} />
+                )}
               </div>
             )}
             {ticketStep === 4 && (
@@ -2090,7 +2090,7 @@ function CompraContent({
                         </span>
                       </button>
                     </div>
-                    <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                    <div className="rounded-xl bg-[#e60023]/10 p-3 text-sm text-white/80">
                       Envía S/ {ticketTotalPrice} al número indicado y adjunta
                       el comprobante abajo.
                     </div>
@@ -2107,7 +2107,7 @@ function CompraContent({
                       onDrop={handleTicketDrop}
                       className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
                         ticketIsDragging
-                          ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                          ? "border-[#e60023] bg-[#e60023]/10 scale-[1.02]"
                           : ticketUploading
                             ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
                             : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
@@ -2134,7 +2134,7 @@ function CompraContent({
                       >
                         {ticketUploading ? (
                           <>
-                            <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                            <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e60023]"></div>
                             <p className="text-sm font-semibold text-white">
                               Subiendo comprobante...
                             </p>
@@ -2195,7 +2195,7 @@ function CompraContent({
                         href={ticketVoucherUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-[#e60023] underline-offset-4 hover:underline"
                       >
                         Ver comprobante subido
                       </a>
@@ -2313,7 +2313,7 @@ function CompraContent({
                         Libre
                       </span>
                       <span className="flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full border border-[#e91e63] bg-[#e91e63]" />
+                        <span className="h-1.5 w-1.5 rounded-full border border-[#e60023] bg-[#e60023]" />
                         Seleccionada
                       </span>
                     </div>
@@ -2360,9 +2360,9 @@ function CompraContent({
                         Mesas
                       </p>
                       {selected && tableInfo ? (
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#e91e63]/50 bg-[#e91e63]/10 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#e60023]/50 bg-[#e60023]/10 px-3 py-2.5">
                           <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ff77ad]">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ff3344]">
                               Mesa seleccionada
                             </p>
                             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -2370,7 +2370,7 @@ function CompraContent({
                                 {tableInfo.name}
                               </p>
                               {totalLabel && (
-                                <p className="text-sm font-semibold text-[#ff77ad]">
+                                <p className="text-sm font-semibold text-[#ff3344]">
                                   {totalLabel}
                                 </p>
                               )}
@@ -2412,7 +2412,7 @@ function CompraContent({
                                 className={`h-9 min-w-0 rounded-full px-2 text-xs font-semibold ${
                                   isReserved
                                     ? "cursor-not-allowed border border-white/10 bg-white/5 text-white/40"
-                                    : "border border-[#f2f2f2]/40 text-[#f2f2f2] transition hover:border-[#e91e63] hover:text-white"
+                                    : "border border-[#f2f2f2]/40 text-[#f2f2f2] transition hover:border-[#e60023] hover:text-white"
                                 }`}
                               >
                                 <span className="block truncate">{t.name}</span>
@@ -2437,7 +2437,7 @@ function CompraContent({
                                 onClick={() => setSelectedProduct(p.id)}
                                 className={`rounded-xl border p-3 text-left ${
                                   selectedProduct === p.id
-                                    ? "border-[#e91e63] bg-[#e91e63]/10 text-white"
+                                    ? "border-[#e60023] bg-[#e60023]/10 text-white"
                                     : "border-[#f2f2f2]/30 bg-black/40 text-[#f2f2f2]"
                                 }`}
                               >
@@ -2453,7 +2453,7 @@ function CompraContent({
                                     )}
                                   </div>
                                   {p.price != null && (
-                                    <div className="shrink-0 text-sm font-semibold text-[#e91e63]">
+                                    <div className="shrink-0 text-sm font-semibold text-[#e60023]">
                                       S/ {p.price}
                                     </div>
                                   )}
@@ -2583,9 +2583,6 @@ function CompraContent({
 
                 {mesaStep === 3 && (
                   <div className="space-y-3 p-3">
-                    {mpEnabled && selectedPaymentMethod === "mercadopago" && (
-                      <LegalAcceptance checked={mesaLegalAccepted} onChange={setMesaLegalAccepted} />
-                    )}
                     <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
                       <div className="flex items-center justify-between text-white">
                         <span className="font-semibold">Mesa</span>
@@ -2608,7 +2605,7 @@ function CompraContent({
                       {totalLabel && (
                         <div className="flex items-center justify-between text-white">
                           <span className="text-white/80">Total a pagar</span>
-                          <span className="text-lg font-semibold text-[#e91e63]">
+                          <span className="text-lg font-semibold text-[#e60023]">
                             {totalLabel}
                           </span>
                         </div>
@@ -2625,6 +2622,9 @@ function CompraContent({
                           </div>
                         )}
                     </div>
+                    {mpEnabled && selectedPaymentMethod === "mercadopago" && (
+                      <LegalAcceptance checked={mesaLegalAccepted} onChange={setMesaLegalAccepted} />
+                    )}
                   </div>
                 )}
 
@@ -2678,7 +2678,7 @@ function CompraContent({
                           </button>
                         </div>
                         {totalLabel && (
-                          <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                          <div className="rounded-xl bg-[#e60023]/10 p-3 text-sm text-white/80">
                             Envía{" "}
                             <span className="font-semibold text-white">
                               {totalLabel}
@@ -2700,7 +2700,7 @@ function CompraContent({
                           onDrop={handleDrop}
                           className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
                             isDragging
-                              ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                              ? "border-[#e60023] bg-[#e60023]/10 scale-[1.02]"
                               : uploading || reservationDone
                                 ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
                                 : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
@@ -2724,7 +2724,7 @@ function CompraContent({
                           >
                             {uploading ? (
                               <>
-                                <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                                <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e60023]"></div>
                                 <p className="text-sm font-semibold text-white">
                                   Subiendo comprobante...
                                 </p>
@@ -2786,7 +2786,7 @@ function CompraContent({
                             href={form.voucher_url}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                            className="inline-flex items-center gap-2 text-xs font-semibold text-[#e60023] underline-offset-4 hover:underline"
                           >
                             Ver comprobante subido
                           </a>
@@ -2833,9 +2833,7 @@ function CompraContent({
           </form>
         )}
 
-        {mode !== "mesa" && (
-          <LegalFooterLinks className="border-t border-white/10 pt-4" />
-        )}
+        <LegalFooterLinks className="border-t border-white/10 pt-4" />
       </div>
 
       {showSummary && (
@@ -2894,7 +2892,7 @@ function CompraContent({
                 {totalLabel && (
                   <div className="flex items-center justify-between text-white">
                     <span className="text-white/80">Total a pagar</span>
-                    <span className="text-lg font-semibold text-[#e91e63]">
+                    <span className="text-lg font-semibold text-[#e60023]">
                       {totalLabel}
                     </span>
                   </div>
@@ -2951,7 +2949,7 @@ function CompraContent({
                   </button>
                 </div>
                 {totalLabel && (
-                  <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                  <div className="rounded-xl bg-[#e60023]/10 p-3 text-sm text-white/80">
                     Envía{" "}
                     <span className="font-semibold text-white">
                       {totalLabel}
@@ -2973,7 +2971,7 @@ function CompraContent({
                   onDrop={handleDrop}
                   className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
                     isDragging
-                      ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                      ? "border-[#e60023] bg-[#e60023]/10 scale-[1.02]"
                       : uploading || reservationDone
                         ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
                         : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
@@ -2997,7 +2995,7 @@ function CompraContent({
                   >
                     {uploading ? (
                       <>
-                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e60023]"></div>
                         <p className="text-sm font-semibold text-white">
                           Subiendo comprobante...
                         </p>
@@ -3059,7 +3057,7 @@ function CompraContent({
                     href={form.voucher_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-[#e60023] underline-offset-4 hover:underline"
                   >
                     <svg
                       className="h-4 w-4"
@@ -3118,7 +3116,7 @@ function CompraContent({
                 )}
               </div>
             ) : isMesaOnlineSelected ? (
-              <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-4 text-base font-semibold text-white/80">
+              <div className="rounded-2xl border border-[#e60023]/30 bg-[#e60023]/10 p-4 text-base font-semibold text-white/80">
                 Al confirmar, abriremos el pago online con tarjeta. Tu reserva
                 se confirmará cuando el pago sea aprobado.
               </div>
@@ -3283,7 +3281,7 @@ function CompraContent({
                     <span className="text-[#f2f2f2]/70">(para abrir Yape)</span>
                   </button>
                 </div>
-                <div className="rounded-xl bg-[#e91e63]/10 p-3 text-sm text-white/80">
+                <div className="rounded-xl bg-[#e60023]/10 p-3 text-sm text-white/80">
                   Envía S/ {ticketTotalPrice} al número indicado y adjunta el
                   comprobante abajo.
                 </div>
@@ -3302,7 +3300,7 @@ function CompraContent({
                   onDrop={handleTicketDrop}
                   className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all duration-200 ${
                     ticketIsDragging
-                      ? "border-[#e91e63] bg-[#e91e63]/10 scale-[1.02]"
+                      ? "border-[#e60023] bg-[#e60023]/10 scale-[1.02]"
                       : ticketUploading
                         ? "border-white/10 bg-[#111111] cursor-not-allowed opacity-60"
                         : "border-white/20 bg-[#111111] hover:border-white/40 hover:bg-[#151515]"
@@ -3327,7 +3325,7 @@ function CompraContent({
                   >
                     {ticketUploading ? (
                       <>
-                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e91e63]"></div>
+                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e60023]"></div>
                         <p className="text-sm font-semibold text-white">
                           Subiendo comprobante...
                         </p>
@@ -3389,7 +3387,7 @@ function CompraContent({
                     href={ticketVoucherUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-xs font-semibold text-[#e91e63] underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-[#e60023] underline-offset-4 hover:underline"
                   >
                     <svg
                       className="h-4 w-4"
@@ -3429,7 +3427,7 @@ function CompraContent({
               </div>
             )}
             {isTicketOnlineSelected && (
-              <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-3 text-xs font-semibold text-white/80">
+              <div className="rounded-2xl border border-[#e60023]/30 bg-[#e60023]/10 p-3 text-xs font-semibold text-white/80">
                 Al confirmar, abriremos el pago online con tarjeta. Tu entrada
                 se confirmará cuando el pago sea aprobado.
               </div>
@@ -3531,7 +3529,7 @@ function CompraContent({
             </div>
 
             {mesaReservationId && (
-              <div className="rounded-2xl border border-[#e91e63]/30 bg-[#e91e63]/10 p-4 space-y-2">
+              <div className="rounded-2xl border border-[#e60023]/30 bg-[#e60023]/10 p-4 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-white/80">
                   Código de reserva
                 </p>
@@ -3662,43 +3660,22 @@ function LegalAcceptance({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/30 p-3 text-xs leading-5 text-white/70">
+    <label className="flex cursor-pointer items-start gap-3 px-1 py-3 text-sm leading-6 text-white/80">
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-1 h-4 w-4 shrink-0 accent-[#e91e63]"
+        className="mt-1 h-4 w-4 shrink-0 accent-[#e60023]"
       />
       <span>
-        Acepto los{" "}
-        <Link
-          href="/terminos-condiciones"
-          className="font-semibold text-[#ff77ad] underline-offset-4 hover:underline"
-        >
-          Términos y condiciones
-        </Link>
-        , la{" "}
-        <Link
-          href="/politica-privacidad"
-          className="font-semibold text-[#ff77ad] underline-offset-4 hover:underline"
-        >
-          Política de privacidad
+        He leído y acepto los{" "}
+        <Link href="/terminos-condiciones" className="font-medium text-[#ff3344] underline underline-offset-4">
+          términos y condiciones
         </Link>{" "}
         y la{" "}
-        <Link
-          href="/politica-cambios-devoluciones"
-          className="font-semibold text-[#ff77ad] underline-offset-4 hover:underline"
-        >
-          Política de cambios y devoluciones
-        </Link>
-        . El{" "}
-        <Link
-          href="/libro-reclamaciones"
-          className="font-semibold text-[#ff77ad] underline-offset-4 hover:underline"
-        >
-          Libro de Reclamaciones
-        </Link>{" "}
-        está disponible antes y después de la compra.
+        <Link href="/politica-privacidad" className="font-medium text-[#ff3344] underline underline-offset-4">
+          política de privacidad
+        </Link>{" "}*
       </span>
     </label>
   );
@@ -3724,7 +3701,7 @@ function ModalJumpTabs({
             key={tab.targetId}
             type="button"
             onClick={() => scrollToSection(tab.targetId)}
-            className="min-h-10 rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/75 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e91e63]"
+            className="min-h-10 rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/75 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e60023]"
           >
             {tab.label}
           </button>
@@ -3757,7 +3734,7 @@ function PaymentMethodSelector({
     compact ? "min-h-[64px]" : "min-h-[92px]"
   } items-start gap-3 rounded-2xl border p-3 text-left transition`;
   const activeClass =
-    "border-[#e91e63]/70 bg-[#e91e63]/15 text-white shadow-[0_12px_36px_rgba(233,30,99,0.18)]";
+    "border-[#e60023]/70 bg-[#e60023]/15 text-white shadow-[0_12px_36px_rgba(230,0,35,0.18)]";
   const idleClass = "border-white/10 bg-[#0b0b0b] text-white hover:bg-white/5";
 
   return (
@@ -3765,7 +3742,7 @@ function PaymentMethodSelector({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-white">{title}</p>
         {amountLabel ? (
-          <span className="rounded-full border border-[#e91e63]/30 bg-[#e91e63]/10 px-3 py-1 text-xs font-semibold text-[#ff77ad]">
+          <span className="rounded-full border border-[#e60023]/30 bg-[#e60023]/10 px-3 py-1 text-xs font-semibold text-[#ff3344]">
             Total {amountLabel}
           </span>
         ) : null}

@@ -142,7 +142,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
     checkout?.status === "processing" || checkout?.status === "paid";
   const checkChallenge = useCallback(() => request(), [request]);
   return (
-    <main className="min-h-screen bg-black px-4 py-7 text-white md:px-8 md:py-10">
+    <main className="min-h-screen bg-black px-4 py-5 text-white md:px-8 md:py-8">
       <Script
         src="https://sdk.mercadopago.com/js/v2"
         onReady={() => setSdkReady(true)}
@@ -153,7 +153,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
         }
       />
       <div className="mx-auto max-w-5xl">
-        <header className="mb-10 flex items-center justify-between gap-4">
+        <header className="mb-5 flex items-center justify-between gap-4">
           <Link href="/" aria-label="BABY, inicio">
             <img
               src="/images/baby-logo.png"
@@ -169,24 +169,24 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
             <ArrowLeft size={16} /> Volver a eventos
           </Link>
         </header>
-        <div className="grid items-start gap-7 md:grid-cols-[.8fr_1.2fr]">
-          <aside className="rounded-2xl border border-white/15 bg-[#0b0b0b] p-6 md:sticky md:top-8">
-            <span className="text-xs uppercase tracking-[.22em] text-red-400">
+        <div className="grid items-start gap-4 md:grid-cols-[.8fr_1.2fr]">
+          <aside className="rounded-2xl border border-white/15 bg-[#0b0b0b] p-4 sm:p-6 md:sticky md:top-8">
+            <span className="text-xs uppercase tracking-[.22em] text-[#ff3344]">
               {checkout?.environment === "test"
                 ? "Compra de prueba"
                 : "Tu compra"}
             </span>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight">
               {checkout?.event?.name || "Tu noche en BABY"}
             </h1>
-            <p className="mt-6 text-lg">{checkout?.concept}</p>
+            <p className="mt-3 text-base">{checkout?.concept}</p>
             <p className="mt-1 text-sm text-white/55">
               {checkout?.quantity || "—"}{" "}
               {checkout?.quantity === 1
                 ? "entrada incluida"
                 : "entradas incluidas"}
             </p>
-            <div className="my-6 h-px bg-white/15" />
+            <div className="my-3 h-px bg-white/15" />
             <div className="flex justify-between gap-4">
               <span>Total</span>
               <strong className="text-2xl">
@@ -198,7 +198,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                   : "—"}
               </strong>
             </div>
-            <p className="mt-6 flex items-start gap-2 text-xs leading-5 text-white/50">
+            <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-white/50">
               <ShieldCheck size={16} className="mt-0.5 shrink-0" /> Mercado Pago
               procesa tu pago de forma segura. BABY no almacena los datos de tu
               tarjeta ni el código de aprobación de Yape.
@@ -226,7 +226,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                 </Link>
                 <Link
                   href={checkout.nominationUrl!}
-                  className="mt-5 block text-center text-sm text-red-400 underline underline-offset-4"
+                  className="mt-5 block text-center text-sm text-[#ff3344] underline underline-offset-4"
                 >
                   Mis entradas y acompañantes
                 </Link>
@@ -240,7 +240,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
               />
             ) : pending ? (
               <>
-                <LoaderCircle className="mb-5 animate-spin text-red-400" />
+                <LoaderCircle className="mb-5 animate-spin text-[#ff3344]" />
                 <h2 className="text-2xl font-semibold">
                   {checkout?.status === "paid"
                     ? "Estamos preparando tus entradas"
@@ -253,7 +253,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                 </p>
                 {message && lastPayment.current && (
                   <button
-                    className="mt-5 text-sm text-red-400 underline"
+                    className="mt-5 text-sm text-[#ff3344] underline"
                     disabled={busy}
                     onClick={() => submit(lastPayment.current)}
                   >
@@ -266,7 +266,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                 <h2 className="mb-2 flex items-center gap-2 text-xl font-semibold">
                   <CreditCard size={20} /> Paga con Mercado Pago
                 </h2>
-                <p className="mb-5 text-sm text-white/55">
+                <p className="mb-4 text-sm text-white/65">
                   {yapeAvailable
                     ? "Elige cómo pagar. Tus entradas se generan al confirmar el pago."
                     : "Paga tu mesa o box con tarjeta de débito o crédito. Tus QR se generan al confirmar el pago."}
@@ -292,7 +292,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                           setMethod(option);
                           setMessage("");
                         }}
-                        className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${method === option ? "border-red-500 bg-red-500/10 text-white" : "border-white/20 text-white/60 hover:border-white/40"}`}
+                        className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${method === option ? "border-[#e60023] bg-[#e60023]/10 text-white" : "border-white/20 text-white/60 hover:border-white/40"}`}
                       >
                         {option === "card" ? (
                           <CreditCard size={19} />

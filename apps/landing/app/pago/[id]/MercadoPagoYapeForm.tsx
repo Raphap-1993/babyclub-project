@@ -54,7 +54,7 @@ export default function MercadoPagoYapeForm({
     }
   }
   const inputClass =
-    "mt-2 h-12 w-full min-w-0 rounded-lg border border-white/20 bg-black px-3 text-base text-white outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 disabled:opacity-50";
+    "mt-2 h-12 w-full min-w-0 rounded-lg border border-white/20 bg-black px-3 text-base text-white outline-none focus:border-[#e60023] focus:ring-1 focus:ring-[#e60023] disabled:opacity-50";
   return (
     <form onSubmit={pay} className="mt-5 space-y-5">
       <div className="rounded-xl border border-white/10 bg-white/[.03] p-4 text-sm leading-6 text-white/70">
@@ -118,7 +118,7 @@ export default function MercadoPagoYapeForm({
       <button
         type="submit"
         disabled={submitting}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white p-4 font-semibold text-black disabled:cursor-wait disabled:opacity-50"
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#e60023] p-4 font-semibold text-white transition-colors hover:bg-[#c90020] disabled:cursor-wait disabled:opacity-50"
       >
         <LockKeyhole size={16} />{" "}
         {submitting
