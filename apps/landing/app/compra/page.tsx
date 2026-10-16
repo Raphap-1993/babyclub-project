@@ -29,7 +29,6 @@ import { loadImageDimensions, optimizeImageUrl } from "lib/imageOptimization";
 import { useCulqiAvailability } from "lib/useCulqiAvailability";
 import { LegalFooterLinks } from "../legal/LegalFooterLinks";
 import CulqiCheckout from "../registro/CulqiCheckout";
-import { LegalTrustStrip } from "./LegalTrustStrip";
 import { PurchaseModeControls } from "./PurchaseModeControls";
 import { PurchaseStepper } from "./PurchaseStepper";
 import {
@@ -2189,7 +2188,6 @@ function CompraContent({
                     )}
                   </div>
                 )}
-                <LegalTrustStrip />
                 <LegalAcceptance
                   checked={ticketLegalAccepted}
                   onChange={setTicketLegalAccepted}
@@ -2630,7 +2628,6 @@ function CompraContent({
                       amountLabel={totalLabel}
                       compact
                     />
-                    <LegalTrustStrip />
                     <LegalAcceptance
                       checked={mesaLegalAccepted}
                       onChange={setMesaLegalAccepted}
