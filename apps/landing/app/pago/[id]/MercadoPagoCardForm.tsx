@@ -8,11 +8,13 @@ export default function MercadoPagoCardForm({
   email,
   amountCents,
   onSubmit,
+  onBusyChange,
 }: {
   publicKey: string;
   email: string;
   amountCents: number;
   onSubmit: (payment: any) => Promise<void>;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const sdk = useRef<any>(null);
   const bin = useRef("");
@@ -76,6 +78,7 @@ export default function MercadoPagoCardForm({
     event.preventDefault();
     if (submitting || !ready) return;
     setSubmitting(true);
+    onBusyChange(true);
     setError("");
     try {
       const payment = await tokenizeMercadoPagoCard(sdk.current, {
@@ -95,6 +98,7 @@ export default function MercadoPagoCardForm({
       );
     } finally {
       setSubmitting(false);
+      onBusyChange(false);
     }
   }
   const inputClass =

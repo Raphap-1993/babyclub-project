@@ -20,6 +20,7 @@ import {
   openMercadoPagoCheckout,
   processMercadoPagoWebhook,
   readMercadoPagoCheckout,
+  submitMercadoPagoPayment,
 } from "./mercadopagoCheckoutServer";
 import { ensureTicketOnlyBuyerIssued } from "../../backoffice/app/api/reservations/ticketOnlyFlow";
 
@@ -390,6 +391,21 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         await expect(claim(unopened)).rejects.toThrow(
           "mercadopago_sales_paused",
         );
+        await expect(
+          submitMercadoPagoPayment(db, unopened, {
+            payment_method_id: "yape",
+            phone_number: "111111111",
+            token: "synthetic-yape-token",
+          }),
+        ).rejects.toMatchObject({ code: "mercadopago_sales_paused" });
+        expect(
+          check(
+            await db
+              .from("mp_payment_attempts")
+              .select("id")
+              .eq("session_id", unopened.id),
+          ),
+        ).toHaveLength(0);
         expect((await claim(ticket)).action).toBe("reconcile");
         for (const [session, attempt] of [
           [ticket, ticketAttempt],

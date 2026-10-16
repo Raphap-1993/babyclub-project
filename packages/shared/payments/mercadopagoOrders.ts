@@ -1,4 +1,5 @@
 import { PaymentServiceError } from "./errors";
+import { isYapeAmountAllowed, isYapePhoneAllowed } from "./mercadopagoYape";
 
 // Orders has a different contract from Culqi's order/charge flow. Do not register
 // it in the legacy gateway until its persistence and fulfillment are wired.
@@ -152,6 +153,85 @@ export function buildMercadoPagoCardOrder(input: MercadoPagoCardOrderInput) {
   };
 }
 
+export type MercadoPagoYapeOrderInput = {
+  amountCents: number;
+  externalReference: string;
+  idempotencyKey: string;
+  environment: "test" | "live";
+  payer: { email: string; phoneNumber: string };
+  token: string;
+};
+
+export function buildMercadoPagoYapeOrder(input: MercadoPagoYapeOrderInput) {
+  if (!isYapeAmountAllowed(input.amountCents))
+    throw new PaymentServiceError(
+      "Yape admite compras de S/ 1 a S/ 2,000. Para este importe, paga con tarjeta.",
+      400,
+      "yape_amount_out_of_range",
+    );
+  if (!isYapePhoneAllowed(input.payer.phoneNumber, input.environment))
+    throw new PaymentServiceError(
+      "Ingresa el celular de 9 dígitos asociado a Yape.",
+      400,
+    );
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.payer.email))
+    throw new PaymentServiceError("Correo del pagador inválido", 400);
+  if (
+    !/^[\w-]{1,64}$/.test(input.externalReference) ||
+    !/^[\w-]{16,64}$/.test(input.idempotencyKey)
+  )
+    throw new PaymentServiceError(
+      "Referencia o idempotencia de pago inválida",
+      400,
+    );
+  if (
+    typeof input.token !== "string" ||
+    !input.token.trim() ||
+    input.token.length > 512
+  )
+    throw new PaymentServiceError(
+      "Vuelve a generar el código de aprobación en Yape.",
+      400,
+    );
+  const amount = formatMercadoPagoAmount(input.amountCents);
+  // OTP goes directly from the browser to MP.js. Never accept/store it here.
+  // Yape has no installments or card 3DS configuration.
+  return {
+    type: "online",
+    processing_mode: "automatic",
+    total_amount: amount,
+    external_reference: input.externalReference,
+    payer: {
+      email: input.payer.email,
+      entity_type: "individual",
+      phone: { area_code: "51", number: input.payer.phoneNumber },
+    },
+    transactions: {
+      payments: [
+        {
+          amount,
+          payment_method: {
+            id: "yape",
+            type: "debit_card",
+            token: input.token,
+          },
+        },
+      ],
+    },
+  };
+}
+
+export function createMercadoPagoYapeOrder(
+  input: MercadoPagoYapeOrderInput,
+  accessToken: string,
+) {
+  return ordersRequest("", accessToken, {
+    method: "POST",
+    headers: { "X-Idempotency-Key": input.idempotencyKey },
+    body: JSON.stringify(buildMercadoPagoYapeOrder(input)),
+  });
+}
+
 async function ordersRequest(
   path: string,
   accessToken: string,
@@ -234,7 +314,7 @@ async function ordersRequest(
     );
     throw new PaymentServiceError(
       [400, 422].includes(response.status)
-        ? "Mercado Pago no aprobó este intento. Revisa los datos o utiliza otra tarjeta."
+        ? "Mercado Pago no aprobó este intento. Revisa los datos o elige otro medio de pago."
         : "Mercado Pago no está disponible para procesar este intento en este momento.",
       502,
       [400, 401, 403, 404, 422].includes(response.status)

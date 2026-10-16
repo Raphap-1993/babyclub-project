@@ -2,6 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import MercadoPagoCardForm from "./MercadoPagoCardForm";
+import MercadoPagoYapeForm from "./MercadoPagoYapeForm";
+import {
+  isYapeAmountAllowed,
+  mercadoPagoDeclineMessage,
+} from "shared/payments/mercadopagoYape";
 import MercadoPagoChallenge from "./MercadoPagoChallenge";
 import Script from "next/script";
 import {
@@ -10,6 +15,7 @@ import {
   CreditCard,
   LoaderCircle,
   ShieldCheck,
+  Smartphone,
 } from "lucide-react";
 
 type Checkout = {
@@ -19,6 +25,7 @@ type Checkout = {
   amountCents: number;
   publicKey: string;
   email: string;
+  paymentMethods: ("card" | "yape")[];
   concept: string;
   quantity: number;
   expiresAt: string;
@@ -35,6 +42,8 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
   const [sdkReady, setSdkReady] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tokenizing, setTokenizing] = useState(false);
+  const [method, setMethod] = useState<"card" | "yape">("card");
   const [brickVersion, setBrickVersion] = useState(0);
   const lastPayment = useRef<any>(null);
   const request = useCallback(
@@ -62,13 +71,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
         data.checkout.status === "awaiting_payment" &&
         ["failed", "canceled"].includes(data.checkout.attemptStatus)
       )
-        setMessage(
-          data.checkout.paymentDetail === "cc_rejected_3ds_challenge"
-            ? "El banco no pudo verificar tu tarjeta. Inténtalo de nuevo o utiliza otra tarjeta."
-            : data.checkout.paymentDetail === "expired"
-              ? "La verificación bancaria venció. El intento anterior quedó cerrado."
-              : "El pago no fue aprobado. Revisa los datos o utiliza otra tarjeta.",
-        );
+        setMessage(mercadoPagoDeclineMessage(data.checkout.paymentDetail));
       return data.checkout as Checkout;
     },
     [id, token],
@@ -101,9 +104,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
       try {
         const state = await request("POST", payment);
         if (state.status === "awaiting_payment") {
-          setMessage(
-            "El pago no fue aprobado. Revisa los datos o utiliza otra tarjeta.",
-          );
+          setMessage(mercadoPagoDeclineMessage(state.paymentDetail));
           setBrickVersion((value) => value + 1);
         }
       } catch (error: any) {
@@ -136,6 +137,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
     }
   }, [checkout?.status, token]);
   const completed = checkout?.status === "fulfilled";
+  const yapeAvailable = checkout?.paymentMethods?.includes("yape") === true;
   const pending =
     checkout?.status === "processing" || checkout?.status === "paid";
   const checkChallenge = useCallback(() => request(), [request]);
@@ -197,8 +199,9 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
               </strong>
             </div>
             <p className="mt-6 flex items-start gap-2 text-xs leading-5 text-white/50">
-              <ShieldCheck size={16} className="mt-0.5 shrink-0" /> Los datos de
-              tu tarjeta se procesan en Mercado Pago. BABY no los almacena.
+              <ShieldCheck size={16} className="mt-0.5 shrink-0" /> Mercado Pago
+              procesa tu pago de forma segura. BABY no almacena los datos de tu
+              tarjeta ni el código de aprobación de Yape.
             </p>
           </aside>
           <section
@@ -264,18 +267,70 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
                   <CreditCard size={20} /> Paga con Mercado Pago
                 </h2>
                 <p className="mb-5 text-sm text-white/55">
-                  {checkout.environment === "test"
-                    ? "Completa los datos de tu tarjeta de prueba."
-                    : "Completa los datos de tu tarjeta para confirmar tu compra."}
+                  {yapeAvailable
+                    ? "Elige cómo pagar. Tus entradas se generan al confirmar el pago."
+                    : "Paga tu mesa o box con tarjeta de débito o crédito. Tus QR se generan al confirmar el pago."}
                 </p>
+                {yapeAvailable && (
+                  <div
+                    role="group"
+                    aria-label="Medio de pago"
+                    className="mb-5 grid grid-cols-2 gap-3"
+                  >
+                    {(["card", "yape"] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={method === option}
+                        disabled={
+                          busy ||
+                          tokenizing ||
+                          (option === "yape" &&
+                            !isYapeAmountAllowed(checkout.amountCents))
+                        }
+                        onClick={() => {
+                          setMethod(option);
+                          setMessage("");
+                        }}
+                        className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${method === option ? "border-red-500 bg-red-500/10 text-white" : "border-white/20 text-white/60 hover:border-white/40"}`}
+                      >
+                        {option === "card" ? (
+                          <CreditCard size={19} />
+                        ) : (
+                          <Smartphone size={19} />
+                        )}{" "}
+                        {option === "card" ? "Tarjeta" : "Yape"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {yapeAvailable &&
+                  !isYapeAmountAllowed(checkout.amountCents) && (
+                    <p className="mb-4 text-xs leading-5 text-white/55">
+                      Yape admite compras entre S/ 1 y S/ 2,000. Puedes pagar
+                      este importe con tarjeta.
+                    </p>
+                  )}
                 {sdkReady ? (
-                  <MercadoPagoCardForm
-                    key={brickVersion}
-                    publicKey={checkout.publicKey}
-                    email={checkout.email}
-                    amountCents={checkout.amountCents}
-                    onSubmit={submit}
-                  />
+                  method === "yape" && yapeAvailable ? (
+                    <MercadoPagoYapeForm
+                      key={`yape-${brickVersion}`}
+                      publicKey={checkout.publicKey}
+                      amountCents={checkout.amountCents}
+                      environment={checkout.environment}
+                      onSubmit={submit}
+                      onBusyChange={setTokenizing}
+                    />
+                  ) : (
+                    <MercadoPagoCardForm
+                      key={brickVersion}
+                      publicKey={checkout.publicKey}
+                      email={checkout.email}
+                      amountCents={checkout.amountCents}
+                      onSubmit={submit}
+                      onBusyChange={setTokenizing}
+                    />
+                  )
                 ) : (
                   <p className="py-6 text-sm text-white/50">
                     Cargando formulario seguro…
@@ -307,7 +362,7 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
             ) : (
               <p className="text-sm text-white/60">Cargando tu compra…</p>
             )}
-            {message && (
+            {message && !busy && !tokenizing && !pending && !completed && (
               <p
                 role="alert"
                 className="mt-5 rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-sm leading-6 text-red-200"

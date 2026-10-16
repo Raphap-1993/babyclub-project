@@ -2041,6 +2041,7 @@ function CompraContent({
                   title="Método de pago"
                   value={selectedPaymentMethodTicket}
                   onChange={setSelectedPaymentMethodTicket}
+                  yapeAvailable
                   mercadopagoAvailable={mpEnabled}
                   culqiAvailable={canUseCulqiForTicket}
                   amountLabel={
@@ -3234,6 +3235,7 @@ function CompraContent({
               <PaymentMethodSelector
                 value={selectedPaymentMethodTicket}
                 onChange={setSelectedPaymentMethodTicket}
+                yapeAvailable
                 mercadopagoAvailable={mpEnabled}
                   culqiAvailable={canUseCulqiForTicket}
                 amountLabel={
@@ -3737,6 +3739,7 @@ function PaymentMethodSelector({
   onChange,
   culqiAvailable,
   mercadopagoAvailable,
+  yapeAvailable = false,
   amountLabel,
   compact = false,
 }: {
@@ -3745,6 +3748,7 @@ function PaymentMethodSelector({
   onChange: (value: PaymentMethod) => void;
   culqiAvailable: boolean;
   mercadopagoAvailable: boolean;
+  yapeAvailable?: boolean;
   amountLabel?: string | null;
   compact?: boolean;
 }) {
@@ -3769,7 +3773,7 @@ function PaymentMethodSelector({
       {mercadopagoAvailable ? (
         <button type="button" aria-pressed={value === "mercadopago"} onClick={() => onChange("mercadopago")} className={`${cardBase} ${value === "mercadopago" ? activeClass : idleClass}`}>
           <CreditCard className="h-5 w-5 shrink-0" />
-          <span><span className="block text-sm font-semibold">Mercado Pago</span><span className="block text-xs text-white/60">Tarjeta de débito o crédito. QR al confirmar el pago.</span></span>
+          <span><span className="block text-sm font-semibold">Mercado Pago</span><span className="block text-xs text-white/60">{yapeAvailable ? "Tarjeta o Yape. QR al confirmar el pago." : "Tarjeta de débito o crédito. QR al confirmar el pago."}</span></span>
         </button>
       ) : culqiAvailable ? (
         <div className="grid gap-2">

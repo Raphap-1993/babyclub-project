@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isYapeReservationAllowed } from "shared/payments/mercadopagoYape";
 import { safeMercadoPagoChallengeUrl } from "shared/payments/mercadopagoChallenge";
 import {
   getMercadoPagoConfig,
@@ -8,10 +9,13 @@ import { PaymentServiceError } from "shared/payments/errors";
 import {
   buildMercadoPagoCardOrder,
   createMercadoPagoCardOrder,
+  buildMercadoPagoYapeOrder,
+  createMercadoPagoYapeOrder,
   evaluateMercadoPagoOrder,
   getMercadoPagoOrder,
   findMercadoPagoOrder,
   type MercadoPagoCardOrderInput,
+  type MercadoPagoYapeOrderInput,
 } from "shared/payments/mercadopagoOrders";
 import { ensureTicketOnlyBuyerIssued } from "../../backoffice/app/api/reservations/ticketOnlyFlow";
 import { sendApprovalEmail } from "../../backoffice/app/api/reservations/email";
@@ -46,7 +50,11 @@ function databaseError(error: any) {
 
 export function checkoutDatabaseError(error: any) {
   if (/mercadopago_sales_paused/.test(error?.message || ""))
-    return new PaymentServiceError("La venta de entradas y mesas está pausada temporalmente. Tus compras anteriores siguen vigentes.", 503, "mercadopago_sales_paused");
+    return new PaymentServiceError(
+      "La venta de entradas y mesas está pausada temporalmente. Tus compras anteriores siguen vigentes.",
+      503,
+      "mercadopago_sales_paused",
+    );
   if (/reservation_buyer_active/.test(error?.message || ""))
     return new PaymentServiceError(
       "Ya tienes una compra en curso para este evento. Retoma tu enlace de pago o espera que venza antes de iniciar otra.",
@@ -218,6 +226,14 @@ export async function applyMercadoPagoCanonicalOrder(
   });
   databaseError(error);
   const payment = order.transactions?.payments?.[0];
+  // Orders uses the generic "failed" at order level. The single canonical
+  // payment carries the actionable reason (e.g. Yape insufficient_amount).
+  const providerDetail =
+    status === "failed" &&
+    order.transactions?.payments?.length === 1 &&
+    payment?.status === "failed"
+      ? payment.status_detail
+      : order.status_detail;
   const challengeUrl =
     status === "pending" &&
     order.status === "action_required" &&
@@ -235,9 +251,9 @@ export async function applyMercadoPagoCanonicalOrder(
         .update({
           challenge_url: challengeUrl,
           provider_status_detail: /^[a-z0-9_]{1,100}$/.test(
-            order.status_detail || "",
+            providerDetail || "",
           )
-            ? order.status_detail
+            ? providerDetail
             : null,
         })
         .eq("id", attempt.id)
@@ -257,10 +273,20 @@ export async function submitMercadoPagoPayment(
   assertCheckoutEnvironment(session);
   const reservationResult = await db
     .from("table_reservations")
-    .select("email")
+    .select("email,table_id,sale_origin")
     .eq("id", session.reservation_id)
     .single();
   databaseError(reservationResult.error);
+  if (
+    body?.payment_method_id === "yape" &&
+    !isYapeReservationAllowed(reservationResult.data)
+  ) {
+    throw new PaymentServiceError(
+      "Las mesas y boxes se pagan únicamente con tarjeta. Yape está disponible para entradas.",
+      400,
+      "yape_tickets_only",
+    );
+  }
   const card: MercadoPagoCardOrderInput = {
     amountCents: session.amount_cents,
     externalReference: session.id,
@@ -280,7 +306,24 @@ export async function submitMercadoPagoPayment(
       installments: Number(body?.installments),
     },
   };
-  const payload = buildMercadoPagoCardOrder(card); // Validate before persisting any attempt.
+  const yape: MercadoPagoYapeOrderInput | null =
+    body?.payment_method_id === "yape"
+      ? {
+          amountCents: session.amount_cents,
+          externalReference: session.id,
+          idempotencyKey: session.id,
+          environment: config.environment,
+          payer: {
+            email: reservationResult.data.email,
+            phoneNumber: body?.phone_number,
+          },
+          token: body?.token,
+        }
+      : null;
+  // Validate before persisting an attempt; all prices still come from the session.
+  const payload = yape
+    ? buildMercadoPagoYapeOrder(yape)
+    : buildMercadoPagoCardOrder(card);
   const fingerprint = createHash("sha256")
     .update(JSON.stringify(payload))
     .digest("hex");
@@ -294,10 +337,23 @@ export async function submitMercadoPagoPayment(
   if (claimed.data.action !== "submit") return;
   const attempt = claimed.data.attempt;
   try {
-    const order = await createMercadoPagoCardOrder(
-      { ...card, idempotencyKey: attempt.id, externalReference: attempt.id },
-      config.accessToken,
-    );
+    const order = yape
+      ? await createMercadoPagoYapeOrder(
+          {
+            ...yape,
+            idempotencyKey: attempt.id,
+            externalReference: attempt.id,
+          },
+          config.accessToken,
+        )
+      : await createMercadoPagoCardOrder(
+          {
+            ...card,
+            idempotencyKey: attempt.id,
+            externalReference: attempt.id,
+          },
+          config.accessToken,
+        );
     // Bind the resource immediately; canonical re-reading then verifies the outcome.
     const linked = await db
       .from("mp_payment_attempts")
@@ -554,7 +610,7 @@ export async function readMercadoPagoCheckout(
   const r = await db
     .from("table_reservations")
     .select(
-      "id,email,table_id,ticket_type_label,ticket_quantity,total_ticket_units,event:events(name,starts_at),table:tables(name)",
+      "id,email,table_id,sale_origin,ticket_type_label,ticket_quantity,total_ticket_units,event:events(name,starts_at),table:tables(name)",
     )
     .eq("id", session.reservation_id)
     .single();
@@ -584,6 +640,9 @@ export async function readMercadoPagoCheckout(
     publicKey: getMercadoPagoConfig().publicKey,
     expiresAt: session.expires_at,
     email: r.data.email,
+    paymentMethods: isYapeReservationAllowed(r.data)
+      ? ["card", "yape"]
+      : ["card"],
     event: r.data.event,
     attemptStatus: attempt.data?.status || null,
     paymentDetail: attempt.data?.provider_status_detail || null,

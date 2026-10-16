@@ -109,9 +109,9 @@ node node_modules/vitest/vitest.mjs run packages/shared/payments/mercadopagoOrde
 
 La suite de base exige loopback, crea registros sintéticos en un evento propio y los da de baja al terminar. No ejecutar contra producción. Las migraciones `20261015210000_mercadopago_checkout.sql` y `20261015223000_mercadopago_3ds.sql` se aplicaron exclusivamente en la base local, sin reinicializarla.
 
-## Paso productivo pendiente
+## Estado histórico y evolución
 
-Esta rama no habilita live ni fue publicada. Antes de un release deben prepararse credenciales productivas separadas (incluida la firma de la aplicación productiva), endpoint HTTPS estable, worker duradero con alertas/revisión de intentos sin resolver y correo real. 3DS y webhook automático están validados en sandbox. El checkout actual cubre tarjetas; Yape dentro de Mercado Pago es otra integración. Los cambios se revisan antes de migrar datos reales o activar cobros.
+El cierre descrito arriba corresponde a la validación inicial de tarjetas, previa al release. La configuración productiva posterior se documenta en `mercadopago-production.md`. La integración nueva de Yape, aún local, está en `mercadopago-yape.md`: entradas con tarjeta o Yape; mesas y boxes solo con tarjeta. Se mantienen credenciales, firmas y bases separadas por ambiente.
 
 ## Referencias
 
