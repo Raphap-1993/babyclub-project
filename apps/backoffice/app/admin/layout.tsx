@@ -179,6 +179,12 @@ const menuSections: NavSection[] = [
         icon: Plug,
       },
       {
+        id: "mercadopago",
+        label: "Mercado Pago",
+        href: "/admin/mercadopago",
+        icon: BadgeDollarSign,
+      },
+      {
         id: "backup",
         label: "Backup BD",
         href: "/admin/utilidades/backup",

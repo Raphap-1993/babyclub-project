@@ -45,6 +45,8 @@ function databaseError(error: any) {
 }
 
 export function checkoutDatabaseError(error: any) {
+  if (/mercadopago_sales_paused/.test(error?.message || ""))
+    return new PaymentServiceError("La venta de entradas y mesas está pausada temporalmente. Tus compras anteriores siguen vigentes.", 503, "mercadopago_sales_paused");
   if (/reservation_buyer_active/.test(error?.message || ""))
     return new PaymentServiceError(
       "Ya tienes una compra en curso para este evento. Retoma tu enlace de pago o espera que venza antes de iniciar otra.",

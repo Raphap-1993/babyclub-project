@@ -110,8 +110,10 @@ Ni `live_mode` del cuerpo ni el retorno del navegador acreditan una compra.
 
 ## Recuperación y reversión
 
-- Poner `ENABLE_MERCADOPAGO_PAYMENTS=false` y redesplegar detiene compras nuevas.
-  Mantener credenciales, webhook y recuperación para liquidar intentos pendientes.
+- Usar **Sistema → Mercado Pago → Pausar ventas** para detener nuevas compras
+  inmediatamente, sin redesplegar. Mantener credenciales, webhook y recuperación
+  para liquidar intentos pendientes. La bandera de Vercel controla la integración;
+  no sustituye la pausa operativa del panel.
 - No eliminar las tablas `mp_*`, QR o reservas al revertir frontend. El historial
   de cobros permanece y las órdenes ambiguas se consultan, nunca se vuelven a cobrar.
 - Los reembolsos completos confirmados por API desactivan los QR de esa compra.
@@ -119,6 +121,42 @@ Ni `live_mode` del cuerpo ni el retorno del navegador acreditan una compra.
   backoffice continúa siendo de Culqi.
 - Revisar sesiones `review`/`paid`, eventos `error` y notificaciones `error`.
   No resolver manualmente como pagado sin consultar la orden canónica.
+
+## Panel de administración de Mercado Pago
+
+Ruta del backoffice: `/admin/mercadopago`, también accesible desde Integraciones.
+Solo personal activo con rol `admin` o `superadmin` puede consultar o cambiar
+el control. El panel muestra el entorno del deployment y consulta la disponibilidad
+real de la landing sin copiar credenciales de Mercado Pago al backoffice.
+
+La migración `20261016013000_mercadopago_sales_control.sql` agrega un control
+privado, inicialmente sin pausa, y un historial de cambios. No modifica registros
+históricos. La pausa bloquea nuevas reservas online y nuevos intentos de cobro
+en la base de datos. Los intentos ya enviados, 3DS pendiente, webhooks, recuperación,
+nominación y QR existentes continúan. Reanudar requiere la confirmación del
+administrador en el panel; cada cambio guarda fecha, staff y versión. Los cambios
+con una versión desactualizada se rechazan para evitar sobrescrituras simultáneas.
+No se conceden permisos directos de escritura en esas tablas, ni acceso a anon
+o authenticated; la escritura se realiza mediante la RPC auditada del servidor.
+
+**Pruebas** abre `http://127.0.0.1:3004/` y el panel local en
+`http://127.0.0.1:3000/admin/mercadopago`. Requiere Docker, landing y backoffice
+locales encendidos, además de la sesión administrativa local independiente.
+Cada enlace apunta a la computadora que lo abre. No cambia credenciales, modo
+ni datos del deployment productivo. Preview y una laptop conectada a la base
+real no pueden usar este panel para modificar ventas.
+
+Validación local del panel: autorización y entradas manipuladas; aislamiento de
+entornos; dos administradores concurrentes; pausa de entradas y mesas; bloqueo
+de un intento nuevo; acreditación y QR únicos de compras iniciadas antes de la
+pausa; reanudación y auditoría. No probar la pausa con clientes en producción.
+
+Publicación del panel, 2026-10-15: migración aplicada con aislamiento repeatable
+read y comparación de checksums de todas las filas de nueve tablas de reservas,
+QR y pagos antes/después. Datos existentes intactos; `paused=false`, historial
+vacío y escritura directa denegada a service_role. Validación: 101 pruebas y
+builds de landing/backoffice correctos. Pausa y reanudación comprobadas desde
+el navegador únicamente en la base local.
 
 ## Evidencia y fuentes
 

@@ -129,14 +129,18 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
       if (result.error) throw new Error(result.error.message);
       return result.data;
     }
-    async function fixture(quantity = 1, table = false) {
+    async function fixture(
+      quantity = 1,
+      table = false,
+      selectedTableId = tableId,
+    ) {
       const token = randomBytes(32).toString("hex");
       const reservationId = randomUUID();
       check(
         await db.from("table_reservations").insert({
           id: reservationId,
           event_id: eventId,
-          table_id: table ? tableId : null,
+          table_id: table ? selectedTableId : null,
           full_name: "QA Pago " + reservationId.slice(0, 8),
           email: `qa.${reservationId}@example.com`,
           phone: null,
@@ -272,6 +276,166 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         }),
       ).rejects.toThrow("online_payment_not_accredited");
     });
+    it("pauses new tickets, tables and attempts, while existing approvals still issue exactly one QR", async () => {
+      const role = check(
+        await db.from("staff_roles").select("id").eq("code", "admin").single(),
+      );
+      const staff = check(
+        await db
+          .from("staff")
+          .select("id")
+          .eq("staff_role_id", role.id)
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .limit(1)
+          .single(),
+      );
+      const readControl = async () =>
+        check(
+          await db.from("mp_sales_control").select("*").eq("id", true).single(),
+        );
+      const original = await readControl();
+      if (original.paused)
+        throw new Error("Resume local sales before running this suite");
+      const extraTableId = randomUUID();
+      const tableRow = check(
+        await db.from("tables").select("*").eq("id", tableId).single(),
+      );
+      check(await db.from("tables").insert({ ...tableRow, id: extraTableId }));
+      const ticket = await fixture();
+      const table = await fixture(1, true, extraTableId);
+      const unopened = await fixture();
+      const ticketAttempt = (await claim(ticket)).attempt;
+      const tableAttempt = (await claim(table)).attempt;
+      await applyMercadoPagoCanonicalOrder(
+        db,
+        ticketAttempt,
+        order(ticket, ticketAttempt, "pending"),
+      );
+      await applyMercadoPagoCanonicalOrder(
+        db,
+        tableAttempt,
+        order(table, tableAttempt, "pending"),
+      );
+      try {
+        // A role key cannot bypass the audited procedure via direct writes.
+        expect(
+          (
+            await db
+              .from("mp_sales_control")
+              .update({ paused: true })
+              .eq("id", true)
+          ).error,
+        ).toBeTruthy();
+        expect(
+          (await anon.from("mp_sales_control").select("*")).error,
+        ).toBeTruthy();
+        expect(
+          (
+            await anon.rpc("mp_set_sales_paused", {
+              p_paused: true,
+              p_version: original.version,
+              p_staff: staff.id,
+            })
+          ).error,
+        ).toBeTruthy();
+        expect(
+          (
+            await db.rpc("mp_set_sales_paused", {
+              p_paused: true,
+              p_version: original.version,
+              p_staff: randomUUID(),
+            })
+          ).error?.message,
+        ).toContain("sales_control_forbidden");
+        const contenders = await Promise.all(
+          [1, 2].map(() =>
+            db.rpc("mp_set_sales_paused", {
+              p_paused: true,
+              p_version: original.version,
+              p_staff: staff.id,
+            }),
+          ),
+        );
+        expect(contenders.filter((result) => !result.error)).toHaveLength(1);
+        expect(
+          contenders.find((result) => result.error)?.error.message,
+        ).toContain("sales_control_conflict");
+        const paused = await readControl();
+        expect(paused).toMatchObject({
+          paused: true,
+          version: original.version + 1,
+          updated_by: staff.id,
+        });
+        check(
+          await db.rpc("mp_set_sales_paused", {
+            p_paused: true,
+            p_version: paused.version,
+            p_staff: staff.id,
+          }),
+        );
+        expect((await readControl()).version).toBe(paused.version);
+        expect(
+          check(
+            await db
+              .from("mp_sales_control_audit")
+              .select("id")
+              .eq("version", paused.version),
+          ),
+        ).toHaveLength(1);
+        await expect(fixture()).rejects.toThrow("mercadopago_sales_paused");
+        await expect(fixture(1, true)).rejects.toThrow(
+          "mercadopago_sales_paused",
+        );
+        await expect(claim(unopened)).rejects.toThrow(
+          "mercadopago_sales_paused",
+        );
+        expect((await claim(ticket)).action).toBe("reconcile");
+        for (const [session, attempt] of [
+          [ticket, ticketAttempt],
+          [table, tableAttempt],
+        ]) {
+          await applyMercadoPagoCanonicalOrder(
+            db,
+            attempt,
+            order(session, attempt),
+          );
+          await applyMercadoPagoCanonicalOrder(
+            db,
+            attempt,
+            order(session, attempt),
+          );
+          expect(
+            (await readMercadoPagoCheckout(db, session, false)).status,
+          ).toBe("fulfilled");
+          const issued = check(
+            await db
+              .from("tickets")
+              .select("id,qr_token,is_active")
+              .eq("mp_checkout_session_id", session.id),
+          );
+          expect(issued).toHaveLength(1);
+          expect(issued[0].qr_token).toBeTruthy();
+          expect(issued[0].is_active).toBe(true);
+        }
+      } finally {
+        const latest = await readControl();
+        check(
+          await db.rpc("mp_set_sales_paused", {
+            p_paused: false,
+            p_version: latest.version,
+            p_staff: staff.id,
+          }),
+        );
+        check(
+          await db
+            .from("tables")
+            .update({ is_active: false, deleted_at: new Date().toISOString() })
+            .eq("id", extraTableId),
+        );
+      }
+      expect((await claim(unopened)).action).toBe("submit");
+    }, 30000);
     it("keeps a 3DS hold without QR, recovers its challenge, then fulfills only canonical approval", async () => {
       const s = await fixture();
       const a = (await claim(s)).attempt;

@@ -1,4 +1,5 @@
 import { readOnlineCheckoutRequest } from "shared/payments/mercadopagoConfig";
+import { assertMercadoPagoSalesOpen } from "shared/payments/mercadopagoSalesControl";
 import { toPaymentServiceError } from "shared/payments/errors";
 import { checkoutDatabaseError, recoverMercadoPagoCheckout, openMercadoPagoCheckout } from "../../../lib/mercadopagoCheckoutServer";
 import { PurchaseAttributionError, resolvePurchaseAttribution } from "shared/promoterAttribution";
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest) {
       onlineMetadata = readOnlineCheckoutRequest(body);
       const previous = await recoverMercadoPagoCheckout(supabase, body);
       if (previous) return NextResponse.json(previous);
+      await assertMercadoPagoSalesOpen(supabase);
     } catch (error) {
       const failure = toPaymentServiceError(error);
       return NextResponse.json({ success: false, error: failure.message, code: failure.code }, { status: failure.status });

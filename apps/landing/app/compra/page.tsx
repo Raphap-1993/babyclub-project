@@ -1687,6 +1687,44 @@ function CompraContent({
     await confirmReservation();
   };
 
+  if (!culqiAvailability.checked || culqiAvailability.salesPaused) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-black px-5 py-12 text-white">
+        <section
+          className="w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-950 p-7 text-center"
+          aria-live="polite"
+        >
+          <p className="text-xs font-semibold tracking-[0.3em] text-white/50">
+            BABY
+          </p>
+          <h1 className="mt-5 text-2xl font-semibold">
+            {culqiAvailability.checked
+              ? "Ventas pausadas por el momento"
+              : "Consultando disponibilidad…"}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-white/60">
+            {culqiAvailability.checked
+              ? "La compra de entradas y la reserva de mesas estarán disponibles nuevamente pronto. Tus compras anteriores siguen vigentes."
+              : "Estamos verificando la disponibilidad para tu compra."}
+          </p>
+          <Link
+            href="/"
+            className="mt-6 inline-block rounded-xl bg-white px-6 py-3 text-sm font-semibold text-black"
+          >
+            Volver a los eventos
+          </Link>
+          <Link
+            href="/mis-entradas"
+            className="mt-5 block text-sm text-red-400 underline underline-offset-4"
+          >
+            Mis entradas
+          </Link>
+        </section>
+        <LegalFooterLinks />
+      </main>
+    );
+  }
+
   return (
     <main className="flex min-h-screen items-start justify-center bg-black px-3 py-4 text-white sm:px-6 lg:px-8 lg:py-6">
       <div className="w-full min-w-0 max-w-6xl space-y-4 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f0f0f] to-[#050505] p-4 shadow-[0_25px_80px_rgba(0,0,0,0.45)] sm:p-5">
