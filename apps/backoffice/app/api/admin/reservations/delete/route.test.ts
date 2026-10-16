@@ -36,6 +36,30 @@ describe("POST /api/admin/reservations/delete", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
+  it("archiva una reserva rechazada sin QR ni códigos y conserva los pagos", async () => {
+    (requireStaffRole as any).mockResolvedValue({ ok: true, context: { role: "admin", staffId: "staff-1" } });
+    const { supabase, calls } = createSupabaseMock({
+      "table_reservations.select": { data: { id: "rejected-1", codes: [] }, error: null },
+      "codes.select": { data: [], error: null },
+      "tickets.select": { data: [], error: null },
+    });
+    (createClient as any).mockReturnValue(supabase);
+    const { POST } = await import("./route");
+    const response = await POST({ json: async () => ({ id: "rejected-1", confirmation: "eliminar" }) } as any);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ archived: true, deactivated_codes: 0, deactivated_tickets: 0 });
+    expect(calls.some((call) => call.table === "payments" || call.op === "delete")).toBe(false);
+    expect(calls.find((call) => call.table === "table_reservations" && call.op === "update")?.payload).toMatchObject({ is_active: false, deleted_by: "staff-1" });
+  });
+
+  it("no consulta ni modifica datos sin autorización", async () => {
+    (requireStaffRole as any).mockResolvedValue({ ok: false, status: 401, error: "Auth requerido" });
+    const { POST } = await import("./route");
+    const response = await POST({ json: async () => ({ id: "res-1", confirmation: "eliminar" }) } as any);
+    expect(response.status).toBe(401);
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
   it("archiva la reserva y desactiva códigos/tickets vinculados", async () => {
     (requireStaffRole as any).mockResolvedValue({ ok: true, context: { role: "admin", staffId: "staff-1" } });
 
@@ -45,7 +69,6 @@ describe("POST /api/admin/reservations/delete", () => {
           data: {
             id: "res-1",
             codes: ["LEG-01"],
-            ticket_id: "ticket-main-1",
           },
           error: null,
         },
@@ -90,7 +113,12 @@ describe("POST /api/admin/reservations/delete", () => {
     expect(payload.success).toBe(true);
     expect(payload.archived).toBe(true);
     expect(payload.deactivated_codes).toBe(2);
-    expect(payload.deactivated_tickets).toBe(3);
+    expect(payload.deactivated_tickets).toBe(2);
+
+    // Production has no table_reservations.ticket_id; links live on tickets.
+    expect(calls.find((call) => call.table === "table_reservations" && call.op === "select")?.selectClause).toBe("id,codes");
+    expect(calls.some((call) => call.op === "delete")).toBe(false);
+    expect(calls.some((call) => call.table === "payments")).toBe(false);
 
     const codesUpdateCall = calls.find((call) => call.table === "codes" && call.op === "update");
     expect(codesUpdateCall?.payload).toEqual({ is_active: false });

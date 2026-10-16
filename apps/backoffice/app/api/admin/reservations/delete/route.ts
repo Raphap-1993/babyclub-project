@@ -50,7 +50,7 @@ export async function archiveReservation(req: NextRequest) {
   const reservationQuery = applyNotDeleted(
     supabase
       .from("table_reservations")
-      .select("id,codes,ticket_id")
+      .select("id,codes")
       .eq("id", id)
       .limit(1)
   );
@@ -114,7 +114,6 @@ export async function archiveReservation(req: NextRequest) {
     return NextResponse.json({ success: false, error: ticketsByCodes.error.message }, { status: 500 });
   }
 
-  ticketIds.push(String((reservation as any).ticket_id || ""));
   ticketIds.push(...uniqueStrings((ticketsByReservation.data || []).map((row: any) => row.id)));
   ticketIds.push(...uniqueStrings((ticketsByCodes.data || []).map((row: any) => row.id)));
 
