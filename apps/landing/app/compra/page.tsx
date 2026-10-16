@@ -1648,6 +1648,15 @@ function CompraContent({
   };
 
   const goNextTicket = async () => {
+    if (ticketLoading) return;
+    if (
+      ticketStep === 3 &&
+      mpEnabled &&
+      selectedPaymentMethodTicket === "mercadopago"
+    ) {
+      await confirmTicketPurchase();
+      return;
+    }
     if (ticketStep === 1 && !validateTicketSelectionStep()) return;
     if (ticketStep === 2 && !(await validateTicketBuyerStep())) return;
     if (ticketStep === 1 && selectedTicketType) {
@@ -1659,6 +1668,15 @@ function CompraContent({
   };
 
   const goNextMesa = async () => {
+    if (loading) return;
+    if (
+      mesaStep === 3 &&
+      mpEnabled &&
+      selectedPaymentMethod === "mercadopago"
+    ) {
+      await confirmReservation();
+      return;
+    }
     if (mesaStep === 1 && !validateMesaSelectionStep()) return;
     if (mesaStep === 2 && !(await validateMesaBuyerStep())) return;
     setMesaStep(getNextPurchaseStep(mesaStep));
@@ -1748,7 +1766,6 @@ function CompraContent({
 
         <PurchaseModeControls
           mode={mode}
-          onModeChange={handleModeChange}
           ticketEventId={ticketEventId}
           onTicketEventChange={(nextEventId) => {
             setTicketEventId(nextEventId);
@@ -1974,16 +1991,13 @@ function CompraContent({
                     placeholder="+51 999 999 999"
                   />
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
-                  La nominación de asistentes se hace después del pago desde tu
-                  workspace de reserva. Aquí solo registras al comprador y el
-                  tipo de paquete.
-                </div>
               </>
             )}
             {ticketStep === 3 && (
               <div className="space-y-3">
-                <LegalSummaryNotice />
+                {mpEnabled && selectedPaymentMethodTicket === "mercadopago" && (
+                  <LegalAcceptance checked={ticketLegalAccepted} onChange={setTicketLegalAccepted} />
+                )}
                 <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
                   <div className="flex items-center justify-between text-white">
                     <span className="font-semibold">Documento</span>
@@ -2233,10 +2247,10 @@ function CompraContent({
                 }
                 className="flex items-center justify-center rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
               >
-                {ticketStep < 4
-                  ? "Continuar"
-                  : ticketLoading
-                    ? "Enviando..."
+                {ticketLoading
+                  ? "Preparando pago..."
+                  : ticketStep < 4
+                    ? "Continuar"
                     : isTicketOnlineSelected
                       ? "Continuar al pago"
                       : "Enviar solicitud"}
@@ -2569,7 +2583,9 @@ function CompraContent({
 
                 {mesaStep === 3 && (
                   <div className="space-y-3 p-3">
-                    <LegalSummaryNotice />
+                    {mpEnabled && selectedPaymentMethod === "mercadopago" && (
+                      <LegalAcceptance checked={mesaLegalAccepted} onChange={setMesaLegalAccepted} />
+                    )}
                     <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
                       <div className="flex items-center justify-between text-white">
                         <span className="font-semibold">Mesa</span>
@@ -2792,10 +2808,10 @@ function CompraContent({
                     disabled={loading || uploading || Boolean(mesaSaleBlock)}
                     className="w-full rounded-full px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide btn-smoke transition disabled:opacity-70"
                   >
-                    {mesaStep < 4
-                      ? "Continuar"
-                      : loading
-                        ? "Procesando..."
+                    {loading
+                      ? "Preparando pago..."
+                      : mesaStep < 4
+                        ? "Continuar"
                         : mesaSaleBlock
                           ? "Reserva bloqueada"
                           : isMesaOnlineSelected
@@ -2856,7 +2872,6 @@ function CompraContent({
             />
 
             <div id="compra-mesa-summary" className="scroll-mt-24 space-y-3">
-              <LegalSummaryNotice />
               <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
                 <div className="flex items-center justify-between text-white">
                   <span className="font-semibold">Mesa</span>
@@ -3176,7 +3191,6 @@ function CompraContent({
             />
 
             <div id="compra-ticket-summary" className="scroll-mt-24 space-y-3">
-              <LegalSummaryNotice />
 
               <div className="space-y-3 rounded-2xl border border-white/10 bg-[#0b0b0b] p-4 text-sm text-white/80">
                 <div className="flex items-center justify-between text-white">
@@ -3687,16 +3701,6 @@ function LegalAcceptance({
         está disponible antes y después de la compra.
       </span>
     </label>
-  );
-}
-
-function LegalSummaryNotice() {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs leading-5 text-white/65">
-      Al continuar, confirmas que revisaste y aceptaste los términos,
-      privacidad, condiciones de acceso y política de cambios/devoluciones de
-      BABY.
-    </div>
   );
 }
 

@@ -14,7 +14,6 @@ type SaleBlock = {
 
 type PurchaseModeControlsProps = {
   mode: PurchaseMode;
-  onModeChange: (mode: PurchaseMode) => void;
   ticketEventId: string;
   onTicketEventChange: (eventId: string) => void;
   ticketEventOptions: PurchaseEventOption[];
@@ -28,7 +27,6 @@ type PurchaseModeControlsProps = {
 
 export function PurchaseModeControls({
   mode,
-  onModeChange,
   ticketEventId,
   onTicketEventChange,
   ticketEventOptions,
@@ -49,27 +47,6 @@ export function PurchaseModeControls({
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => onModeChange("ticket")}
-          className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
-            isTicketMode ? "btn-smoke" : "btn-smoke-outline"
-          }`}
-        >
-          Solo entrada
-        </button>
-        <button
-          type="button"
-          onClick={() => onModeChange("mesa")}
-          className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
-            !isTicketMode ? "btn-smoke" : "btn-smoke-outline"
-          }`}
-        >
-          Reserva mesa
-        </button>
-      </div>
-
       <section className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
@@ -93,7 +70,8 @@ export function PurchaseModeControls({
                       value={eventOption.id}
                       disabled={Boolean(optionSaleBlock)}
                     >
-                      {eventOption.name || `Evento ${eventOption.id.slice(0, 6)}`}
+                      {eventOption.name ||
+                        `Evento ${eventOption.id.slice(0, 6)}`}
                       {optionStatus === "sold_out"
                         ? " (Sold out)"
                         : optionStatus === "paused"

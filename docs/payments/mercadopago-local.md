@@ -122,3 +122,9 @@ El cierre descrito arriba corresponde a la validación inicial de tarjetas, prev
 - [Búsqueda de órdenes](https://www.mercadopago.com.pe/developers/es/reference/online-payments/checkout-api/search-order/get).
 - [Tarjetas ficticias y estados de prueba](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/integration-test/cards).
 - Memoria contrastada: `20_Projects/babyclub-monorepo/00 Context.md`, `01 Status.md`, `02 Decisions.md`, `06 Requirements.md`. La decisión de tipos/precios por evento se mantiene en `docs/adr/2026-04-25-008-event-ticket-types-per-event.md`; el código y las migraciones prevalecen ante diferencias históricas.
+
+## Compra simplificada — 16 octubre 2026
+
+Los selectores superiores «Solo entrada / Reserva mesa» y los avisos repetidos de nominación y aceptación implícita se retiraron del checkout. Para Mercado Pago, la casilla explícita se presenta en el resumen y «Continuar» crea o recupera la sesión idempotente y abre directamente el formulario seguro; se omite la pantalla intermedia de método de pago. El formulario de tarjeta se monta automáticamente, Yape sigue disponible para entradas y mesas/boxes conservan solo tarjeta. Los medios legacy mantienen su paso de pago habitual.
+
+Validación local: tipos, build de landing y 28 pruebas; recorrido móvil de entrada y box hasta los campos seguros, bloqueo sin aceptación y alternancia a Yape en entradas. Se crearon únicamente sesiones sintéticas locales, sin cobrar ni emitir QR nuevos. Contexto contrastado: Obsidian `20_Projects/babyclub-monorepo/00 Context.md`, `01 Status.md` y `02 Decisions.md`.

@@ -9,7 +9,6 @@ describe("PurchaseModeControls", () => {
     const html = renderToStaticMarkup(
       <PurchaseModeControls
         mode="ticket"
-        onModeChange={vi.fn()}
         ticketEventId=""
         onTicketEventChange={vi.fn()}
         ticketEventOptions={[
@@ -32,8 +31,8 @@ describe("PurchaseModeControls", () => {
       />,
     );
 
-    expect(html).toContain("Solo entrada");
-    expect(html).toContain("Reserva mesa");
+    expect(html).not.toContain("Solo entrada");
+    expect(html).not.toContain("Reserva mesa");
     expect(html).toContain("Evento");
     expect(html).toContain("Selecciona el evento");
     expect(html).toContain("Baby Friday");
@@ -45,7 +44,6 @@ describe("PurchaseModeControls", () => {
     const html = renderToStaticMarkup(
       <PurchaseModeControls
         mode="mesa"
-        onModeChange={vi.fn()}
         ticketEventId=""
         onTicketEventChange={vi.fn()}
         ticketEventOptions={[
@@ -87,7 +85,6 @@ describe("PurchaseModeControls", () => {
     const html = renderToStaticMarkup(
       <PurchaseModeControls
         mode="ticket"
-        onModeChange={vi.fn()}
         ticketEventId=""
         onTicketEventChange={vi.fn()}
         ticketEventOptions={[]}
