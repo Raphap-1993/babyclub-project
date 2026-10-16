@@ -6,6 +6,32 @@ import {
 } from "./salePayment";
 import { getTicketKindPresentation } from "./ticketKindPresentation";
 describe("commercial payment evidence", () => {
+  it("exposes only receipt references from the settled payment, without provider secrets", () => {
+    expect(
+      summarizeSalePayment([
+        { status: "failed", created_at: "2026-10-17", charge_id: "wrong" },
+        {
+          status: "paid",
+          provider: "mercadopago",
+          amount: 2500,
+          created_at: "2026-10-16",
+          charge_id: "pay-123",
+          order_id: "order-456",
+          receipt_number: "BC-MP-123",
+          paid_at: "2026-10-16T17:00:00Z",
+          metadata: { secret: "private" },
+        },
+      ]),
+    ).toEqual({
+      state: "paid",
+      source: "Mercado Pago",
+      amountCents: 2500,
+      chargeId: "pay-123",
+      orderId: "order-456",
+      receiptNumber: "BC-MP-123",
+      paidAt: "2026-10-16T17:00:00Z",
+    });
+  });
   it("does not equate approval with payment", () => {
     expect(summarizeSalePayment([]).state).toBe("unverified");
     expect(ticketPaymentLabel(null, "ticket")).toBe("Sin pago acreditado");

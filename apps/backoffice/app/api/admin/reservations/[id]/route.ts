@@ -107,7 +107,9 @@ export async function GET(
 
   const paymentRows = await supabase
     .from("payments")
-    .select("provider,status,amount,created_at")
+    .select(
+      "provider,status,amount,created_at,charge_id,order_id,receipt_number,paid_at",
+    )
     .eq("reservation_id", id);
   if (paymentRows.error)
     return NextResponse.json(
@@ -165,7 +167,12 @@ export async function GET(
     }>,
   };
 
-  return NextResponse.json({ success: true, reservation });
+  return NextResponse.json(
+    { success: true, reservation },
+    {
+      headers: { "Cache-Control": "private, no-store", Vary: "Authorization" },
+    },
+  );
 }
 
 export async function PATCH(

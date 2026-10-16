@@ -2,6 +2,10 @@ export type PaymentSummary = {
   state: string;
   source: string;
   amountCents: number | null;
+  chargeId?: string;
+  orderId?: string;
+  receiptNumber?: string;
+  paidAt?: string;
 };
 
 // Reservation approval is operational; it never proves that a payment exists.
@@ -32,6 +36,12 @@ export function summarizeSalePayment(rows: any[]): PaymentSummary {
     amountCents: Number.isFinite(Number(payment.amount))
       ? Number(payment.amount)
       : null,
+    ...(payment.charge_id ? { chargeId: String(payment.charge_id) } : {}),
+    ...(payment.order_id ? { orderId: String(payment.order_id) } : {}),
+    ...(payment.receipt_number
+      ? { receiptNumber: String(payment.receipt_number) }
+      : {}),
+    ...(payment.paid_at ? { paidAt: String(payment.paid_at) } : {}),
   };
 }
 

@@ -18,6 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { formatLimaFromDb } from "shared/limaTime";
+import type { PaymentSummary } from "shared/salePayment";
 import { resolveReservationTicketQuantity } from "shared/reservationTicketQuantity";
 import { authedFetch } from "@/lib/authedFetch";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ interface ConflictingTicket {
 }
 
 interface ReservationDetail {
-  payment?: { state: string; source: string; amountCents: number | null };
+  payment?: PaymentSummary;
   id: string;
   full_name: string;
   email: string | null;
@@ -283,7 +284,11 @@ export default function ViewReservationModal({
                     ? "Pagada"
                     : reservation.payment?.state === "refunded"
                       ? "Pago devuelto"
-                      : "Sin pago acreditado"}
+                      : reservation.payment?.state === "pending"
+                        ? "Pago pendiente"
+                        : reservation.payment?.state === "failed"
+                          ? "Pago fallido"
+                          : "Sin pago acreditado"}
                 </p>
                 <p className="mt-1 text-neutral-400">
                   {reservation.payment?.source}
@@ -295,6 +300,33 @@ export default function ViewReservationModal({
                       }).format(reservation.payment.amountCents / 100)
                     : ""}
                 </p>
+                {(reservation.payment?.chargeId ||
+                  reservation.payment?.orderId ||
+                  reservation.payment?.receiptNumber ||
+                  reservation.payment?.paidAt) && (
+                  <dl className="mt-3 grid gap-3 border-t border-neutral-800 pt-3 sm:grid-cols-2">
+                    {[
+                      ["ID del pago", reservation.payment?.chargeId],
+                      ["ID de la orden", reservation.payment?.orderId],
+                      ["Comprobante BABY", reservation.payment?.receiptNumber],
+                      [
+                        "Fecha de acreditación",
+                        reservation.payment?.paidAt
+                          ? formatLimaFromDb(reservation.payment.paidAt)
+                          : null,
+                      ],
+                    ].map(([label, value]) =>
+                      value ? (
+                        <div key={label} className="min-w-0">
+                          <dt className="text-xs text-neutral-500">{label}</dt>
+                          <dd className="mt-1 break-all select-text text-neutral-200">
+                            {value}
+                          </dd>
+                        </div>
+                      ) : null,
+                    )}
+                  </dl>
+                )}
               </div>
 
               {/* Warning: entradas previas del mismo cliente para este evento */}
