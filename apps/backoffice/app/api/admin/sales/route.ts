@@ -11,6 +11,8 @@ import { isValidEmailAddress } from "shared/email/address";
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const errors: Record<string, string> = {
+  manual_sale_forbidden:
+    "Tu usuario no tiene permiso para registrar ventas manuales. Solicita la revisión de tu rol de administrador.",
   buyer_checkout_exists:
     "El comprador tiene un pago online en curso. Revisa esa compra antes de registrar otra venta.",
   buyer_ticket_exists:
@@ -135,7 +137,14 @@ export async function POST(req: NextRequest) {
           message ||
           "No se pudo registrar la venta. Reintenta con la misma solicitud; no se duplicará el cobro registrado.",
       },
-      { status: message ? 409 : 500 },
+      {
+        status:
+          result.error.message === "manual_sale_forbidden"
+            ? 403
+            : message
+              ? 409
+              : 500,
+      },
     );
   }
   return NextResponse.json({ success: true, ...result.data });

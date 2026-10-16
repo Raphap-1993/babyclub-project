@@ -48,3 +48,17 @@ Contexto: Obsidian `20_Projects/babyclub-monorepo/00 Context.md`, `01 Status.md`
 Release productivo: migración 20261016170000 aplicada el 16 de octubre de 2026 en wtwnhqbbcocpnqqsybln, con registro y hash exacto del archivo normalizado a LF. Cuerpos de las tres funciones comparados con el archivo local y permisos verificados: anon/authenticated no ejecutan la venta, service_role sí. Cero recibos manuales productivos creados durante la validación. La primera ejecución detectó un delimitador SQL incorrecto y fue rechazada sin aplicar la migración; el archivo completo corregido se validó en PostgreSQL local antes de instalarse.
 
 Cierre de acceso: reservas, tickets y detalle ya no serializan registros privados en HTML/Flight. El servidor entrega una vista vacía y carga datos mediante `GET /api/admin/sales-view` con verificación de personal activo y `private, no-store`. Prueba HTTP local sobre seis respuestas HTML/Flight y tres vistas API anónimas, además de comprobación UI con sesión. QR del detalle y modal generados como PNG en el servidor con `shared/ticketQr`, sin transmitir tokens a un generador externo. Esta corrección cubre las pantallas de este slice; no constituye una auditoría de todas las pantallas históricas del backoffice.
+# Corrección de roles de ventas manuales (2026-10-16)
+
+El intento de las 13:03 falló con `manual_sale_forbidden`: producción usa
+`staff_roles.code='ADMIN'`, pero la función SQL comparaba con `admin` sin
+normalizar, a diferencia del guard de la API. La migración
+`20261016190000_manual_sales_role_case` aplica `lower(r.code)` manteniendo
+los mismos roles permitidos, el requisito de usuario activo y no archivado.
+No se cambian roles de usuarios ni se registran ventas para probar en producción.
+
+La regresión local reproduce primero el fallo con `ADMIN` y después verifica
+entradas y boxes, recibo y QR pagados, concurrencia e idempotencia. `DOOR`
+continúa rechazado. El rol del fixture local se restaura al finalizar.
+El rechazo de permisos ahora devuelve 403 con un mensaje específico.
+

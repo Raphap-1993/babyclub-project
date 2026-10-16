@@ -29,18 +29,14 @@ const request = (body: any) =>
 beforeEach(() => {
   vi.stubEnv("SUPABASE_URL", "http://127.0.0.1:64321");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-local");
-  mocks.guard
-    .mockReset()
-    .mockResolvedValue({
-      ok: true,
-      context: { staffId: "authenticated-staff", role: "admin" },
-    });
-  mocks.rpc
-    .mockReset()
-    .mockResolvedValue({
-      data: { reservationId: "res", ticketId: "ticket", replayed: false },
-      error: null,
-    });
+  mocks.guard.mockReset().mockResolvedValue({
+    ok: true,
+    context: { staffId: "authenticated-staff", role: "admin" },
+  });
+  mocks.rpc.mockReset().mockResolvedValue({
+    data: { reservationId: "res", ticketId: "ticket", replayed: false },
+    error: null,
+  });
 });
 describe("manual sale authorization and receipt", () => {
   it("rejects unauthenticated staff and never uses the service client", async () => {
@@ -105,6 +101,16 @@ describe("manual sale authorization and receipt", () => {
       ).status,
     ).toBe(409);
   });
+  it("reports a database permission rejection without inviting a retry", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "manual_sale_forbidden" },
+    });
+    const response = await POST(request(payload));
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toContain("rol de administrador");
+  });
+
   it("returns idempotent result for an already recorded sale", async () => {
     mocks.rpc.mockResolvedValue({
       data: { reservationId: "res", ticketId: "ticket", replayed: true },

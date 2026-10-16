@@ -27,13 +27,18 @@ function checked(result) {
 const staff = checked(
   await db
     .from("staff")
-    .select("id,role:staff_roles(code)")
+    .select("id,staff_role_id,role:staff_roles(code)")
     .eq("is_active", true)
     .is("deleted_at", null),
 ).find(
-  (row) => (Array.isArray(row.role) ? row.role[0] : row.role)?.code === "admin",
+  (row) =>
+    (Array.isArray(row.role) ? row.role[0] : row.role)?.code?.toLowerCase() ===
+    "admin",
 );
 assert(staff, "Local admin fixture required");
+const originalRoleCode = (
+  Array.isArray(staff.role) ? staff.role[0] : staff.role
+).code;
 function payload(overrides = {}) {
   const document = "QA" + randomUUID().replaceAll("-", "").slice(0, 10);
   documents.push(document);
@@ -64,6 +69,21 @@ async function sell(data, id = randomUUID()) {
   });
 }
 try {
+  checked(
+    await db
+      .from("staff_roles")
+      .update({ code: "DOOR" })
+      .eq("id", staff.staff_role_id),
+  );
+  assert.equal((await sell(payload())).error?.message, "manual_sale_forbidden");
+  checks.push("El rol DOOR sigue sin permiso para registrar cobros manuales");
+  // Reproduce the uppercase ADMIN role used in production without changing users there.
+  checked(
+    await db
+      .from("staff_roles")
+      .update({ code: "ADMIN" })
+      .eq("id", staff.staff_role_id),
+  );
   const seed = checked(
     await db
       .from("events")
@@ -199,14 +219,12 @@ try {
   );
   assert.equal(
     (
-      await db
-        .from("table_reservations")
-        .insert({
-          ...pending,
-          email: owner.email,
-          document: owner.document,
-          online_checkout_key: randomUUID(),
-        })
+      await db.from("table_reservations").insert({
+        ...pending,
+        email: owner.email,
+        document: owner.document,
+        online_checkout_key: randomUUID(),
+      })
     ).error?.message,
     "buyer_manual_sale_exists",
   );
@@ -353,6 +371,12 @@ try {
     ),
   );
 } finally {
+  checked(
+    await db
+      .from("staff_roles")
+      .update({ code: originalRoleCode })
+      .eq("id", staff.staff_role_id),
+  );
   // Delete only fixtures belonging to this isolated run.
   checked(
     await db.from("ticket_reservation_units").delete().eq("event_id", eventId),
