@@ -39,7 +39,31 @@ Prueba visual adicional: formulario Yape en escritorio y móvil de 390 px, recha
 
 Evidencia privada fuera de Git: `D:/RAPHA/PROJECTS/BABYCLUB/.local/evidence/yape-checkout-desktop.png`, `yape-checkout-mobile.png`, `yape-approved-mobile.png`, `mesa-card-only.png` y `mesa-card-approved.png`. Compilación de landing, comprobación de tipos de ambas aplicaciones y `git diff --check` correctos.
 
-Estas pruebas de Yape verifican **reenvíos locales firmados** y consulta a la API real de sandbox. No se abrió un túnel nuevo ni se probó en esta iteración la entrega espontánea de webhooks de Yape desde Internet. La validación anterior de entrega automática para tarjetas se documenta en `mercadopago-local.md`. Tampoco se hicieron cobros con una billetera o tarjeta real.
+La primera pasada verificó reenvíos locales firmados. La entrega espontánea desde Internet se comprobó posteriormente en la prueba independiente siguiente. No se hicieron cobros con una billetera o tarjeta real.
+
+### Webhook automático de Yape: validación independiente
+
+El 15 de octubre de 2026, a las 20:14 (America/Lima), se prepararon tres reservas nuevas con cero QR y se detuvo el worker local. Sus páginas de compra no se abrieron. El script creó las Orders directamente en el vendedor ficticio, con la referencia de cada intento ya persistida; no llamó a `/pay`, al GET de la sesión ni al worker. Así la respuesta síncrona de Yape no podía emitir los QR por otra vía.
+
+Se expuso únicamente el proxy `POST /api/payments/mercadopago/webhook` mediante un túnel temporal. GET `/` y POST `/api/tickets` devolvieron 404; un webhook sin firma válida devolvió 401. Se configuró exclusivamente la aplicación ficticia `6682958408134086`, conservando su firma existente y sin cambiar la aplicación productiva.
+
+| Escenario sandbox        | Order                              | Entrega / resultado local                                                                         |
+| ------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Entrada S/ 40            | `ORDTST01M514CBQF790Q91SQ47VB4RX8` | HTTP 200; webhook procesado; `fulfilled`, un QR activo                                            |
+| Dos entradas S/ 80       | `ORDTST01M514CD31TP9QHAN7NKSP12AY` | HTTP 200; webhook procesado; `fulfilled`, QR del comprador y segundo cupo pendiente de nominación |
+| Saldo insuficiente S/ 40 | `ORDTST01M514CEFW3B2EWMSG6TGEDZGD` | HTTP 200; webhook procesado; intento fallido `insufficient_amount`, cero QR                       |
+
+Los eventos se procesaron entre las 20:14:23 y las 20:14:27; Mercado Pago los muestra como entregados con éxito. Se consultó solamente la base para comprobar el resultado, con el worker todavía detenido. La firma se validó y cada webhook volvió a consultar la Order canónica. No se usó el simulador del panel para provocar la emisión.
+
+Después se exportó el cuerpo visible del evento automático original y se repitió cinco veces en paralelo con firmas locales válidas: los cinco devolvieron `duplicated=true`, conservando el mismo intento y QR. Alterar la firma devolvió 401. Estos reenvíos son una prueba local de duplicados, distinta de las tres entregas espontáneas anteriores.
+
+Se nominó al acompañante de la compra doble y se repitió su emisión: quedaron dos entradas individuales y un solo intento de pago. Los tres PNG realmente servidos por las páginas de entrada, de 520 × 520 px, se decodificaron con ZXing y coincidieron con sus `tickets.qr_token` activos; los tres fueron distintos. Mis entradas mostró “2 de 2 entradas listas”.
+
+Solo después de acreditar y comprobar los QR se reactivó el worker. Las dos confirmaciones de compra quedaron `sent` y capturadas en Mailpit. Se retiró el túnel y el proxy y se restauraron los destinos anteriores de la aplicación ficticia. La aplicación real, sus credenciales y los datos de clientes no se modificaron. Este cierre no publica la integración Yape en producción.
+
+La evidencia privada está en `.local/yape-webhook-run.json`, `.local/yape-webhook-evidence/*.png` y `.local/yape-original-event.json` del checkout. Capturas en `D:/RAPHA/PROJECTS/BABYCLUB/.local/evidence/`: `yape-automatic-webhooks-200.png`, `yape-automatic-event-detail.png`, `yape-automatic-checkout-confirmed.png` y `yape-webhook-two-qrs-ready.png`.
+
+Para repetir esta comprobación se agregó `scripts/local/mercadopago-yape-webhook-check.mjs`, con guardas de base loopback, Mailpit y vendedor `test_user`. Sus acciones son `prepare`, `create`, `status`, `verify`, `replay`, `nominate` y `qrs`. Antes de `create`, configurar un destino temporal de la aplicación ficticia, detener el worker y mantener cerradas las nuevas páginas de compra. Primero ejecutar `verify`; después se pueden abrir las páginas, nominar y decodificar. `create` rechaza una segunda ejecución sobre el mismo archivo de corrida para no generar cobros adicionales. El cuerpo original usado por `replay` debe exportarse desde el detalle visible del proveedor al archivo privado indicado. No ejecutar este flujo contra producción.
 
 ```powershell
 # Desde la raíz del checkout; Supabase local, Mailpit y Next en 127.0.0.1:3004.
