@@ -211,6 +211,65 @@ describe.runIf(process.env.BABY_MP_LOCAL_TESTS === "1")(
         },
       };
     }
+    it("forwards the cardholder document to Orders for entries and boxes, never the browser amount", async () => {
+      for (const table of [false, true]) {
+        const s = await fixture(2, table);
+        let canonical: any;
+        let submitted: any;
+        vi.stubGlobal("fetch", async (input: any, init: any) => {
+          if (
+            String(input) === "https://api.mercadopago.com/v1/orders" &&
+            init?.method === "POST"
+          ) {
+            submitted = JSON.parse(init.body);
+            canonical = order(s, { id: submitted.external_reference });
+            return Response.json(canonical);
+          }
+          if (
+            String(input).startsWith("https://api.mercadopago.com/v1/orders/")
+          )
+            return Response.json(canonical);
+          return realFetch(input, init);
+        });
+        await submitMercadoPagoPayment(db, s, {
+          token: "synthetic-card-token",
+          payment_method_id: "debvisa",
+          payment_type_id: "debit_card",
+          installments: 1,
+          amount: 1,
+          payer: {
+            email: "titular@testuser.com",
+            identification: { type: "C.E", number: "123456789" },
+          },
+        });
+        expect(submitted.payer).toEqual({
+          email: "titular@testuser.com",
+          identification: { type: "CE", number: "123456789" },
+        });
+        expect(submitted.total_amount).toBe("40.00");
+        expect(submitted.config.online.transaction_security).toEqual({
+          validation: "on_fraud_risk",
+          liability_shift: "required",
+        });
+        expect((await readMercadoPagoCheckout(db, s, false)).status).toBe(
+          "fulfilled",
+        );
+        expect(
+          check(
+            await db
+              .from("tickets")
+              .select("id")
+              .eq("mp_checkout_session_id", s.id),
+          ),
+        ).toHaveLength(1);
+        check(
+          await db
+            .from("table_reservations")
+            .update({ deleted_at: new Date().toISOString() })
+            .eq("id", s.reservation_id),
+        );
+      }
+    }, 30000);
     it("records both ticket and box approvals as paid, preserving nomination and one buyer QR", async () => {
       for (const table of [false, true]) {
         const s = await fixture(2, table);

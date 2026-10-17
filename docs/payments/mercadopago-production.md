@@ -222,3 +222,54 @@ de registros históricos. El cobro live todavía requiere aceptación del titula
 - [Notificaciones Orders](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/notifications)
 - [Supabase Cron](https://supabase.com/docs/guides/cron/quickstart)
 - [Vault y llamadas programadas](https://supabase.com/docs/guides/functions/schedule-functions)
+
+## Auditoría de tarjetas Perú — 17 octubre 2026
+
+Revisión de `GET /v1/payments/search` de la cuenta real, intervalo del 16 de octubre
+(hora de Lima), al corte 17/10 00:55: 10 pagos, dos Yape acreditados, siete Yape
+rechazados `cc_rejected_high_risk` y una tarjeta Visa débito rechazada
+`cc_rejected_3ds_challenge`. La Order de esa tarjeta confirma
+`transactions.payments[0].status_detail=3ds_challenge_failed`, sin autorización.
+La reserva no tiene QR emitido. Son motivos del proveedor; no prueban por sí
+solos un error del webhook ni permiten atribuir el rechazo a un campo omitido.
+La consulta fue de solo lectura, sin reintentos ni cargos sobre compradores reales.
+
+Se sustituye el formulario manual de Core Methods por **Card Payment Brick**,
+recomendado por la documentación peruana de Checkout API Orders. El SDK resuelve
+marca, tipo crédito/débito, emisor y validaciones del país. La integración anterior
+seleccionaba el primer resultado de `getPaymentMethods` y no utilizaba el flujo
+completo del formulario oficial. Se conserva un solo pago, en una cuota, y los
+colores BABY mediante variables oficiales del Brick, sin selectores CSS internos.
+
+El adaptador permite únicamente token, método, tipo, cuotas y pagador. El documento
+del titular que entrega el SDK llega ahora a `payer.identification` de Orders;
+antes se descartaba entre formulario y servidor. No se sustituye por el DNI del
+comprador, porque puede pagar otra persona. El servidor normaliza C.E a CE y valida
+antes de crear el intento. Importe, reserva e idempotencia siguen viniendo del
+servidor; PAN, CVV y datos adicionales arbitrarios no se envían a las APIs de BABY.
+
+Se conserva 3DS `on_fraud_risk` con `liability_shift=required`, el device session
+transitorio, webhook con firma obligatoria, lectura canónica y emisión idempotente.
+Un rechazo bancario o antifraude puede seguir ocurriendo. No desactivar 3DS,
+fabricar datos del titular ni reintentar automáticamente para intentar eludirlo.
+Para `high_risk` reiterado, el titular de BABY debe solicitar revisión a Mercado
+Pago con las referencias de operación; el proveedor no devuelve su modelo de riesgo.
+
+Validación: 56 pruebas unitarias/API y 12 con Supabase local, tipos y build de
+landing. Pruebas interactivas reales de sandbox mediante el Brick: Mastercard
+aprobada; Visa con desafío 3DS aprobado; Mastercard débito con autenticación
+rechazada y cero QR. El ensayo de box S/600 comprueba también la recuperación del
+desafío al recargar y la emisión después de la aprobación. Los ensayos son del
+vendedor ficticio, con base en loopback y correo capturado en Mailpit. El webhook
+se verifica con eventos firmados en la suite local; estos ensayos de navegador
+confirman por consulta canónica, sin afirmar una entrega espontánea de webhook.
+
+Fuentes contrastadas:
+
+- [Tarjetas / Orders Perú](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/payment-integration/websites/cards).
+- [3DS / Orders](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/payment-management/integrate-3ds).
+- [Comportamiento del Card Payment](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/additional-settings/websites/behavior-customizations).
+- [Variables visuales oficiales](https://www.mercadopago.com.pe/developers/es/docs/checkout-bricks/additional-content/modify-css-variables).
+- [Tarjetas de sandbox](https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/integration-test/cards).
+- Memoria: `20_Projects/babyclub-monorepo/00 Context.md`, `01 Status.md`,
+  `02 Decisions.md`; las notas históricas se contrastaron con el checkout vigente.

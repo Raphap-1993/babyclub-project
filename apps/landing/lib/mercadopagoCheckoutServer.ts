@@ -297,8 +297,16 @@ export async function submitMercadoPagoPayment(
         typeof body?.payer?.email === "string"
           ? body.payer.email.trim()
           : reservationResult.data.email,
-      // The hosted fields already attach the cardholder document to the token.
-      // Orders requires payer.email; avoid duplicating cardholder identity here.
+      // Preserve the document collected by the official Brick. The buyer and
+      // cardholder can differ, so never substitute the reservation buyer's DNI.
+      ...(body?.payer?.identification
+        ? {
+            identification: {
+              type: body.payer.identification.type,
+              number: body.payer.identification.number,
+            },
+          }
+        : {}),
     },
     paymentMethod: {
       id: body?.payment_method_id,
