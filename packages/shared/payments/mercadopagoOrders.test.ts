@@ -57,13 +57,11 @@ afterEach(() => vi.unstubAllGlobals());
 describe("Mercado Pago Orders", () => {
   it("recupera la orden por la referencia persistida sin volver a cobrar", async () => {
     const reference = "a0000000-0000-4000-8000-000000000001";
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        Response.json({
-          data: [{ id: "ORDRECOVERED", external_reference: reference }],
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        data: [{ id: "ORDRECOVERED", external_reference: reference }],
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     expect(
       await findMercadoPagoOrder(
@@ -139,7 +137,8 @@ describe("Mercado Pago Orders", () => {
     expect(payload).not.toHaveProperty("metadata");
     expect(payload.processing_mode).toBe("automatic");
     expect(payload.config.online.transaction_security).toEqual({
-      validation: "on_fraud_risk", liability_shift: "required",
+      validation: "on_fraud_risk",
+      liability_shift: "required",
     });
     expect(() =>
       buildMercadoPagoCardOrder({
@@ -154,6 +153,9 @@ describe("Mercado Pago Orders", () => {
       .mockResolvedValue(new Response(JSON.stringify(paid)));
     vi.stubGlobal("fetch", fetchMock);
     await createMercadoPagoCardOrder(input, "synthetic-access");
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty(
+      "X-meli-session-id",
+    );
     expect(fetchMock.mock.calls[0][0]).toBe(
       "https://api.mercadopago.com/v1/orders",
     );

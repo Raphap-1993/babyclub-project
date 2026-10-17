@@ -34,6 +34,9 @@ export function isYapePhoneAllowed(
 
 export function mercadoPagoDeclineMessage(detail?: string | null) {
   switch (detail) {
+    case "high_risk":
+    case "cc_rejected_high_risk":
+      return "Mercado Pago rechazó este pago por seguridad. Evita repetir intentos seguidos con el mismo medio. Puedes elegir otro medio de pago o consultar con Mercado Pago.";
     case "insufficient_amount":
       return "Saldo insuficiente. Revisa tu saldo en Yape o elige otro medio de pago.";
     case "invalid_card_token":
@@ -44,7 +47,8 @@ export function mercadoPagoDeclineMessage(detail?: string | null) {
     case "required_call_for_authorize":
       return "El pago necesita autorización. Consulta con tu entidad o elige otro medio de pago.";
     case "cc_rejected_3ds_challenge":
-      return "El banco no pudo verificar tu tarjeta. Inténtalo de nuevo o elige otro medio de pago.";
+    case "3ds_challenge_failed":
+      return "La verificación de seguridad de tu tarjeta no se completó. Abre el pago en tu navegador habitual y completa la validación del banco, o elige otro medio de pago.";
     case "expired":
       return "La verificación venció. El intento anterior quedó cerrado.";
     default:

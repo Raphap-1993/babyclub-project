@@ -8,6 +8,7 @@ import {
   mercadoPagoDeclineMessage,
 } from "shared/payments/mercadopagoYape";
 import MercadoPagoChallenge from "./MercadoPagoChallenge";
+import { mercadoPagoDeviceSession } from "shared/payments/mercadopagoDevice";
 import Script from "next/script";
 import {
   ArrowLeft,
@@ -102,7 +103,20 @@ export default function MercadoPagoCheckout({ id }: { id: string }) {
       setMessage("");
       lastPayment.current = payment;
       try {
-        const state = await request("POST", payment);
+        // MP.js already generates this risk signal. Do not load security.js twice.
+        let deviceSessionId = mercadoPagoDeviceSession(
+          (window as any).MP_DEVICE_SESSION_ID,
+        );
+        for (let n = 0; !deviceSessionId && n < 8; n++) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          deviceSessionId = mercadoPagoDeviceSession(
+            (window as any).MP_DEVICE_SESSION_ID,
+          );
+        }
+        const state = await request("POST", {
+          ...payment,
+          ...(deviceSessionId ? { device_session_id: deviceSessionId } : {}),
+        });
         if (state.status === "awaiting_payment") {
           setMessage(mercadoPagoDeclineMessage(state.paymentDetail));
           setBrickVersion((value) => value + 1);

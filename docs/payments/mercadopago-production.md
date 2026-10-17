@@ -11,6 +11,25 @@ pendientes. Las migraciones y el respaldo privado están verificados; no se
 crearon compras ficticias ni se efectuaron cobros reales durante la activación.
 
 Entradas, mesas y boxes admiten tarjeta o Yape. Yape permite S/ 1 a S/ 2,000 por operación y el comprador puede tener un límite menor en su aplicación. Los importes fuera del intervalo se pagan con tarjeta.
+
+Mejora de aprobación (2026-10-16): el checkout obtiene `MP_DEVICE_SESSION_ID`
+generado por MercadoPago.js y lo pasa transitoriamente al servidor. Al crear
+Orders de tarjeta o Yape se envía mediante `X-meli-session-id`. Se valida su
+formato y longitud y no se persiste ni se agrega al cuerpo de la Order.
+Si el SDK aún no lo generó, se espera hasta dos segundos; si no está disponible,
+se conserva el pago sin inventar un identificador. No se duplica el script de
+seguridad que ya incluye el SDK.
+
+Los rechazos `high_risk` y `cc_rejected_high_risk` ahora advierten que se eviten
+intentos seguidos y ofrecen otro medio o consulta con Mercado Pago. Los motivos
+`3ds_challenge_failed` y `cc_rejected_3ds_challenge` explican la validación del
+banco sin desactivar 3DS ni dar por aprobado un rechazo. Esto mejora las señales
+de evaluación, pero no garantiza que Mercado Pago apruebe cada operación.
+
+Fuente: https://www.mercadopago.com.pe/developers/es/docs/checkout-api-orders/payment-management/improve-payment-approval/recommendations
+Memoria contrastada: `20_Projects/babyclub-monorepo/00 Context.md`,
+`01 Status.md`, `02 Decisions.md`; el código y la auditoría de solo lectura
+del 16 de octubre prevalecen sobre el estado histórico del vault.
 Se usa Orders API, campos alojados de tarjeta, validación 3DS cuando corresponde,
 webhook firmado y emisión idempotente. El comprador recibe su QR al acreditarse
 el pago; los acompañantes reciben QR individuales al completar su nominación.

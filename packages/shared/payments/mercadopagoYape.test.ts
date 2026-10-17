@@ -103,6 +103,9 @@ describe("Yape Orders Peru", () => {
       .mockResolvedValue(Response.json({ id: "ORDYAPE", status: "processed" }));
     vi.stubGlobal("fetch", fetchMock);
     await createMercadoPagoYapeOrder(input, "synthetic-access");
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty(
+      "X-meli-session-id",
+    );
     expect(fetchMock.mock.calls[0][1].headers["X-Idempotency-Key"]).toBe(
       input.idempotencyKey,
     );

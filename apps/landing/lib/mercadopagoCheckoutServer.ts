@@ -288,6 +288,7 @@ export async function submitMercadoPagoPayment(
     );
   }
   const card: MercadoPagoCardOrderInput = {
+    deviceSessionId: body?.device_session_id,
     amountCents: session.amount_cents,
     externalReference: session.id,
     idempotencyKey: session.id,
@@ -309,6 +310,7 @@ export async function submitMercadoPagoPayment(
   const yape: MercadoPagoYapeOrderInput | null =
     body?.payment_method_id === "yape"
       ? {
+          deviceSessionId: body?.device_session_id,
           amountCents: session.amount_cents,
           externalReference: session.id,
           idempotencyKey: session.id,

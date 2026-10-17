@@ -1,5 +1,6 @@
 import { PaymentServiceError } from "./errors";
 import { isYapeAmountAllowed, isYapePhoneAllowed } from "./mercadopagoYape";
+import { mercadoPagoDeviceSession } from "./mercadopagoDevice";
 
 // Orders has a different contract from Culqi's order/charge flow. Do not register
 // it in the legacy gateway until its persistence and fulfillment are wired.
@@ -45,6 +46,7 @@ export function parseMercadoPagoAmount(value: unknown): number | null {
 }
 
 export type MercadoPagoCardOrderInput = {
+  deviceSessionId?: string;
   amountCents: number; // Obtained from a persisted server quote, never the Brick amount.
   externalReference: string;
   idempotencyKey: string;
@@ -154,6 +156,7 @@ export function buildMercadoPagoCardOrder(input: MercadoPagoCardOrderInput) {
 }
 
 export type MercadoPagoYapeOrderInput = {
+  deviceSessionId?: string;
   amountCents: number;
   externalReference: string;
   idempotencyKey: string;
@@ -227,7 +230,16 @@ export function createMercadoPagoYapeOrder(
 ) {
   return ordersRequest("", accessToken, {
     method: "POST",
-    headers: { "X-Idempotency-Key": input.idempotencyKey },
+    headers: {
+      "X-Idempotency-Key": input.idempotencyKey,
+      ...(mercadoPagoDeviceSession(input.deviceSessionId)
+        ? {
+            "X-meli-session-id": mercadoPagoDeviceSession(
+              input.deviceSessionId,
+            )!,
+          }
+        : {}),
+    },
     body: JSON.stringify(buildMercadoPagoYapeOrder(input)),
   });
 }
@@ -348,7 +360,16 @@ export function createMercadoPagoCardOrder(
 ) {
   return ordersRequest("", accessToken, {
     method: "POST",
-    headers: { "X-Idempotency-Key": input.idempotencyKey },
+    headers: {
+      "X-Idempotency-Key": input.idempotencyKey,
+      ...(mercadoPagoDeviceSession(input.deviceSessionId)
+        ? {
+            "X-meli-session-id": mercadoPagoDeviceSession(
+              input.deviceSessionId,
+            )!,
+          }
+        : {}),
+    },
     body: JSON.stringify(buildMercadoPagoCardOrder(input)),
   });
 }
